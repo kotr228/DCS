@@ -1,0 +1,224 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "G:\\WinApplications\\Geocadastr\\DocControlService\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\services\\versioncontrolservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\services\\versioncontrolservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\worker.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\worker.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\controllers\\versioncontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\controllers\\versioncontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\services\\versioncontrolfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\services\\versioncontrolfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\startup.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\startup.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\models\\versioningoptions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\models\\versioningoptions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\models\\databasemanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\models\\databasemanager.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\models\\databaseschema.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\models\\databaseschema.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\services\\networkshareservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\services\\networkshareservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\services\\accessservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\services\\accessservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr\\doccontrolservice\\doccontrolservice\\tests\\accesstest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{51E98FC9-51D7-481C-AF32-4D5B510786CA}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\tests\\accesstest.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "VersionControlFactory.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Services\\VersionControlFactory.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Services\\VersionControlFactory.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Services\\VersionControlFactory.cs",
+              "RelativeToolTip": "DocControlService\\Services\\VersionControlFactory.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T10:31:16.01Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "VersionController.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Controllers\\VersionController.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Controllers\\VersionController.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Controllers\\VersionController.cs",
+              "RelativeToolTip": "DocControlService\\Controllers\\VersionController.cs",
+              "ViewState": "AgIAABAAAAAAAAAAAAAgwBkAAAAiAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T10:29:28.191Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "VersionControlService.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Services\\VersionControlService.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Services\\VersionControlService.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Services\\VersionControlService.cs",
+              "RelativeToolTip": "DocControlService\\Services\\VersionControlService.cs",
+              "ViewState": "AgIAAE4AAAAAAAAAAADwv2gAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T10:29:03.781Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "Startup.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Startup.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Startup.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Startup.cs",
+              "RelativeToolTip": "DocControlService\\Startup.cs",
+              "ViewState": "AgIAABMAAAAAAAAAAADwvy0AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T10:23:56.901Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "VersioningOptions.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Models\\VersioningOptions.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Models\\VersioningOptions.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Models\\VersioningOptions.cs",
+              "RelativeToolTip": "DocControlService\\Models\\VersioningOptions.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAcAAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T10:22:08.02Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "DatabaseManager.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Models\\DatabaseManager.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Models\\DatabaseManager.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Models\\DatabaseManager.cs",
+              "RelativeToolTip": "DocControlService\\Models\\DatabaseManager.cs",
+              "ViewState": "AgIAAHAAAAAAAAAAAAAswHsAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T10:15:02.255Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Worker.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Worker.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Worker.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Worker.cs",
+              "RelativeToolTip": "DocControlService\\Worker.cs",
+              "ViewState": "AgIAAEgAAAAAAAAAAAAmwGIAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-17T09:58:07.799Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "Program.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Program.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Program.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Program.cs",
+              "RelativeToolTip": "DocControlService\\Program.cs",
+              "ViewState": "AgIAACMAAAAAAAAAAAAswCsAAABQAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-17T09:58:52.805Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "DatabaseSchema.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Models\\DatabaseSchema.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Models\\DatabaseSchema.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Models\\DatabaseSchema.cs",
+              "RelativeToolTip": "DocControlService\\Models\\DatabaseSchema.cs",
+              "ViewState": "AgIAACMAAAAAAAAAAADwvz0AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-29T10:14:33.175Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "NetworkShareService.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Services\\NetworkShareService.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Services\\NetworkShareService.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Services\\NetworkShareService.cs",
+              "RelativeToolTip": "DocControlService\\Services\\NetworkShareService.cs",
+              "ViewState": "AgIAALgAAAAAAAAAAAAswNsAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-28T06:58:07.93Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "AccessTest.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Tests\\AccessTest.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Tests\\AccessTest.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Tests\\AccessTest.cs",
+              "RelativeToolTip": "DocControlService\\Tests\\AccessTest.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACYAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-28T05:12:12.144Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "AccessService.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Services\\AccessService.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Services\\AccessService.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr\\DocControlService\\DocControlService\\Services\\AccessService.cs",
+              "RelativeToolTip": "DocControlService\\Services\\AccessService.cs",
+              "ViewState": "AgIAAIwAAAAAAAAAAADwv6YAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-09-28T05:11:23.268Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
