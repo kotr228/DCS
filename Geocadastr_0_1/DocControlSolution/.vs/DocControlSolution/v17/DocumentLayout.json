@@ -1,0 +1,202 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\models\\databaseschema.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\models\\databaseschema.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\services\\networkdiscoveryservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\services\\networkdiscoveryservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{746BE772-957C-4AA3-B1B9-DB0DF750463F}|DocControlUI\\DocControlUI.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\client\\serviceclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{746BE772-957C-4AA3-B1B9-DB0DF750463F}|DocControlUI\\DocControlUI.csproj|solutionrelative:doccontrolui\\client\\serviceclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\doccontrolwindowsservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\doccontrolwindowsservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{58BF8637-0F11-4AD7-BF4D-7DE0E0FB0116}|DocControlService.Shared\\DocControlService.Shared.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice.shared\\sharedmodels.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{58BF8637-0F11-4AD7-BF4D-7DE0E0FB0116}|DocControlService.Shared\\DocControlService.Shared.csproj|solutionrelative:doccontrolservice.shared\\sharedmodels.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{746BE772-957C-4AA3-B1B9-DB0DF750463F}|DocControlUI\\DocControlUI.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{746BE772-957C-4AA3-B1B9-DB0DF750463F}|DocControlUI\\DocControlUI.csproj|solutionrelative:doccontrolui\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{746BE772-957C-4AA3-B1B9-DB0DF750463F}|DocControlUI\\DocControlUI.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{746BE772-957C-4AA3-B1B9-DB0DF750463F}|DocControlUI\\DocControlUI.csproj|solutionrelative:doccontrolui\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{746BE772-957C-4AA3-B1B9-DB0DF750463F}|DocControlUI\\DocControlUI.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\externalservicedialog.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{746BE772-957C-4AA3-B1B9-DB0DF750463F}|DocControlUI\\DocControlUI.csproj|solutionrelative:doccontrolui\\externalservicedialog.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\services\\roadmapservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\services\\roadmapservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\data\\externalservicerepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\data\\externalservicerepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|g:\\winapplications\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\data\\roadmaprepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\data\\roadmaprepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "DatabaseSchema.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Models\\DatabaseSchema.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
+              "RelativeToolTip": "DocControlService\\Models\\DatabaseSchema.cs",
+              "ViewState": "AgIAAGgAAAAAAAAAAAAQwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-06T01:55:25.423Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "ExternalServiceDialog.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\ExternalServiceDialog.cs",
+              "RelativeDocumentMoniker": "DocControlUI\\ExternalServiceDialog.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\ExternalServiceDialog.cs",
+              "RelativeToolTip": "DocControlUI\\ExternalServiceDialog.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAK0AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-05T14:03:57.733Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "SharedModels.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\SharedModels.cs",
+              "RelativeDocumentMoniker": "DocControlService.Shared\\SharedModels.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\SharedModels.cs",
+              "RelativeToolTip": "DocControlService.Shared\\SharedModels.cs",
+              "ViewState": "AgIAAA8BAAAAAAAAAAAmwB0BAAAlAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-05T13:52:50.229Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "MainWindow.xaml",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
+              "RelativeDocumentMoniker": "DocControlUI\\MainWindow.xaml",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
+              "RelativeToolTip": "DocControlUI\\MainWindow.xaml",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2025-10-05T13:51:32.4Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "ServiceClient.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Client\\ServiceClient.cs",
+              "RelativeDocumentMoniker": "DocControlUI\\Client\\ServiceClient.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Client\\ServiceClient.cs",
+              "RelativeToolTip": "DocControlUI\\Client\\ServiceClient.cs",
+              "ViewState": "AgIAAHMBAAAAAAAAAAAnwIQCAAAhAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-05T13:47:47.178Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "DocControlWindowsService.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
+              "RelativeDocumentMoniker": "DocControlService\\DocControlWindowsService.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
+              "RelativeToolTip": "DocControlService\\DocControlWindowsService.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAdAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-05T13:44:41.483Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "NetworkDiscoveryService.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\NetworkDiscoveryService.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Services\\NetworkDiscoveryService.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\NetworkDiscoveryService.cs",
+              "RelativeToolTip": "DocControlService\\Services\\NetworkDiscoveryService.cs",
+              "ViewState": "AgIAALMAAAAAAAAAAAAEwLQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-05T13:42:32.551Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "MainWindow.xaml.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml.cs",
+              "RelativeDocumentMoniker": "DocControlUI\\MainWindow.xaml.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml.cs",
+              "RelativeToolTip": "DocControlUI\\MainWindow.xaml.cs",
+              "ViewState": "AgIAABYFAAAAAAAAAAAiwBsAAAAJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-05T13:59:16.766Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "RoadmapService.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\RoadmapService.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Services\\RoadmapService.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\RoadmapService.cs",
+              "RelativeToolTip": "DocControlService\\Services\\RoadmapService.cs",
+              "ViewState": "AgIAAF4AAAAAAAAAAAAkwH0AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-05T13:41:11.324Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "ExternalServiceRepository.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Data\\ExternalServiceRepository.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Data\\ExternalServiceRepository.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Data\\ExternalServiceRepository.cs",
+              "RelativeToolTip": "DocControlService\\Data\\ExternalServiceRepository.cs",
+              "ViewState": "AgIAAGkAAAAAAAAAAAAkwHkAAAAtAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-05T13:40:18.088Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "RoadmapRepository.cs",
+              "DocumentMoniker": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Data\\RoadmapRepository.cs",
+              "RelativeDocumentMoniker": "DocControlService\\Data\\RoadmapRepository.cs",
+              "ToolTip": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Data\\RoadmapRepository.cs",
+              "RelativeToolTip": "DocControlService\\Data\\RoadmapRepository.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAKwAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-05T13:39:30.653Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

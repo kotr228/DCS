@@ -1,0 +1,11 @@
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\bin\Debug\net6.0\DocControlService.Shared.deps.json
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\bin\Debug\net6.0\DocControlService.Shared.dll
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\bin\Debug\net6.0\DocControlService.Shared.pdb
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.GeneratedMSBuildEditorConfig.editorconfig
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.AssemblyInfoInputs.cache
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.AssemblyInfo.cs
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.csproj.CoreCompileInputs.cache
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.dll
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\refint\DocControlService.Shared.dll
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.pdb
+G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\ref\DocControlService.Shared.dll
