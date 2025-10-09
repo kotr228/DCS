@@ -411,6 +411,42 @@
                 </TabControl>
             </TabItem>
 
+            <!-- Вкладка Геодорожні карти v0.3 -->
+            <TabItem Header="🗺️ Геокарти">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Панель управління -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+                        <Button Content="➕ Нова геокарта" Click="CreateGeoRoadmap_Click" 
+                    Background="#4CAF50" Foreground="White"/>
+                        <Button Content="✏️ Редагувати" Click="EditGeoRoadmap_Click"/>
+                        <Button Content="🗑️ Видалити" Click="DeleteGeoRoadmap_Click" 
+                    Background="#F44336" Foreground="White"/>
+                        <Button Content="🔃 Оновити" Click="RefreshGeoRoadmaps_Click"/>
+                    </StackPanel>
+
+                    <!-- Список геокарт -->
+                    <DataGrid Grid.Row="1" x:Name="GeoRoadmapsGrid" 
+                  AutoGenerateColumns="False" 
+                  IsReadOnly="True"
+                  SelectionMode="Single"
+                  Margin="5">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
+                            <DataGridTextColumn Header="Назва" Binding="{Binding Name}" Width="200"/>
+                            <DataGridTextColumn Header="Опис" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="Провайдер" Binding="{Binding MapProvider}" Width="120"/>
+                            <DataGridTextColumn Header="Точок" Binding="{Binding Nodes.Count}" Width="80"/>
+                            <DataGridTextColumn Header="Створено" Binding="{Binding CreatedAt, StringFormat='yyyy-MM-dd'}" Width="100"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+
             <!-- Вкладка Налаштування -->
             <TabItem Header="⚙️ Налаштування">
                 <StackPanel Margin="20">

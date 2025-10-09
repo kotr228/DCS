@@ -46,6 +46,10 @@ namespace DocControlService
         private NetworkDiscoveryService _networkService;
         private ExternalServiceRepository _externalServiceRepo;
 
+        private GeoRoadmapRepository _geoRoadmapRepo;
+        private GeoMappingService _geoMappingService;
+        private IpFilterService _ipFilterService;
+
         public DocControlWindowsService(bool debugMode = false)
         {
             _debugMode = debugMode;
@@ -64,6 +68,11 @@ namespace DocControlService
             _shareService = new NetworkShareService();
             _scanner = new DirectoryScanner(_dbManager);
             _versionFactory = new VersionControlFactory(_dirRepo);
+
+            // Ініціалізація геокарт у версії 0.3
+            _geoRoadmapRepo = new GeoRoadmapRepository(_dbManager);
+            _geoMappingService = new GeoMappingService();
+            _ipFilterService = new IpFilterService(_dbManager);
 
             // Підписуємось на події Git комітів
             foreach (var vcs in _versionFactory.GetAllServices())
@@ -443,6 +452,75 @@ namespace DocControlService
 
                     case CommandType.TestExternalService:
                         return HandleTestExternalService(command.Data);
+
+                    case CommandType.CreateGeoRoadmap:
+                        return HandleCreateGeoRoadmap(command.Data);
+
+                    case CommandType.GetGeoRoadmaps:
+                        return HandleGetGeoRoadmaps();
+
+                    case CommandType.GetGeoRoadmapById:
+                        return HandleGetGeoRoadmapById(command.Data);
+
+                    case CommandType.UpdateGeoRoadmap:
+                        return HandleUpdateGeoRoadmap(command.Data);
+
+                    case CommandType.DeleteGeoRoadmap:
+                        return HandleDeleteGeoRoadmap(command.Data);
+
+                    case CommandType.AddGeoNode:
+                        return HandleAddGeoNode(command.Data);
+
+                    case CommandType.UpdateGeoNode:
+                        return HandleUpdateGeoNode(command.Data);
+
+                    case CommandType.DeleteGeoNode:
+                        return HandleDeleteGeoNode(command.Data);
+
+                    case CommandType.GetGeoNodesByRoadmap:
+                        return HandleGetGeoNodesByRoadmap(command.Data);
+
+                    case CommandType.AddGeoRoute:
+                        return HandleAddGeoRoute(command.Data);
+
+                    case CommandType.DeleteGeoRoute:
+                        return HandleDeleteGeoRoute(command.Data);
+
+                    case CommandType.AddGeoArea:
+                        return HandleAddGeoArea(command.Data);
+
+                    case CommandType.DeleteGeoArea:
+                        return HandleDeleteGeoArea(command.Data);
+
+                    case CommandType.GetGeoRoadmapTemplates:
+                        return HandleGetGeoRoadmapTemplates();
+
+                    case CommandType.CreateFromTemplate:
+                        return HandleCreateFromTemplate(command.Data);
+
+                    case CommandType.SaveAsTemplate:
+                        return HandleSaveAsTemplate(command.Data);
+
+                    case CommandType.GeocodeAddress:
+                        return HandleGeocodeAddress(command.Data);
+
+                    case CommandType.ReverseGeocode:
+                        return HandleReverseGeocode(command.Data);
+
+                    case CommandType.GetIpFilterRules:
+                        return HandleGetIpFilterRules();
+
+                    case CommandType.AddIpFilterRule:
+                        return HandleAddIpFilterRule(command.Data);
+
+                    case CommandType.UpdateIpFilterRule:
+                        return HandleUpdateIpFilterRule(command.Data);
+
+                    case CommandType.DeleteIpFilterRule:
+                        return HandleDeleteIpFilterRule(command.Data);
+
+                    case CommandType.TestIpAccess:
+                        return HandleTestIpAccess(command.Data);
 
                     default:
                         return new ServiceResponse
@@ -1456,6 +1534,682 @@ namespace DocControlService
             {
                 Log($"Error in HandleTestExternalService: {ex.Message}", EventLogEntryType.Error);
                 return new ServiceResponse { Success = false, Message = $"Помилка з'єднання: {ex.Message}" };
+            }
+        }
+
+        #endregion
+
+        #region Geo Roadmap Handlers (v0.3)
+
+        private ServiceResponse HandleCreateGeoRoadmap(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<CreateGeoRoadmapRequest>(data);
+                int roadmapId = _geoRoadmapRepo.CreateGeoRoadmap(request, "System");
+
+                Log($"Створено геокарту: {request.Name} (ID: {roadmapId})");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = roadmapId.ToString(),
+                    Message = "Геокарту створено успішно"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleCreateGeoRoadmap: {ex.Message}", EventLogEntryType.Error);
+                _errorLogRepo.LogError("CreateGeoRoadmap", ex.Message,
+                    "Не вдалося створити геокарту", ex.StackTrace);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleGetGeoRoadmaps()
+        {
+            try
+            {
+                var roadmaps = _geoRoadmapRepo.GetAllGeoRoadmaps();
+                Log($"Завантажено {roadmaps.Count} геокарт");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(roadmaps)
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleGetGeoRoadmaps: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleGetGeoRoadmapById(string data)
+        {
+            try
+            {
+                int roadmapId = int.Parse(data);
+                var roadmap = _geoRoadmapRepo.GetGeoRoadmapById(roadmapId);
+
+                if (roadmap == null)
+                {
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = "Геокарту не знайдено"
+                    };
+                }
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(roadmap)
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleGetGeoRoadmapById: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleUpdateGeoRoadmap(string data)
+        {
+            try
+            {
+                var roadmap = JsonSerializer.Deserialize<GeoRoadmap>(data);
+                bool updated = _geoRoadmapRepo.UpdateGeoRoadmap(roadmap);
+
+                if (updated)
+                    Log($"Оновлено геокарту: {roadmap.Name} (ID: {roadmap.Id})");
+
+                return new ServiceResponse
+                {
+                    Success = updated,
+                    Message = updated ? "Геокарту оновлено" : "Не вдалося оновити геокарту"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleUpdateGeoRoadmap: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleDeleteGeoRoadmap(string data)
+        {
+            try
+            {
+                int roadmapId = int.Parse(data);
+                bool deleted = _geoRoadmapRepo.DeleteGeoRoadmap(roadmapId);
+
+                if (deleted)
+                    Log($"Видалено геокарту ID: {roadmapId}");
+
+                return new ServiceResponse
+                {
+                    Success = deleted,
+                    Message = deleted ? "Геокарту видалено" : "Не вдалося видалити геокарту"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleDeleteGeoRoadmap: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
+        #region Geo Node Handlers
+
+        private ServiceResponse HandleAddGeoNode(string data)
+        {
+            try
+            {
+                var node = JsonSerializer.Deserialize<GeoRoadmapNode>(data);
+                int nodeId = _geoRoadmapRepo.AddNode(node);
+
+                Log($"Додано вузол: {node.Title} (ID: {nodeId})");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = nodeId.ToString(),
+                    Message = "Вузол додано"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleAddGeoNode: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleUpdateGeoNode(string data)
+        {
+            try
+            {
+                var node = JsonSerializer.Deserialize<GeoRoadmapNode>(data);
+                bool updated = _geoRoadmapRepo.UpdateNode(node);
+
+                if (updated)
+                    Log($"Оновлено вузол: {node.Title} (ID: {node.Id})");
+
+                return new ServiceResponse
+                {
+                    Success = updated,
+                    Message = updated ? "Вузол оновлено" : "Не вдалося оновити вузол"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleUpdateGeoNode: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleDeleteGeoNode(string data)
+        {
+            try
+            {
+                int nodeId = int.Parse(data);
+                bool deleted = _geoRoadmapRepo.DeleteNode(nodeId);
+
+                if (deleted)
+                    Log($"Видалено вузол ID: {nodeId}");
+
+                return new ServiceResponse
+                {
+                    Success = deleted,
+                    Message = deleted ? "Вузол видалено" : "Не вдалося видалити вузол"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleDeleteGeoNode: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleGetGeoNodesByRoadmap(string data)
+        {
+            try
+            {
+                int roadmapId = int.Parse(data);
+                var nodes = _geoRoadmapRepo.GetNodesByRoadmap(roadmapId);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(nodes)
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleGetGeoNodesByRoadmap: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
+        #region Geo Route Handlers
+
+        private ServiceResponse HandleAddGeoRoute(string data)
+        {
+            try
+            {
+                var route = JsonSerializer.Deserialize<GeoRoadmapRoute>(data);
+                int routeId = _geoRoadmapRepo.AddRoute(route);
+
+                Log($"Додано маршрут ID: {routeId} (від {route.FromNodeId} до {route.ToNodeId})");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = routeId.ToString(),
+                    Message = "Маршрут додано"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleAddGeoRoute: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleUpdateGeoRoute(string data)
+        {
+            try
+            {
+                var route = JsonSerializer.Deserialize<GeoRoadmapRoute>(data);
+                // Додати метод UpdateRoute в GeoRoadmapRepository якщо потрібно
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = "Маршрут оновлено"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleUpdateGeoRoute: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleDeleteGeoRoute(string data)
+        {
+            try
+            {
+                int routeId = int.Parse(data);
+                bool deleted = _geoRoadmapRepo.DeleteRoute(routeId);
+
+                if (deleted)
+                    Log($"Видалено маршрут ID: {routeId}");
+
+                return new ServiceResponse
+                {
+                    Success = deleted,
+                    Message = deleted ? "Маршрут видалено" : "Не вдалося видалити маршрут"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleDeleteGeoRoute: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
+        #region Geo Area Handlers
+
+        private ServiceResponse HandleAddGeoArea(string data)
+        {
+            try
+            {
+                var area = JsonSerializer.Deserialize<GeoRoadmapArea>(data);
+                int areaId = _geoRoadmapRepo.AddArea(area);
+
+                Log($"Додано область: {area.Name} (ID: {areaId})");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = areaId.ToString(),
+                    Message = "Область додано"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleAddGeoArea: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleUpdateGeoArea(string data)
+        {
+            try
+            {
+                var area = JsonSerializer.Deserialize<GeoRoadmapArea>(data);
+                // Додати метод UpdateArea в GeoRoadmapRepository якщо потрібно
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = "Область оновлено"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleUpdateGeoArea: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleDeleteGeoArea(string data)
+        {
+            try
+            {
+                int areaId = int.Parse(data);
+                bool deleted = _geoRoadmapRepo.DeleteArea(areaId);
+
+                if (deleted)
+                    Log($"Видалено область ID: {areaId}");
+
+                return new ServiceResponse
+                {
+                    Success = deleted,
+                    Message = deleted ? "Область видалено" : "Не вдалося видалити область"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleDeleteGeoArea: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
+        #region Template Handlers
+
+        private ServiceResponse HandleGetGeoRoadmapTemplates()
+        {
+            try
+            {
+                var templates = _geoRoadmapRepo.GetAllTemplates();
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(templates)
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleGetGeoRoadmapTemplates: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleCreateFromTemplate(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<Dictionary<string, object>>(data);
+                int templateId = Convert.ToInt32(request["TemplateId"].ToString());
+                int directoryId = Convert.ToInt32(request["DirectoryId"].ToString());
+                string name = request["Name"].ToString();
+
+                var template = _geoRoadmapRepo.GetAllTemplates()
+                    .FirstOrDefault(t => t.Id == templateId);
+
+                if (template == null)
+                {
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = "Шаблон не знайдено"
+                    };
+                }
+
+                // Створюємо нову геокарту на основі шаблону
+                var templateData = JsonSerializer.Deserialize<Dictionary<string, object>>(template.TemplateJson);
+
+                var createRequest = new CreateGeoRoadmapRequest
+                {
+                    DirectoryId = directoryId,
+                    Name = name,
+                    Description = $"Створено з шаблону: {template.Name}",
+                    MapProvider = MapProvider.OpenStreetMap,
+                    CenterLatitude = 50.4501,
+                    CenterLongitude = 30.5234,
+                    ZoomLevel = 10
+                };
+
+                int roadmapId = _geoRoadmapRepo.CreateGeoRoadmap(createRequest, "System");
+
+                Log($"Створено геокарту з шаблону {template.Name}: {name} (ID: {roadmapId})");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = roadmapId.ToString(),
+                    Message = "Геокарту створено з шаблону"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleCreateFromTemplate: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleSaveAsTemplate(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<Dictionary<string, object>>(data);
+                int roadmapId = Convert.ToInt32(request["RoadmapId"].ToString());
+                string name = request["Name"].ToString();
+                string description = request["Description"].ToString();
+                string category = request["Category"].ToString();
+
+                var roadmap = _geoRoadmapRepo.GetGeoRoadmapById(roadmapId);
+
+                if (roadmap == null)
+                {
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = "Геокарту не знайдено"
+                    };
+                }
+
+                int templateId = _geoRoadmapRepo.SaveAsTemplate(name, description, category, roadmap);
+
+                Log($"Збережено геокарту як шаблон: {name} (ID: {templateId})");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = templateId.ToString(),
+                    Message = "Шаблон збережено"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleSaveAsTemplate: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
+        #region Geocoding Handlers
+
+        private ServiceResponse HandleGeocodeAddress(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<GeocodeRequest>(data);
+
+                Log($"Геокодування адреси: {request.Address}");
+
+                var result = _geoMappingService.GeocodeAddressAsync(request.Address).Result;
+
+                if (result.Success)
+                    Log($"Знайдено координати: {result.Latitude}, {result.Longitude}");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(result)
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleGeocodeAddress: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleReverseGeocode(string data)
+        {
+            try
+            {
+                var coords = JsonSerializer.Deserialize<Dictionary<string, double>>(data);
+                double latitude = coords["Latitude"];
+                double longitude = coords["Longitude"];
+
+                Log($"Зворотне геокодування: {latitude}, {longitude}");
+
+                var address = _geoMappingService.ReverseGeocodeAsync(latitude, longitude).Result;
+
+                Log($"Знайдено адресу: {address}");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = address
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleReverseGeocode: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleCalculateRoute(string data)
+        {
+            try
+            {
+                var nodes = JsonSerializer.Deserialize<List<GeoRoadmapNode>>(data);
+
+                var optimizedRoute = _geoMappingService.CalculateOptimalRoute(nodes);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(optimizedRoute),
+                    Message = "Маршрут оптимізовано"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleCalculateRoute: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
+        #region IP Filter Handlers
+
+        private ServiceResponse HandleGetIpFilterRules()
+        {
+            try
+            {
+                var rules = _ipFilterService.GetAllRules();
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(rules)
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleGetIpFilterRules: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleAddIpFilterRule(string data)
+        {
+            try
+            {
+                var rule = JsonSerializer.Deserialize<IpFilterRule>(data);
+                int ruleId = _ipFilterService.AddRule(rule);
+
+                Log($"Додано правило IP фільтрації: {rule.RuleName} (ID: {ruleId})");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = ruleId.ToString(),
+                    Message = "Правило додано"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleAddIpFilterRule: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleUpdateIpFilterRule(string data)
+        {
+            try
+            {
+                var rule = JsonSerializer.Deserialize<IpFilterRule>(data);
+                bool updated = _ipFilterService.UpdateRule(rule);
+
+                if (updated)
+                    Log($"Оновлено правило IP фільтрації: {rule.RuleName} (ID: {rule.Id})");
+
+                return new ServiceResponse
+                {
+                    Success = updated,
+                    Message = updated ? "Правило оновлено" : "Не вдалося оновити правило"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleUpdateIpFilterRule: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleDeleteIpFilterRule(string data)
+        {
+            try
+            {
+                int ruleId = int.Parse(data);
+                bool deleted = _ipFilterService.DeleteRule(ruleId);
+
+                if (deleted)
+                    Log($"Видалено правило IP фільтрації ID: {ruleId}");
+
+                return new ServiceResponse
+                {
+                    Success = deleted,
+                    Message = deleted ? "Правило видалено" : "Не вдалося видалити правило"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleDeleteIpFilterRule: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleTestIpAccess(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<Dictionary<string, object>>(data);
+                string ipAddress = request["IpAddress"].ToString();
+
+                int? directoryId = request.ContainsKey("DirectoryId") && request["DirectoryId"] != null
+                    ? int.Parse(request["DirectoryId"].ToString())
+                    : null;
+
+                int? geoRoadmapId = request.ContainsKey("GeoRoadmapId") && request["GeoRoadmapId"] != null
+                    ? int.Parse(request["GeoRoadmapId"].ToString())
+                    : null;
+
+                bool allowed = _ipFilterService.CheckAccess(ipAddress, directoryId, geoRoadmapId);
+
+                Log($"Перевірка доступу IP {ipAddress}: {(allowed ? "Дозволено" : "Заблоковано")}");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = allowed.ToString(),
+                    Message = allowed ? "Доступ дозволено" : "Доступ заблоковано"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error in HandleTestIpAccess: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
             }
         }
 

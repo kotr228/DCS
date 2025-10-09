@@ -9,3 +9,14 @@ G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\ob
 G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\refint\DocControlService.Shared.dll
 G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.pdb
 G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\ref\DocControlService.Shared.dll
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\bin\Debug\net6.0\DocControlService.Shared.deps.json
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\bin\Debug\net6.0\DocControlService.Shared.dll
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\bin\Debug\net6.0\DocControlService.Shared.pdb
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.AssemblyInfoInputs.cache
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.AssemblyInfo.cs
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.csproj.CoreCompileInputs.cache
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.dll
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\refint\DocControlService.Shared.dll
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\DocControlService.Shared.pdb
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService.Shared\obj\Debug\net6.0\ref\DocControlService.Shared.dll

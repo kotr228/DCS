@@ -1,4 +1,5 @@
-﻿using DocControlService.Client;
+﻿using DocControlUI.Windows;
+using DocControlService.Client;
 using DocControlService.Shared;
 using System;
 using System.Collections.Generic;
@@ -98,10 +99,11 @@ namespace DocControlUI
             await RefreshDevices();
             await RefreshServiceStatus();
             await RefreshSettings();
-            await RefreshExternalServices(); // ДОДАЙ ЦЕЙ РЯДОК
+            await RefreshExternalServices();
+            await RefreshGeoRoadmaps();
 
             // Оновлюємо combobox для roadmap
-            RoadmapDirectoryCombo.ItemsSource = _directories; // ДОДАЙ ЦЕЙ РЯДОК
+            RoadmapDirectoryCombo.ItemsSource = _directories;
             SetStatus("Дані оновлено");
         }
 
@@ -1208,6 +1210,102 @@ namespace DocControlUI
         {
             MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
             SetStatus($"Помилка: {title}");
+        }
+
+        #endregion
+
+        #region Geo Roadmaps Operations (v0.3)
+
+        private async void CreateGeoRoadmap_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var editorWindow = new GeoRoadmapEditorWindow(_client, null);
+                editorWindow.Owner = this;
+                editorWindow.ShowDialog();
+
+                await RefreshGeoRoadmaps();
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка створення геокарти", ex.Message);
+            }
+        }
+
+        private async void EditGeoRoadmap_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GeoRoadmapsGrid.SelectedItem as GeoRoadmap;
+            if (selected == null)
+            {
+                MessageBox.Show("Виберіть геокарту для редагування", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                var editorWindow = new GeoRoadmapEditorWindow(_client, selected.Id);
+                editorWindow.Owner = this;
+                editorWindow.ShowDialog();
+
+                await RefreshGeoRoadmaps();
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка відкриття редактора", ex.Message);
+            }
+        }
+
+        private async void DeleteGeoRoadmap_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = GeoRoadmapsGrid.SelectedItem as GeoRoadmap;
+            if (selected == null)
+            {
+                MessageBox.Show("Виберіть геокарту для видалення", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                $"Видалити геокарту '{selected.Name}'?\n\nБудуть видалені всі пов'язані точки та маршрути.",
+                "Підтвердження",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                try
+                {
+                    SetStatus("Видалення геокарти...");
+                    await _client.DeleteGeoRoadmapAsync(selected.Id);
+                    await RefreshGeoRoadmaps();
+                    SetStatus("Геокарту видалено");
+                }
+                catch (Exception ex)
+                {
+                    ShowError("Помилка видалення", ex.Message);
+                }
+            }
+        }
+
+        private async void RefreshGeoRoadmaps_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshGeoRoadmaps();
+        }
+
+        private async System.Threading.Tasks.Task RefreshGeoRoadmaps()
+        {
+            try
+            {
+                SetStatus("Завантаження геокарт...");
+                var roadmaps = await _client.GetGeoRoadmapsAsync();
+                GeoRoadmapsGrid.ItemsSource = roadmaps;
+                SetStatus($"Завантажено {roadmaps.Count} геокарт");
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка завантаження геокарт", ex.Message);
+            }
         }
 
         #endregion

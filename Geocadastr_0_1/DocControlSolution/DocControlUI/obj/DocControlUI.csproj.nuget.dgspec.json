@@ -1,23 +1,111 @@
 {
   "format": 1,
   "restore": {
-    "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj": {}
+    "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj": {}
   },
   "projects": {
-    "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
+    "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
-        "projectName": "DocControlService.Shared",
-        "projectPath": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
-        "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
-        "outputPath": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\obj\\",
+        "projectUniqueName": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj",
+        "projectName": "DocControlAI",
+        "projectPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj",
+        "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        ],
+        "originalTargetFrameworks": [
+          "net6.0"
+        ],
+        "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "C:\\Program Files\\dotnet\\library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net6.0": {
+            "targetAlias": "net6.0",
+            "projectReferences": {
+              "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
+                "projectPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "9.0.100"
+      },
+      "frameworks": {
+        "net6.0": {
+          "targetAlias": "net6.0",
+          "dependencies": {
+            "Microsoft.Extensions.Http": {
+              "target": "Package",
+              "version": "[9.0.9, )"
+            },
+            "Microsoft.Extensions.Logging": {
+              "target": "Package",
+              "version": "[9.0.9, )"
+            },
+            "OllamaSharp": {
+              "target": "Package",
+              "version": "[5.4.7, )"
+            },
+            "System.Text.Json": {
+              "target": "Package",
+              "version": "[9.0.9, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.102\\RuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
+        "projectName": "DocControlService.Shared",
+        "projectPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
+        "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\obj\\",
+        "projectStyle": "PackageReference",
+        "fallbackFolders": [
+          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+        ],
+        "configFilePaths": [
+          "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -45,7 +133,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "9.0.100"
       },
       "frameworks": {
         "net6.0": {
@@ -66,24 +154,24 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.102\\RuntimeIdentifierGraph.json"
         }
       }
     },
-    "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj": {
+    "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+        "projectUniqueName": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
         "projectName": "DocControlUI",
-        "projectPath": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
-        "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
-        "outputPath": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\obj\\",
+        "projectPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+        "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -99,8 +187,11 @@
           "net6.0-windows7.0": {
             "targetAlias": "net6.0-windows",
             "projectReferences": {
-              "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
-                "projectPath": "G:\\WinApplications\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj"
+              "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj": {
+                "projectPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj"
+              },
+              "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
+                "projectPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj"
               }
             }
           }
@@ -115,7 +206,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "9.0.100"
       },
       "frameworks": {
         "net6.0-windows7.0": {
@@ -145,7 +236,7 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305\\RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.102\\RuntimeIdentifierGraph.json"
         }
       }
     }

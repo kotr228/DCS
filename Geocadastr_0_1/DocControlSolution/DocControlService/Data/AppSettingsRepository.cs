@@ -65,6 +65,7 @@ namespace DocControlService.Data
             var value = GetSetting(key);
             if (int.TryParse(value, out int result))
                 return result;
+
             return defaultValue;
         }
 
@@ -87,6 +88,7 @@ namespace DocControlService.Data
             {
                 result[reader.GetString(0)] = reader.GetString(1);
             }
+
             return result;
         }
 

@@ -763,6 +763,402 @@ namespace DocControlService.Client
 
         #endregion
 
+        #region Geo Roadmap Operations (v0.3)
+
+        public async Task<int> CreateGeoRoadmapAsync(CreateGeoRoadmapRequest request)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.CreateGeoRoadmap,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (response.Success)
+            {
+                return int.Parse(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<List<GeoRoadmap>> GetGeoRoadmapsAsync()
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetGeoRoadmaps
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<GeoRoadmap>>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<GeoRoadmap> GetGeoRoadmapByIdAsync(int roadmapId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetGeoRoadmapById,
+                Data = roadmapId.ToString()
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<GeoRoadmap>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<bool> UpdateGeoRoadmapAsync(GeoRoadmap roadmap)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.UpdateGeoRoadmap,
+                Data = JsonSerializer.Serialize(roadmap)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        public async Task<bool> DeleteGeoRoadmapAsync(int roadmapId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.DeleteGeoRoadmap,
+                Data = roadmapId.ToString()
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        #endregion
+
+        #region Geo Nodes Operations
+
+        public async Task<int> AddGeoNodeAsync(GeoRoadmapNode node)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.AddGeoNode,
+                Data = JsonSerializer.Serialize(node)
+            });
+
+            if (response.Success)
+            {
+                return int.Parse(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<bool> UpdateGeoNodeAsync(GeoRoadmapNode node)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.UpdateGeoNode,
+                Data = JsonSerializer.Serialize(node)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        public async Task<bool> DeleteGeoNodeAsync(int nodeId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.DeleteGeoNode,
+                Data = nodeId.ToString()
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        public async Task<List<GeoRoadmapNode>> GetGeoNodesByRoadmapAsync(int roadmapId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetGeoNodesByRoadmap,
+                Data = roadmapId.ToString()
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<GeoRoadmapNode>>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        #endregion
+
+        #region Geo Routes Operations
+
+        public async Task<int> AddGeoRouteAsync(GeoRoadmapRoute route)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.AddGeoRoute,
+                Data = JsonSerializer.Serialize(route)
+            });
+
+            if (response.Success)
+            {
+                return int.Parse(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<bool> DeleteGeoRouteAsync(int routeId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.DeleteGeoRoute,
+                Data = routeId.ToString()
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        #endregion
+
+        #region Geo Areas Operations
+
+        public async Task<int> AddGeoAreaAsync(GeoRoadmapArea area)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.AddGeoArea,
+                Data = JsonSerializer.Serialize(area)
+            });
+
+            if (response.Success)
+            {
+                return int.Parse(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<bool> DeleteGeoAreaAsync(int areaId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.DeleteGeoArea,
+                Data = areaId.ToString()
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        #endregion
+
+        #region Templates Operations
+
+        public async Task<List<GeoRoadmapTemplate>> GetGeoRoadmapTemplatesAsync()
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetGeoRoadmapTemplates
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<GeoRoadmapTemplate>>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<int> CreateFromTemplateAsync(int templateId, int directoryId, string name)
+        {
+            var data = new { TemplateId = templateId, DirectoryId = directoryId, Name = name };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.CreateFromTemplate,
+                Data = JsonSerializer.Serialize(data)
+            });
+
+            if (response.Success)
+            {
+                return int.Parse(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<int> SaveAsTemplateAsync(int roadmapId, string name, string description, string category)
+        {
+            var data = new { RoadmapId = roadmapId, Name = name, Description = description, Category = category };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.SaveAsTemplate,
+                Data = JsonSerializer.Serialize(data)
+            });
+
+            if (response.Success)
+            {
+                return int.Parse(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        #endregion
+
+        #region Geocoding Operations
+
+        public async Task<GeocodeResponse> GeocodeAddressAsync(string address)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GeocodeAddress,
+                Data = JsonSerializer.Serialize(new GeocodeRequest { Address = address })
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<GeocodeResponse>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<string> ReverseGeocodeAsync(double latitude, double longitude)
+        {
+            var data = new { Latitude = latitude, Longitude = longitude };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.ReverseGeocode,
+                Data = JsonSerializer.Serialize(data)
+            });
+
+            if (response.Success)
+            {
+                return response.Data;
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        #endregion
+
+        #region IP Filter Operations
+
+        public async Task<List<IpFilterRule>> GetIpFilterRulesAsync()
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetIpFilterRules
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<IpFilterRule>>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<int> AddIpFilterRuleAsync(IpFilterRule rule)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.AddIpFilterRule,
+                Data = JsonSerializer.Serialize(rule)
+            });
+
+            if (response.Success)
+            {
+                return int.Parse(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<bool> UpdateIpFilterRuleAsync(IpFilterRule rule)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.UpdateIpFilterRule,
+                Data = JsonSerializer.Serialize(rule)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        public async Task<bool> DeleteIpFilterRuleAsync(int ruleId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.DeleteIpFilterRule,
+                Data = ruleId.ToString()
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        public async Task<bool> TestIpAccessAsync(string ipAddress, int? directoryId = null, int? geoRoadmapId = null)
+        {
+            var data = new { IpAddress = ipAddress, DirectoryId = directoryId, GeoRoadmapId = geoRoadmapId };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.TestIpAccess,
+                Data = JsonSerializer.Serialize(data)
+            });
+
+            return response.Success && bool.Parse(response.Data);
+        }
+
+        #endregion
+
         public void Dispose()
         {
             // Cleanup if needed

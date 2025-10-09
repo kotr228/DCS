@@ -6,4 +6,20 @@
   <PropertyGroup>
     <ActiveDebugProfile>DocControlUI</ActiveDebugProfile>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Update="Windows\AIAnalysisWindow.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Update="Windows\GeoRoadmapEditorWindow.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <Page Update="Windows\AIAnalysisWindow.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Update="Windows\GeoRoadmapEditorWindow.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
 </Project>

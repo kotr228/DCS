@@ -4,17 +4,17 @@
 winexe
 C#
 .cs
-G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlUI\obj\Debug\net6.0-windows\
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlUI\obj\Debug\net6.0-windows\
 DocControlUI
 none
 false
-TRACE;DEBUG;NET;NET6_0;NETCOREAPP;WINDOWS;WINDOWS7_0;NET5_0_OR_GREATER;NET6_0_OR_GREATER;NETCOREAPP3_0_OR_GREATER;NETCOREAPP3_1_OR_GREATER;WINDOWS7_0_OR_GREATER
-G:\WinApplications\Geocadastr_0_1\DocControlSolution\DocControlUI\App.xaml
-11407045341
+TRACE;DEBUG;NET;NET6_0;NETCOREAPP
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlUI\App.xaml
+31372694112
 
-8-142092385
-195-1812527154
-MainWindow.xaml;
+10945032340
+208242894930
+MainWindow.xaml;Windows\AIAnalysisWindow.xaml;Windows\GeoRoadmapEditorWindow.xaml;
 
 False
 
