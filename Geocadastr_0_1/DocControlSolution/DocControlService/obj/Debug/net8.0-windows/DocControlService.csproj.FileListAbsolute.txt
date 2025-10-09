@@ -1,0 +1,5 @@
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService\obj\Debug\net8.0-windows\DocControlService.csproj.AssemblyReference.cache
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService\obj\Debug\net8.0-windows\DocControlService.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService\obj\Debug\net8.0-windows\DocControlService.AssemblyInfoInputs.cache
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService\obj\Debug\net8.0-windows\DocControlService.AssemblyInfo.cs
+C:\Users\trock\Desktop\Geocadastr_0_1\DocControlSolution\DocControlService\obj\Debug\net8.0-windows\DocControlService.csproj.CoreCompileInputs.cache

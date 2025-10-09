@@ -67,6 +67,15 @@
                         <Button Content="🔍 Сканувати" Click="ScanDirectory_Click"/>
                         <Button Content="🗑️ Видалити" Click="RemoveDirectory_Click"/>
                         <Separator Width="20" Background="Transparent"/>
+
+                        <!-- НОВЕ -->
+                        <Button Content="🤖 AI Аналіз" Click="OpenAIAnalysis_Click"
+                                Background="#673AB7" Foreground="White"
+                                ToolTip="Відкрити модуль AI аналізу та оптимізації"/>
+                        <Button Content="📊 AI Статистика" Click="ShowAIStatistics_Click"
+                                ToolTip="Переглянути статистику AI аналізів"/>
+
+                        <Separator Width="20" Background="Transparent"/>
                         <Button Content="🔓 Відкрити всі" Click="OpenAllShares_Click" Background="#4CAF50" Foreground="White"/>
                         <Button Content="🔒 Закрити всі" Click="CloseAllShares_Click" Background="#F44336" Foreground="White"/>
                     </StackPanel>
@@ -264,6 +273,10 @@
                                       SelectionChanged="RoadmapDirectoryCombo_SelectionChanged"/>
                             <Button Grid.Column="2" Content="🔍 Аналізувати" Click="AnalyzeForRoadmap_Click" 
                                     Margin="10,0,0,0" Padding="10,5"/>
+                            <Button Grid.Column="3" Content="🤖 AI Генерація" Click="GenerateAIRoadmap_Click"
+                                    Margin="10,0,0,0" Padding="10,5"
+                                    Background="#673AB7" Foreground="White"
+                                    ToolTip="Генерувати roadmap за допомогою штучного інтелекту"/>
                         </Grid>
                     </GroupBox>
 
@@ -541,6 +554,21 @@
         <StatusBar Grid.Row="2">
             <StatusBarItem>
                 <TextBlock x:Name="StatusBarText" Text="Готово"/>
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock x:Name="AIStatusText" Text="AI: —" Margin="5,0"/>
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock x:Name="TotalAIAnalysesText" Text="0" Margin="10,0"/>
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock x:Name="UnresolvedViolationsText" Text="0" Margin="10,0"/>
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock x:Name="PendingRecommendationsText" Text="0" Margin="10,0"/>
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock x:Name="TotalAIRoadmapsText" Text="0" Margin="10,0"/>
             </StatusBarItem>
         </StatusBar>
     </Grid>

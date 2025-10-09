@@ -1,9 +1,11 @@
 {
   "version": 2,
-  "dgSpecHash": "635TFwX08Yw=",
+  "dgSpecHash": "SdHv6UU22HI=",
   "success": true,
   "projectFilePath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\trock\\.nuget\\packages\\llamasharp\\0.8.1\\llamasharp.0.8.1.nupkg.sha512",
+    "C:\\Users\\trock\\.nuget\\packages\\llamasharp.backend.cpu\\0.8.1\\llamasharp.backend.cpu.0.8.1.nupkg.sha512",
     "C:\\Users\\trock\\.nuget\\packages\\microsoft.bcl.asyncinterfaces\\9.0.9\\microsoft.bcl.asyncinterfaces.9.0.9.nupkg.sha512",
     "C:\\Users\\trock\\.nuget\\packages\\microsoft.extensions.ai.abstractions\\9.9.0\\microsoft.extensions.ai.abstractions.9.9.0.nupkg.sha512",
     "C:\\Users\\trock\\.nuget\\packages\\microsoft.extensions.configuration.abstractions\\9.0.9\\microsoft.extensions.configuration.abstractions.9.0.9.nupkg.sha512",

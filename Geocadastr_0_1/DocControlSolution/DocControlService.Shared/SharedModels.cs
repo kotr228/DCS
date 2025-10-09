@@ -324,7 +324,37 @@ namespace DocControlService.Shared
         AddIpFilterRule,
         UpdateIpFilterRule,
         DeleteIpFilterRule,
-        TestIpAccess
+        TestIpAccess,
+
+        // ===== AI КОМАНДИ v0.4.1 =====
+
+        // AI Analysis
+        StartAIAnalysis,
+        GetAIAnalysisResults,
+        GetAIAnalysisById,
+        ApplyAIRecommendations,
+        GetAIServiceStatus,
+
+        // Chronological Roadmaps
+        GenerateAIChronologicalRoadmap,
+        GetAIChronologicalRoadmaps,
+        GetAIChronologicalRoadmapById,
+        DeleteAIChronologicalRoadmap,
+        ExportAIChronologicalRoadmap,
+
+        // Geo Roadmaps AI
+        GenerateGeoRoadmapFromAI,
+        ExtractLocationsFromFiles,
+
+        // File Reorganization
+        ValidateDirectoryStructure,
+        GetStructureViolations,
+        ApplyReorganization,
+        PreviewReorganization,
+
+        // AI Statistics
+        GetAIStatistics
+
     }
 
     [Serializable]
@@ -689,6 +719,22 @@ namespace DocControlService.Shared
         Rename,
         Delete,
         Archive
+    }
+
+    [Serializable]
+    public class GenerateChronoRoadmapRequest
+    {
+        public int DirectoryId { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+    }
+
+    [Serializable]
+    public class ApplyReorganizationRequest
+    {
+        public int AnalysisResultId { get; set; }
+        public bool CreateBackup { get; set; }
+        public List<int> ViolationIds { get; set; }
     }
 
     // =============== ОНОВЛЕНІ КОМАНДИ v0.4 ===============

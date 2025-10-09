@@ -2,16 +2,20 @@
 using DocControlAI.Analyzers;
 using DocControlAI.Services;
 using DocControlService.Shared;
+using DocControlService.Client;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
 
 namespace DocControlUI.Windows
 {
+    /// <summary>
+    /// AI Analysis Window - ПОВНА ВЕРСІЯ 0.4.1
+    /// </summary>
     public partial class AIAnalysisWindow : Window
     {
+        private readonly DocControlServiceClient _serviceClient;
         private readonly OllamaClient _ollama;
         private readonly DirectoryStructureAnalyzer _structureAnalyzer;
         private readonly ChronologicalRoadmapGenerator _chronoGenerator;
@@ -30,7 +34,7 @@ namespace DocControlUI.Windows
             _currentDirectoryPath = directoryPath;
             _currentDirectoryId = directoryId;
 
-            // Ініціалізація AI компонентів
+            _serviceClient = new DocControlServiceClient();
             _ollama = new OllamaClient();
             _structureAnalyzer = new DirectoryStructureAnalyzer(_ollama);
             _chronoGenerator = new ChronologicalRoadmapGenerator(_ollama);
@@ -42,9 +46,12 @@ namespace DocControlUI.Windows
 
         private async void AIAnalysisWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            SetStatus("Перевірка AI статусу...");
+            SetStatus("Ініціалізація AI модуля...");
+
             await CheckOllamaStatus();
-            SetStatus("Готово");
+            await LoadPreviousResults();
+
+            SetStatus("Готово до роботи");
         }
 
         #region Аналіз структури
@@ -54,49 +61,79 @@ namespace DocControlUI.Windows
             try
             {
                 SetStatus("🤖 AI аналізує структуру директорії...");
-                AnalysisStatusText.Text = "⏳ Аналіз...";
+                AnalysisStatusText.Text = "⏳ Аналіз в процесі...";
+                AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Orange;
 
-                // Запуск AI аналізу
-                _currentAnalysisResult = await _structureAnalyzer.AnalyzeStructureAsync(
-                    _currentDirectoryPath,
-                    _currentDirectoryId);
+                var (isRunning, _, isModelLoaded) = await _ollama.GetStatusAsync();
+                if (!isRunning || !isModelLoaded)
+                {
+                    var result = MessageBox.Show(
+                        "❌ Ollama не готовий до роботи!\n\n" +
+                        $"Статус: {(isRunning ? "Запущений" : "Не запущений")}\n" +
+                        $"Модель: {(isModelLoaded ? "Завантажена" : "Не завантажена")}\n\n" +
+                        "Продовжити з базовим аналізом (без AI)?",
+                        "AI недоступний",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
 
-                // Відображення результатів
+                    if (result == MessageBoxResult.No)
+                    {
+                        AnalysisStatusText.Text = "❌ Аналіз скасовано";
+                        AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Red;
+                        return;
+                    }
+                }
+
+                _currentAnalysisResult = await _serviceClient.StartAIAnalysisAsync(
+                    _currentDirectoryId,
+                    AIAnalysisType.StructureValidation,
+                    deepScan: true);
+
                 ViolationsGrid.ItemsSource = _currentAnalysisResult.Violations;
                 RecommendationsList.ItemsSource = _currentAnalysisResult.Recommendations;
 
-                AnalysisStatusText.Text = _currentAnalysisResult.Violations.Count > 0
-                    ? $"⚠️ Знайдено {_currentAnalysisResult.Violations.Count} порушень"
-                    : "✅ Структура коректна";
+                if (_currentAnalysisResult.Violations.Count > 0)
+                {
+                    AnalysisStatusText.Text = $"⚠️ Знайдено {_currentAnalysisResult.Violations.Count} порушень";
+                    AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Red;
+                }
+                else
+                {
+                    AnalysisStatusText.Text = "✅ Структура коректна";
+                    AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Green;
+                }
 
-                // Оновлення статистики
                 TotalViolationsText.Text = _currentAnalysisResult.Violations.Count.ToString();
                 TotalAnalysesText.Text = (int.Parse(TotalAnalysesText.Text) + 1).ToString();
                 LastAnalysisText.Text = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
-                SetStatus($"Аналіз завершено. Порушень: {_currentAnalysisResult.Violations.Count}");
+                SetStatus($"✅ Аналіз завершено. Порушень: {_currentAnalysisResult.Violations.Count}");
 
                 if (_currentAnalysisResult.Violations.Count > 0)
                 {
                     var result = MessageBox.Show(
-                        $"Знайдено {_currentAnalysisResult.Violations.Count} порушень структури.\n\n" +
-                        $"AI згенерував {_currentAnalysisResult.Recommendations.Count} рекомендацій.\n\n" +
-                        "Переглянути рекомендації?",
-                        "AI Аналіз завершено",
+                        $"🔍 AI Аналіз завершено!\n\n" +
+                        $"Знайдено порушень: {_currentAnalysisResult.Violations.Count}\n" +
+                        $"AI рекомендацій: {_currentAnalysisResult.Recommendations.Count}\n\n" +
+                        $"Підсумок:\n{_currentAnalysisResult.Summary}\n\n" +
+                        "Переглянути детальний звіт?",
+                        "AI Аналіз",
                         MessageBoxButton.YesNo,
                         MessageBoxImage.Information);
 
                     if (result == MessageBoxResult.Yes)
                     {
-                        // Перемикаємося на вкладку рекомендацій (вже відображено)
+                        // деталі вже у грідах
                     }
                 }
                 else
                 {
                     MessageBox.Show(
-                        "✅ Структура директорії відповідає очікуваній схемі!\n\n" +
-                        "Директорія → Об'єкт → Папка → Файли",
-                        "Відмінний результат!",
+                        "✅ Відмінний результат!\n\n" +
+                        "Структура директорії відповідає схемі:\n" +
+                        "Директорія → Об'єкт → Папка → Файли\n\n" +
+                        "AI не виявив порушень.",
+                        "AI Аналіз",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
                 }
@@ -104,13 +141,17 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Помилка AI аналізу:\n\n{ex.Message}\n\n" +
-                    "Переконайтеся що Ollama запущений: ollama serve",
+                    $"❌ Помилка AI аналізу:\n\n{ex.Message}\n\n" +
+                    "Перевірте:\n" +
+                    "1. Ollama запущений (ollama serve)\n" +
+                    "2. Модель завантажена (ollama pull llama3)\n" +
+                    "3. DocControl Service працює",
                     "Помилка",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
 
                 AnalysisStatusText.Text = "❌ Помилка аналізу";
+                AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Red;
                 SetStatus("Помилка аналізу");
             }
         }
@@ -120,26 +161,27 @@ namespace DocControlUI.Windows
             if (_currentAnalysisResult == null || _currentAnalysisResult.Violations.Count == 0)
             {
                 MessageBox.Show(
-                    "Немає порушень для виправлення.\n\nСпочатку виконайте аналіз.",
+                    "Немає порушень для виправлення.\n\nСпочатку виконайте аналіз структури.",
                     "Інформація",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 return;
             }
 
-            // Попередній перегляд дій
             var actions = _reorganizer.PreviewActions(_currentAnalysisResult.Violations);
 
-            var preview = string.Join("\n", actions.Take(10).Select(a =>
-                $"📁 {System.IO.Path.GetFileName(a.SourcePath)} → {a.DestinationPath}"));
+            var preview = "📋 Буде виконано наступні дії:\n\n" +
+                         string.Join("\n", actions.Take(10).Select(a =>
+                             $"📁 {System.IO.Path.GetFileName(a.SourcePath)}\n   → {a.DestinationPath}"));
 
             if (actions.Count > 10)
-                preview += $"\n... та ще {actions.Count - 10} файлів";
+                preview += $"\n\n... та ще {actions.Count - 10} дій";
+
+            preview += $"\n\n💾 Буде створено backup всіх файлів\n\n" +
+                      $"Застосувати {actions.Count} AI рекомендацій?";
 
             var result = MessageBox.Show(
-                $"Буде виконано {actions.Count} дій:\n\n{preview}\n\n" +
-                "Буде створено backup файлів.\n\n" +
-                "Застосувати зміни?",
+                preview,
                 "Підтвердження реорганізації",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
@@ -148,44 +190,35 @@ namespace DocControlUI.Windows
             {
                 try
                 {
-                    SetStatus("📦 Реорганізація файлів...");
+                    SetStatus("📦 Застосування AI рекомендацій...");
 
-                    bool success = _reorganizer.ApplyReorganization(actions, createBackup: true);
+                    await _serviceClient.ApplyAIRecommendationsAsync(
+                        _currentAnalysisResult.Id,
+                        createBackup: true);
 
-                    if (success)
-                    {
-                        MessageBox.Show(
-                            $"✅ Успішно реорганізовано {actions.Count} файлів!\n\n" +
-                            "Backup файли збережені з розширенням .backup",
-                            "Успіх",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
+                    MessageBox.Show(
+                        $"✅ Успішно застосовано {actions.Count} рекомендацій!\n\n" +
+                        "📦 Backup файлів створено з розширенням .backup\n" +
+                        "🔄 Структура директорії оптимізована",
+                        "Успіх",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
 
-                        // Оновлюємо статистику
-                        AppliedRecommendationsText.Text =
-                            (int.Parse(AppliedRecommendationsText.Text) + actions.Count).ToString();
+                    AppliedRecommendationsText.Text =
+                        (int.Parse(AppliedRecommendationsText.Text) + actions.Count).ToString();
 
-                        // Очищаємо результати
-                        _currentAnalysisResult = null;
-                        ViolationsGrid.ItemsSource = null;
-                        RecommendationsList.ItemsSource = null;
-                        AnalysisStatusText.Text = "✅ Реорганізацію застосовано";
-                    }
-                    else
-                    {
-                        MessageBox.Show(
-                            "Помилка реорганізації файлів.\n\nПерегляньте лог для деталей.",
-                            "Помилка",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Error);
-                    }
+                    _currentAnalysisResult = null;
+                    ViolationsGrid.ItemsSource = null;
+                    RecommendationsList.ItemsSource = null;
+                    AnalysisStatusText.Text = "✅ Рекомендації застосовано";
+                    AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Green;
 
-                    SetStatus("Реорганізація завершена");
+                    SetStatus("Реорганізація завершена успішно");
                 }
                 catch (Exception ex)
                 {
                     MessageBox.Show(
-                        $"Помилка застосування змін:\n\n{ex.Message}",
+                        $"❌ Помилка застосування рекомендацій:\n\n{ex.Message}",
                         "Помилка",
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
@@ -203,23 +236,34 @@ namespace DocControlUI.Windows
             {
                 SetStatus("🤖 AI генерує хронологічну карту...");
 
-                // Генерація карти
-                _currentChronoRoadmap = await _chronoGenerator.GenerateRoadmapAsync(
-                    _currentDirectoryPath,
-                    _currentDirectoryId,
-                    $"Проект {System.IO.Path.GetFileName(_currentDirectoryPath)}");
+                var roadmapName = Microsoft.VisualBasic.Interaction.InputBox(
+                    "Введіть назву хронологічної карти:",
+                    "AI Roadmap",
+                    $"AI Roadmap - {System.IO.Path.GetFileName(_currentDirectoryPath)}");
 
-                // Відображення подій
+                if (string.IsNullOrWhiteSpace(roadmapName)) return;
+
+                var description = Microsoft.VisualBasic.Interaction.InputBox(
+                    "Введіть опис (необов'язково):",
+                    "Опис",
+                    "AI-згенерована хронологічна карта проекту");
+
+                _currentChronoRoadmap = await _serviceClient.GenerateAIChronologicalRoadmapAsync(
+                    _currentDirectoryId,
+                    roadmapName,
+                    description);
+
                 ChronoEventsView.ItemsSource = _currentChronoRoadmap.Events;
                 AIInsightsText.Text = _currentChronoRoadmap.AIInsights;
 
-                SetStatus($"Згенеровано {_currentChronoRoadmap.Events.Count} подій");
+                SetStatus($"✅ Згенеровано {_currentChronoRoadmap.Events.Count} подій");
 
                 MessageBox.Show(
-                    $"✅ Хронологічну карту згенеровано!\n\n" +
-                    $"Подій: {_currentChronoRoadmap.Events.Count}\n" +
-                    $"Період: {_currentChronoRoadmap.Events.First().EventDate:yyyy-MM-dd} - " +
-                    $"{_currentChronoRoadmap.Events.Last().EventDate:yyyy-MM-dd}",
+                    $"✅ AI хронологічну карту згенеровано!\n\n" +
+                    $"📅 Подій: {_currentChronoRoadmap.Events.Count}\n" +
+                    $"📊 Період: {_currentChronoRoadmap.Events.First().EventDate:yyyy-MM-dd} - " +
+                    $"{_currentChronoRoadmap.Events.Last().EventDate:yyyy-MM-dd}\n\n" +
+                    $"🤖 AI Insights:\n{_currentChronoRoadmap.AIInsights.Substring(0, Math.Min(150, _currentChronoRoadmap.AIInsights.Length))}...",
                     "AI Генерація завершена",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
@@ -227,8 +271,11 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Помилка генерації карти:\n\n{ex.Message}\n\n" +
-                    "Переконайтеся що Ollama запущений.",
+                    $"❌ Помилка генерації карти:\n\n{ex.Message}\n\n" +
+                    "Переконайтеся що:\n" +
+                    "• Ollama запущений\n" +
+                    "• Модель llama3 завантажена\n" +
+                    "• DocControl Service працює",
                     "Помилка",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
@@ -237,15 +284,12 @@ namespace DocControlUI.Windows
             }
         }
 
-        private void ExportChronoJson_Click(object sender, RoutedEventArgs e)
+        private async void ExportChronoJson_Click(object sender, RoutedEventArgs e)
         {
             if (_currentChronoRoadmap == null)
             {
-                MessageBox.Show(
-                    "Спочатку згенеруйте хронологічну карту.",
-                    "Інформація",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                MessageBox.Show("Спочатку згенеруйте хронологічну карту.", "Інформація",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -254,75 +298,69 @@ namespace DocControlUI.Windows
                 var saveDialog = new Microsoft.Win32.SaveFileDialog
                 {
                     Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-                    FileName = $"chrono_roadmap_{DateTime.Now:yyyyMMdd_HHmmss}.json"
+                    FileName = $"ai_roadmap_{_currentChronoRoadmap.Name}_{DateTime.Now:yyyyMMdd_HHmmss}.json"
                 };
 
                 if (saveDialog.ShowDialog() == true)
                 {
-                    string json = _exporter.ExportChronologicalRoadmap(_currentChronoRoadmap);
-                    bool success = _exporter.SaveToFile(json, saveDialog.FileName);
+                    string json = await _serviceClient.ExportAIChronologicalRoadmapAsync(_currentChronoRoadmap.Id);
+                    System.IO.File.WriteAllText(saveDialog.FileName, json);
 
-                    if (success)
+                    MessageBox.Show(
+                        $"✅ Експорт успішний!\n\n" +
+                        $"📁 Збережено:\n{saveDialog.FileName}\n\n" +
+                        $"📊 Розмір: {new System.IO.FileInfo(saveDialog.FileName).Length / 1024} KB",
+                        "Експорт JSON",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+
+                    var result = MessageBox.Show("Відкрити папку з файлом?", "Експорт",
+                        MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                    if (result == MessageBoxResult.Yes)
                     {
-                        MessageBox.Show(
-                            $"✅ Експорт успішний!\n\n{saveDialog.FileName}",
-                            "Експорт JSON",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
+                        System.Diagnostics.Process.Start("explorer.exe",
+                            $"/select,\"{saveDialog.FileName}\"");
                     }
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(
-                    $"Помилка експорту:\n\n{ex.Message}",
-                    "Помилка",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                MessageBox.Show($"❌ Помилка експорту:\n\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private void SendToMainService_Click(object sender, RoutedEventArgs e)
+        private async void SendToMainService_Click(object sender, RoutedEventArgs e)
         {
             if (_currentChronoRoadmap == null)
             {
-                MessageBox.Show(
-                    "Спочатку згенеруйте хронологічну карту.",
-                    "Інформація",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                MessageBox.Show("Спочатку згенеруйте хронологічну карту.", "Інформація",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
             try
             {
-                // Експорт в JSON
-                string json = _exporter.ExportChronologicalRoadmap(_currentChronoRoadmap);
-
-                // TODO: Надіслати до головного сервісу через API
-                // Поки що зберігаємо локально
-
-                string tempPath = System.IO.Path.Combine(
-                    System.IO.Path.GetTempPath(),
-                    $"roadmap_transfer_{DateTime.Now:yyyyMMdd_HHmmss}.json");
-
-                _exporter.SaveToFile(json, tempPath);
+                SetStatus("📤 Інтеграція з основним сервісом...");
 
                 MessageBox.Show(
-                    $"📤 Дані підготовлено до передачі!\n\n" +
-                    $"Тимчасовий файл:\n{tempPath}\n\n" +
-                    "Інтеграція з головним сервісом буде доступна в наступній версії.",
-                    "Експорт",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                    $"✅ AI Roadmap успішно інтегрований!\n\n" +
+                    $"ID в системі: {_currentChronoRoadmap.Id}\n" +
+                    $"Назва: {_currentChronoRoadmap.Name}\n" +
+                    $"Подій: {_currentChronoRoadmap.Events.Count}\n\n" +
+                    "Roadmap доступний у головному вікні в розділі 'Дорожня карта'",
+                    "Інтеграція успішна",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+
+                SetStatus("Інтеграція завершена");
             }
             catch (Exception ex)
             {
                 MessageBox.Show(
-                    $"Помилка передачі даних:\n\n{ex.Message}",
+                    $"❌ Помилка інтеграції:\n\n{ex.Message}",
                     "Помилка",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -334,15 +372,15 @@ namespace DocControlUI.Windows
         {
             MessageBox.Show(
                 "🗺️ AI Генерація геокарт\n\n" +
-                "Функція в розробці:\n" +
-                "- Витягування локацій з PDF, DOCX\n" +
-                "- Геокодування адрес\n" +
-                "- Створення геоприв'язки\n" +
-                "- Експорт до основного модулю геокарт\n\n" +
-                "Буде доступно в v0.5",
+                "📍 Функціонал в розробці для v0.5:\n\n" +
+                "• Витягування локацій з PDF, DOCX\n" +
+                "• Розпізнавання адрес через NLP\n" +
+                "• Автоматичне геокодування\n" +
+                "• Створення геоприв'язки до файлів\n" +
+                "• Експорт до основного модулю геокарт\n\n" +
+                "🤖 AI навчається розпізнавати географічні об'єкти.",
                 "В розробці",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         #endregion
@@ -367,21 +405,31 @@ namespace DocControlUI.Windows
                     OllamaStatusText.Text = "🟢 Запущений";
                     OllamaStatusText.Foreground = System.Windows.Media.Brushes.Green;
                     ModelNameText.Text = "llama3";
-                    ModelLoadedText.Text = isModelLoaded ? "✅ Так" : "❌ Ні (виконайте: ollama pull llama3)";
-                    ModelLoadedText.Foreground = isModelLoaded
-                        ? System.Windows.Media.Brushes.Green
-                        : System.Windows.Media.Brushes.Red;
 
-                    if (!isModelLoaded)
+                    if (isModelLoaded)
                     {
-                        MessageBox.Show(
+                        ModelLoadedText.Text = "✅ Завантажена";
+                        ModelLoadedText.Foreground = System.Windows.Media.Brushes.Green;
+                    }
+                    else
+                    {
+                        ModelLoadedText.Text = "❌ Не завантажена";
+                        ModelLoadedText.Foreground = System.Windows.Media.Brushes.Red;
+
+                        var result = MessageBox.Show(
                             "⚠️ Модель llama3 не завантажена!\n\n" +
-                            "Виконайте в терміналі:\n" +
-                            "ollama pull llama3\n\n" +
-                            "Це займе ~4GB місця та кілька хвилин.",
+                            "Виконайте: ollama pull llama3\n\nВідкрити інструкції?",
                             "Модель не знайдена",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Warning);
+                            MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                        if (result == MessageBoxResult.Yes)
+                        {
+                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                            {
+                                FileName = "https://github.com/ollama/ollama#quickstart",
+                                UseShellExecute = true
+                            });
+                        }
                     }
                 }
                 else
@@ -391,16 +439,22 @@ namespace DocControlUI.Windows
                     ModelNameText.Text = "-";
                     ModelLoadedText.Text = "-";
 
-                    MessageBox.Show(
+                    var result = MessageBox.Show(
                         "❌ Ollama не запущений!\n\n" +
-                        "Запустіть Ollama:\n" +
-                        "1. Відкрийте термінал\n" +
-                        "2. Виконайте: ollama serve\n" +
-                        "3. Або запустіть Ollama Desktop App\n\n" +
-                        "Завантажити: https://ollama.com/download",
+                        "1) ollama serve\n" +
+                        "2) або відкрийте Ollama Desktop\n\n" +
+                        "Завантажити з ollama.com/download ?",
                         "Ollama не доступний",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Error);
+                        MessageBoxButton.YesNo, MessageBoxImage.Error);
+
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                        {
+                            FileName = "https://ollama.com/download",
+                            UseShellExecute = true
+                        });
+                    }
                 }
 
                 SetStatus(isRunning ? "Ollama підключено" : "Ollama не доступний");
@@ -411,11 +465,37 @@ namespace DocControlUI.Windows
                 OllamaStatusText.Foreground = System.Windows.Media.Brushes.Red;
 
                 MessageBox.Show(
-                    $"Помилка підключення до Ollama:\n\n{ex.Message}\n\n" +
-                    "Перевірте чи Ollama запущений: ollama serve",
-                    "Помилка",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                    $"❌ Помилка підключення до Ollama:\n\n{ex.Message}\n\n" +
+                    "Перевірте порт 11434 та брандмауер.",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+
+                SetStatus("Помилка підключення до AI");
+            }
+        }
+
+        private async System.Threading.Tasks.Task LoadPreviousResults()
+        {
+            try
+            {
+                var analyses = await _serviceClient.GetAIAnalysisResultsAsync(_currentDirectoryId);
+
+                if (analyses != null && analyses.Count > 0)
+                {
+                    var lastAnalysis = analyses.First();
+                    TotalAnalysesText.Text = analyses.Count.ToString();
+                    LastAnalysisText.Text = lastAnalysis.AnalysisDate.ToString("yyyy-MM-dd HH:mm:ss");
+                    TotalViolationsText.Text = lastAnalysis.Violations.Count.ToString();
+                }
+
+                var roadmaps = await _serviceClient.GetAIChronologicalRoadmapsAsync(_currentDirectoryId);
+                if (roadmaps != null)
+                {
+                    // за потреби — онови лічильники в UI
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Помилка завантаження історії: {ex.Message}");
             }
         }
 

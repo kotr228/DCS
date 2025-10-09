@@ -13,4 +13,7 @@
     <SourceRoot Include="C:\Users\trock\.nuget\packages\" />
     <SourceRoot Include="C:\Program Files (x86)\Microsoft Visual Studio\Shared\NuGetPackages\" />
   </ItemGroup>
+  <ImportGroup Condition=" '$(ExcludeRestorePackageImports)' != 'true' ">
+    <Import Project="$(NuGetPackageRoot)llamasharp.backend.cpu\0.8.1\build\netstandard2.0\LLamaSharp.Backend.Cpu.props" Condition="Exists('$(NuGetPackageRoot)llamasharp.backend.cpu\0.8.1\build\netstandard2.0\LLamaSharp.Backend.Cpu.props')" />
+  </ImportGroup>
 </Project>

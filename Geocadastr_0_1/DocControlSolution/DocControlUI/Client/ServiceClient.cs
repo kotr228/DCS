@@ -1159,6 +1159,178 @@ namespace DocControlService.Client
 
         #endregion
 
+        #region AI Analysis Operations
+
+        public async Task<AIAnalysisResult> StartAIAnalysisAsync(int directoryId, AIAnalysisType analysisType, bool deepScan = false)
+        {
+            var request = new AIAnalysisRequest
+            {
+                DirectoryId = directoryId,
+                AnalysisType = analysisType,
+                DeepScan = deepScan
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.StartAIAnalysis,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (response.Success)
+                return JsonSerializer.Deserialize<AIAnalysisResult>(response.Data);
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<List<AIAnalysisResult>> GetAIAnalysisResultsAsync(int directoryId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetAIAnalysisResults,
+                Data = directoryId.ToString()
+            });
+
+            if (response.Success)
+                return JsonSerializer.Deserialize<List<AIAnalysisResult>>(response.Data);
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<bool> ApplyAIRecommendationsAsync(int analysisResultId, bool createBackup, List<int> violationIds = null)
+        {
+            var request = new ApplyReorganizationRequest
+            {
+                AnalysisResultId = analysisResultId,
+                CreateBackup = createBackup,
+                ViolationIds = violationIds ?? new List<int>()
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.ApplyAIRecommendations,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+                throw new Exception(response.Message);
+
+            return true;
+        }
+
+        public async Task<AIServiceStatus> GetAIServiceStatusAsync()
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetAIServiceStatus
+            });
+
+            if (response.Success)
+                return JsonSerializer.Deserialize<AIServiceStatus>(response.Data);
+
+            throw new Exception(response.Message);
+        }
+
+        #endregion
+
+        #region AI Chronological Roadmaps
+
+        public async Task<AIChronologicalRoadmap> GenerateAIChronologicalRoadmapAsync(int directoryId, string name, string description)
+        {
+            var request = new GenerateChronoRoadmapRequest
+            {
+                DirectoryId = directoryId,
+                Name = name,
+                Description = description
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GenerateAIChronologicalRoadmap,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (response.Success)
+                return JsonSerializer.Deserialize<AIChronologicalRoadmap>(response.Data);
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<List<AIChronologicalRoadmap>> GetAIChronologicalRoadmapsAsync(int directoryId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetAIChronologicalRoadmaps,
+                Data = directoryId.ToString()
+            });
+
+            if (response.Success)
+                return JsonSerializer.Deserialize<List<AIChronologicalRoadmap>>(response.Data);
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<AIChronologicalRoadmap> GetAIChronologicalRoadmapByIdAsync(int roadmapId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetAIChronologicalRoadmapById,
+                Data = roadmapId.ToString()
+            });
+
+            if (response.Success)
+                return JsonSerializer.Deserialize<AIChronologicalRoadmap>(response.Data);
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<bool> DeleteAIChronologicalRoadmapAsync(int roadmapId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.DeleteAIChronologicalRoadmap,
+                Data = roadmapId.ToString()
+            });
+
+            if (!response.Success)
+                throw new Exception(response.Message);
+
+            return true;
+        }
+
+        public async Task<string> ExportAIChronologicalRoadmapAsync(int roadmapId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.ExportAIChronologicalRoadmap,
+                Data = roadmapId.ToString()
+            });
+
+            if (response.Success)
+                return response.Data;
+
+            throw new Exception(response.Message);
+        }
+
+        #endregion
+
+        #region AI Statistics
+
+        public async Task<Dictionary<string, int>> GetAIStatisticsAsync()
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetAIStatistics
+            });
+
+            if (response.Success)
+                return JsonSerializer.Deserialize<Dictionary<string, int>>(response.Data);
+
+            throw new Exception(response.Message);
+        }
+
+        #endregion
+
+
         public void Dispose()
         {
             // Cleanup if needed

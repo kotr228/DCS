@@ -11,12 +11,15 @@
 
   <ItemGroup>
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
+    <PackageReference Include="LLamaSharp" Version="0.8.1" />
+    <PackageReference Include="LLamaSharp.Backend.Cpu" Version="0.8.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.9" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="7.0.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\DocControlAI\DocControlAI.csproj" />
     <ProjectReference Include="..\DocControlService.Shared\DocControlService.Shared.csproj" />
   </ItemGroup>
 

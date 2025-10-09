@@ -3,12 +3,20 @@
   "WorkspaceRootPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{746BE772-957C-4AA3-B1B9-DB0DF750463F}|DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\windows\\aianalysiswindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{746BE772-957C-4AA3-B1B9-DB0DF750463F}|DocControlUI\\DocControlUI.csproj|solutionrelative:doccontrolui\\windows\\aianalysiswindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D4631A25-B9CF-4C5F-8B7D-15E188A12C07}|DocControlAI\\DocControlAI.csproj|c:\\users\\trock\\desktop\\geocadastr_0_1\\doccontrolsolution\\doccontrolai\\core\\ollamaclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D4631A25-B9CF-4C5F-8B7D-15E188A12C07}|DocControlAI\\DocControlAI.csproj|solutionrelative:doccontrolai\\core\\ollamaclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{58BF8637-0F11-4AD7-BF4D-7DE0E0FB0116}|DocControlService.Shared\\DocControlService.Shared.csproj|c:\\users\\trock\\desktop\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice.shared\\sharedmodels.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{58BF8637-0F11-4AD7-BF4D-7DE0E0FB0116}|DocControlService.Shared\\DocControlService.Shared.csproj|solutionrelative:doccontrolservice.shared\\sharedmodels.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\doccontrolservice.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\doccontrolservice.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D4631A25-B9CF-4C5F-8B7D-15E188A12C07}|DocControlAI\\DocControlAI.csproj|c:\\users\\trock\\desktop\\geocadastr_0_1\\doccontrolsolution\\doccontrolai\\doccontrolai.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{D4631A25-B9CF-4C5F-8B7D-15E188A12C07}|DocControlAI\\DocControlAI.csproj|solutionrelative:doccontrolai\\doccontrolai.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\doccontrolwindowsservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{D238FFFB-FCFC-43FE-B1FA-B56220B0137F}|DocControlService\\DocControlService.csproj|solutionrelative:doccontrolservice\\doccontrolwindowsservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -18,32 +26,55 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 1,
+          "SelectedChildIndex": 3,
           "Children": [
             {
               "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "SharedModels.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\SharedModels.cs",
-              "RelativeDocumentMoniker": "DocControlService.Shared\\SharedModels.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\SharedModels.cs",
-              "RelativeToolTip": "DocControlService.Shared\\SharedModels.cs",
-              "ViewState": "AgIAAKMCAAAAAAAAAAAuwLgCAAAAAAAAAAAAAA==",
+              "Title": "DocControlService.csproj",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj",
+              "RelativeDocumentMoniker": "DocControlService\\DocControlService.csproj",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj",
+              "RelativeToolTip": "DocControlService\\DocControlService.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAZAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-10-09T06:13:43.113Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "DocControlWindowsService.cs",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
+              "RelativeDocumentMoniker": "DocControlService\\DocControlWindowsService.cs",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
+              "RelativeToolTip": "DocControlService\\DocControlWindowsService.cs",
+              "ViewState": "AgIAAAwAAAAAAAAAAAAAAHIAAABZAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-08T10:45:27.077Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-10-09T05:51:27.137Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "DocControlAI.csproj",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj",
+              "RelativeDocumentMoniker": "DocControlAI\\DocControlAI.csproj",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj",
+              "RelativeToolTip": "DocControlAI\\DocControlAI.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAZAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-10-09T05:48:44.646Z"
             },
             {
               "$type": "Document",
               "DocumentIndex": 0,
-              "Title": "AIAnalysisWindow.xaml.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\AIAnalysisWindow.xaml.cs",
-              "RelativeDocumentMoniker": "DocControlUI\\Windows\\AIAnalysisWindow.xaml.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\AIAnalysisWindow.xaml.cs",
-              "RelativeToolTip": "DocControlUI\\Windows\\AIAnalysisWindow.xaml.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAABAAAAAAAAAA==",
+              "Title": "OllamaClient.cs",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\Core\\OllamaClient.cs",
+              "RelativeDocumentMoniker": "DocControlAI\\Core\\OllamaClient.cs",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\Core\\OllamaClient.cs",
+              "RelativeToolTip": "DocControlAI\\Core\\OllamaClient.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAASAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-10-08T10:43:50.906Z",
+              "WhenOpened": "2025-10-09T05:46:01.563Z",
               "EditorCaption": ""
             }
           ]

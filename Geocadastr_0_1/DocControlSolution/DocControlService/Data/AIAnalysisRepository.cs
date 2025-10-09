@@ -3,12 +3,13 @@ using DocControlService.Shared;
 using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 
 namespace DocControlService.Data
 {
     /// <summary>
-    /// Репозиторій для AI аналізів
+    /// Репозиторій для AI аналізів - ОНОВЛЕНА ВЕРСІЯ 0.4.1
     /// </summary>
     public class AIAnalysisRepository
     {
@@ -48,14 +49,12 @@ namespace DocControlService.Data
                 cmd.CommandText = "SELECT last_insert_rowid();";
                 int analysisId = Convert.ToInt32(cmd.ExecuteScalar());
 
-                // Зберігаємо рекомендації
                 foreach (var rec in result.Recommendations)
                 {
                     rec.AnalysisResultId = analysisId;
                     SaveRecommendation(rec, conn, txn);
                 }
 
-                // Зберігаємо порушення
                 foreach (var violation in result.Violations)
                 {
                     violation.AnalysisResultId = analysisId;
@@ -136,12 +135,78 @@ namespace DocControlService.Data
                     Type = Enum.Parse<AIAnalysisType>(reader.GetString(4)),
                     Summary = reader.IsDBNull(5) ? "" : reader.GetString(5),
                     RawAIResponse = reader.IsDBNull(6) ? "" : reader.GetString(6),
-                    IsProcessed = reader.GetInt32(7) == 1
+                    IsProcessed = reader.GetInt32(7) == 1,
+                    Recommendations = GetRecommendations(reader.GetInt32(0)),
+                    Violations = GetViolations(reader.GetInt32(0))
                 };
                 results.Add(result);
             }
 
             return results;
+        }
+
+        private List<AIRecommendation> GetRecommendations(int analysisId)
+        {
+            var recommendations = new List<AIRecommendation>();
+            using var conn = _db.GetConnection();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT id, analysisResultId, title, description, type, actionJson, priority, isApplied, appliedAt
+                FROM AIRecommendations
+                WHERE analysisResultId = @id;";
+            cmd.Parameters.AddWithValue("@id", analysisId);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                recommendations.Add(new AIRecommendation
+                {
+                    Id = reader.GetInt32(0),
+                    AnalysisResultId = reader.GetInt32(1),
+                    Title = reader.GetString(2),
+                    Description = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                    Type = Enum.Parse<RecommendationType>(reader.GetString(4)),
+                    ActionJson = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                    Priority = Enum.Parse<RecommendationPriority>(reader.GetString(6)),
+                    IsApplied = reader.GetInt32(7) == 1,
+                    AppliedAt = reader.IsDBNull(8) ? null : DateTime.Parse(reader.GetString(8))
+                });
+            }
+
+            return recommendations;
+        }
+
+        private List<StructureViolation> GetViolations(int analysisId)
+        {
+            var violations = new List<StructureViolation>();
+            using var conn = _db.GetConnection();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT id, analysisResultId, filePath, violationType, description, suggestedPath, isResolved
+                FROM StructureViolations
+                WHERE analysisResultId = @id;";
+            cmd.Parameters.AddWithValue("@id", analysisId);
+
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                violations.Add(new StructureViolation
+                {
+                    Id = reader.GetInt32(0),
+                    AnalysisResultId = reader.GetInt32(1),
+                    FilePath = reader.GetString(2),
+                    Type = Enum.Parse<ViolationType>(reader.GetString(3)),
+                    Description = reader.IsDBNull(4) ? "" : reader.GetString(4),
+                    SuggestedPath = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                    IsResolved = reader.GetInt32(6) == 1
+                });
+            }
+
+            return violations;
         }
 
         #endregion
@@ -173,7 +238,6 @@ namespace DocControlService.Data
                 cmd.CommandText = "SELECT last_insert_rowid();";
                 int roadmapId = Convert.ToInt32(cmd.ExecuteScalar());
 
-                // Зберігаємо події
                 foreach (var evt in roadmap.Events)
                 {
                     evt.RoadmapId = roadmapId;
@@ -242,6 +306,36 @@ namespace DocControlService.Data
             return roadmaps;
         }
 
+        public AIChronologicalRoadmap GetChronologicalRoadmapById(int roadmapId)
+        {
+            using var conn = _db.GetConnection();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+                SELECT id, directoryId, name, description, generatedAt, aiInsights
+                FROM AIChronologicalRoadmaps
+                WHERE id = @id;";
+            cmd.Parameters.AddWithValue("@id", roadmapId);
+
+            using var reader = cmd.ExecuteReader();
+            if (reader.Read())
+            {
+                return new AIChronologicalRoadmap
+                {
+                    Id = reader.GetInt32(0),
+                    DirectoryId = reader.GetInt32(1),
+                    Name = reader.GetString(2),
+                    Description = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                    GeneratedAt = DateTime.Parse(reader.GetString(4)),
+                    AIInsights = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                    Events = GetChronologicalEvents(reader.GetInt32(0))
+                };
+            }
+
+            return null;
+        }
+
         private List<ChronologicalEvent> GetChronologicalEvents(int roadmapId)
         {
             var events = new List<ChronologicalEvent>();
@@ -273,6 +367,55 @@ namespace DocControlService.Data
             }
 
             return events;
+        }
+
+        public bool DeleteChronologicalRoadmap(int roadmapId)
+        {
+            using var conn = _db.GetConnection();
+            conn.Open();
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM AIChronologicalRoadmaps WHERE id = @id;";
+            cmd.Parameters.AddWithValue("@id", roadmapId);
+
+            return cmd.ExecuteNonQuery() > 0;
+        }
+
+        #endregion
+
+        #region Statistics
+
+        public Dictionary<string, int> GetAIStatistics()
+        {
+            var stats = new Dictionary<string, int>();
+            using var conn = _db.GetConnection();
+            conn.Open();
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM AIAnalysisResults;";
+                stats["TotalAnalyses"] = Convert.ToInt32(cmd.ExecuteScalar());
+            }
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM StructureViolations WHERE isResolved = 0;";
+                stats["UnresolvedViolations"] = Convert.ToInt32(cmd.ExecuteScalar());
+            }
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM AIRecommendations WHERE isApplied = 0;";
+                stats["PendingRecommendations"] = Convert.ToInt32(cmd.ExecuteScalar());
+            }
+
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT COUNT(*) FROM AIChronologicalRoadmaps;";
+                stats["TotalRoadmaps"] = Convert.ToInt32(cmd.ExecuteScalar());
+            }
+
+            return stats;
         }
 
         #endregion

@@ -1,165 +1,120 @@
-﻿using OllamaSharp;
-using OllamaSharp.Models;
-using OllamaSharp.Models.Chat;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using LLama;
+using LLama.Common;
 
 namespace DocControlAI.Core
 {
-    /// <summary>Клієнт для роботи з Ollama (Llama 3)</summary>
+    /// <summary>Клієнт для локальної Llama 3 (.gguf) без Ollama</summary>
     public class OllamaClient
     {
-        private readonly OllamaApiClient _client;
+        private readonly string _modelPath;
         private readonly string _modelName;
+
+        private LLamaModel _model;
+        private LLamaContext _context;
+        private InteractiveExecutor _executor;
         private bool _isModelLoaded = false;
 
-        public OllamaClient(string ollamaUrl = "http://localhost:11434", string modelName = "llama3")
+        public OllamaClient(string ollamaUrl = "Models/meta-llama-3-8b-instruct.Q4_K_M.gguf", string modelName = "llama3")
         {
-            _client = new OllamaApiClient(new Uri(ollamaUrl));
+            _modelPath = ollamaUrl;
             _modelName = modelName;
         }
 
-        /// <summary>Перевірка чи запущений Ollama</summary>
         public async Task<bool> IsOllamaRunningAsync()
         {
-            try
-            {
-                var models = await _client.ListLocalModelsAsync();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ollama не запущений: {ex.Message}");
-                return false;
-            }
+            return await Task.Run(() => File.Exists(_modelPath));
         }
 
-        /// <summary>Перевірка, чи модель доступна локально</summary>
         public async Task<bool> EnsureModelLoadedAsync()
         {
-            try
-            {
-                var models = await _client.ListLocalModelsAsync();
-                _isModelLoaded = models.Any(m => m.Name.Contains(_modelName, StringComparison.OrdinalIgnoreCase));
-
-                if (!_isModelLoaded)
-                    Console.WriteLine($"Модель '{_modelName}' не знайдена локально. Ollama завантажить її при першому запиті.");
-
+            if (_isModelLoaded)
                 return true;
-            }
-            catch (Exception ex)
+
+            if (!File.Exists(_modelPath))
             {
-                Console.WriteLine($"Помилка перевірки моделі: {ex.Message}");
+                Console.WriteLine($"❌ Файл моделі не знайдено: {_modelPath}");
                 return false;
             }
+
+            await Task.Run(() =>
+            {
+                Console.WriteLine($"[AI] Завантаження моделі {_modelPath}...");
+
+                var modelParams = new ModelParams(_modelPath)
+                {
+                    ContextSize = 2048,
+                    GpuLayerCount = 0
+                };
+
+                _model = new LLamaModel(modelParams);
+                _context = _model.CreateContext();
+                _executor = new InteractiveExecutor(_context);
+                _isModelLoaded = true;
+
+                Console.WriteLine($"✅ Модель {_modelName} готова до роботи.");
+            });
+
+            return true;
         }
 
-        /// <summary>Звичайний prompt (агрегація потоку у рядок)</summary>
         public async Task<string> SendPromptAsync(string prompt)
         {
-            try
-            {
-                var request = new GenerateRequest
-                {
-                    Model = _modelName,
-                    Prompt = prompt,
-                    // Навіть якщо Stream=false, деякі версії OllamaSharp все одно повертають IAsyncEnumerable
-                    Stream = false
-                };
+            await EnsureModelLoadedAsync();
+            if (!_isModelLoaded)
+                throw new Exception("Модель не завантажена.");
 
-                var sb = new StringBuilder();
-                await foreach (var chunk in _client.GenerateAsync(request))
-                {
-                    if (!string.IsNullOrEmpty(chunk?.Response))
-                        sb.Append(chunk.Response);
-                }
-                return sb.Length > 0 ? sb.ToString() : "Помилка: порожня відповідь";
-            }
-            catch (Exception ex)
+            var sb = new StringBuilder();
+            var inferParams = new InferenceParams
             {
-                Console.WriteLine($"Помилка запиту до Ollama: {ex.Message}");
-                throw;
-            }
+                Temperature = 0.7f,
+                MaxTokens = 512
+            };
+
+            await Task.Run(() =>
+            {
+                foreach (var token in _executor.Infer(prompt, inferParams))
+                    sb.Append(token);
+            });
+
+            return sb.ToString();
         }
 
-        /// <summary>Chat prompt (агрегація потоку у рядок)</summary>
         public async Task<string> SendChatPromptAsync(List<Message> messages)
         {
-            try
-            {
-                var chatRequest = new ChatRequest
-                {
-                    Model = _modelName,
-                    Messages = messages,
-                    Stream = false
-                };
-
-                var sb = new StringBuilder();
-                await foreach (var part in _client.ChatAsync(chatRequest))
-                {
-                    var piece = part?.Message?.Content;
-                    if (!string.IsNullOrEmpty(piece))
-                        sb.Append(piece);
-                }
-                return sb.Length > 0 ? sb.ToString() : "Помилка: порожня відповідь";
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Помилка chat-запиту: {ex.Message}");
-                throw;
-            }
+            var combined = string.Join("\n", messages.Select(m => $"{m.Role}: {m.Content}"));
+            return await SendPromptAsync(combined);
         }
 
-        /// <summary>Статус Ollama</summary>
-        public async Task<(bool isRunning, string version, bool isModelLoaded)> GetStatusAsync()
-        {
-            try
-            {
-                bool isRunning = await IsOllamaRunningAsync();
-                if (!isRunning)
-                    return (false, null, false);
-
-                var models = await _client.ListLocalModelsAsync();
-                bool modelLoaded = models.Any(m => m.Name.Contains(_modelName, StringComparison.OrdinalIgnoreCase));
-                return (true, "latest", modelLoaded);
-            }
-            catch
-            {
-                return (false, null, false);
-            }
-        }
-
-        /// <summary>Генерація JSON (structured output)</summary>
         public async Task<string> GenerateJsonAsync(string prompt, string jsonSchema = null)
         {
-            try
-            {
-                string enhancedPrompt = $@"{prompt}
+            string fullPrompt = $@"{prompt}
 
 IMPORTANT: Respond ONLY with valid JSON. Do not include any explanatory text before or after the JSON.
 {(jsonSchema != null ? $"Use this JSON schema:\n{jsonSchema}" : "")}";
 
-                var response = await SendPromptAsync(enhancedPrompt);
+            string response = await SendPromptAsync(fullPrompt);
 
-                int jsonStart = response.IndexOf('{');
-                int jsonEnd = response.LastIndexOf('}');
-                if (jsonStart >= 0 && jsonEnd > jsonStart)
-                    return response.Substring(jsonStart, jsonEnd - jsonStart + 1);
+            int start = response.IndexOf('{');
+            int end = response.LastIndexOf('}');
+            if (start >= 0 && end > start)
+                return response.Substring(start, end - start + 1);
 
-                return response;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Помилка генерації JSON: {ex.Message}");
-                throw;
-            }
+            return response;
+        }
+
+        public async Task<(bool isRunning, string version, bool isModelLoaded)> GetStatusAsync()
+        {
+            bool exists = await IsOllamaRunningAsync();
+            return (exists, "LLamaSharp 0.8.1 (local, .NET6)", _isModelLoaded);
         }
     }
 
-    /// <summary>Контекст розмови</summary>
     public class ConversationContext
     {
         public List<Message> Messages { get; set; } = new List<Message>();
@@ -169,5 +124,11 @@ IMPORTANT: Respond ONLY with valid JSON. Do not include any explanatory text bef
         {
             Messages.Add(new Message { Role = role, Content = content });
         }
+    }
+
+    public class Message
+    {
+        public string Role { get; set; }
+        public string Content { get; set; }
     }
 }

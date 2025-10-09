@@ -11,6 +11,10 @@ using System.ServiceProcess;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using DocControlAI.Core;
+using DocControlAI.Analyzers;
+using DocControlAI.Services;
+
 
 namespace DocControlService
 {
@@ -49,6 +53,13 @@ namespace DocControlService
         private GeoRoadmapRepository _geoRoadmapRepo;
         private GeoMappingService _geoMappingService;
         private IpFilterService _ipFilterService;
+
+        // AI компоненти v0.4.1
+        private AIAnalysisRepository _aiAnalysisRepo;
+        private OllamaClient _ollamaClient;
+        private DirectoryStructureAnalyzer _structureAnalyzer;
+        private ChronologicalRoadmapGenerator _chronoGenerator;
+        private FileReorganizationService _fileReorganizer;
 
         public DocControlWindowsService(bool debugMode = false)
         {
@@ -98,6 +109,14 @@ namespace DocControlService
             _roadmapService = new RoadmapService();
             _networkService = new NetworkDiscoveryService();
             _externalServiceRepo = new ExternalServiceRepository(_dbManager);
+
+            // AI компоненти v0.4.1
+            _aiAnalysisRepo = new AIAnalysisRepository(_dbManager);
+            _ollamaClient = new OllamaClient("Models/meta-llama-3-8b-instruct.Q4_K_M.gguf", "llama3");
+            _structureAnalyzer = new DirectoryStructureAnalyzer(_ollamaClient);
+            _chronoGenerator = new ChronologicalRoadmapGenerator(_ollamaClient);
+            _fileReorganizer = new FileReorganizationService();
+
 
             // Ініціалізуємо дефолтні налаштування
             _settingsRepo.InitializeDefaults();
@@ -334,7 +353,7 @@ namespace DocControlService
             }
         }
 
-        private ServiceResponse ProcessCommand(string requestJson)
+        private async Task<ServiceResponse> ProcessCommand(string requestJson)
         {
             try
             {
@@ -521,6 +540,37 @@ namespace DocControlService
 
                     case CommandType.TestIpAccess:
                         return HandleTestIpAccess(command.Data);
+
+                    case CommandType.StartAIAnalysis:
+                        return await HandleStartAIAnalysis(command.Data);
+
+                    case CommandType.GetAIAnalysisResults:
+                        return HandleGetAIAnalysisResults(command.Data);
+
+                    case CommandType.GetAIServiceStatus:
+                        return await HandleGetAIServiceStatus();
+
+                    case CommandType.ApplyAIRecommendations:
+                        return await HandleApplyAIRecommendations(command.Data);
+
+                    case CommandType.GenerateAIChronologicalRoadmap:
+                        return await HandleGenerateAIChronologicalRoadmap(command.Data);
+
+                    case CommandType.GetAIChronologicalRoadmaps:
+                        return HandleGetAIChronologicalRoadmaps(command.Data);
+
+                    case CommandType.GetAIChronologicalRoadmapById:
+                        return HandleGetAIChronologicalRoadmapById(command.Data);
+
+                    case CommandType.DeleteAIChronologicalRoadmap:
+                        return HandleDeleteAIChronologicalRoadmap(command.Data);
+
+                    case CommandType.ExportAIChronologicalRoadmap:
+                        return HandleExportAIChronologicalRoadmap(command.Data);
+
+                    case CommandType.GetAIStatistics:
+                        return HandleGetAIStatistics();
+
 
                     default:
                         return new ServiceResponse
@@ -2214,5 +2264,279 @@ namespace DocControlService
         }
 
         #endregion
+
+        #region AI Analysis Handlers
+
+        private async Task<ServiceResponse> HandleStartAIAnalysis(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<AIAnalysisRequest>(data);
+                var directory = _dirRepo.GetById(request.DirectoryId);
+
+                if (directory == null)
+                {
+                    return new ServiceResponse { Success = false, Message = "Директорію не знайдено" };
+                }
+
+                Log($"Початок AI аналізу для директорії: {directory.Name}");
+
+                AIAnalysisResult result = null;
+
+                switch (request.AnalysisType)
+                {
+                    case AIAnalysisType.StructureValidation:
+                        result = await _structureAnalyzer.AnalyzeStructureAsync(directory.Browse, request.DirectoryId);
+                        break;
+
+                    default:
+                        return new ServiceResponse { Success = false, Message = "Непідтримуваний тип аналізу" };
+                }
+
+                int analysisId = _aiAnalysisRepo.SaveAnalysisResult(result);
+                result.Id = analysisId;
+
+                Log($"AI аналіз завершено. ID: {analysisId}, Порушень: {result.Violations.Count}");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(result),
+                    Message = $"Аналіз завершено. Знайдено {result.Violations.Count} порушень"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка AI аналізу: {ex.Message}", EventLogEntryType.Error);
+                _errorLogRepo.LogError("AI Analysis", ex.Message, "Помилка при виконанні AI аналізу", ex.StackTrace);
+
+                return new ServiceResponse { Success = false, Message = $"Помилка: {ex.Message}" };
+            }
+        }
+
+        private ServiceResponse HandleGetAIAnalysisResults(string data)
+        {
+            try
+            {
+                int directoryId = int.Parse(data);
+                var results = _aiAnalysisRepo.GetAnalysesByDirectory(directoryId);
+
+                return new ServiceResponse { Success = true, Data = JsonSerializer.Serialize(results) };
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка отримання AI результатів: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private async Task<ServiceResponse> HandleGetAIServiceStatus()
+        {
+            try
+            {
+                var (isRunning, version, isModelLoaded) = await _ollamaClient.GetStatusAsync();
+                var stats = _aiAnalysisRepo.GetAIStatistics();
+
+                var status = new AIServiceStatus
+                {
+                    IsOllamaRunning = isRunning,
+                    OllamaVersion = version ?? "Unknown",
+                    ModelName = "llama3",
+                    IsModelLoaded = isModelLoaded,
+                    TotalAnalyses = stats.GetValueOrDefault("TotalAnalyses", 0),
+                    LastAnalysisTime = null,
+                    Status = isRunning ? "Працює" : "Не запущений"
+                };
+
+                return new ServiceResponse { Success = true, Data = JsonSerializer.Serialize(status) };
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка перевірки AI статусу: {ex.Message}", EventLogEntryType.Warning);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private async Task<ServiceResponse> HandleApplyAIRecommendations(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<ApplyReorganizationRequest>(data);
+                var analysisResults = _aiAnalysisRepo.GetAnalysesByDirectory(0); // TODO: оптимізувати пошук за AnalysisId
+                var analysis = analysisResults.FirstOrDefault(a => a.Id == request.AnalysisResultId);
+
+                if (analysis == null)
+                    return new ServiceResponse { Success = false, Message = "Результати аналізу не знайдено" };
+
+                var violations = request.ViolationIds != null && request.ViolationIds.Count > 0
+                    ? analysis.Violations.Where(v => request.ViolationIds.Contains(v.Id)).ToList()
+                    : analysis.Violations;
+
+                if (violations.Count == 0)
+                    return new ServiceResponse { Success = false, Message = "Немає порушень для виправлення" };
+
+                Log($"Застосування {violations.Count} рекомендацій AI...");
+
+                var actions = _fileReorganizer.PreviewActions(violations);
+                bool success = _fileReorganizer.ApplyReorganization(actions, request.CreateBackup);
+
+                if (success)
+                    Log($"Успішно застосовано {actions.Count} рекомендацій");
+
+                return new ServiceResponse
+                {
+                    Success = success,
+                    Message = success ? $"Застосовано {actions.Count} рекомендацій" : "Помилка застосування рекомендацій",
+                    Data = actions.Count.ToString()
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка застосування рекомендацій: {ex.Message}", EventLogEntryType.Error);
+                _errorLogRepo.LogError("Apply AI Recommendations", ex.Message, "Помилка при застосуванні AI рекомендацій", ex.StackTrace);
+
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
+        #region AI Chronological Roadmap Handlers
+
+        private async Task<ServiceResponse> HandleGenerateAIChronologicalRoadmap(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<GenerateChronoRoadmapRequest>(data);
+                var directory = _dirRepo.GetById(request.DirectoryId);
+
+                if (directory == null)
+                    return new ServiceResponse { Success = false, Message = "Директорію не знайдено" };
+
+                Log($"Генерація AI хронологічної карти для: {directory.Name}");
+
+                var roadmap = await _chronoGenerator.GenerateRoadmapAsync(directory.Browse, request.DirectoryId, request.Name);
+
+                int roadmapId = _aiAnalysisRepo.SaveChronologicalRoadmap(roadmap);
+                roadmap.Id = roadmapId;
+
+                Log($"AI хронологічну карту згенеровано. ID: {roadmapId}, Подій: {roadmap.Events.Count}");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(roadmap),
+                    Message = $"Згенеровано {roadmap.Events.Count} подій"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка генерації AI roadmap: {ex.Message}", EventLogEntryType.Error);
+                _errorLogRepo.LogError("Generate AI Roadmap", ex.Message, "Помилка при генерації AI хронологічної карти", ex.StackTrace);
+
+                return new ServiceResponse { Success = false, Message = $"Помилка: {ex.Message}" };
+            }
+        }
+
+        private ServiceResponse HandleGetAIChronologicalRoadmaps(string data)
+        {
+            try
+            {
+                int directoryId = int.Parse(data);
+                var roadmaps = _aiAnalysisRepo.GetChronologicalRoadmapsByDirectory(directoryId);
+
+                return new ServiceResponse { Success = true, Data = JsonSerializer.Serialize(roadmaps) };
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка отримання AI roadmaps: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleGetAIChronologicalRoadmapById(string data)
+        {
+            try
+            {
+                int roadmapId = int.Parse(data);
+                var roadmap = _aiAnalysisRepo.GetChronologicalRoadmapById(roadmapId);
+
+                if (roadmap == null)
+                    return new ServiceResponse { Success = false, Message = "Roadmap не знайдено" };
+
+                return new ServiceResponse { Success = true, Data = JsonSerializer.Serialize(roadmap) };
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка отримання AI roadmap: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleDeleteAIChronologicalRoadmap(string data)
+        {
+            try
+            {
+                int roadmapId = int.Parse(data);
+                bool success = _aiAnalysisRepo.DeleteChronologicalRoadmap(roadmapId);
+
+                if (success)
+                    Log($"AI Roadmap видалено: ID {roadmapId}");
+
+                return new ServiceResponse
+                {
+                    Success = success,
+                    Message = success ? "Roadmap видалено" : "Roadmap не знайдено"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка видалення AI roadmap: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private ServiceResponse HandleExportAIChronologicalRoadmap(string data)
+        {
+            try
+            {
+                int roadmapId = int.Parse(data);
+                var roadmap = _aiAnalysisRepo.GetChronologicalRoadmapById(roadmapId);
+
+                if (roadmap == null)
+                    return new ServiceResponse { Success = false, Message = "Roadmap не знайдено" };
+
+                var exporter = new DataExportService();
+                string json = exporter.ExportChronologicalRoadmap(roadmap);
+
+                return new ServiceResponse { Success = true, Data = json, Message = "Експорт успішний" };
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка експорту AI roadmap: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
+        #region AI Statistics Handler
+
+        private ServiceResponse HandleGetAIStatistics()
+        {
+            try
+            {
+                var stats = _aiAnalysisRepo.GetAIStatistics();
+                return new ServiceResponse { Success = true, Data = JsonSerializer.Serialize(stats) };
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка отримання AI статистики: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
     }
 }

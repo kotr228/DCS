@@ -55,6 +55,14 @@
         "net6.0": {
           "targetAlias": "net6.0",
           "dependencies": {
+            "LLamaSharp": {
+              "target": "Package",
+              "version": "[0.8.1, )"
+            },
+            "LLamaSharp.Backend.Cpu": {
+              "target": "Package",
+              "version": "[0.8.1, )"
+            },
             "Microsoft.Extensions.Http": {
               "target": "Package",
               "version": "[9.0.9, )"
