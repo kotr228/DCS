@@ -14,7 +14,7 @@ namespace DocControlService.Client
     public class DocControlServiceClient : IDisposable
     {
         private const string PipeName = "DocControlServicePipe";
-        private const int TimeoutMs = 5000;
+        private const int TimeoutMs = 15000;
 
         /// <summary>
         /// Відправка команди до сервісу

@@ -1,12 +1,13 @@
-﻿using DocControlAI.Core;
-using DocControlAI.Analyzers;
+﻿using DocControlAI.Analyzers;
+using DocControlAI.Core;
 using DocControlAI.Services;
-using DocControlService.Shared;
 using DocControlService.Client;
+using DocControlService.Shared;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
+using System.Windows.Media;
 
 namespace DocControlUI.Windows
 {
@@ -396,80 +397,23 @@ namespace DocControlUI.Windows
         {
             try
             {
-                SetStatus("Перевірка Ollama...");
-
+                SetStatus("Перевірка AI...");
                 var (isRunning, version, isModelLoaded) = await _ollama.GetStatusAsync();
 
-                if (isRunning)
-                {
-                    OllamaStatusText.Text = "🟢 Запущений";
-                    OllamaStatusText.Foreground = System.Windows.Media.Brushes.Green;
-                    ModelNameText.Text = "llama3";
+                OllamaStatusText.Text = isRunning ? "🟢 Працює" : "🔴 Неактивний";
+                OllamaStatusText.Foreground = isRunning ? Brushes.Green : Brushes.Red;
 
-                    if (isModelLoaded)
-                    {
-                        ModelLoadedText.Text = "✅ Завантажена";
-                        ModelLoadedText.Foreground = System.Windows.Media.Brushes.Green;
-                    }
-                    else
-                    {
-                        ModelLoadedText.Text = "❌ Не завантажена";
-                        ModelLoadedText.Foreground = System.Windows.Media.Brushes.Red;
+                ModelNameText.Text = "Meta-Llama-3-8B-Instruct-Q4_K_M.gguf";
+                ModelLoadedText.Text = isModelLoaded ? "✅ Завантажена" : "❌ Не завантажена";
+                ModelLoadedText.Foreground = isModelLoaded ? Brushes.Green : Brushes.Red;
 
-                        var result = MessageBox.Show(
-                            "⚠️ Модель llama3 не завантажена!\n\n" +
-                            "Виконайте: ollama pull llama3\n\nВідкрити інструкції?",
-                            "Модель не знайдена",
-                            MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-                        if (result == MessageBoxResult.Yes)
-                        {
-                            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                            {
-                                FileName = "https://github.com/ollama/ollama#quickstart",
-                                UseShellExecute = true
-                            });
-                        }
-                    }
-                }
-                else
-                {
-                    OllamaStatusText.Text = "🔴 Не запущений";
-                    OllamaStatusText.Foreground = System.Windows.Media.Brushes.Red;
-                    ModelNameText.Text = "-";
-                    ModelLoadedText.Text = "-";
-
-                    var result = MessageBox.Show(
-                        "❌ Ollama не запущений!\n\n" +
-                        "1) ollama serve\n" +
-                        "2) або відкрийте Ollama Desktop\n\n" +
-                        "Завантажити з ollama.com/download ?",
-                        "Ollama не доступний",
-                        MessageBoxButton.YesNo, MessageBoxImage.Error);
-
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = "https://ollama.com/download",
-                            UseShellExecute = true
-                        });
-                    }
-                }
-
-                SetStatus(isRunning ? "Ollama підключено" : "Ollama не доступний");
+                SetStatus(isRunning ? "AI готовий до роботи" : "AI не активний");
             }
             catch (Exception ex)
             {
-                OllamaStatusText.Text = "❌ Помилка підключення";
-                OllamaStatusText.Foreground = System.Windows.Media.Brushes.Red;
-
-                MessageBox.Show(
-                    $"❌ Помилка підключення до Ollama:\n\n{ex.Message}\n\n" +
-                    "Перевірте порт 11434 та брандмауер.",
-                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
-
-                SetStatus("Помилка підключення до AI");
+                OllamaStatusText.Text = "❌ Помилка";
+                OllamaStatusText.Foreground = Brushes.Red;
+                MessageBox.Show($"Помилка підключення AI:\n\n{ex.Message}", "AI Engine", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

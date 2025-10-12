@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using LLama;
 using LLama.Common;
+using LLama.Abstractions;
 
 namespace DocControlAI.Core
 {
@@ -15,7 +16,7 @@ namespace DocControlAI.Core
         private readonly string _modelPath;
         private readonly string _modelName;
 
-        private LLamaModel _model;
+        private LLamaWeights _model;
         private LLamaContext _context;
         private InteractiveExecutor _executor;
         private bool _isModelLoaded = false;
@@ -31,37 +32,37 @@ namespace DocControlAI.Core
             return await Task.Run(() => File.Exists(_modelPath));
         }
 
-        public async Task<bool> EnsureModelLoadedAsync()
+        public async Task EnsureModelLoadedAsync()
         {
-            if (_isModelLoaded)
-                return true;
+            if (_isModelLoaded && _executor != null)
+                return;
 
             if (!File.Exists(_modelPath))
-            {
-                Console.WriteLine($"❌ Файл моделі не знайдено: {_modelPath}");
-                return false;
-            }
+                throw new Exception($"Модель не знайдена: {_modelPath}");
 
             await Task.Run(() =>
             {
-                Console.WriteLine($"[AI] Завантаження моделі {_modelPath}...");
-
+                // ✅ 1. Створюємо параметри моделі (це реалізує IModelParams)
                 var modelParams = new ModelParams(_modelPath)
                 {
                     ContextSize = 2048,
-                    GpuLayerCount = 0
+                    Seed = 1337
                 };
 
-                _model = new LLamaModel(modelParams);
-                _context = _model.CreateContext();
+                // ✅ 2. Завантажуємо ваги, передаючи modelParams
+                _model = LLamaWeights.LoadFromFile(modelParams);
+
+                // ✅ 3. Створюємо контекст на основі цих параметрів
+                _context = _model.CreateContext(modelParams);
+
+                // ✅ 4. Ініціалізуємо виконавця
                 _executor = new InteractiveExecutor(_context);
+
                 _isModelLoaded = true;
-
-                Console.WriteLine($"✅ Модель {_modelName} готова до роботи.");
+                Console.WriteLine("✅ Модель успішно завантажена в пам'ять (LLamaSharp 0.8.1)");
             });
-
-            return true;
         }
+
 
         public async Task<string> SendPromptAsync(string prompt)
         {
@@ -73,14 +74,14 @@ namespace DocControlAI.Core
             var inferParams = new InferenceParams
             {
                 Temperature = 0.7f,
-                MaxTokens = 512
+                MaxTokens = 512,
+                AntiPrompts = new List<string> { "User:" }
             };
 
-            await Task.Run(() =>
+            await foreach (var text in _executor.InferAsync(prompt, inferParams))
             {
-                foreach (var token in _executor.Infer(prompt, inferParams))
-                    sb.Append(token);
-            });
+                sb.Append(text);
+            }
 
             return sb.ToString();
         }
@@ -110,8 +111,17 @@ IMPORTANT: Respond ONLY with valid JSON. Do not include any explanatory text bef
 
         public async Task<(bool isRunning, string version, bool isModelLoaded)> GetStatusAsync()
         {
-            bool exists = await IsOllamaRunningAsync();
+            bool exists = await Task.Run(() => File.Exists(_modelPath));
+
+            _isModelLoaded = exists;
+
             return (exists, "LLamaSharp 0.8.1 (local, .NET6)", _isModelLoaded);
+        }
+
+        public void Dispose()
+        {
+            _context?.Dispose();
+            _model?.Dispose();
         }
     }
 

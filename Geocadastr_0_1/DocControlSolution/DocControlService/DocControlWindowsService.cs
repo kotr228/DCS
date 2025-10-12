@@ -334,10 +334,11 @@ namespace DocControlService
 
                             Log($"Received command: {request.Substring(0, Math.Min(100, request.Length))}...");
 
-                            var response = ProcessCommand(request);
+                            var response = await ProcessCommand(request);
                             var responseJson = JsonSerializer.Serialize(response);
-
+                            Log("QWERTY");
                             await writer.WriteLineAsync(responseJson);
+                            Log("QWERTY1");
                         }
                     }
                 }
