@@ -111,9 +111,14 @@ IMPORTANT: Respond ONLY with valid JSON. Do not include any explanatory text bef
 
         public async Task<(bool isRunning, string version, bool isModelLoaded)> GetStatusAsync()
         {
-            bool exists = await Task.Run(() => File.Exists(_modelPath));
+            Console.WriteLine("🔍 Перевірка статусу Ollama...");
 
+            bool exists = await Task.Run(() => File.Exists(_modelPath));
             _isModelLoaded = exists;
+
+            Console.WriteLine($"📦 Model file exists: {exists}");
+            Console.WriteLine($"📦 Model path: {_modelPath}");
+            Console.WriteLine($"📦 Is loaded: {_isModelLoaded}");
 
             return (exists, "LLamaSharp 0.8.1 (local, .NET6)", _isModelLoaded);
         }

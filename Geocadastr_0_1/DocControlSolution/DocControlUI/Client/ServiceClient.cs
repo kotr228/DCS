@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipes;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -14,7 +15,7 @@ namespace DocControlService.Client
     public class DocControlServiceClient : IDisposable
     {
         private const string PipeName = "DocControlServicePipe";
-        private const int TimeoutMs = 15000;
+        private const int TimeoutMs = 43200000;
 
         /// <summary>
         /// Відправка команди до сервісу
@@ -22,39 +23,89 @@ namespace DocControlService.Client
         private async Task<ServiceResponse> SendCommandAsync(ServiceCommand command)
         {
             NamedPipeClientStream pipeClient = null;
+            StreamWriter writer = null;
+            StreamReader reader = null;
+
             try
             {
-                pipeClient = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+                System.Diagnostics.Debug.WriteLine($"📨 Sending command: {command.Type}");
 
-                await pipeClient.ConnectAsync(TimeoutMs);
+                pipeClient = new NamedPipeClientStream(
+                    ".",
+                    PipeName,
+                    PipeDirection.InOut,
+                    PipeOptions.Asynchronous | PipeOptions.WriteThrough);
 
-                using (var writer = new StreamWriter(pipeClient, leaveOpen: true) { AutoFlush = true })
-                using (var reader = new StreamReader(pipeClient, leaveOpen: true))
+                // Підключаємось
+                var connectTask = pipeClient.ConnectAsync(TimeoutMs);
+                if (await Task.WhenAny(connectTask, Task.Delay(TimeoutMs)) != connectTask)
                 {
-                    var requestJson = JsonSerializer.Serialize(command);
-                    await writer.WriteLineAsync(requestJson);
-                    await writer.FlushAsync();
-
-                    var responseJson = await reader.ReadLineAsync();
-
-                    if (string.IsNullOrEmpty(responseJson))
+                    return new ServiceResponse
                     {
-                        return new ServiceResponse
-                        {
-                            Success = false,
-                            Message = "Отримано порожню відповідь від сервісу"
-                        };
-                    }
-
-                    return JsonSerializer.Deserialize<ServiceResponse>(responseJson);
+                        Success = false,
+                        Message = "Тайм-аут підключення до сервісу"
+                    };
                 }
+
+                System.Diagnostics.Debug.WriteLine("✅ Connected to pipe");
+
+                // Пишемо запит
+                writer = new StreamWriter(pipeClient, Encoding.UTF8, 1024, true) { AutoFlush = true };
+                var requestJson = JsonSerializer.Serialize(command);
+
+                await writer.WriteLineAsync(requestJson);
+                await writer.FlushAsync();
+                System.Diagnostics.Debug.WriteLine($"📤 Request sent: {requestJson.Length} chars");
+
+                // КРИТИЧНО: закриваємо writer щоб сервер отримав повідомлення
+                writer.Dispose();
+                writer = null;
+
+                // Даємо час серверу обробити
+                await Task.Delay(100);
+
+                // Читаємо відповідь
+                reader = new StreamReader(pipeClient, Encoding.UTF8, false, 1024, true);
+
+                System.Diagnostics.Debug.WriteLine("⏳ Waiting for response...");
+
+                var readTask = reader.ReadLineAsync();
+                var timeoutTask = Task.Delay(TimeoutMs);
+                var completedTask = await Task.WhenAny(readTask, timeoutTask);
+
+                if (completedTask == timeoutTask)
+                {
+                    System.Diagnostics.Debug.WriteLine("❌ Response timeout");
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = "Тайм-аут очікування відповіді від сервісу. Перевірте логи сервісу."
+                    };
+                }
+
+                var responseJson = await readTask;
+
+                if (string.IsNullOrEmpty(responseJson))
+                {
+                    System.Diagnostics.Debug.WriteLine("❌ Empty response");
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = "Отримано порожню відповідь від сервісу"
+                    };
+                }
+
+                System.Diagnostics.Debug.WriteLine($"✅ Response received: {responseJson.Substring(0, Math.Min(100, responseJson.Length))}");
+
+                var response = JsonSerializer.Deserialize<ServiceResponse>(responseJson);
+                return response;
             }
             catch (TimeoutException)
             {
                 return new ServiceResponse
                 {
                     Success = false,
-                    Message = "Тайм-аут підключення до сервісу. Перевірте чи запущений сервіс."
+                    Message = "Тайм-аут підключення до сервісу"
                 };
             }
             catch (IOException ex)
@@ -67,26 +118,27 @@ namespace DocControlService.Client
             }
             catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"❌ Error: {ex.Message}");
                 return new ServiceResponse
                 {
                     Success = false,
-                    Message = $"Помилка комунікації з сервісом: {ex.Message}"
+                    Message = $"Помилка: {ex.Message}"
                 };
             }
             finally
             {
-                if (pipeClient != null)
+                try
                 {
-                    try
+                    reader?.Dispose();
+                    writer?.Dispose();
+
+                    if (pipeClient != null)
                     {
-                        if (pipeClient.IsConnected)
-                        {
-                            pipeClient.Close();
-                        }
+                        await Task.Delay(50); // Даємо час на flush
                         pipeClient.Dispose();
                     }
-                    catch { }
                 }
+                catch { }
             }
         }
 

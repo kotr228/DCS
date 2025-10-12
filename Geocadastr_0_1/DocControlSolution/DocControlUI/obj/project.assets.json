@@ -1305,23 +1305,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\trock\\.nuget\\packages\\": {},
+    "C:\\Users\\коте\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+      "projectUniqueName": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
       "projectName": "DocControlUI",
-      "projectPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
-      "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\obj\\",
+      "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+      "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
+      "outputPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -1337,11 +1337,11 @@
         "net6.0-windows7.0": {
           "targetAlias": "net6.0-windows",
           "projectReferences": {
-            "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj": {
-              "projectPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj"
+            "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj": {
+              "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj"
             },
-            "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
-              "projectPath": "C:\\Users\\trock\\Desktop\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj"
+            "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
+              "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj"
             }
           }
         }
@@ -1356,7 +1356,7 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "9.0.100"
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net6.0-windows7.0": {
@@ -1386,16 +1386,8 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.102\\RuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.305\\RuntimeIdentifierGraph.json"
       }
     }
-  },
-  "logs": [
-    {
-      "code": "NU1900",
-      "level": "Warning",
-      "warningLevel": 1,
-      "message": "Error occurred while getting package vulnerability data: Unable to load the service index for source https://api.nuget.org/v3/index.json."
-    }
-  ]
+  }
 }

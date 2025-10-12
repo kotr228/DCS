@@ -1,4 +1,7 @@
-﻿using DocControlService.Data;
+﻿using DocControlAI.Analyzers;
+using DocControlAI.Core;
+using DocControlAI.Services;
+using DocControlService.Data;
 using DocControlService.Models;
 using DocControlService.Services;
 using DocControlService.Shared;
@@ -8,12 +11,10 @@ using System.IO;
 using System.IO.Pipes;
 using System.Linq;
 using System.ServiceProcess;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using DocControlAI.Core;
-using DocControlAI.Analyzers;
-using DocControlAI.Services;
 
 
 namespace DocControlService
@@ -311,47 +312,94 @@ namespace DocControlService
 
             while (!cancellationToken.IsCancellationRequested)
             {
+                NamedPipeServerStream pipeServer = null;
                 try
                 {
-                    using (var pipeServer = new NamedPipeServerStream(
+                    pipeServer = new NamedPipeServerStream(
                         "DocControlServicePipe",
                         PipeDirection.InOut,
-                        1,
-                        PipeTransmissionMode.Byte,
-                        PipeOptions.Asynchronous))
-                    {
-                        await pipeServer.WaitForConnectionAsync(cancellationToken);
-                        Log("Client connected to pipe");
+                        NamedPipeServerStream.MaxAllowedServerInstances,  // ЗМІНЕНО: дозволяємо кілька з'єднань
+                        PipeTransmissionMode.Message,                      // ЗМІНЕНО: Message mode
+                        PipeOptions.Asynchronous | PipeOptions.WriteThrough);
 
-                        using (var reader = new StreamReader(pipeServer))
-                        using (var writer = new StreamWriter(pipeServer) { AutoFlush = true })
+                    Log("📞 Waiting for client connection...");
+                    await pipeServer.WaitForConnectionAsync(cancellationToken);
+                    Log("✅ Client connected");
+
+                    try
+                    {
+                        // Читаємо запит
+                        using (var reader = new StreamReader(pipeServer, Encoding.UTF8, false, 1024, true))
                         {
                             string request = await reader.ReadLineAsync();
+
                             if (string.IsNullOrEmpty(request))
                             {
+                                Log("⚠️ Empty request received");
                                 continue;
                             }
 
-                            Log($"Received command: {request.Substring(0, Math.Min(100, request.Length))}...");
+                            Log($"📨 Request: {request.Substring(0, Math.Min(100, request.Length))}");
 
+                            // Обробляємо команду
                             var response = await ProcessCommand(request);
+
+                            // Серіалізуємо відповідь
                             var responseJson = JsonSerializer.Serialize(response);
-                            Log("QWERTY");
-                            await writer.WriteLineAsync(responseJson);
-                            Log("QWERTY1");
+                            Log($"📤 Response ready: {responseJson.Length} chars, Success={response.Success}");
+
+                            // КРИТИЧНО: Пишемо відповідь в новому блоці
+                            using (var writer = new StreamWriter(pipeServer, Encoding.UTF8, 1024, true))
+                            {
+                                writer.AutoFlush = true;
+                                await writer.WriteLineAsync(responseJson);
+                                await writer.FlushAsync();
+                                Log("✅ Response written to pipe");
+                            }
+
+                            // Чекаємо щоб клієнт прочитав
+                            await Task.Delay(200, cancellationToken);
+                            Log("✅ Response sent successfully");
                         }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"❌ Error processing request: {ex.Message}");
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            if (pipeServer?.IsConnected == true)
+                            {
+                                pipeServer.Disconnect();
+                                Log("🔌 Client disconnected");
+                            }
+                        }
+                        catch { }
                     }
                 }
                 catch (OperationCanceledException)
                 {
+                    Log("🛑 Pipe server cancelled");
                     break;
                 }
                 catch (Exception ex)
                 {
-                    Log($"Pipe server error: {ex.Message}", EventLogEntryType.Warning);
+                    Log($"❌ Pipe server error: {ex.Message}");
                     await Task.Delay(1000, cancellationToken);
                 }
+                finally
+                {
+                    try
+                    {
+                        pipeServer?.Dispose();
+                    }
+                    catch { }
+                }
             }
+
+            Log("Pipe server stopped");
         }
 
         private async Task<ServiceResponse> ProcessCommand(string requestJson)
