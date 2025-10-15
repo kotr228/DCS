@@ -1,0 +1,18 @@
+[
+  {
+    "ContainingType": "GrayCat.Service.Controllers.ProjectController",
+    "Method": "GenerateProject",
+    "RelativePath": "api/Project/generate",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "request",
+        "Type": "GrayCat.Shared.Models.ProjectGenerationRequest",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  }
+]

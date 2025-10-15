@@ -1,0 +1,11 @@
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\bin\Debug\net6.0\GrayCat.Shared.deps.json
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\bin\Debug\net6.0\GrayCat.Shared.dll
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\bin\Debug\net6.0\GrayCat.Shared.pdb
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\obj\Debug\net6.0\GrayCat.Shared.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\obj\Debug\net6.0\GrayCat.Shared.AssemblyInfoInputs.cache
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\obj\Debug\net6.0\GrayCat.Shared.AssemblyInfo.cs
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\obj\Debug\net6.0\GrayCat.Shared.csproj.CoreCompileInputs.cache
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\obj\Debug\net6.0\GrayCat.Shared.dll
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\obj\Debug\net6.0\refint\GrayCat.Shared.dll
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\obj\Debug\net6.0\GrayCat.Shared.pdb
+C:\Users\trock\Desktop\GrayCatSolution\GrayCat.Shared\obj\Debug\net6.0\ref\GrayCat.Shared.dll

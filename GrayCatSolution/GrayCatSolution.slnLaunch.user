@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "GrayCatService\\GrayCatService.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "GrayCatUI\\GrayCatUI.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

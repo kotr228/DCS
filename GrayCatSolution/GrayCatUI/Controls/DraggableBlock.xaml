@@ -1,0 +1,11 @@
+﻿<UserControl x:Class="GrayCat.UI.Controls.DraggableBlock"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Cursor="SizeAll">
+    <Border Background="White" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Padding="10" MinWidth="150">
+        <StackPanel>
+            <TextBlock Text="{Binding Type}" FontWeight="Bold" Foreground="#333333"/>
+            <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Foreground="#666666"/>
+        </StackPanel>
+    </Border>
+</UserControl>

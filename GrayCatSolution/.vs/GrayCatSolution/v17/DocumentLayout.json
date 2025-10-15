@@ -1,0 +1,122 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|c:\\users\\trock\\desktop\\graycatsolution\\graycatui\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|solutionrelative:graycatui\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|c:\\users\\trock\\desktop\\graycatsolution\\graycatui\\viewmodels\\mainviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|solutionrelative:graycatui\\viewmodels\\mainviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|c:\\users\\trock\\desktop\\graycatsolution\\graycatui\\app.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|solutionrelative:graycatui\\app.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|c:\\users\\trock\\desktop\\graycatsolution\\graycatui\\viewmodels\\blockviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|solutionrelative:graycatui\\viewmodels\\blockviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|c:\\users\\trock\\desktop\\graycatsolution\\graycatui\\viewmodels\\baseviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|solutionrelative:graycatui\\viewmodels\\baseviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|c:\\users\\trock\\desktop\\graycatsolution\\graycatui\\services\\apiclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{80400759-9B8F-44DE-8264-5172CDF99075}|GrayCatUI\\GrayCatUI.csproj|solutionrelative:graycatui\\services\\apiclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 5,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "App.xaml.cs",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\App.xaml.cs",
+              "RelativeDocumentMoniker": "GrayCatUI\\App.xaml.cs",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\App.xaml.cs",
+              "RelativeToolTip": "GrayCatUI\\App.xaml.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-15T02:04:20.376Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "ApiClient.cs",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\Services\\ApiClient.cs",
+              "RelativeDocumentMoniker": "GrayCatUI\\Services\\ApiClient.cs",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\Services\\ApiClient.cs",
+              "RelativeToolTip": "GrayCatUI\\Services\\ApiClient.cs",
+              "ViewState": "AgIAABIAAAAAAAAAAAAYwAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-15T02:01:55.507Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "BaseViewModel.cs",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\ViewModels\\BaseViewModel.cs",
+              "RelativeDocumentMoniker": "GrayCatUI\\ViewModels\\BaseViewModel.cs",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\ViewModels\\BaseViewModel.cs",
+              "RelativeToolTip": "GrayCatUI\\ViewModels\\BaseViewModel.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-15T02:01:30.426Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "BlockViewModel.cs",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\ViewModels\\BlockViewModel.cs",
+              "RelativeDocumentMoniker": "GrayCatUI\\ViewModels\\BlockViewModel.cs",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\ViewModels\\BlockViewModel.cs",
+              "RelativeToolTip": "GrayCatUI\\ViewModels\\BlockViewModel.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-15T02:01:23.866Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "MainViewModel.cs",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\ViewModels\\MainViewModel.cs",
+              "RelativeDocumentMoniker": "GrayCatUI\\ViewModels\\MainViewModel.cs",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\ViewModels\\MainViewModel.cs",
+              "RelativeToolTip": "GrayCatUI\\ViewModels\\MainViewModel.cs",
+              "ViewState": "AgIAACIAAAAAAAAAAAAjwB8AAAAaAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-15T02:01:17.416Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "MainWindow.xaml.cs",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\MainWindow.xaml.cs",
+              "RelativeDocumentMoniker": "GrayCatUI\\MainWindow.xaml.cs",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\GrayCatSolution\\GrayCatUI\\MainWindow.xaml.cs",
+              "RelativeToolTip": "GrayCatUI\\MainWindow.xaml.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAEwAAAAuAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-15T02:00:49.18Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
