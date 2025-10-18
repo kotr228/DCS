@@ -1,0 +1,41 @@
+﻿<UserControl x:Class="GrayCat.UI.Controls.DraggableBlock"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:GrayCat.UI.Converters"
+             Cursor="SizeAll">
+
+    <UserControl.Resources>
+        <local:HexColorConverter x:Key="HexColorConverter"/>
+    </UserControl.Resources>
+
+    <Border BorderBrush="#0066CC" 
+            BorderThickness="2" 
+            CornerRadius="4" 
+            Padding="15"
+            MinWidth="150"
+            MinHeight="80"
+            Width="{Binding Width}"
+            Height="{Binding Height}"
+            Background="{Binding Background, Converter={StaticResource HexColorConverter}}">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.3"/>
+        </Border.Effect>
+        <StackPanel>
+            <TextBlock Text="{Binding Type}" 
+                       FontWeight="Bold" 
+                       FontSize="14"
+                       Foreground="#0066CC"
+                       Margin="0,0,0,5"/>
+            <TextBlock Text="{Binding Content}" 
+                       TextWrapping="Wrap" 
+                       FontSize="{Binding FontSize}"
+                       FontFamily="{Binding FontFamily}"
+                       TextAlignment="{Binding TextAlignment}"
+                       Foreground="{Binding Color, Converter={StaticResource HexColorConverter}}"/>
+            <TextBlock Text="{Binding Id}" 
+                       FontSize="9"
+                       Foreground="#AAAAAA"
+                       Margin="0,5,0,0"/>
+        </StackPanel>
+    </Border>
+</UserControl>

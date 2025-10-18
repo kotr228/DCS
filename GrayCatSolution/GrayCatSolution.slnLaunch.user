@@ -3,11 +3,11 @@
     "Name": "New Profile",
     "Projects": [
       {
-        "Path": "GrayCatService\\GrayCatService.csproj",
+        "Path": "GrayCat.Service\\GrayCat.Service.csproj",
         "Action": "Start"
       },
       {
-        "Path": "GrayCatUI\\GrayCatUI.csproj",
+        "Path": "GrayCat.UI\\GrayCat.UI.csproj",
         "Action": "Start"
       }
     ]

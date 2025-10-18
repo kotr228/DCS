@@ -1,13 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.12.35707.178 d17.12
+VisualStudioVersion = 17.14.36518.9 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GrayCat.Shared", "GrayCat.Shared\GrayCat.Shared.csproj", "{73FCCF65-098C-4892-A575-8690E514DE61}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GrayCat.Core", "GrayCat.Core\GrayCat.Core.csproj", "{4BFF7DCA-5AFF-461C-BE69-4F2AC4A4ADA8}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GrayCatService", "GrayCatService\GrayCatService.csproj", "{2E18775E-0309-43E1-92E9-FFF1FCC3253B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GrayCat.Service", "GrayCat.Service\GrayCat.Service.csproj", "{C9EFF0E4-741F-45D8-B52E-E8E0D53C7173}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GrayCatUI", "GrayCatUI\GrayCatUI.csproj", "{80400759-9B8F-44DE-8264-5172CDF99075}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GrayCat.UI", "GrayCat.UI\GrayCat.UI.csproj", "{71CAF037-E478-49F7-A261-813C76A6669C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,20 +15,23 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{73FCCF65-098C-4892-A575-8690E514DE61}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{73FCCF65-098C-4892-A575-8690E514DE61}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{73FCCF65-098C-4892-A575-8690E514DE61}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{73FCCF65-098C-4892-A575-8690E514DE61}.Release|Any CPU.Build.0 = Release|Any CPU
-		{2E18775E-0309-43E1-92E9-FFF1FCC3253B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{2E18775E-0309-43E1-92E9-FFF1FCC3253B}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{2E18775E-0309-43E1-92E9-FFF1FCC3253B}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{2E18775E-0309-43E1-92E9-FFF1FCC3253B}.Release|Any CPU.Build.0 = Release|Any CPU
-		{80400759-9B8F-44DE-8264-5172CDF99075}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{80400759-9B8F-44DE-8264-5172CDF99075}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{80400759-9B8F-44DE-8264-5172CDF99075}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{80400759-9B8F-44DE-8264-5172CDF99075}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4BFF7DCA-5AFF-461C-BE69-4F2AC4A4ADA8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4BFF7DCA-5AFF-461C-BE69-4F2AC4A4ADA8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4BFF7DCA-5AFF-461C-BE69-4F2AC4A4ADA8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4BFF7DCA-5AFF-461C-BE69-4F2AC4A4ADA8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C9EFF0E4-741F-45D8-B52E-E8E0D53C7173}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C9EFF0E4-741F-45D8-B52E-E8E0D53C7173}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C9EFF0E4-741F-45D8-B52E-E8E0D53C7173}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C9EFF0E4-741F-45D8-B52E-E8E0D53C7173}.Release|Any CPU.Build.0 = Release|Any CPU
+		{71CAF037-E478-49F7-A261-813C76A6669C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{71CAF037-E478-49F7-A261-813C76A6669C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{71CAF037-E478-49F7-A261-813C76A6669C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{71CAF037-E478-49F7-A261-813C76A6669C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D2277790-16AC-4CF7-AEC4-DDE973A0B554}
 	EndGlobalSection
 EndGlobal
