@@ -1,4 +1,6 @@
 ﻿using GrayCat.Core.Constants;
+using GrayCat.Core.Data;
+using GrayCat.Core.Data.Migrations;
 using GrayCat.Core.Interfaces;
 using GrayCat.Service;
 using GrayCat.Service.Services;
@@ -43,6 +45,20 @@ try
     builder.Services.AddControllers();
 
     var app = builder.Build();
+
+    using (var scope = app.Services.CreateScope())
+    {
+        var services = scope.ServiceProvider;
+        try
+        {
+            var context = services.GetRequiredService<GrayCatDbContext>();
+            await MigrationRunner.RunMigrationsAsync(context);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Database migration failed");
+        }
+    }
 
     app.MapControllers();
 

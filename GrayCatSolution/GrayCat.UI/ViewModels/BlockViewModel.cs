@@ -217,4 +217,15 @@ public class BlockViewModel : BaseViewModel
             }
         }
     }
+
+    public void LoadPropertiesFromModel()
+    {
+        _model.LoadFromJson(); // extension method з DbContext
+        OnPropertyChanged(nameof(Properties));
+    }
+
+    public async Task SavePropertiesToModel()
+    {
+        await Task.Run(() => AutoSave());
+    }
 }

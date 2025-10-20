@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:GrayCat.UI.ViewModels"
         xmlns:controls="clr-namespace:GrayCat.UI.Controls"
-        Title="GrayCat Studio v0.3.2" Height="800" Width="1400"
+        Title="GrayCat Studio v0.3.4 - New Block Types" Height="850" Width="1600"
         WindowStartupLocation="CenterScreen">
 
     <Window.DataContext>
@@ -12,6 +12,33 @@
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+        <Style x:Key="BlockButtonStyle" TargetType="Button">
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="#E0E0E0"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#F0F7FF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <DockPanel>
@@ -34,85 +61,155 @@
             </MenuItem>
             <MenuItem Header="_Project" IsEnabled="{Binding IsProjectOpen}">
                 <MenuItem Header="_Generate Code" Click="GenerateCode_Click"/>
+                <MenuItem Header="_Validate All Blocks" Click="ValidateAll_Click"/>
                 <MenuItem Header="_Preview" Click="Preview_Click"/>
                 <MenuItem Header="_Export..." Click="Export_Click"/>
             </MenuItem>
             <MenuItem Header="_Help">
+                <MenuItem Header="_Documentation" Click="Documentation_Click"/>
                 <MenuItem Header="_About GrayCat" Click="About_Click"/>
             </MenuItem>
         </Menu>
 
         <!-- Status Bar -->
-        <StatusBar DockPanel.Dock="Bottom" Height="25">
+        <StatusBar DockPanel.Dock="Bottom" Height="28" Background="#F8F9FA">
             <StatusBarItem>
-                <TextBlock Text="{Binding ProjectName}"/>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="📁 " FontSize="12"/>
+                    <TextBlock Text="{Binding ProjectName}" FontWeight="SemiBold"/>
+                </StackPanel>
             </StatusBarItem>
             <Separator/>
             <StatusBarItem>
-                <TextBlock Text="{Binding Blocks.Count, StringFormat='Blocks: {0}'}"/>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🧩 " FontSize="12"/>
+                    <TextBlock Text="{Binding Blocks.Count, StringFormat='Blocks: {0}'}"/>
+                </StackPanel>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="✓ " FontSize="12" Foreground="Green"/>
+                    <TextBlock Text="Validation Active"/>
+                </StackPanel>
             </StatusBarItem>
             <Separator/>
             <StatusBarItem HorizontalAlignment="Right">
-                <TextBlock Text="v0.3.2 - Properties Editor"/>
+                <TextBlock Text="v0.3.4 - New Block Types" FontSize="11" Foreground="#6C757D"/>
             </StatusBarItem>
         </StatusBar>
 
         <!-- Main Content -->
         <Grid>
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="250"/>
+                <ColumnDefinition Width="280"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="320"/>
+                <ColumnDefinition Width="350"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left Panel: Block Palette -->
-            <Border Grid.Column="0" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,0,1,0">
+            <!-- Left Panel: Enhanced Block Palette -->
+            <Border Grid.Column="0" Background="#FAFBFC" BorderBrush="#E1E4E8" BorderThickness="0,0,1,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="10">
-                        <TextBlock Text="Block Library" FontSize="16" FontWeight="Bold" Margin="0,0,0,15"/>
+                    <StackPanel Margin="12">
+                        <TextBlock Text="🎨 Block Library" FontSize="18" FontWeight="Bold" 
+                                   Margin="0,0,0,15" Foreground="#0366D6"/>
 
-                        <Expander Header="Layout" IsExpanded="True" Margin="0,0,0,10">
-                            <StackPanel Margin="5">
+                        <!-- Layout Blocks -->
+                        <Expander Header="📐 Layout" IsExpanded="True" Margin="0,0,0,10">
+                            <StackPanel Margin="8,5">
+                                <Button Content="🏠 Hero Section" Tag="Hero" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
                                 <Button Content="📄 Header" Tag="Header" 
-                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"
-                                        Margin="0,0,0,5" Padding="10,8"
-                                        HorizontalContentAlignment="Left"/>
-                                <Button Content="📝 Text" Tag="Text" 
-                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"
-                                        Margin="0,0,0,5" Padding="10,8"
-                                        HorizontalContentAlignment="Left"/>
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                                <Button Content="🧭 Navigation Bar" Tag="Navbar" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                                <Button Content="📝 Text Block" Tag="Text" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
                                 <Button Content="🦶 Footer" Tag="Footer" 
-                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"
-                                        Margin="0,0,0,5" Padding="10,8"
-                                        HorizontalContentAlignment="Left"/>
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                                <Button Content="➖ Divider" Tag="Divider" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
                             </StackPanel>
                         </Expander>
 
-                        <Expander Header="Media" IsExpanded="True" Margin="0,0,0,10">
-                            <StackPanel Margin="5">
+                        <!-- Content Blocks -->
+                        <Expander Header="📝 Content" IsExpanded="True" Margin="0,0,0,10">
+                            <StackPanel Margin="8,5">
+                                <Button Content="🃏 Card" Tag="Card" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                                <Button Content="💬 Testimonial" Tag="Testimonial" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                                <Button Content="❓ Accordion/FAQ" Tag="Accordion" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                                <Button Content="📊 Statistics" Tag="Stats" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                                <Button Content="💰 Pricing Card" Tag="Pricing" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                            </StackPanel>
+                        </Expander>
+
+                        <!-- Media Blocks -->
+                        <Expander Header="🎬 Media" IsExpanded="True" Margin="0,0,0,10">
+                            <StackPanel Margin="8,5">
                                 <Button Content="🖼️ Image" Tag="Image" 
-                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"
-                                        Margin="0,0,0,5" Padding="10,8"
-                                        HorizontalContentAlignment="Left"/>
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                                <Button Content="🎥 Video Player" Tag="Video" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
                                 <Button Content="🎨 Gallery" Tag="Gallery" 
-                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"
-                                        Margin="0,0,0,5" Padding="10,8"
-                                        HorizontalContentAlignment="Left"/>
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
                             </StackPanel>
                         </Expander>
 
-                        <Expander Header="Interactive" IsExpanded="True" Margin="0,0,0,10">
-                            <StackPanel Margin="5">
-                                <Button Content="📋 Form" Tag="Form" 
-                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"
-                                        Margin="0,0,0,5" Padding="10,8"
-                                        HorizontalContentAlignment="Left"/>
+                        <!-- Interactive Blocks -->
+                        <Expander Header="⚡ Interactive" IsExpanded="True" Margin="0,0,0,10">
+                            <StackPanel Margin="8,5">
+                                <Button Content="🔘 Button" Tag="Button" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                                <Button Content="📋 Contact Form" Tag="ContactForm" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                                <Button Content="📝 Form" Tag="Form" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
                                 <Button Content="🛒 Product Grid" Tag="ProductGrid" 
-                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"
-                                        Margin="0,0,0,5" Padding="10,8"
-                                        HorizontalContentAlignment="Left"/>
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
                             </StackPanel>
                         </Expander>
+
+                        <!-- Social Blocks -->
+                        <Expander Header="🌐 Social" IsExpanded="True" Margin="0,0,0,10">
+                            <StackPanel Margin="8,5">
+                                <Button Content="📱 Social Links" Tag="SocialLinks" 
+                                        Style="{StaticResource BlockButtonStyle}"
+                                        PreviewMouseLeftButtonDown="Block_PreviewMouseDown"/>
+                            </StackPanel>
+                        </Expander>
+
+                        <!-- Info Box -->
+                        <Border Background="#E7F3FF" BorderBrush="#0366D6" BorderThickness="1" 
+                                CornerRadius="6" Padding="12" Margin="0,20,0,0">
+                            <StackPanel>
+                                <TextBlock Text="💡 Tip" FontWeight="Bold" Foreground="#0366D6"/>
+                                <TextBlock Text="Drag blocks onto the canvas to add them to your page. Each block has customizable properties!" 
+                                           TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </Border>
@@ -122,24 +219,28 @@
                 <!-- Welcome Screen -->
                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                             Visibility="{Binding IsProjectOpen, Converter={StaticResource BoolToVis}, ConverterParameter=Invert}">
-                    <TextBlock Text="Welcome to GrayCat Studio" FontSize="28" FontWeight="Light" 
-                               Foreground="#495057" HorizontalAlignment="Center"/>
+                    <TextBlock Text="🎨" FontSize="64" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+                    <TextBlock Text="Welcome to GrayCat Studio" FontSize="32" FontWeight="Light" 
+                               Foreground="#24292E" HorizontalAlignment="Center"/>
                     <TextBlock Text="Create stunning websites with visual blocks" 
-                               FontSize="14" Foreground="#6C757D" 
-                               HorizontalAlignment="Center" Margin="0,10,0,30"/>
+                               FontSize="16" Foreground="#586069" 
+                               HorizontalAlignment="Center" Margin="0,10,0,40"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Button Content="New Project" Click="NewProject_Click" 
-                                Padding="20,10" Margin="5" FontSize="14"/>
-                        <Button Content="Open Project" Click="OpenProject_Click" 
-                                Padding="20,10" Margin="5" FontSize="14"/>
+                        <Button Content="📄 New Project" Click="NewProject_Click" 
+                                Padding="25,12" Margin="5" FontSize="14" FontWeight="SemiBold"/>
+                        <Button Content="📂 Open Project" Click="OpenProject_Click" 
+                                Padding="25,12" Margin="5" FontSize="14"/>
                     </StackPanel>
                 </StackPanel>
 
                 <!-- Canvas Editor -->
                 <Grid Visibility="{Binding IsProjectOpen, Converter={StaticResource BoolToVis}}">
                     <ScrollViewer HorizontalScrollBarVisibility="Auto" 
-                                  VerticalScrollBarVisibility="Auto">
-                        <Border Background="White" MinWidth="1200" MinHeight="800">
+                                  VerticalScrollBarVisibility="Auto"
+                                  Background="#F6F8FA">
+                        <Border Background="White" MinWidth="1400" MinHeight="900"
+                                BorderBrush="#E1E4E8" BorderThickness="1"
+                                Margin="20">
                             <ItemsControl ItemsSource="{Binding Blocks}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -162,10 +263,11 @@
                                         <controls:DraggableBlock>
                                             <controls:DraggableBlock.ContextMenu>
                                                 <ContextMenu>
-                                                    <MenuItem Header="Edit Properties" Click="EditBlock_Click"/>
-                                                    <MenuItem Header="Duplicate" Click="DuplicateBlock_Click"/>
+                                                    <MenuItem Header="✏️ Edit Properties" Click="EditBlock_Click"/>
+                                                    <MenuItem Header="✓ Validate" Click="ValidateBlock_Click"/>
+                                                    <MenuItem Header="📋 Duplicate" Click="DuplicateBlock_Click"/>
                                                     <Separator/>
-                                                    <MenuItem Header="Delete" Click="DeleteBlock_Click"/>
+                                                    <MenuItem Header="🗑️ Delete" Click="DeleteBlock_Click"/>
                                                 </ContextMenu>
                                             </controls:DraggableBlock.ContextMenu>
                                         </controls:DraggableBlock>
@@ -174,12 +276,21 @@
                             </ItemsControl>
                         </Border>
                     </ScrollViewer>
+
+                    <!-- Grid Overlay Toggle -->
+                    <CheckBox Content="Show Grid" 
+                              IsChecked="False"
+                              VerticalAlignment="Top" 
+                              HorizontalAlignment="Right"
+                              Margin="30"
+                              Checked="GridOverlay_Changed"
+                              Unchecked="GridOverlay_Changed"/>
                 </Grid>
             </Grid>
 
-            <!-- Right Panel: Properties -->
-            <Border Grid.Column="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1,0,0,0">
-                <controls:PropertiesPanel DataContext="{Binding}"/>
+            <!-- Right Panel: Dynamic Properties -->
+            <Border Grid.Column="2" Background="#FAFBFC" BorderBrush="#E1E4E8" BorderThickness="1,0,0,0">
+                <controls:DynamicPropertiesPanel DataContext="{Binding}"/>
             </Border>
         </Grid>
     </DockPanel>

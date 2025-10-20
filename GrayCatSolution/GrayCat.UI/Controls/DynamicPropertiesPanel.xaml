@@ -1,0 +1,10 @@
+﻿<UserControl x:Class="GrayCat.UI.Controls.DynamicPropertiesPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel x:Name="PropertiesContainer" Margin="15">
+            <!-- Properties will be dynamically generated here -->
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

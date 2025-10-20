@@ -5,7 +5,7 @@
     <Compile Update="Controls\DraggableBlock.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Update="Controls\PropertiesPanel.xaml.cs">
+    <Compile Update="Controls\DynamicPropertiesPanel.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Update="Views\NewProjectWindow.xaml.cs">
