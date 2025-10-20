@@ -1,0 +1,28 @@
+[
+  {
+    "Name": "CoffeeCat",
+    "Projects": [
+      {
+        "Path": "..\\..\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "..\\..\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj",
+        "Action": "Start"
+      }
+    ]
+  },
+  {
+    "Name": "GrayCat",
+    "Projects": [
+      {
+        "Path": "..\\..\\DCS\\GrayCatSolution\\GrayCat.UI\\GrayCat.UI.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "..\\..\\DCS\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

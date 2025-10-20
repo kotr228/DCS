@@ -1,0 +1,380 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "G:\\DCS\\CatSuite\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{55ED85A1-1024-0B3F-8E59-B9F673D8DE49}|..\\GrayCatSolution\\GrayCat.UI\\GrayCat.UI.csproj|g:\\dcs\\graycatsolution\\graycat.ui\\views\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4DEA4E29-B8F1-6715-5A40-D2469C9EB2C2}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj|g:\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice.shared\\doccontrolservice.shared.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{B9CE9E0F-0A52-6469-9B50-D1B61E4B43AD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj|g:\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\doccontrolservice.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{9C43BEC0-67B9-03C8-0FA2-7696E98864BD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj|g:\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolai\\doccontrolai.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{820B7140-A2D5-0208-1E81-451E5F80FAE5}|..\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj|g:\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrol.maps.core\\doccontrol.maps.core.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|g:\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\doccontrolui.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4CA9CF8B-6AA2-24C5-A293-536F4640E90C}|..\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj|g:\\dcs\\graycatsolution\\graycat.service\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4CA9CF8B-6AA2-24C5-A293-536F4640E90C}|..\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj|g:\\dcs\\graycatsolution\\graycat.service\\templates\\blocks\\block-templates.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\dividerblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\sociallinksblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\statsblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\accordionblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\pricingblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\testimonialblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\videoblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\contactformblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\navbarblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\cardblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\heroblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blocklibrary\\buttonblock.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\models\\blockmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\data\\migrations\\databasemigration_v0_3_4.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\validation\\blockvalidator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{88DF33EC-2C9A-668E-D515-443699136AE6}|..\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj|g:\\dcs\\graycatsolution\\graycat.core\\data\\graycatdbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 1,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedHeight": 200,
+          "SelectedChildIndex": 3,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "DocControlService.csproj",
+              "DocumentMoniker": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj",
+              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj",
+              "ToolTip": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj",
+              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAZAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-10-19T14:57:06.707Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "DocControlAI.csproj",
+              "DocumentMoniker": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj",
+              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj",
+              "ToolTip": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj",
+              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlAI\\DocControlAI.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAArAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-10-19T14:56:12.992Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "DocControl.Maps.Core.csproj",
+              "DocumentMoniker": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
+              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
+              "ToolTip": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
+              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAZAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-10-19T14:56:04.942Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "MainWindow.xaml",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.UI\\Views\\MainWindow.xaml",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.UI\\Views\\MainWindow.xaml",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.UI\\Views\\MainWindow.xaml",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.UI\\Views\\MainWindow.xaml",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2025-10-19T14:46:27.941Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "DocControlService.Shared.csproj",
+              "DocumentMoniker": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
+              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
+              "ToolTip": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
+              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAZAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-10-19T14:57:11.964Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "DocControlUI.csproj",
+              "DocumentMoniker": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+              "ToolTip": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAANAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-10-19T14:57:30.404Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "Program.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Service\\Program.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Service\\Program.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Service\\Program.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Service\\Program.cs",
+              "ViewState": "AgIAACIAAAAAAAAAAAAAADwAAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:28:41.402Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "block-templates.json",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Service\\Templates\\Blocks\\block-templates.json",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Service\\Templates\\Blocks\\block-templates.json",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Service\\Templates\\Blocks\\block-templates.json",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Service\\Templates\\Blocks\\block-templates.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIBAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-10-19T13:28:05.054Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "DividerBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\DividerBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\DividerBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\DividerBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\DividerBlock.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACkAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:26:28.883Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 9,
+              "Title": "SocialLinksBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\SocialLinksBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\SocialLinksBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\SocialLinksBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\SocialLinksBlock.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:25:53.257Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 10,
+              "Title": "StatsBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\StatsBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\StatsBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\StatsBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\StatsBlock.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACUAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:25:05.849Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 11,
+              "Title": "AccordionBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\AccordionBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\AccordionBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\AccordionBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\AccordionBlock.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAArAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:24:27.45Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
+              "Title": "PricingBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\PricingBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\PricingBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\PricingBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\PricingBlock.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAArAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:23:54.291Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 13,
+              "Title": "TestimonialBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\TestimonialBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\TestimonialBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\TestimonialBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\TestimonialBlock.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAArAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:22:57.765Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 14,
+              "Title": "VideoBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\VideoBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\VideoBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\VideoBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\VideoBlock.cs",
+              "ViewState": "AgIAAAIAAAAAAAAAAAAQwAAAAAArAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:21:50.241Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 15,
+              "Title": "ContactFormBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\ContactFormBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\ContactFormBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\ContactFormBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\ContactFormBlock.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:21:05.264Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 16,
+              "Title": "NavbarBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\NavbarBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\NavbarBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\NavbarBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\NavbarBlock.cs",
+              "ViewState": "AgIAAC0AAAAAAAAAAAAQwE4AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:20:34.349Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 17,
+              "Title": "CardBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\CardBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\CardBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\CardBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\CardBlock.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAD4AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:20:09.731Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 18,
+              "Title": "HeroBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\HeroBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\HeroBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\HeroBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\HeroBlock.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAD0AAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:19:28.371Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 19,
+              "Title": "ButtonBlock.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\ButtonBlock.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\ButtonBlock.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\ButtonBlock.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockLibrary\\ButtonBlock.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:18:49.997Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 20,
+              "Title": "BlockModel.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockModel.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockModel.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Models\\BlockModel.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Models\\BlockModel.cs",
+              "ViewState": "AgIAAPsAAAAAAAAAAAAQwAgBAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:17:15.354Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 21,
+              "Title": "DatabaseMigration_v0_3_4.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Data\\Migrations\\DatabaseMigration_v0_3_4.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Data\\Migrations\\DatabaseMigration_v0_3_4.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Data\\Migrations\\DatabaseMigration_v0_3_4.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Data\\Migrations\\DatabaseMigration_v0_3_4.cs",
+              "ViewState": "AgIAABABAAAAAAAAAAAqwEwBAAAZAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:14:59.608Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 22,
+              "Title": "BlockValidator.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Validation\\BlockValidator.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Validation\\BlockValidator.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Validation\\BlockValidator.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Validation\\BlockValidator.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAAaAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:13:29.119Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 23,
+              "Title": "GrayCatDbContext.cs",
+              "DocumentMoniker": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Data\\GrayCatDbContext.cs",
+              "RelativeDocumentMoniker": "..\\GrayCatSolution\\GrayCat.Core\\Data\\GrayCatDbContext.cs",
+              "ToolTip": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\Data\\GrayCatDbContext.cs",
+              "RelativeToolTip": "..\\GrayCatSolution\\GrayCat.Core\\Data\\GrayCatDbContext.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAACIAAAAnAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-19T13:09:29.424Z"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
