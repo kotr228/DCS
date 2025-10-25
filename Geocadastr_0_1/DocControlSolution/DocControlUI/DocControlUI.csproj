@@ -11,11 +11,18 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualBasic" Version="10.3.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DocControlAI\DocControlAI.csproj" />
     <ProjectReference Include="..\DocControlService.Shared\DocControlService.Shared.csproj" />
   </ItemGroup>
+
+	<ItemGroup>
+		<None Update="Maps\**\*">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
 
 </Project>
