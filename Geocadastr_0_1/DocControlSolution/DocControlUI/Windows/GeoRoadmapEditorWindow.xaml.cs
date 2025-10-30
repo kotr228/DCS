@@ -1,11 +1,16 @@
 ﻿using DocControlService.Client;
 using DocControlService.Shared;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Media3D;
-using System.Windows.Shapes;
 
 namespace DocControlUI.Windows
 {
@@ -23,9 +28,9 @@ namespace DocControlUI.Windows
         private bool _isConnectingNodes = false;
         private GeoRoadmapNode _connectFromNode = null;
 
-        // Масштабування canvas (заглушка для справжньої карти)
-        private double _canvasScale = 1.0;
-        private Point _lastMousePosition;
+        // WebView2
+        private WebView2 _mapWebView;
+        private bool _isMapInitialized = false;
 
         public GeoRoadmapEditorWindow(DocControlServiceClient client, int? roadmapId = null)
         {
@@ -41,7 +46,7 @@ namespace DocControlUI.Windows
 
         #region Initialization
 
-        private async System.Threading.Tasks.Task InitializeAsync(int? roadmapId)
+        private async Task InitializeAsync(int? roadmapId)
         {
             try
             {
@@ -52,17 +57,18 @@ namespace DocControlUI.Windows
 
                 if (roadmapId.HasValue)
                 {
-                    // Редагування існуючої карти
                     SetStatus("Завантаження геокарти...");
                     _currentRoadmap = await _client.GetGeoRoadmapByIdAsync(roadmapId.Value);
                     LoadRoadmap();
                 }
                 else
                 {
-                    // Створення нової карти
                     SetStatus("Створення нової геокарти...");
                     ShowNewRoadmapDialog();
                 }
+
+                // Ініціалізуємо WebView2 карту
+                await InitializeMapAsync();
 
                 SetStatus("Готово");
             }
@@ -71,6 +77,62 @@ namespace DocControlUI.Windows
                 MessageBox.Show($"Помилка ініціалізації: {ex.Message}", "Помилка",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 Close();
+            }
+        }
+
+        private async Task InitializeMapAsync()
+        {
+            try
+            {
+                MapLoadingStatus.Text = "Ініціалізація WebView2...";
+
+                // Створюємо WebView2
+                _mapWebView = new WebView2();
+
+                // Налаштовуємо оточення WebView2
+                var env = await CoreWebView2Environment.CreateAsync(null,
+                    Path.Combine(Path.GetTempPath(), "DocControlWebView2"));
+
+                await _mapWebView.EnsureCoreWebView2Async(env);
+
+                // Налаштування
+                _mapWebView.CoreWebView2.Settings.AreDevToolsEnabled = true;
+                _mapWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+                _mapWebView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
+
+                MapLoadingStatus.Text = "Завантаження карти...";
+
+                // Завантажуємо HTML карту
+                var htmlPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Maps", "map.html");
+
+                if (!File.Exists(htmlPath))
+                {
+                    throw new FileNotFoundException($"Файл карти не знайдено: {htmlPath}");
+                }
+
+                _mapWebView.Source = new Uri(htmlPath);
+
+                // Слухаємо повідомлення з JavaScript
+                _mapWebView.WebMessageReceived += MapWebView_WebMessageReceived;
+
+                // Заміняємо loading panel на WebView2
+                MapContainer.Child = _mapWebView;
+
+                _isMapInitialized = true;
+                SetStatus("Карта завантажена");
+            }
+            catch (Exception ex)
+            {
+                MapLoadingStatus.Text = $"Помилка: {ex.Message}";
+                MessageBox.Show(
+                    $"Не вдалося завантажити карту:\n\n{ex.Message}\n\n" +
+                    "Переконайтеся що:\n" +
+                    "1. WebView2 Runtime встановлений\n" +
+                    "2. Файли Maps/* існують\n" +
+                    "3. Файли копіюються в вихідну директорію",
+                    "Помилка карти",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
         }
 
@@ -85,7 +147,7 @@ namespace DocControlUI.Windows
                     Name = dialog.RoadmapName,
                     Description = dialog.RoadmapDescription,
                     MapProvider = MapProvider.OpenStreetMap,
-                    CenterLatitude = 50.4501, // Київ за замовчуванням
+                    CenterLatitude = 50.4501,
                     CenterLongitude = 30.5234,
                     ZoomLevel = 10,
                     CreatedAt = DateTime.Now
@@ -121,159 +183,355 @@ namespace DocControlUI.Windows
 
         #endregion
 
-        #region UI Refresh
+        #region WebView2 Communication
+
+        private void MapWebView_WebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
+        {
+            try
+            {
+                var json = e.TryGetWebMessageAsString();
+                var message = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+
+                if (!message.ContainsKey("type")) return;
+
+                var type = message["type"].GetString();
+
+                switch (type)
+                {
+                    case "mapReady":
+                        OnMapReady();
+                        break;
+
+                    case "nodeClicked":
+                        var nodeId = message["nodeId"].GetInt32();
+                        HandleNodeClick(nodeId);
+                        break;
+
+                    case "mapClicked":
+                        var lat = message["lat"].GetDouble();
+                        var lng = message["lng"].GetDouble();
+                        HandleMapClick(lat, lng);
+                        break;
+
+                    case "nodeMoved":
+                        var movedNodeId = message["nodeId"].GetInt32();
+                        var newLat = message["lat"].GetDouble();
+                        var newLng = message["lng"].GetDouble();
+                        HandleNodeMoved(movedNodeId, newLat, newLng);
+                        break;
+
+                    case "mapMoved":
+                        var centerLat = message["lat"].GetDouble();
+                        var centerLng = message["lng"].GetDouble();
+                        CoordinatesText.Text = $"Lat: {centerLat:F6}, Lng: {centerLng:F6}";
+                        break;
+
+                    case "zoomChanged":
+                        var zoom = message["zoom"].GetInt32();
+                        ZoomSlider.Value = zoom;
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка обробки повідомлення: {ex.Message}");
+            }
+        }
+
+        private async void OnMapReady()
+        {
+            SetStatus("Карта готова, завантаження об'єктів...");
+
+            // Встановлюємо провайдер
+            await ChangeMapProvider(_currentRoadmap.MapProvider.ToString());
+
+            // Встановлюємо центр
+            await SetMapCenter(_currentRoadmap.CenterLatitude, _currentRoadmap.CenterLongitude, _currentRoadmap.ZoomLevel);
+
+            // Завантажуємо всі об'єкти
+            await RenderMap();
+
+            SetStatus("Готово");
+        }
+
+        private async Task SendMessageToMap(object message)
+        {
+            if (!_isMapInitialized || _mapWebView?.CoreWebView2 == null) return;
+
+            try
+            {
+                var json = JsonSerializer.Serialize(message);
+                await _mapWebView.CoreWebView2.ExecuteScriptAsync($"window.postMessage({json}, '*')");
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка відправки повідомлення: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        #region Map Operations
+
+        private async Task AddNodeToMap(GeoRoadmapNode node)
+        {
+            var tempId = node.Id != 0 ? node.Id : 1000 + _nodes.IndexOf(node);
+
+            await SendMessageToMap(new
+            {
+                action = "addNode",
+                data = new
+                {
+                    id = tempId,
+                    lat = node.Latitude,
+                    lng = node.Longitude,
+                    title = node.Title,
+                    description = node.Description ?? "",
+                    type = node.Type.ToString(),
+                    color = node.Color ?? "#2196F3"
+                }
+            });
+        }
+
+        private async Task UpdateNodeOnMap(GeoRoadmapNode node)
+        {
+            await SendMessageToMap(new
+            {
+                action = "updateNode",
+                data = new
+                {
+                    id = node.Id,
+                    lat = node.Latitude,
+                    lng = node.Longitude,
+                    title = node.Title,
+                    description = node.Description ?? "",
+                    type = node.Type.ToString(),
+                    color = node.Color ?? "#2196F3"
+                }
+            });
+        }
+
+        private async Task RemoveNodeFromMap(int nodeId)
+        {
+            await SendMessageToMap(new
+            {
+                action = "removeNode",
+                data = new { id = nodeId }
+            });
+        }
+
+        private async Task AddRouteToMap(GeoRoadmapRoute route)
+        {
+            var fromNode = _nodes.FirstOrDefault(n => n.Id == route.FromNodeId);
+            var toNode = _nodes.FirstOrDefault(n => n.Id == route.ToNodeId);
+
+            if (fromNode == null || toNode == null) return;
+
+            var fromId = fromNode.Id != 0 ? fromNode.Id : 1000 + _nodes.IndexOf(fromNode);
+            var toId = toNode.Id != 0 ? toNode.Id : 1000 + _nodes.IndexOf(toNode);
+
+            await SendMessageToMap(new
+            {
+                action = "addRoute",
+                data = new
+                {
+                    id = route.Id != 0 ? route.Id : 2000 + _routes.IndexOf(route),
+                    fromId,
+                    toId,
+                    color = route.Color ?? "#2196F3",
+                    width = route.StrokeWidth,
+                    style = route.Style.ToString(),
+                    label = route.Label ?? ""
+                }
+            });
+        }
+
+        private async Task SetMapCenter(double lat, double lng, int zoom)
+        {
+            await SendMessageToMap(new
+            {
+                action = "setCenter",
+                data = new { lat, lng, zoom }
+            });
+        }
+
+        private async Task ChangeMapProvider(string provider)
+        {
+            await SendMessageToMap(new
+            {
+                action = "changeProvider",
+                data = new { provider }
+            });
+        }
+
+        private async Task ClearMap()
+        {
+            await SendMessageToMap(new { action = "clearAll" });
+        }
+
+        private async Task RenderMap()
+        {
+            if (!_isMapInitialized) return;
+
+            await ClearMap();
+
+            foreach (var node in _nodes)
+            {
+                await AddNodeToMap(node);
+            }
+
+            foreach (var route in _routes)
+            {
+                await AddRouteToMap(route);
+            }
+        }
+
+        #endregion
+
+        #region Event Handlers
+
+        private void HandleNodeClick(int nodeId)
+        {
+            var node = _nodes.FirstOrDefault(n =>
+                (n.Id != 0 && n.Id == nodeId) ||
+                (n.Id == 0 && 1000 + _nodes.IndexOf(n) == nodeId));
+
+            if (node != null)
+            {
+                if (_isConnectingNodes)
+                {
+                    if (_connectFromNode == null)
+                    {
+                        _connectFromNode = node;
+                        SetStatus($"Перша точка: {node.Title}. Виберіть другу точку.");
+                    }
+                    else
+                    {
+                        CreateRouteBetweenNodes(_connectFromNode, node);
+                        _connectFromNode = null;
+                        _isConnectingNodes = false;
+                        MapModeText.Text = "Режим: Перегляд";
+                    }
+                }
+                else
+                {
+                    _selectedNode = node;
+                    NodesListBox.SelectedItem = node;
+                    ShowNodeProperties(node);
+                }
+            }
+        }
+
+        private async void HandleMapClick(double lat, double lng)
+        {
+            if (_isAddingNode)
+            {
+                var dialog = new NodeEditDialog(null);
+                if (dialog.ShowDialog() == true)
+                {
+                    var newNode = new GeoRoadmapNode
+                    {
+                        GeoRoadmapId = _currentRoadmap?.Id ?? 0,
+                        Title = dialog.NodeTitle,
+                        Description = dialog.NodeDescription,
+                        Latitude = lat,
+                        Longitude = lng,
+                        Type = dialog.SelectedNodeType,
+                        Color = dialog.SelectedColor,
+                        OrderIndex = _nodes.Count
+                    };
+
+                    _nodes.Add(newNode);
+                    await AddNodeToMap(newNode);
+                    RefreshUI();
+
+                    _isAddingNode = false;
+                    MapModeText.Text = "Режим: Перегляд";
+                    SetStatus($"Додано точку: {newNode.Title}");
+                }
+            }
+        }
+
+        private void HandleNodeMoved(int nodeId, double newLat, double newLng)
+        {
+            var node = _nodes.FirstOrDefault(n =>
+                (n.Id != 0 && n.Id == nodeId) ||
+                (n.Id == 0 && 1000 + _nodes.IndexOf(n) == nodeId));
+
+            if (node != null)
+            {
+                node.Latitude = newLat;
+                node.Longitude = newLng;
+
+                if (_selectedNode == node)
+                {
+                    NodeLatTextBox.Text = newLat.ToString("F6");
+                    NodeLngTextBox.Text = newLng.ToString("F6");
+                }
+
+                SetStatus($"Точку {node.Title} переміщено");
+            }
+        }
+
+        private async void CreateRouteBetweenNodes(GeoRoadmapNode from, GeoRoadmapNode to)
+        {
+            var route = new GeoRoadmapRoute
+            {
+                GeoRoadmapId = _currentRoadmap?.Id ?? 0,
+                FromNodeId = from.Id != 0 ? from.Id : 1000 + _nodes.IndexOf(from),
+                ToNodeId = to.Id != 0 ? to.Id : 1000 + _nodes.IndexOf(to),
+                Color = "#2196F3",
+                Style = RouteStyle.Solid,
+                StrokeWidth = 2
+            };
+
+            _routes.Add(route);
+            await AddRouteToMap(route);
+            RefreshUI();
+
+            SetStatus($"Створено маршрут: {from.Title} → {to.Title}");
+        }
+
+        #endregion
+
+        #region UI Updates
 
         private void RefreshUI()
         {
-            // Оновлюємо список вузлів
             NodesListBox.ItemsSource = null;
             NodesListBox.ItemsSource = _nodes;
 
-            // Оновлюємо статистику
             NodeCountText.Text = _nodes.Count.ToString();
             RouteCountText.Text = _routes.Count.ToString();
             AreaCountText.Text = _areas.Count.ToString();
 
-            // Розрахунок загальної відстані
             double totalDistance = CalculateTotalDistance();
             TotalDistanceText.Text = $"{totalDistance:F2} км";
-
-            // Відображаємо на canvas
-            RenderMap();
         }
 
-        private void RenderMap()
+        private void ShowNodeProperties(GeoRoadmapNode node)
         {
-            MapCanvas.Children.Clear();
+            NodePropertiesGroup.Visibility = Visibility.Visible;
+            NodeTitleTextBox.Text = node.Title;
+            NodeDescriptionTextBox.Text = node.Description;
+            NodeTypeComboBox.Text = node.Type.ToString();
+            NodeLatTextBox.Text = node.Latitude.ToString("F6");
+            NodeLngTextBox.Text = node.Longitude.ToString("F6");
+            NodeAddressTextBox.Text = node.Address;
 
-            // Відображаємо маршрути (лінії між вузлами)
-            foreach (var route in _routes)
+            foreach (ComboBoxItem item in NodeColorComboBox.Items)
             {
-                var fromNode = _nodes.FirstOrDefault(n => n.Id == route.FromNodeId);
-                var toNode = _nodes.FirstOrDefault(n => n.Id == route.ToNodeId);
-
-                if (fromNode != null && toNode != null)
+                if (item.Tag?.ToString() == node.Color)
                 {
-                    DrawRoute(fromNode, toNode, route);
+                    NodeColorComboBox.SelectedItem = item;
+                    break;
                 }
             }
-
-            // Відображаємо вузли (точки)
-            foreach (var node in _nodes)
-            {
-                DrawNode(node);
-            }
-        }
-
-        private void DrawNode(GeoRoadmapNode node)
-        {
-            // Конвертуємо географічні координати в canvas координати (заглушка)
-            var canvasPoint = GeoToCanvas(node.Latitude, node.Longitude);
-
-            // Малюємо точку
-            var ellipse = new Ellipse
-            {
-                Width = 20,
-                Height = 20,
-                Fill = new SolidColorBrush((Color)ColorConverter.ConvertFromString(node.Color ?? "#2196F3")),
-                Stroke = Brushes.White,
-                StrokeThickness = 3,
-                Tag = node
-            };
-
-            Canvas.SetLeft(ellipse, canvasPoint.X - 10);
-            Canvas.SetTop(ellipse, canvasPoint.Y - 10);
-
-            ellipse.MouseLeftButtonDown += Node_MouseLeftButtonDown;
-            ellipse.ToolTip = $"{node.Title}\n{node.Type}";
-
-            MapCanvas.Children.Add(ellipse);
-
-            // Додаємо підпис
-            var label = new TextBlock
-            {
-                Text = node.Title,
-                FontSize = 10,
-                FontWeight = FontWeights.Bold,
-                Background = new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)),
-                Padding = new Thickness(3),
-                Tag = node
-            };
-
-            Canvas.SetLeft(label, canvasPoint.X + 15);
-            Canvas.SetTop(label, canvasPoint.Y - 10);
-
-            MapCanvas.Children.Add(label);
-        }
-
-        private void DrawRoute(GeoRoadmapNode fromNode, GeoRoadmapNode toNode, GeoRoadmapRoute route)
-        {
-            var fromPoint = GeoToCanvas(fromNode.Latitude, fromNode.Longitude);
-            var toPoint = GeoToCanvas(toNode.Latitude, toNode.Longitude);
-
-            var line = new Line
-            {
-                X1 = fromPoint.X,
-                Y1 = fromPoint.Y,
-                X2 = toPoint.X,
-                Y2 = toPoint.Y,
-                Stroke = new SolidColorBrush((Color)ColorConverter.ConvertFromString(route.Color ?? "#2196F3")),
-                StrokeThickness = route.StrokeWidth,
-                Tag = route
-            };
-
-            // Стиль лінії
-            if (route.Style == RouteStyle.Dashed)
-                line.StrokeDashArray = new DoubleCollection { 5, 3 };
-            else if (route.Style == RouteStyle.Dotted)
-                line.StrokeDashArray = new DoubleCollection { 2, 2 };
-
-            MapCanvas.Children.Add(line);
-        }
-
-        // Конвертація географічних координат в canvas координати (заглушка)
-        private Point GeoToCanvas(double lat, double lng)
-        {
-            // Проста лінійна проекція для заглушки
-            // В реальній версії використовуватиметься Mercator projection
-
-            double canvasWidth = MapCanvas.ActualWidth > 0 ? MapCanvas.ActualWidth : 800;
-            double canvasHeight = MapCanvas.ActualHeight > 0 ? MapCanvas.ActualHeight : 600;
-
-            // Центр карти
-            double centerLat = _currentRoadmap?.CenterLatitude ?? 50.4501;
-            double centerLng = _currentRoadmap?.CenterLongitude ?? 30.5234;
-
-            // Масштаб
-            double scale = Math.Pow(2, _currentRoadmap?.ZoomLevel ?? 10) * 2;
-
-            double x = (lng - centerLng) * scale + canvasWidth / 2;
-            double y = (centerLat - lat) * scale + canvasHeight / 2;
-
-            return new Point(x, y);
-        }
-
-        // Зворотна конвертація canvas -> географічні координати
-        private (double lat, double lng) CanvasToGeo(Point canvasPoint)
-        {
-            double canvasWidth = MapCanvas.ActualWidth > 0 ? MapCanvas.ActualWidth : 800;
-            double canvasHeight = MapCanvas.ActualHeight > 0 ? MapCanvas.ActualHeight : 600;
-
-            double centerLat = _currentRoadmap?.CenterLatitude ?? 50.4501;
-            double centerLng = _currentRoadmap?.CenterLongitude ?? 30.5234;
-
-            double scale = Math.Pow(2, _currentRoadmap?.ZoomLevel ?? 10) * 2;
-
-            double lng = (canvasPoint.X - canvasWidth / 2) / scale + centerLng;
-            double lat = centerLat - (canvasPoint.Y - canvasHeight / 2) / scale;
-
-            return (lat, lng);
         }
 
         private double CalculateTotalDistance()
         {
             double total = 0;
-
             foreach (var route in _routes)
             {
                 var fromNode = _nodes.FirstOrDefault(n => n.Id == route.FromNodeId);
@@ -286,14 +544,12 @@ namespace DocControlUI.Windows
                         toNode.Latitude, toNode.Longitude);
                 }
             }
-
             return total;
         }
 
         private double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
         {
-            const double R = 6371; // Радіус Землі в км
-
+            const double R = 6371;
             var dLat = ToRadians(lat2 - lat1);
             var dLon = ToRadians(lon2 - lon1);
 
@@ -307,9 +563,14 @@ namespace DocControlUI.Windows
 
         private double ToRadians(double degrees) => degrees * Math.PI / 180.0;
 
+        private void SetStatus(string message)
+        {
+            StatusText.Text = $"{DateTime.Now:HH:mm:ss} - {message}";
+        }
+
         #endregion
 
-        #region Event Handlers
+        #region Button Handlers
 
         private async void SaveRoadmap_Click(object sender, RoutedEventArgs e)
         {
@@ -317,7 +578,6 @@ namespace DocControlUI.Windows
             {
                 SetStatus("Збереження геокарти...");
 
-                // Оновлюємо дані з форми
                 _currentRoadmap.Name = MapNameTextBox.Text;
                 _currentRoadmap.Description = MapDescriptionTextBox.Text;
                 _currentRoadmap.Nodes = _nodes;
@@ -326,7 +586,6 @@ namespace DocControlUI.Windows
 
                 if (_currentRoadmap.Id == 0)
                 {
-                    // Створення нової
                     var request = new CreateGeoRoadmapRequest
                     {
                         DirectoryId = _currentRoadmap.DirectoryId,
@@ -340,30 +599,20 @@ namespace DocControlUI.Windows
 
                     _currentRoadmap.Id = await _client.CreateGeoRoadmapAsync(request);
 
-                    // Зберігаємо вузли
                     foreach (var node in _nodes)
                     {
                         node.GeoRoadmapId = _currentRoadmap.Id;
                         node.Id = await _client.AddGeoNodeAsync(node);
                     }
 
-                    // Зберігаємо маршрути
                     foreach (var route in _routes)
                     {
                         route.GeoRoadmapId = _currentRoadmap.Id;
                         route.Id = await _client.AddGeoRouteAsync(route);
                     }
-
-                    // Зберігаємо області
-                    foreach (var area in _areas)
-                    {
-                        area.GeoRoadmapId = _currentRoadmap.Id;
-                        area.Id = await _client.AddGeoAreaAsync(area);
-                    }
                 }
                 else
                 {
-                    // Оновлення існуючої
                     await _client.UpdateGeoRoadmapAsync(_currentRoadmap);
                 }
 
@@ -395,120 +644,7 @@ namespace DocControlUI.Windows
             SetStatus("Виберіть першу точку для з'єднання");
         }
 
-        private void AddArea_Click(object sender, RoutedEventArgs e)
-        {
-            MessageBox.Show("Функція додавання областей буде реалізована в v0.4", "Інформація",
-                MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        private void MapCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (_isAddingNode)
-            {
-                var clickPoint = e.GetPosition(MapCanvas);
-                var geoCoords = CanvasToGeo(clickPoint);
-
-                var dialog = new NodeEditDialog(null);
-                if (dialog.ShowDialog() == true)
-                {
-                    var newNode = new GeoRoadmapNode
-                    {
-                        GeoRoadmapId = _currentRoadmap?.Id ?? 0,
-                        Title = dialog.NodeTitle,
-                        Description = dialog.NodeDescription,
-                        Latitude = geoCoords.lat,
-                        Longitude = geoCoords.lng,
-                        Type = dialog.SelectedNodeType,
-                        Color = dialog.SelectedColor,
-                        OrderIndex = _nodes.Count
-                    };
-
-                    _nodes.Add(newNode);
-                    RefreshUI();
-
-                    _isAddingNode = false;
-                    MapModeText.Text = "Режим: Перегляд";
-                    SetStatus($"Додано точку: {newNode.Title}");
-                }
-            }
-        }
-
-        private void Node_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (sender is Ellipse ellipse && ellipse.Tag is GeoRoadmapNode node)
-            {
-                if (_isConnectingNodes)
-                {
-                    if (_connectFromNode == null)
-                    {
-                        _connectFromNode = node;
-                        SetStatus($"Перша точка: {node.Title}. Виберіть другу точку.");
-                    }
-                    else
-                    {
-                        // Створюємо маршрут
-                        var route = new GeoRoadmapRoute
-                        {
-                            GeoRoadmapId = _currentRoadmap?.Id ?? 0,
-                            FromNodeId = _connectFromNode.Id != 0 ? _connectFromNode.Id : _nodes.IndexOf(_connectFromNode) + 1,
-                            ToNodeId = node.Id != 0 ? node.Id : _nodes.IndexOf(node) + 1,
-                            Color = "#2196F3",
-                            Style = RouteStyle.Solid,
-                            StrokeWidth = 2
-                        };
-
-                        _routes.Add(route);
-                        RefreshUI();
-
-                        SetStatus($"Створено маршрут: {_connectFromNode.Title} → {node.Title}");
-                        _connectFromNode = null;
-                        _isConnectingNodes = false;
-                        MapModeText.Text = "Режим: Перегляд";
-                    }
-                }
-                else
-                {
-                    // Вибір вузла
-                    _selectedNode = node;
-                    NodesListBox.SelectedItem = node;
-                    ShowNodeProperties(node);
-                }
-
-                e.Handled = true;
-            }
-        }
-
-        private void Node_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (NodesListBox.SelectedItem is GeoRoadmapNode node)
-            {
-                _selectedNode = node;
-                ShowNodeProperties(node);
-            }
-        }
-
-        private void ShowNodeProperties(GeoRoadmapNode node)
-        {
-            NodePropertiesGroup.Visibility = Visibility.Visible;
-            NodeTitleTextBox.Text = node.Title;
-            NodeDescriptionTextBox.Text = node.Description;
-            NodeTypeComboBox.Text = node.Type.ToString();
-            NodeLatTextBox.Text = node.Latitude.ToString("F6");
-            NodeLngTextBox.Text = node.Longitude.ToString("F6");
-            NodeAddressTextBox.Text = node.Address;
-
-            // Вибираємо колір
-            foreach (ComboBoxItem item in NodeColorComboBox.Items)
-            {
-                if (item.Tag?.ToString() == node.Color)
-                {
-                    NodeColorComboBox.SelectedItem = item;
-                    break;
-                }
-            }
-        }
-
-        private void AddNodeFromPanel_Click(object sender, RoutedEventArgs e)
+        private async void AddNodeFromPanel_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new NodeEditDialog(null);
             if (dialog.ShowDialog() == true)
@@ -526,12 +662,13 @@ namespace DocControlUI.Windows
                 };
 
                 _nodes.Add(newNode);
+                await AddNodeToMap(newNode);
                 RefreshUI();
                 SetStatus($"Додано точку: {newNode.Title}");
             }
         }
 
-        private void EditNode_Click(object sender, RoutedEventArgs e)
+        private async void EditNode_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedNode == null)
             {
@@ -548,12 +685,13 @@ namespace DocControlUI.Windows
                 _selectedNode.Type = dialog.SelectedNodeType;
                 _selectedNode.Color = dialog.SelectedColor;
 
+                await UpdateNodeOnMap(_selectedNode);
                 RefreshUI();
                 SetStatus($"Оновлено точку: {_selectedNode.Title}");
             }
         }
 
-        private void DeleteNode_Click(object sender, RoutedEventArgs e)
+        private async void DeleteNode_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedNode == null)
             {
@@ -570,13 +708,15 @@ namespace DocControlUI.Windows
 
             if (result == MessageBoxResult.Yes)
             {
-                // Видаляємо пов'язані маршрути
-                _routes.RemoveAll(r => r.FromNodeId == _selectedNode.Id || r.ToNodeId == _selectedNode.Id);
+                var nodeId = _selectedNode.Id != 0 ? _selectedNode.Id : 1000 + _nodes.IndexOf(_selectedNode);
+                await RemoveNodeFromMap(nodeId);
 
+                _routes.RemoveAll(r => r.FromNodeId == nodeId || r.ToNodeId == nodeId);
                 _nodes.Remove(_selectedNode);
                 _selectedNode = null;
                 NodePropertiesGroup.Visibility = Visibility.Collapsed;
 
+                await RenderMap();
                 RefreshUI();
                 SetStatus("Точку видалено");
             }
@@ -598,16 +738,13 @@ namespace DocControlUI.Windows
 
                     if (result.Success)
                     {
-                        MessageBox.Show(
-                            $"Знайдено:\n\n{result.FormattedAddress}\n\nLat: {result.Latitude:F6}\nLng: {result.Longitude:F6}",
-                            "Результат геокодування",
-                            MessageBoxButton.OK,
-                            MessageBoxImage.Information);
+                        await SetMapCenter(result.Latitude, result.Longitude, 15);
 
-                        // Пропонуємо додати точку
                         var addResult = MessageBox.Show(
+                            $"Знайдено:\n\n{result.FormattedAddress}\n\n" +
+                            $"Lat: {result.Latitude:F6}\nLng: {result.Longitude:F6}\n\n" +
                             "Додати точку на цю адресу?",
-                            "Додати точку",
+                            "Геокодування",
                             MessageBoxButton.YesNo,
                             MessageBoxImage.Question);
 
@@ -630,6 +767,7 @@ namespace DocControlUI.Windows
                                 };
 
                                 _nodes.Add(newNode);
+                                await AddNodeToMap(newNode);
                                 RefreshUI();
                             }
                         }
@@ -650,67 +788,10 @@ namespace DocControlUI.Windows
             }
         }
 
-        private void Template_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            // Обробка зміни шаблону
-        }
-
-        private void ApplyTemplate_Click(object sender, RoutedEventArgs e)
-        {
-            if (TemplateComboBox.SelectedItem is GeoRoadmapTemplate template)
-            {
-                var result = MessageBox.Show(
-                    $"Застосувати шаблон '{template.Name}'?\n\nПоточні дані будуть замінені.",
-                    "Підтвердження",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                if (result == MessageBoxResult.Yes)
-                {
-                    // TODO: Реалізувати застосування шаблону
-                    MessageBox.Show("Функція застосування шаблонів буде повністю реалізована в v0.4",
-                        "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-        }
-
-        private void MapProvider_Changed(object sender, SelectionChangedEventArgs e)
-        {
-            // Зміна провайдера карти (для v0.4)
-        }
-
-        private void Zoom_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (_currentRoadmap != null)
-            {
-                _currentRoadmap.ZoomLevel = (int)e.NewValue;
-                RefreshUI();
-            }
-        }
-
-        private void MapCanvas_MouseMove(object sender, MouseEventArgs e)
-        {
-            var point = e.GetPosition(MapCanvas);
-            var geoCoords = CanvasToGeo(point);
-            CoordinatesText.Text = $"Lat: {geoCoords.lat:F6}, Lng: {geoCoords.lng:F6}";
-        }
-
-        private void MapCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            // Зум колесом миші
-            if (_currentRoadmap != null)
-            {
-                int delta = e.Delta > 0 ? 1 : -1;
-                int newZoom = Math.Max(1, Math.Min(18, _currentRoadmap.ZoomLevel + delta));
-                ZoomSlider.Value = newZoom;
-            }
-        }
-
-        private void CenterMap_Click(object sender, RoutedEventArgs e)
+        private async void CenterMap_Click(object sender, RoutedEventArgs e)
         {
             if (_nodes.Count > 0)
             {
-                // Розраховуємо центр для всіх точок
                 double avgLat = _nodes.Average(n => n.Latitude);
                 double avgLng = _nodes.Average(n => n.Longitude);
 
@@ -720,47 +801,62 @@ namespace DocControlUI.Windows
                 CenterLatTextBox.Text = avgLat.ToString("F6");
                 CenterLngTextBox.Text = avgLng.ToString("F6");
 
-                RefreshUI();
+                await SetMapCenter(avgLat, avgLng, 10);
                 SetStatus("Карту відцентровано");
             }
         }
 
-        private void MeasureDistance_Click(object sender, RoutedEventArgs e)
+        private async void MapProvider_Changed(object sender, SelectionChangedEventArgs e)
         {
-            if (_nodes.Count >= 2)
+            if (MapProviderComboBox.SelectedItem is ComboBoxItem item)
             {
-                var distance = CalculateTotalDistance();
-                MessageBox.Show(
-                    $"Загальна відстань маршруту: {distance:F2} км",
-                    "Вимірювання відстані",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-            else
-            {
-                MessageBox.Show("Додайте принаймні 2 точки для вимірювання відстані",
-                    "Увага", MessageBoxButton.OK, MessageBoxImage.Information);
+                await ChangeMapProvider(item.Content.ToString());
             }
         }
 
-        private void FindNodeOnMap_Click(object sender, RoutedEventArgs e)
+        private async void Zoom_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_currentRoadmap != null && _isMapInitialized)
+            {
+                _currentRoadmap.ZoomLevel = (int)e.NewValue;
+                await SetMapCenter(
+                    _currentRoadmap.CenterLatitude,
+                    _currentRoadmap.CenterLongitude,
+                    _currentRoadmap.ZoomLevel
+                );
+            }
+        }
+
+        private async void ReloadMap_Click(object sender, RoutedEventArgs e)
+        {
+            if (_mapWebView?.CoreWebView2 != null)
+            {
+                _mapWebView.Reload();
+                await Task.Delay(1000);
+                await RenderMap();
+                SetStatus("Карту перезавантажено");
+            }
+        }
+
+        private void Node_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (NodesListBox.SelectedItem is GeoRoadmapNode node)
+            {
+                _selectedNode = node;
+                ShowNodeProperties(node);
+            }
+        }
+
+        private async void FindNodeOnMap_Click(object sender, RoutedEventArgs e)
         {
             if (_selectedNode != null)
             {
-                _currentRoadmap.CenterLatitude = _selectedNode.Latitude;
-                _currentRoadmap.CenterLongitude = _selectedNode.Longitude;
-                _currentRoadmap.ZoomLevel = 14;
-
-                CenterLatTextBox.Text = _selectedNode.Latitude.ToString("F6");
-                CenterLngTextBox.Text = _selectedNode.Longitude.ToString("F6");
-                ZoomSlider.Value = 14;
-
-                RefreshUI();
+                await SetMapCenter(_selectedNode.Latitude, _selectedNode.Longitude, 15);
                 SetStatus($"Відцентровано на: {_selectedNode.Title}");
             }
         }
 
-        private void OptimizeRoute_Click(object sender, RoutedEventArgs e)
+        private async void OptimizeRoute_Click(object sender, RoutedEventArgs e)
         {
             if (_nodes.Count < 3)
             {
@@ -769,7 +865,6 @@ namespace DocControlUI.Windows
                 return;
             }
 
-            // Простий алгоритм найближчого сусіда
             var optimized = new List<GeoRoadmapNode> { _nodes[0] };
             var remaining = new List<GeoRoadmapNode>(_nodes.Skip(1));
 
@@ -799,37 +894,55 @@ namespace DocControlUI.Windows
                 }
             }
 
-            // Оновлюємо порядок
             for (int i = 0; i < optimized.Count; i++)
             {
                 optimized[i].OrderIndex = i;
             }
 
             _nodes = optimized;
-
-            // Перебудовуємо маршрути
             _routes.Clear();
+
             for (int i = 0; i < _nodes.Count - 1; i++)
             {
                 _routes.Add(new GeoRoadmapRoute
                 {
                     GeoRoadmapId = _currentRoadmap?.Id ?? 0,
-                    FromNodeId = i + 1,
-                    ToNodeId = i + 2,
+                    FromNodeId = _nodes[i].Id != 0 ? _nodes[i].Id : 1000 + i,
+                    ToNodeId = _nodes[i + 1].Id != 0 ? _nodes[i + 1].Id : 1000 + i + 1,
                     Color = "#2196F3",
                     Style = RouteStyle.Solid,
                     StrokeWidth = 2
                 });
             }
 
+            await RenderMap();
             RefreshUI();
             MessageBox.Show("Маршрут оптимізовано!", "Успіх",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        private void MeasureDistance_Click(object sender, RoutedEventArgs e)
+        {
+            if (_nodes.Count >= 2)
+            {
+                var distance = CalculateTotalDistance();
+                MessageBox.Show(
+                    $"Загальна відстань маршруту: {distance:F2} км",
+                    "Вимірювання відстані",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+        }
+
+        private void AddArea_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Функція додавання областей буде реалізована в v0.4",
+                "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
         private void AddMilestonesFromFiles_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Функція буде реалізована в v0.4\n\nБуде автоматично створювати віхи на основі дат файлів з директорії",
+            MessageBox.Show("Функція буде реалізована в v0.4",
                 "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -845,23 +958,30 @@ namespace DocControlUI.Windows
                 try
                 {
                     await _client.SaveAsTemplateAsync(
-                        _currentRoadmap.Id,
-                        name,
-                        "Користувацький шаблон",
-                        "Користувацькі");
+                        _currentRoadmap.Id, name, "Користувацький шаблон", "Користувацькі");
 
                     MessageBox.Show("Шаблон збережено!", "Успіх",
                         MessageBoxButton.OK, MessageBoxImage.Information);
 
-                    // Оновлюємо список шаблонів
                     _templates = await _client.GetGeoRoadmapTemplatesAsync();
                     TemplateComboBox.ItemsSource = _templates;
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Помилка збереження шаблону: {ex.Message}",
-                        "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"Помилка збереження: {ex.Message}", "Помилка",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
                 }
+            }
+        }
+
+        private void Template_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
+
+        private void ApplyTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            if (TemplateComboBox.SelectedItem is GeoRoadmapTemplate template)
+            {
+                MessageBox.Show("Функція застосування шаблонів буде повністю реалізована в v0.4",
+                    "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
@@ -877,19 +997,16 @@ namespace DocControlUI.Windows
             {
                 try
                 {
-                    var json = System.Text.Json.JsonSerializer.Serialize(_currentRoadmap, new System.Text.Json.JsonSerializerOptions
-                    {
-                        WriteIndented = true
-                    });
-
-                    System.IO.File.WriteAllText(dialog.FileName, json);
+                    var json = JsonSerializer.Serialize(_currentRoadmap,
+                        new JsonSerializerOptions { WriteIndented = true });
+                    File.WriteAllText(dialog.FileName, json);
                     MessageBox.Show("Геокарту експортовано!", "Успіх",
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Помилка експорту: {ex.Message}",
-                        "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"Помилка експорту: {ex.Message}", "Помилка",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
         }
@@ -914,22 +1031,10 @@ namespace DocControlUI.Windows
         }
 
         #endregion
-
-        #region Helper Methods
-
-        private void SetStatus(string message)
-        {
-            StatusText.Text = $"{DateTime.Now:HH:mm:ss} - {message}";
-        }
-
-        #endregion
     }
 
     #region Helper Dialogs
 
-    /// <summary>
-    /// Діалог створення нової геокарти
-    /// </summary>
     public class NewGeoRoadmapDialog : Window
     {
         private TextBox nameTextBox;
@@ -954,7 +1059,6 @@ namespace DocControlUI.Windows
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-            // Назва
             var nameLabel = new TextBlock { Text = "Назва карти:", Margin = new Thickness(0, 5, 0, 5) };
             Grid.SetRow(nameLabel, 0);
             grid.Children.Add(nameLabel);
@@ -963,16 +1067,20 @@ namespace DocControlUI.Windows
             Grid.SetRow(nameTextBox, 0);
             grid.Children.Add(nameTextBox);
 
-            // Опис
             var descLabel = new TextBlock { Text = "Опис:", Margin = new Thickness(0, 5, 0, 5) };
             Grid.SetRow(descLabel, 1);
             grid.Children.Add(descLabel);
 
-            descriptionTextBox = new TextBox { Margin = new Thickness(0, 0, 0, 10), Height = 60, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true };
+            descriptionTextBox = new TextBox
+            {
+                Margin = new Thickness(0, 0, 0, 10),
+                Height = 60,
+                TextWrapping = TextWrapping.Wrap,
+                AcceptsReturn = true
+            };
             Grid.SetRow(descriptionTextBox, 1);
             grid.Children.Add(descriptionTextBox);
 
-            // Директорія (заглушка)
             var dirLabel = new TextBlock { Text = "Директорія:", Margin = new Thickness(0, 5, 0, 5) };
             Grid.SetRow(dirLabel, 2);
             grid.Children.Add(dirLabel);
@@ -983,7 +1091,6 @@ namespace DocControlUI.Windows
             Grid.SetRow(directoryComboBox, 2);
             grid.Children.Add(directoryComboBox);
 
-            // Кнопки
             var buttonPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -992,10 +1099,22 @@ namespace DocControlUI.Windows
             };
             Grid.SetRow(buttonPanel, 4);
 
-            var okButton = new Button { Content = "Створити", Width = 100, Margin = new Thickness(5), IsDefault = true };
+            var okButton = new Button
+            {
+                Content = "Створити",
+                Width = 100,
+                Margin = new Thickness(5),
+                IsDefault = true
+            };
             okButton.Click += (s, e) => { DialogResult = true; Close(); };
 
-            var cancelButton = new Button { Content = "Скасувати", Width = 100, Margin = new Thickness(5), IsCancel = true };
+            var cancelButton = new Button
+            {
+                Content = "Скасувати",
+                Width = 100,
+                Margin = new Thickness(5),
+                IsCancel = true
+            };
             cancelButton.Click += (s, e) => { DialogResult = false; Close(); };
 
             buttonPanel.Children.Add(okButton);
@@ -1006,9 +1125,6 @@ namespace DocControlUI.Windows
         }
     }
 
-    /// <summary>
-    /// Діалог редагування вузла
-    /// </summary>
     public class NodeEditDialog : Window
     {
         private TextBox titleTextBox;
@@ -1036,25 +1152,33 @@ namespace DocControlUI.Windows
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-            // Назва
             var titleLabel = new TextBlock { Text = "Назва точки:", Margin = new Thickness(0, 5, 0, 5) };
             Grid.SetRow(titleLabel, 0);
             grid.Children.Add(titleLabel);
 
-            titleTextBox = new TextBox { Margin = new Thickness(0, 0, 0, 10), Text = existingNode?.Title ?? "" };
+            titleTextBox = new TextBox
+            {
+                Margin = new Thickness(0, 0, 0, 10),
+                Text = existingNode?.Title ?? ""
+            };
             Grid.SetRow(titleTextBox, 0);
             grid.Children.Add(titleTextBox);
 
-            // Опис
             var descLabel = new TextBlock { Text = "Опис:", Margin = new Thickness(0, 5, 0, 5) };
             Grid.SetRow(descLabel, 1);
             grid.Children.Add(descLabel);
 
-            descriptionTextBox = new TextBox { Margin = new Thickness(0, 0, 0, 10), Height = 60, TextWrapping = TextWrapping.Wrap, AcceptsReturn = true, Text = existingNode?.Description ?? "" };
+            descriptionTextBox = new TextBox
+            {
+                Margin = new Thickness(0, 0, 0, 10),
+                Height = 60,
+                TextWrapping = TextWrapping.Wrap,
+                AcceptsReturn = true,
+                Text = existingNode?.Description ?? ""
+            };
             Grid.SetRow(descriptionTextBox, 1);
             grid.Children.Add(descriptionTextBox);
 
-            // Тип
             var typeLabel = new TextBlock { Text = "Тип:", Margin = new Thickness(0, 5, 0, 5) };
             Grid.SetRow(typeLabel, 2);
             grid.Children.Add(typeLabel);
@@ -1070,7 +1194,6 @@ namespace DocControlUI.Windows
             Grid.SetRow(typeComboBox, 2);
             grid.Children.Add(typeComboBox);
 
-            // Колір
             var colorLabel = new TextBlock { Text = "Колір:", Margin = new Thickness(0, 5, 0, 5) };
             Grid.SetRow(colorLabel, 3);
             grid.Children.Add(colorLabel);
@@ -1086,7 +1209,6 @@ namespace DocControlUI.Windows
             Grid.SetRow(colorComboBox, 3);
             grid.Children.Add(colorComboBox);
 
-            // Кнопки
             var buttonPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -1095,19 +1217,32 @@ namespace DocControlUI.Windows
             };
             Grid.SetRow(buttonPanel, 5);
 
-            var okButton = new Button { Content = "OK", Width = 100, Margin = new Thickness(5), IsDefault = true };
+            var okButton = new Button
+            {
+                Content = "OK",
+                Width = 100,
+                Margin = new Thickness(5),
+                IsDefault = true
+            };
             okButton.Click += (s, e) =>
             {
                 if (string.IsNullOrWhiteSpace(titleTextBox.Text))
                 {
-                    MessageBox.Show("Введіть назву точки", "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show("Введіть назву точки", "Увага",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
                 DialogResult = true;
                 Close();
             };
 
-            var cancelButton = new Button { Content = "Скасувати", Width = 100, Margin = new Thickness(5), IsCancel = true };
+            var cancelButton = new Button
+            {
+                Content = "Скасувати",
+                Width = 100,
+                Margin = new Thickness(5),
+                IsCancel = true
+            };
             cancelButton.Click += (s, e) => { DialogResult = false; Close(); };
 
             buttonPanel.Children.Add(okButton);
