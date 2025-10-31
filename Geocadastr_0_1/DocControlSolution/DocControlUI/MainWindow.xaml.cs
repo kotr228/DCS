@@ -7,10 +7,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using MahApps.Metro.Controls;
 
 namespace DocControlUI
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : MetroWindow
     {
         private readonly DocControlServiceClient _client;
         private List<DirectoryWithAccessModel> _directories;

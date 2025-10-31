@@ -11,10 +11,11 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using MahApps.Metro.Controls;
 
 namespace DocControlUI.Windows
 {
-    public partial class GeoRoadmapEditorWindow : Window
+    public partial class GeoRoadmapEditorWindow : MetroWindow
     {
         private readonly DocControlServiceClient _client;
         private GeoRoadmap _currentRoadmap;

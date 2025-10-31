@@ -1,12 +1,17 @@
-﻿<Window x:Class="DocControlUI.MainWindow"
+﻿<Controls:MetroWindow x:Class="DocControlUI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        
+        xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
         mc:Ignorable="d"
-        Title="DocControl Service Manager" 
-        Height="700" Width="1200"
-        WindowStartupLocation="CenterScreen">
+        Title="Coffe Cat" 
+        Height="718" Width="962"
+        WindowStartupLocation="CenterScreen"
+        Icon="/Assets/424.ico"
+        Background="{StaticResource BackgroundBrush}"
+        >
     <Window.Resources>
         <Style TargetType="Button">
             <Setter Property="Padding" Value="10,5"/>
@@ -23,7 +28,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid>
+    <Grid Background="{StaticResource BackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -31,20 +36,27 @@
         </Grid.RowDefinitions>
 
         <!-- Панель статусу -->
-        <Border Grid.Row="0" Background="#2196F3" Padding="10">
+        <Border Grid.Row="0" Padding="10">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <TextBlock Text="Статус сервісу:" FontWeight="Bold" Foreground="White"/>
-                    <TextBlock x:Name="StatusText" Text="Невідомо" Margin="10,0,0,0" Foreground="White"/>
+                <Image Grid.Column="0" 
+                       Source="/Assets/424.png"  Width="32" 
+                       Height="32"
+                       Margin="0,0,10,0"
+                       VerticalAlignment="Center"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="Статус сервісу:" FontWeight="Bold"/>
+                    <TextBlock x:Name="StatusText" Text="Невідомо" Margin="10,0,0,0"/>
                 </StackPanel>
 
-                <Button Grid.Column="1" Content="Оновити статус" Click="RefreshStatus_Click" 
-                        Background="White" Foreground="#2196F3"/>
+                <Button Grid.Column="2" Content="Оновити статус" Click="RefreshStatus_Click" />
             </Grid>
         </Border>
 
@@ -70,14 +82,14 @@
 
                         <!-- НОВЕ -->
                         <Button Content="🤖 AI Аналіз" Click="OpenAIAnalysis_Click"
-                                Background="#673AB7" Foreground="White"
+                                Foreground="White"
                                 ToolTip="Відкрити модуль AI аналізу та оптимізації"/>
                         <Button Content="📊 AI Статистика" Click="ShowAIStatistics_Click"
                                 ToolTip="Переглянути статистику AI аналізів"/>
 
                         <Separator Width="20" Background="Transparent"/>
-                        <Button Content="🔓 Відкрити всі" Click="OpenAllShares_Click" Background="#4CAF50" Foreground="White"/>
-                        <Button Content="🔒 Закрити всі" Click="CloseAllShares_Click" Background="#F44336" Foreground="White"/>
+                        <Button Content="🔓 Відкрити всі" Click="OpenAllShares_Click" Background="#4CAF50"/>
+                        <Button Content="🔒 Закрити всі" Click="CloseAllShares_Click" Background="#F44336"/>
                     </StackPanel>
 
                     <!-- Список директорій -->
@@ -145,11 +157,11 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="Директорія:"/>
+                                <TextBlock Grid.Column="0" Text="Директорія:" Foreground="#8C5A2D"/>
                                 <ComboBox Grid.Column="1" x:Name="AccessDirectoryCombo" 
                                           DisplayMemberPath="Name" Margin="5"/>
 
-                                <TextBlock Grid.Column="2" Text="Пристрій:"/>
+                                <TextBlock Grid.Column="2" Text="Пристрій:" Foreground="#8C5A2D"/>
                                 <ComboBox Grid.Column="3" x:Name="AccessDeviceCombo" 
                                           DisplayMemberPath="Name" Margin="5"/>
 
@@ -175,7 +187,7 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
-                        <Button Content="🔄 Виконати коміт" Click="ForceCommit_Click" Background="#4CAF50" Foreground="White"/>
+                        <Button Content="🔄 Виконати коміт" Click="ForceCommit_Click" Background="#4CAF50"/>
                         <Button Content="⏪ Відкат версії" Click="RevertVersion_Click"/>
                         <Button Content="🔍 Історія комітів" Click="ShowCommitHistory_Click"/>
                         <Button Content="🔃 Оновити" Click="RefreshVersionControl_Click"/>
@@ -275,7 +287,6 @@
                                     Margin="10,0,0,0" Padding="10,5"/>
                             <Button Grid.Column="3" Content="🤖 AI Генерація" Click="GenerateAIRoadmap_Click"
                                     Margin="10,0,0,0" Padding="10,5"
-                                    Background="#673AB7" Foreground="White"
                                     ToolTip="Генерувати roadmap за допомогою штучного інтелекту"/>
                         </Grid>
                     </GroupBox>
@@ -295,7 +306,7 @@
                             <ItemsControl x:Name="TimelineView">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border BorderBrush="#2196F3" BorderThickness="0,0,0,2" Padding="10" Margin="5">
+                                        <Border BorderThickness="0,0,0,2" Padding="10" Margin="5">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="150"/>
@@ -304,19 +315,19 @@
 
                                                 <StackPanel Grid.Column="0">
                                                     <TextBlock Text="{Binding EventDate, StringFormat='dd.MM.yyyy'}" 
-                                                               FontWeight="Bold" Foreground="#2196F3"/>
+                                                               FontWeight="Bold"/>
                                                     <TextBlock Text="{Binding EventDate, StringFormat='HH:mm'}" 
-                                                               FontSize="10" Foreground="Gray"/>
+                                                               FontSize="10"/>
                                                     <TextBlock Text="{Binding Category}" 
-                                                               FontSize="10" FontStyle="Italic" Foreground="Gray" Margin="0,5,0,0"/>
+                                                               FontSize="10" FontStyle="Italic" Margin="0,5,0,0"/>
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Column="1" Margin="10,0,0,0">
                                                     <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
                                                     <TextBlock Text="{Binding Description}" 
-                                                               TextWrapping="Wrap" Foreground="Gray" Margin="0,3,0,0"/>
+                                                               TextWrapping="Wrap" Margin="0,3,0,0"/>
                                                     <TextBlock Text="{Binding FilePath}" 
-                                                               FontSize="10" Foreground="DarkGray" Margin="0,3,0,0"/>
+                                                               FontSize="10" Margin="0,3,0,0"/>
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
@@ -351,9 +362,9 @@
                             </Grid.RowDefinitions>
 
                             <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
-                                <Button Content="🔍 Сканувати мережу" Click="ScanNetwork_Click" Background="#2196F3" Foreground="White"/>
+                                <Button Content="🔍 Сканувати мережу" Click="ScanNetwork_Click"/>
                                 <Button Content="🔃 Оновити інтерфейси" Click="RefreshNetworkInterfaces_Click"/>
-                                <TextBlock x:Name="ScanStatusText" Text="" VerticalAlignment="Center" Margin="10,0,0,0" Foreground="Gray"/>
+                                <TextBlock x:Name="ScanStatusText" Text="" VerticalAlignment="Center" Margin="10,0,0,0"/>
                             </StackPanel>
 
                             <GroupBox Grid.Row="1" Header="Мережеві інтерфейси ПК" Margin="5">
@@ -399,7 +410,7 @@
                                 <Button Content="➕ Додати сервіс" Click="AddExternalService_Click"/>
                                 <Button Content="✏️ Редагувати" Click="EditExternalService_Click"/>
                                 <Button Content="🗑️ Видалити" Click="DeleteExternalService_Click"/>
-                                <Button Content="🔌 Тест з'єднання" Click="TestExternalService_Click" Background="#4CAF50" Foreground="White"/>
+                                <Button Content="🔌 Тест з'єднання" Click="TestExternalService_Click"/>
                             </StackPanel>
 
                             <DataGrid Grid.Row="1" x:Name="ExternalServicesGrid" 
@@ -495,13 +506,13 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Інтервал коміту (хвилин):"/>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Інтервал коміту (хвилин):" Foreground="Black"/>
                                 <TextBox Grid.Row="0" Grid.Column="1" x:Name="CommitIntervalTextBox" 
                                          Text="720" Width="150" HorizontalAlignment="Left"/>
                                 <Button Grid.Row="0" Grid.Column="2" Content="Зберегти" 
                                         Click="SaveCommitInterval_Click" Margin="10,5"/>
-                                <TextBlock Grid.Row="0" Grid.Column="3" Text="(за замовчуванням: 720 = 12 годин)" 
-                                           Foreground="Gray" FontStyle="Italic"/>
+                                <TextBlock Grid.Row="0" Grid.Column="3" Text="(за замовчуванням: 720 = 12 годин)" Foreground="Black"
+                                           FontStyle="Italic"/>
 
                                 <Button Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" 
                                         Content="🔄 Виконати коміт зараз" 
@@ -527,23 +538,23 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Час запуску:" FontWeight="Bold"/>
-                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="StartTimeText" Text="-"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Час запуску:" FontWeight="Bold" Foreground="Black"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="StartTimeText" Text="-" Foreground="Black"/>
 
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Всього директорій:" FontWeight="Bold"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TotalDirsText" Text="-"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Всього директорій:" FontWeight="Bold" Foreground="Black"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TotalDirsText" Text="-" Foreground="Black"/>
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="Відкритих шарів:" FontWeight="Bold"/>
-                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="SharedDirsText" Text="-"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="SharedDirsText" Text="-" Foreground="Black"/>
 
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Зареєстрованих пристроїв:" FontWeight="Bold"/>
-                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="DevicesCountText" Text="-"/>
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Зареєстрованих пристроїв:" FontWeight="Bold" Foreground="Black"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="DevicesCountText" Text="-" Foreground="Black"/>
 
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Останній коміт:" FontWeight="Bold"/>
-                            <TextBlock Grid.Row="4" Grid.Column="1" x:Name="LastCommitText" Text="-"/>
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Останній коміт:" FontWeight="Bold" Foreground="Black"/>
+                            <TextBlock Grid.Row="4" Grid.Column="1" x:Name="LastCommitText" Text="-" Foreground="Black"/>
 
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Інтервал коміту:" FontWeight="Bold"/>
-                            <TextBlock Grid.Row="5" Grid.Column="1" x:Name="CommitIntervalText" Text="-"/>
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Інтервал коміту:" FontWeight="Bold" Foreground="Black"/>
+                            <TextBlock Grid.Row="5" Grid.Column="1" x:Name="CommitIntervalText" Text="-" Foreground="Black"/>
                         </Grid>
                     </GroupBox>
                 </StackPanel>
@@ -572,4 +583,4 @@
             </StatusBarItem>
         </StatusBar>
     </Grid>
-</Window>
+</Controls:MetroWindow>

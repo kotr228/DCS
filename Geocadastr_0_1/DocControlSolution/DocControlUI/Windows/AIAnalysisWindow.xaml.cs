@@ -8,13 +8,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using MahApps.Metro.Controls;
 
 namespace DocControlUI.Windows
 {
     /// <summary>
     /// AI Analysis Window - ПОВНА ВЕРСІЯ 0.4.1
     /// </summary>
-    public partial class AIAnalysisWindow : Window
+    public partial class AIAnalysisWindow : MetroWindow
     {
         private readonly DocControlServiceClient _serviceClient;
         private readonly OllamaClient _ollama;

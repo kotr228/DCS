@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DocControlAI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+bceb89b3a879b6811922dea4f315c17f8b1865a0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c5d6eb8239ed250f0336f8fd780711d3e0d337a2")]
 [assembly: System.Reflection.AssemblyProductAttribute("DocControlAI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DocControlAI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
