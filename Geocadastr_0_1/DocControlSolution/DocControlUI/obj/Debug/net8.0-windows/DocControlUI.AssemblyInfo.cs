@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DocControlUI")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1e0f7a87bc5c96ee48c493de9ad70f934c37f106")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9c3e79831e3efd18a86b75e0412803d71e528dd2")]
 [assembly: System.Reflection.AssemblyProductAttribute("DocControlUI")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DocControlUI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

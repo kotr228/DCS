@@ -1,0 +1,17 @@
+G:\DCS\CatSuite.Installer\CatSuite.Installer\bin\Debug\net8.0-windows\CatSuite.Installer.deps.json
+G:\DCS\CatSuite.Installer\CatSuite.Installer\bin\Debug\net8.0-windows\CatSuite.Installer.dll
+G:\DCS\CatSuite.Installer\CatSuite.Installer\bin\Debug\net8.0-windows\CatSuite.Installer.pdb
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\CatSuite.Installer.csproj.AssemblyReference.cache
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\Views\MainWindow.baml
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\Views\MainWindow.g.cs
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\CatSuite.Installer_MarkupCompile.cache
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\CatSuite.Installer.g.resources
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\CatSuite.Installer.GeneratedMSBuildEditorConfig.editorconfig
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\CatSuite.Installer.AssemblyInfoInputs.cache
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\CatSuite.Installer.AssemblyInfo.cs
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\CatSuite.Installer.csproj.CoreCompileInputs.cache
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\CatSuite.Installer.sourcelink.json
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\CatSuite.Installer.dll
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\refint\CatSuite.Installer.dll
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\CatSuite.Installer.pdb
+G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\ref\CatSuite.Installer.dll

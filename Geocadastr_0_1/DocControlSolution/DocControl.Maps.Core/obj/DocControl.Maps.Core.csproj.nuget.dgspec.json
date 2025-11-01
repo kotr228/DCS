@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj": {}
+    "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj": {}
   },
   "projects": {
-    "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj": {
+    "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
+        "projectUniqueName": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
         "projectName": "DocControl.Maps.Core",
-        "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
-        "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\obj\\",
+        "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
+        "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
+        "outputPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
