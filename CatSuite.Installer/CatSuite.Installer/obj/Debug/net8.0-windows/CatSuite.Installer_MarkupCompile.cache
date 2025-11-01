@@ -4,7 +4,7 @@
 library
 C#
 .cs
-G:\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\
+C:\Users\trock\Desktop\DCS\CatSuite.Installer\CatSuite.Installer\obj\Debug\net8.0-windows\
 CatSuite.Installer
 none
 false
@@ -13,7 +13,7 @@ TRACE;DEBUG;NET;NET8_0;NETCOREAPP;WINDOWS;WINDOWS7_0;NET5_0_OR_GREATER;NET6_0_OR
 1-1644662438
 
 91301059129
-203-814431151
+203208847367
 Views\MainWindow.xaml;
 
 False

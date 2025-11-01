@@ -1,0 +1,53 @@
+{
+  "installerCore": {
+    "version": "1.0.0",
+    "url": "ЩЕ_НЕ_ЗАПОВНЕНО",
+    "sha256": "54EDC18C7BAB0B9E58F73E7C635D4E41AB6970B074338B13BD5384E8654DD878"
+  },
+  "packages": [
+    {
+      "id": "SharedLibs",
+      "name": "CatSuite Shared Libraries",
+      "version": "1.0.0",
+      "description": "Спільні бібліотеки для всіх додатків CatSuite",
+      "url": "ЩЕ_НЕ_ЗАПОВНЕНО",
+      "sha256": "ЩЕ_НЕ_ЗАПОВНЕНО",
+      "dependsOn": [],
+      "isVisible": false,
+      "category": "Системні компоненти"
+    },
+    {
+      "id": "CoffeeCat",
+      "name": "CoffeeCat Application",
+      "version": "1.0.0",
+      "description": "Основний додаток CoffeeCat",
+      "url": "ЩЕ_НЕ_ЗАПОВНЕНО",
+      "sha256": "ЩЕ_НЕ_ЗАПОВНЕНО",
+      "dependsOn": [ "SharedLibs" ],
+      "isVisible": true,
+      "category": "Основні додатки"
+    },
+    {
+      "id": "GrayCat",
+      "name": "GrayCat Analytics",
+      "version": "1.0.0",
+      "description": "Інструмент аналітики GrayCat",
+      "url": "ЩЕ_НЕ_ЗАПОВНЕНО",
+      "sha256": "ЩЕ_НЕ_ЗАПОВНЕНО",
+      "dependsOn": [ "SharedLibs" ],
+      "isVisible": true,
+      "category": "Основні додатки"
+    },
+    {
+      "id": "DocControl",
+      "name": "DocControl Service",
+      "version": "0.3.0",
+      "description": "Сервіс контролю документів",
+      "url": "ЩЕ_НЕ_ЗАПОВНЕНО",
+      "sha256": "ЩЕ_НЕ_ЗАПОВНЕНО",
+      "dependsOn": [ "SharedLibs" ],
+      "isVisible": true,
+      "category": "Сервіси"
+    }
+  ]
+}

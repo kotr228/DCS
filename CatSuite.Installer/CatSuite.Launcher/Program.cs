@@ -7,18 +7,24 @@ using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Threading;
 
 namespace CatSuite.Launcher
 {
     public class Program
     {
-        private const string MANIFEST_URL = "https://drive.google.com/uc?export=download&id=YOUR_MANIFEST_FILE_ID";
+        private const string MANIFEST_URL = "https://drive.google.com/uc?export=download&id=1TL-Oeyu7ntiiBPXy6lWpzWOb-TsXQ34D";
         private static readonly string AppDirectory = AppContext.BaseDirectory;
         private static readonly string InstallerDllPath = Path.Combine(AppDirectory, "CatSuite.Installer.dll");
         private static readonly string TempDirectory = Path.Combine(Path.GetTempPath(), "CatSuite_Update");
 
         [STAThread]
-        public static async Task<int> Main(string[] args)
+        public static int Main(string[] args)
+        {
+            return MainAsync(args).GetAwaiter().GetResult();
+        }
+
+        public static async Task<int> MainAsync(string[] args)
         {
             try
             {
@@ -204,17 +210,25 @@ exit
                     return;
                 }
 
-                // Викликаємо статичний метод Run з передачею маніфесту
-                var runMethod = entryType.GetMethod("Run", BindingFlags.Static | BindingFlags.Public);
-                if (runMethod == null)
-                {
-                    ShowError("Не знайдено метод Run в ядрі інсталятора.");
-                    return;
-                }
-
                 // Передаємо маніфест як JSON
                 string manifestJson = JsonSerializer.Serialize(manifest);
-                runMethod.Invoke(null, new object[] { manifestJson });
+
+                // Створюємо новий потік з [STAThread]
+                var thread = new Thread(() =>
+                {
+                    var runMethod = entryType.GetMethod("Run", BindingFlags.Static | BindingFlags.Public);
+                    if (runMethod == null)
+                    {
+                        ShowError("Не знайдено метод Run в ядрі інсталятора.");
+                        return;
+                    }
+
+                    runMethod.Invoke(null, new object[] { manifestJson });
+                });
+
+                thread.SetApartmentState(ApartmentState.STA);
+                thread.Start();
+                thread.Join();
             }
             catch (Exception ex)
             {

@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "G:\\DCS\\CatSuite.Installer\\CatSuite.Installer\\CatSuite.Installer.csproj": {}
+    "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\CatSuite.Installer.csproj": {}
   },
   "projects": {
-    "G:\\DCS\\CatSuite.Installer\\CatSuite.Installer\\CatSuite.Installer.csproj": {
+    "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\CatSuite.Installer.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "G:\\DCS\\CatSuite.Installer\\CatSuite.Installer\\CatSuite.Installer.csproj",
+        "projectUniqueName": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\CatSuite.Installer.csproj",
         "projectName": "CatSuite.Installer",
-        "projectPath": "G:\\DCS\\CatSuite.Installer\\CatSuite.Installer\\CatSuite.Installer.csproj",
-        "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
-        "outputPath": "G:\\DCS\\CatSuite.Installer\\CatSuite.Installer\\obj\\",
+        "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\CatSuite.Installer.csproj",
+        "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
