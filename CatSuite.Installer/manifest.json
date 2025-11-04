@@ -1,10 +1,10 @@
 {
-  "installerCore": {
-    "version": "0.1.0",
-    "url": "https://drive.google.com/file/d/12OSv6zZMutDvP6RPA5GMFf2U7A6TvmqW/view?usp=sharing",
-    "sha256": "54EDC18C7BAB0B9E58F73E7C635D4E41AB6970B074338B13BD5384E8654DD878"
+  "InstallerCore": {
+    "Version": "1.1.0",
+    "Url": "https://drive.google.com/uc?export=download&id=12OSv6zZMutDvP6RPA5GMFf2U7A6TvmqW",
+    "Sha256": "027d7950e1d972c7b9cf8ffc48257bed3a2502b460ef0f3b40fa32a4efdd6cc6"
   },
-  "packages": [
+  "Packages": [
     
   ]
 }

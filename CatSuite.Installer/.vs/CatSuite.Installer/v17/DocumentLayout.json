@@ -3,16 +3,16 @@
   "WorkspaceRootPath": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.installer\\views\\historywindow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|solutionrelative:catsuite.installer\\views\\historywindow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{4A20BC26-B9F4-4C0D-8350-B319E446C238}|CatSuite.Launcher\\CatSuite.Launcher.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.launcher\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{4A20BC26-B9F4-4C0D-8350-B319E446C238}|CatSuite.Launcher\\CatSuite.Launcher.csproj|solutionrelative:catsuite.launcher\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.installer\\manifest.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
       "RelativeMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|solutionrelative:catsuite.installer\\manifest.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.installer\\views\\historywindow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|solutionrelative:catsuite.installer\\views\\historywindow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.installer\\models\\models.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -50,11 +50,11 @@
       "DocumentGroups": [
         {
           "DockedHeight": 200,
-          "SelectedChildIndex": 7,
+          "SelectedChildIndex": 6,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 1,
               "Title": "manifest.json",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\manifest.json",
               "RelativeDocumentMoniker": "CatSuite.Installer\\manifest.json",
@@ -62,8 +62,7 @@
               "RelativeToolTip": "CatSuite.Installer\\manifest.json",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2025-11-01T15:24:11.133Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-11-01T15:24:11.133Z"
             },
             {
               "$type": "Document",
@@ -123,34 +122,32 @@
               "RelativeToolTip": "CatSuite.Installer\\Models\\Models.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAIYAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-01T09:39:44.99Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-11-01T09:39:44.99Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 0,
               "Title": "Program.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Launcher\\Program.cs",
               "RelativeDocumentMoniker": "CatSuite.Launcher\\Program.cs",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Launcher\\Program.cs",
               "RelativeToolTip": "CatSuite.Launcher\\Program.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAOwAAAAJAAAAAAAAAA==",
+              "ViewState": "AgIAACwBAAAAAAAAAAAmwEMBAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-11-01T09:38:39.528Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 2,
               "Title": "HistoryWindow.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Views\\HistoryWindow.cs",
               "RelativeDocumentMoniker": "CatSuite.Installer\\Views\\HistoryWindow.cs",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Views\\HistoryWindow.cs",
               "RelativeToolTip": "CatSuite.Installer\\Views\\HistoryWindow.cs",
-              "ViewState": "AgIAABUAAAAAAAAAAAA+wDkAAAABAAAAAAAAAA==",
+              "ViewState": "AgIAABYAAAAAAAAAAAAqwDkAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-01T09:42:12.919Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-11-01T09:42:12.919Z"
             },
             {
               "$type": "Document",
@@ -172,7 +169,7 @@
               "RelativeDocumentMoniker": "CatSuite.Installer\\Views\\MainWindow.xaml.cs",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Views\\MainWindow.xaml.cs",
               "RelativeToolTip": "CatSuite.Installer\\Views\\MainWindow.xaml.cs",
-              "ViewState": "AgIAAOEAAAAAAAAAAAAgwPMAAAABAAAAAAAAAA==",
+              "ViewState": "AgIAAOEAAAAAAAAAAAA3wPMAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-11-01T09:53:55.074Z"
             }

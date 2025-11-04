@@ -4,16 +4,16 @@
 winexe
 C#
 .cs
-G:\DCS\GrayCatSolution\GrayCat.UI\obj\Debug\net8.0-windows\
+C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.UI\obj\Debug\net8.0-windows\
 GrayCat.UI
 none
 false
 TRACE;DEBUG;NET;NET8_0;NETCOREAPP;WINDOWS;WINDOWS7_0;NET5_0_OR_GREATER;NET6_0_OR_GREATER;NET7_0_OR_GREATER;NET8_0_OR_GREATER;NETCOREAPP3_0_OR_GREATER;NETCOREAPP3_1_OR_GREATER;WINDOWS7_0_OR_GREATER
-G:\DCS\GrayCatSolution\GrayCat.UI\App.xaml
+C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.UI\App.xaml
 4-1645282072
-3-485377656
+3-1476768402
 21-1383066041
-2311736041644
+231-790482285
 Controls\DraggableBlock.xaml;Controls\DynamicPropertiesPanel.xaml;Views\MainWindow.xaml;Views\NewProjectWindow.xaml;
 
 True

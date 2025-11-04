@@ -4,10 +4,12 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Reflection;
+using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Threading;
+using System.Text;
 
 namespace CatSuite.Launcher
 {
@@ -21,6 +23,8 @@ namespace CatSuite.Launcher
         [STAThread]
         public static int Main(string[] args)
         {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
             return MainAsync(args).GetAwaiter().GetResult();
         }
 
@@ -100,12 +104,17 @@ namespace CatSuite.Launcher
 
             try
             {
-                var assembly = Assembly.LoadFrom(InstallerDllPath);
-                var version = assembly.GetName().Version;
-                return version?.ToString();
+                // Цей метод читає метадані версії з файлу, 
+                // НЕ завантажуючи і НЕ блокуючи саму DLL.
+                var versionInfo = FileVersionInfo.GetVersionInfo(InstallerDllPath);
+
+                // Використовуйте FileVersion або ProductVersion. 
+                // FileVersion зазвичай є правильним вибором.
+                return versionInfo.FileVersion;
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"❌ Помилка читання версії файлу: {ex.Message}");
                 return null;
             }
         }
@@ -158,28 +167,97 @@ namespace CatSuite.Launcher
                 Console.WriteLine($"📦 Розпакування...");
                 ZipFile.ExtractToDirectory(zipPath, TempDirectory);
 
-                // Створюємо BAT-скрипт для оновлення
+                // --- ПОЧАТОК ЗМІН ---
+
+                // Підготуємо всі наші шляхи ЗАЗДАЛЕГІДЬ, щоб не плутати компілятор
+                string tempDllPath = Path.Combine(TempDirectory, "CatSuite.Installer.dll");
+                string targetDllPath = InstallerDllPath; // Це вже визначено як InstallerDllPath
+                string tempPdbPath = Path.Combine(TempDirectory, "CatSuite.Installer.pdb");
+                string targetPdbPath = Path.Combine(AppDirectory, "CatSuite.Installer.pdb");
+                string launcherExePath = Process.GetCurrentProcess().MainModule.FileName;
+
+                // Створюємо BAT-скрипт для оновлення за допомогою string.Format
                 string batPath = Path.Combine(TempDirectory, "update.bat");
-                string batContent = $@"@echo off
-timeout /t 2 /nobreak > nul
-echo Оновлення CatSuite Installer Core...
-copy /Y ""{Path.Combine(TempDirectory, "CatSuite.Installer.dll")}"" ""{InstallerDllPath}""
-if exist ""{Path.Combine(TempDirectory, "CatSuite.Installer.pdb")}"" (
-    copy /Y ""{Path.Combine(TempDirectory, "CatSuite.Installer.pdb")}"" ""{Path.Combine(AppDirectory, "CatSuite.Installer.pdb")}""
+
+                // {0} = tempDllPath
+                // {1} = targetDllPath
+                // {2} = tempPdbPath
+                // {3} = targetPdbPath
+                // {4} = launcherExePath
+                // {5} = TempDirectory
+
+                string batContent = string.Format(
+        @"@echo off
+echo.
+echo === CatSuite Updater ===
+echo Будь ласка, зачекайте, лаунчер оновлюється...
+echo.
+
+:: Чекаємо 3 секунди, щоб головний процес точно закрився
+timeout /t 3 /nobreak > nul
+
+:: Повторюємо спробу копіювання 5 разів з інтервалом в 1 сек
+setlocal
+set RETRY=5
+:copy_loop
+echo Спроба копіювання файлу...
+copy /Y ""{0}"" ""{1}""
+if errorlevel 1 (
+    echo Помилка копіювання! Файл може бути заблокований.
+    set /a RETRY-=1
+    if %RETRY% equ 0 goto copy_fail
+    echo Залишилось спроб: %RETRY%. Чекаємо 1 сек...
+    timeout /t 1 /nobreak > nul
+    goto copy_loop
 )
-start """" ""{Process.GetCurrentProcess().MainModule.FileName}""
-rd /s /q ""{TempDirectory}""
+
+echo Копіювання DLL успішне.
+
+:: Копіюємо PDB, якщо він є
+if exist ""{2}"" (
+    copy /Y ""{2}"" ""{3}""
+)
+
+goto copy_success
+
+:copy_fail
+echo НЕ ВДАЛОСЯ оновити файл.
+echo Перезапуск старої версії...
+goto start_launcher
+
+:copy_success
+echo Оновлення успішне.
+echo Видалення тимчасових файлів...
+:: Видаляємо тимчасову папку (зробить це після виходу)
+start """" cmd /c ""rd /s /q ""{5}""""
+
+:start_launcher
+echo Перезапуск CatSuite Launcher...
+start """" ""{4}""
 exit
-";
-                await File.WriteAllTextAsync(batPath, batContent);
+",
+            tempDllPath,
+            targetDllPath,
+            tempPdbPath,
+            targetPdbPath,
+            launcherExePath,
+            TempDirectory
+        );
+
+                // Встановлюємо правильне кодування для cmd.exe (OEM 866 для кирилиці)
+                Encoding oemEncoding = Encoding.GetEncoding(866);
+                await File.WriteAllTextAsync(batPath, batContent, oemEncoding);
 
                 // Запускаємо BAT і закриваємо себе
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = batPath,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
+                    UseShellExecute = true,  // ВАЖЛИВО
+                    CreateNoWindow = false, // ВАЖЛИВО (для відладки)
+                    WindowStyle = ProcessWindowStyle.Normal
                 });
+
+                // --- КІНЕЦЬ ЗМІН ---
 
                 return true;
             }
@@ -200,8 +278,10 @@ exit
         {
             try
             {
-                // Завантажуємо DLL у пам'ять
-                var assembly = Assembly.LoadFrom(InstallerDllPath);
+                // ✅ ВИРІШЕННЯ: Читаємо файл в пам'ять і завантажуємо звідти
+                byte[] assemblyBytes = File.ReadAllBytes(InstallerDllPath);
+                var assembly = Assembly.Load(assemblyBytes); // НЕ .LoadFrom()
+
                 var entryType = assembly.GetType("CatSuite.Installer.App");
 
                 if (entryType == null)
@@ -216,14 +296,21 @@ exit
                 // Створюємо новий потік з [STAThread]
                 var thread = new Thread(() =>
                 {
-                    var runMethod = entryType.GetMethod("Run", BindingFlags.Static | BindingFlags.Public);
-                    if (runMethod == null)
+                    try
                     {
-                        ShowError("Не знайдено метод Run в ядрі інсталятора.");
-                        return;
+                        var runMethod = entryType.GetMethod("Run", BindingFlags.Static | BindingFlags.Public);
+                        if (runMethod == null)
+                        {
+                            ShowError("Не знайдено метод Run в ядрі інсталятора.");
+                            return;
+                        }
+                        runMethod.Invoke(null, new object[] { manifestJson });
                     }
-
-                    runMethod.Invoke(null, new object[] { manifestJson });
+                    catch (Exception ex)
+                    {
+                        var innerEx = ex.InnerException ?? ex;
+                        ShowError($"Помилка запуску ядра інсталятора:\n{innerEx.Message}\n\n{innerEx.StackTrace}");
+                    }
                 });
 
                 thread.SetApartmentState(ApartmentState.STA);

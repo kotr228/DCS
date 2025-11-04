@@ -1,50 +1,12 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "G:\\DCS\\CatSuite\\",
-  "Documents": [
-    {
-      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|g:\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|g:\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\app.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    }
-  ],
+  "WorkspaceRootPath": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite\\",
+  "Documents": [],
   "DocumentGroupContainers": [
     {
       "Orientation": 1,
       "VerticalTabListWidth": 256,
-      "DocumentGroups": [
-        {
-          "DockedHeight": 200,
-          "SelectedChildIndex": 0,
-          "Children": [
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "MainWindow.xaml",
-              "DocumentMoniker": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
-              "ToolTip": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-11-01T08:54:30.438Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "App.xaml",
-              "DocumentMoniker": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\App.xaml",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\App.xaml",
-              "ToolTip": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\App.xaml",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\App.xaml",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-11-01T08:51:45.488Z",
-              "EditorCaption": ""
-            }
-          ]
-        }
-      ]
+      "DocumentGroups": []
     }
   ]
 }
