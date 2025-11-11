@@ -7,8 +7,16 @@
       "RelativeMoniker": "D:0:0:{4A20BC26-B9F4-4C0D-8350-B319E446C238}|CatSuite.Launcher\\CatSuite.Launcher.csproj|solutionrelative:catsuite.launcher\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.installer\\manifest.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
-      "RelativeMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|solutionrelative:catsuite.installer\\manifest.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+      "AbsoluteMoniker": "D:0:0:{4A20BC26-B9F4-4C0D-8350-B319E446C238}|CatSuite.Launcher\\CatSuite.Launcher.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.launcher\\catsuite.launcher.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{4A20BC26-B9F4-4C0D-8350-B319E446C238}|CatSuite.Launcher\\CatSuite.Launcher.csproj|solutionrelative:catsuite.launcher\\catsuite.launcher.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.installer\\catsuite.installer.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|solutionrelative:catsuite.installer\\catsuite.installer.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.installer\\services\\installationservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|solutionrelative:catsuite.installer\\services\\installationservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.installer\\views\\historywindow.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -31,10 +39,6 @@
       "RelativeMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|solutionrelative:catsuite.installer\\app.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.installer\\services\\installationservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|solutionrelative:catsuite.installer\\services\\installationservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|c:\\users\\trock\\desktop\\dcs\\catsuite.installer\\catsuite.installer\\services\\databaseschema.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{A891FEFD-13D3-482C-8DFF-E54CAA607F8F}|CatSuite.Installer\\CatSuite.Installer.csproj|solutionrelative:catsuite.installer\\services\\databaseschema.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -50,35 +54,50 @@
       "DocumentGroups": [
         {
           "DockedHeight": 200,
-          "SelectedChildIndex": 6,
+          "SelectedChildIndex": 7,
           "Children": [
             {
               "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "manifest.json",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\manifest.json",
-              "RelativeDocumentMoniker": "CatSuite.Installer\\manifest.json",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\manifest.json",
-              "RelativeToolTip": "CatSuite.Installer\\manifest.json",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
-              "WhenOpened": "2025-11-01T15:24:11.133Z"
+              "Title": "CatSuite.Launcher",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Launcher\\CatSuite.Launcher.csproj",
+              "RelativeDocumentMoniker": "CatSuite.Launcher\\CatSuite.Launcher.csproj",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Launcher\\CatSuite.Launcher.csproj",
+              "RelativeToolTip": "CatSuite.Launcher\\CatSuite.Launcher.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAPAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-11-04T10:54:01.788Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 2,
+              "Title": "CatSuite.Installer",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\CatSuite.Installer.csproj",
+              "RelativeDocumentMoniker": "CatSuite.Installer\\CatSuite.Installer.csproj",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\CatSuite.Installer.csproj",
+              "RelativeToolTip": "CatSuite.Installer\\CatSuite.Installer.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAkAAAAWAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2025-11-04T10:39:11.658Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
               "Title": "InstallationService.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Services\\InstallationService.cs",
               "RelativeDocumentMoniker": "CatSuite.Installer\\Services\\InstallationService.cs",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Services\\InstallationService.cs",
               "RelativeToolTip": "CatSuite.Installer\\Services\\InstallationService.cs",
-              "ViewState": "AgIAAEwBAAAAAAAAAAAAwGoBAAABAAAAAAAAAA==",
+              "ViewState": "AgIAAFQBAAAAAAAAAAAiwGMBAAAiAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-01T09:40:55.91Z"
+              "WhenOpened": "2025-11-01T09:40:55.91Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 6,
               "Title": "PackageService.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Services\\PackageService.cs",
               "RelativeDocumentMoniker": "CatSuite.Installer\\Services\\PackageService.cs",
@@ -90,7 +109,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 8,
+              "DocumentIndex": 9,
               "Title": "DatabaseSchema.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Services\\DatabaseSchema.cs",
               "RelativeDocumentMoniker": "CatSuite.Installer\\Services\\DatabaseSchema.cs",
@@ -102,7 +121,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
+              "DocumentIndex": 10,
               "Title": "DatabaseManager.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Services\\DatabaseManager.cs",
               "RelativeDocumentMoniker": "CatSuite.Installer\\Services\\DatabaseManager.cs",
@@ -114,7 +133,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 5,
               "Title": "Models.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Models\\Models.cs",
               "RelativeDocumentMoniker": "CatSuite.Installer\\Models\\Models.cs",
@@ -122,7 +141,8 @@
               "RelativeToolTip": "CatSuite.Installer\\Models\\Models.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAIYAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-01T09:39:44.99Z"
+              "WhenOpened": "2025-11-01T09:39:44.99Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
@@ -132,14 +152,14 @@
               "RelativeDocumentMoniker": "CatSuite.Launcher\\Program.cs",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Launcher\\Program.cs",
               "RelativeToolTip": "CatSuite.Launcher\\Program.cs",
-              "ViewState": "AgIAACwBAAAAAAAAAAAmwEMBAAAJAAAAAAAAAA==",
+              "ViewState": "AgIAANQAAAAAAAAAAAAswNkAAAA2AAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-11-01T09:38:39.528Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 4,
               "Title": "HistoryWindow.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Views\\HistoryWindow.cs",
               "RelativeDocumentMoniker": "CatSuite.Installer\\Views\\HistoryWindow.cs",
@@ -151,7 +171,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 8,
               "Title": "App.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\App.cs",
               "RelativeDocumentMoniker": "CatSuite.Installer\\App.cs",
@@ -163,7 +183,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 7,
               "Title": "MainWindow.xaml.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite.Installer\\CatSuite.Installer\\Views\\MainWindow.xaml.cs",
               "RelativeDocumentMoniker": "CatSuite.Installer\\Views\\MainWindow.xaml.cs",

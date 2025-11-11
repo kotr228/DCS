@@ -32,7 +32,7 @@ namespace CatSuite.Launcher
         {
             try
             {
-                Console.WriteLine("=== CatSuite Launcher v1.0 ===");
+                Console.WriteLine("=== CatSuite Launcher v1.2.0 ===");
                 Console.WriteLine($"📂 Робочий каталог: {AppDirectory}");
 
                 // Завантажуємо маніфест
@@ -63,10 +63,10 @@ namespace CatSuite.Launcher
                         return 1;
                     }
 
-                    // Перезапускаємо себе
-                    Console.WriteLine("🔄 Перезапуск...");
-                    RestartLauncher();
+                    // НЕ робити RestartLauncher тут.
+                    // UpdateInstallerCoreAsync уже запустив bat і завершив процес.
                     return 0;
+
                 }
 
                 // Версії збігаються - завантажуємо ядро
@@ -141,7 +141,7 @@ namespace CatSuite.Launcher
 
         private static async Task<bool> UpdateInstallerCoreAsync(InstallerCoreInfo coreInfo)
         {
-            if (coreInfo == null || string.IsNullOrEmpty(coreInfo.Url))
+            if (coreInfo == null || string.IsNullOrWhiteSpace(coreInfo.Url))
             {
                 Console.WriteLine("❌ Невалідна інформація про оновлення.");
                 return false;
@@ -149,42 +149,141 @@ namespace CatSuite.Launcher
 
             try
             {
-                // Створюємо тимчасову папку
+                // ⬅ очистити/підготувати temp
                 if (Directory.Exists(TempDirectory))
                     Directory.Delete(TempDirectory, true);
                 Directory.CreateDirectory(TempDirectory);
 
                 Console.WriteLine($"⬇️ Завантаження оновлення з {coreInfo.Url}...");
 
-                // Завантажуємо ZIP
-                string zipPath = Path.Combine(TempDirectory, "installer_core.zip");
-                using (var client = new HttpClient())
+                var zipPath = Path.Combine(TempDirectory, "installer_core.zip");
+
+                // ===== Локальні хелпери без перейменування зовнішніх методів =====
+                static bool LooksLikeHtml(byte[] head)
                 {
-                    var data = await client.GetByteArrayAsync(coreInfo.Url);
-                    await File.WriteAllBytesAsync(zipPath, data);
+                    if (head.Length == 0) return true;
+                    var s = System.Text.Encoding.UTF8.GetString(head);
+                    return s.IndexOf("<html", StringComparison.OrdinalIgnoreCase) >= 0
+                        || s.IndexOf("<!DOCTYPE html", StringComparison.OrdinalIgnoreCase) >= 0;
+                }
+                static bool LooksLikeZip(byte[] head)
+                    => head.Length >= 4 && head[0] == (byte)'P' && head[1] == (byte)'K';
+
+                static string Sha256HexOf(string file)
+                {
+                    using var fs = File.OpenRead(file);
+                    using var sha = System.Security.Cryptography.SHA256.Create();
+                    return Convert.ToHexString(sha.ComputeHash(fs));
                 }
 
-                Console.WriteLine($"📦 Розпакування...");
-                ZipFile.ExtractToDirectory(zipPath, TempDirectory);
+                async Task DownloadToFileAsync(HttpClient http, string url, string path, CancellationToken ct)
+                {
+                    using var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+                    resp.EnsureSuccessStatusCode();
 
-                // --- ПОЧАТОК ЗМІН ---
+                    await using var src = await resp.Content.ReadAsStreamAsync(ct);
+                    await using var dst = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 8192, useAsync: true);
+                    await src.CopyToAsync(dst, 8192, ct);
+                    await dst.FlushAsync(ct);
+                }
 
-                // Підготуємо всі наші шляхи ЗАЗДАЛЕГІДЬ, щоб не плутати компілятор
+                async Task<bool> TryDownloadDriveAsync(string url, string path, CancellationToken ct)
+                {
+                    using var handler = new HttpClientHandler
+                    {
+                        AllowAutoRedirect = true,
+                        AutomaticDecompression = System.Net.DecompressionMethods.All,
+                        UseCookies = true,
+                        CookieContainer = new System.Net.CookieContainer()
+                    };
+                    using var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(10) };
+                    http.DefaultRequestHeaders.UserAgent.ParseAdd("CatSuiteLauncher/1.0");
+
+                    // 1) Перша спроба
+                    await DownloadToFileAsync(http, url, path, ct);
+
+                    // Перевіряємо, що не HTML і схоже на ZIP
+                    var head = await File.ReadAllBytesAsync(path, ct);
+                    var headSlice = head.AsSpan(0, Math.Min(1024, head.Length)).ToArray();
+
+                    if (!LooksLikeHtml(headSlice) && LooksLikeZip(headSlice))
+                        return true;
+
+                    // 2) Якщо це Google Drive HTML — дістати confirm і перезакачати
+                    var html = System.Text.Encoding.UTF8.GetString(head);
+                    var confirm = System.Text.RegularExpressions.Regex
+                        .Match(html, @"name=""confirm""\s+value=""(?<v>[^""]+)""", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
+                        .Groups["v"].Value;
+
+                    if (string.IsNullOrEmpty(confirm))
+                    {
+                        // іноді confirm у URL
+                        var m2 = System.Text.RegularExpressions.Regex.Match(html, @"confirm=([0-9A-Za-z_]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        if (m2.Success) confirm = m2.Groups[1].Value;
+                    }
+
+                    var idMatch = System.Text.RegularExpressions.Regex.Match(url, @"[\?&]id=([^&]+)");
+                    var id = idMatch.Success ? idMatch.Groups[1].Value : null;
+                    if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(confirm))
+                        return false;
+
+                    var confirmedUrl = $"https://drive.google.com/uc?export=download&confirm={confirm}&id={id}";
+
+                    await DownloadToFileAsync(http, confirmedUrl, path, ct);
+
+                    var head2 = await File.ReadAllBytesAsync(path, ct);
+                    var head2Slice = head2.AsSpan(0, Math.Min(1024, head2.Length)).ToArray();
+                    return !LooksLikeHtml(head2Slice) && LooksLikeZip(head2Slice);
+                }
+                // ===== кінець локальних хелперів =====
+
+                // 3 ретраї на всяк випадок
+                var cts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
+                var ok = false;
+                for (int attempt = 1; attempt <= 3 && !ok; attempt++)
+                {
+                    try
+                    {
+                        if (File.Exists(zipPath)) File.Delete(zipPath);
+                        ok = await TryDownloadDriveAsync(coreInfo.Url, zipPath, cts.Token);
+                        if (!ok) Console.WriteLine($"⚠️ Спроба {attempt}: отримано не ZIP (ймовірно HTML від Drive).");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"⚠️ Спроба {attempt} не вдалася: {ex.Message}");
+                        await Task.Delay(1000);
+                    }
+                }
+
+                if (!ok)
+                {
+                    Console.WriteLine("❌ Не вдалося отримати валідний ZIP з Google Drive.");
+                    return false;
+                }
+
+                // Перевірка SHA-256 перед розпакуванням (якщо в маніфесті задано)
+                if (!string.IsNullOrWhiteSpace(coreInfo.Sha256))
+                {
+                    var got = Sha256HexOf(zipPath);
+                    if (!got.Equals(coreInfo.Sha256, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.WriteLine($"❌ Хеш не співпав. Очікував: {coreInfo.Sha256}, отримав: {got}");
+                        return false;
+                    }
+                    Console.WriteLine("✅ Контрольна сума підтверджена.");
+                }
+
+                Console.WriteLine("📦 Розпакування...");
+                // Розпаковуємо у TempDirectory (staging)
+                System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, TempDirectory, overwriteFiles: true);
+
+                // Підготуємо шляхи для батника (як у тебе було)
                 string tempDllPath = Path.Combine(TempDirectory, "CatSuite.Installer.dll");
-                string targetDllPath = InstallerDllPath; // Це вже визначено як InstallerDllPath
+                string targetDllPath = InstallerDllPath;
                 string tempPdbPath = Path.Combine(TempDirectory, "CatSuite.Installer.pdb");
                 string targetPdbPath = Path.Combine(AppDirectory, "CatSuite.Installer.pdb");
-                string launcherExePath = Process.GetCurrentProcess().MainModule.FileName;
-
-                // Створюємо BAT-скрипт для оновлення за допомогою string.Format
+                string launcherExePath = Process.GetCurrentProcess().MainModule!.FileName;
                 string batPath = Path.Combine(TempDirectory, "update.bat");
-
-                // {0} = tempDllPath
-                // {1} = targetDllPath
-                // {2} = tempPdbPath
-                // {3} = targetPdbPath
-                // {4} = launcherExePath
-                // {5} = TempDirectory
 
                 string batContent = string.Format(
         @"@echo off
@@ -193,71 +292,59 @@ echo === CatSuite Updater ===
 echo Будь ласка, зачекайте, лаунчер оновлюється...
 echo.
 
-:: Чекаємо 3 секунди, щоб головний процес точно закрився
 timeout /t 3 /nobreak > nul
 
-:: Повторюємо спробу копіювання 5 разів з інтервалом в 1 сек
 setlocal
 set RETRY=5
 :copy_loop
-echo Спроба копіювання файлу...
 copy /Y ""{0}"" ""{1}""
 if errorlevel 1 (
     echo Помилка копіювання! Файл може бути заблокований.
     set /a RETRY-=1
     if %RETRY% equ 0 goto copy_fail
-    echo Залишилось спроб: %RETRY%. Чекаємо 1 сек...
     timeout /t 1 /nobreak > nul
     goto copy_loop
 )
-
 echo Копіювання DLL успішне.
 
-:: Копіюємо PDB, якщо він є
-if exist ""{2}"" (
-    copy /Y ""{2}"" ""{3}""
-)
+if exist ""{2}"" copy /Y ""{2}"" ""{3}""
 
 goto copy_success
 
 :copy_fail
 echo НЕ ВДАЛОСЯ оновити файл.
-echo Перезапуск старої версії...
 goto start_launcher
 
 :copy_success
 echo Оновлення успішне.
-echo Видалення тимчасових файлів...
-:: Видаляємо тимчасову папку (зробить це після виходу)
-start """" cmd /c ""rd /s /q ""{5}""""
+start """" cmd /c ""rd /s /q ""{4}"""" 
 
 :start_launcher
-echo Перезапуск CatSuite Launcher...
-start """" ""{4}""
+start """" ""{5}""
 exit
 ",
-            tempDllPath,
-            targetDllPath,
-            tempPdbPath,
-            targetPdbPath,
-            launcherExePath,
-            TempDirectory
-        );
+                    tempDllPath,
+                    targetDllPath,
+                    tempPdbPath,
+                    targetPdbPath,
+                    TempDirectory,
+                    launcherExePath
+                );
 
-                // Встановлюємо правильне кодування для cmd.exe (OEM 866 для кирилиці)
-                Encoding oemEncoding = Encoding.GetEncoding(866);
-                await File.WriteAllTextAsync(batPath, batContent, oemEncoding);
+                // Запис батника OEM-866, як у тебе
+                var oem866 = Encoding.GetEncoding(866);
+                await File.WriteAllTextAsync(batPath, batContent, oem866);
 
-                // Запускаємо BAT і закриваємо себе
+                // Запускаємо оновлення і виходимо
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = batPath,
-                    UseShellExecute = true,  // ВАЖЛИВО
-                    CreateNoWindow = false, // ВАЖЛИВО (для відладки)
+                    UseShellExecute = true,
+                    CreateNoWindow = false,
                     WindowStyle = ProcessWindowStyle.Normal
                 });
 
-                // --- КІНЕЦЬ ЗМІН ---
+                Environment.Exit(0);
 
                 return true;
             }
@@ -267,6 +354,7 @@ exit
                 return false;
             }
         }
+
 
         private static void RestartLauncher()
         {

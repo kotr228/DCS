@@ -6,9 +6,10 @@
   "compilationOptions": {},
   "targets": {
     ".NETCoreApp,Version=v8.0": {
-      "CatSuite.Launcher/1.0.0": {
+      "CatSuite.Launcher/1.2.0": {
         "dependencies": {
-          "CatSuite.Installer": "1.0.0",
+          "CatSuite.Installer": "1.2.0",
+          "System.Text.Encoding.CodePages": "9.0.10",
           "System.Text.Json": "9.0.10"
         },
         "runtime": {
@@ -185,6 +186,22 @@
         }
       },
       "System.Memory/4.5.3": {},
+      "System.Text.Encoding.CodePages/9.0.10": {
+        "runtime": {
+          "lib/net8.0/System.Text.Encoding.CodePages.dll": {
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.0.1025.47515"
+          }
+        },
+        "runtimeTargets": {
+          "runtimes/win/lib/net8.0/System.Text.Encoding.CodePages.dll": {
+            "rid": "win",
+            "assetType": "runtime",
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.0.1025.47515"
+          }
+        }
+      },
       "System.Text.Encodings.Web/9.0.10": {
         "runtime": {
           "lib/net8.0/System.Text.Encodings.Web.dll": {
@@ -213,22 +230,22 @@
           }
         }
       },
-      "CatSuite.Installer/1.0.0": {
+      "CatSuite.Installer/1.2.0": {
         "dependencies": {
           "Microsoft.Data.Sqlite": "9.0.10",
           "System.Text.Json": "9.0.10"
         },
         "runtime": {
           "CatSuite.Installer.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
+            "assemblyVersion": "1.2.0.0",
+            "fileVersion": "1.2.0.0"
           }
         }
       }
     }
   },
   "libraries": {
-    "CatSuite.Launcher/1.0.0": {
+    "CatSuite.Launcher/1.2.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
@@ -289,6 +306,13 @@
       "path": "system.memory/4.5.3",
       "hashPath": "system.memory.4.5.3.nupkg.sha512"
     },
+    "System.Text.Encoding.CodePages/9.0.10": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-UyurlgWm3k3I8LVDmO67GFiu61t4UPzNrTK5fS6K6DADQgIYcFjDnRJWvVls4/R9UjgSL9R+OxJnDXn05fTCCA==",
+      "path": "system.text.encoding.codepages/9.0.10",
+      "hashPath": "system.text.encoding.codepages.9.0.10.nupkg.sha512"
+    },
     "System.Text.Encodings.Web/9.0.10": {
       "type": "package",
       "serviceable": true,
@@ -303,7 +327,7 @@
       "path": "system.text.json/9.0.10",
       "hashPath": "system.text.json.9.0.10.nupkg.sha512"
     },
-    "CatSuite.Installer/1.0.0": {
+    "CatSuite.Installer/1.2.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

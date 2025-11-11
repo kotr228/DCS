@@ -1,8 +1,8 @@
 {
   "InstallerCore": {
-    "Version": "1.1.0",
+    "Version": "1.2.0",
     "Url": "https://drive.google.com/uc?export=download&id=12OSv6zZMutDvP6RPA5GMFf2U7A6TvmqW",
-    "Sha256": "027d7950e1d972c7b9cf8ffc48257bed3a2502b460ef0f3b40fa32a4efdd6cc6"
+    "Sha256": "6eee5564cd09288863451821c1e1e1d47c78b64ae17b4c831a1827b99d905502"
   },
   "Packages": [
     

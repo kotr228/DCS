@@ -8,8 +8,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>CatSuite.Launcher</AssemblyName>
     <RootNamespace>CatSuite.Launcher</RootNamespace>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+	  <AssemblyVersion>1.2.0.0</AssemblyVersion>
+	  <FileVersion>1.2.0.0</FileVersion>
+	  <Version>1.2.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

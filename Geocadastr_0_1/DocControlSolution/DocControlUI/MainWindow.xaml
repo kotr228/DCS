@@ -7,7 +7,7 @@
         xmlns:Controls="http://metro.mahapps.com/winfx/xaml/controls"
         mc:Ignorable="d"
         Title="Coffe Cat" 
-        Height="718" Width="962"
+        Height="718" Width="1320"
         WindowStartupLocation="CenterScreen"
         Icon="/Assets/424.ico"
         Background="{StaticResource BackgroundBrush}"
