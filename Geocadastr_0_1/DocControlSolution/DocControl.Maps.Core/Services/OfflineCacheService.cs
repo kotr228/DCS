@@ -3,6 +3,7 @@ using DocControl.Maps.Core.Interfaces;
 using DocControl.Maps.Core.Models;
 using System;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace DocControl.Maps.Core.Services
 {
@@ -13,6 +14,9 @@ namespace DocControl.Maps.Core.Services
     {
         private readonly MapCacheRepository _repository;
         private readonly IMapProvider _provider;
+
+        private CancellationTokenSource _downloadCts;
+        private readonly ManualResetEventSlim _pauseEvent = new(true); // true = початково не на паузі
 
         public OfflineCacheService(MapCacheRepository repository, IMapProvider provider)
         {
@@ -51,8 +55,13 @@ namespace DocControl.Maps.Core.Services
         }
 
         public async Task<CachedRegion> DownloadRegionAsync(double minLat, double minLon,
-            double maxLat, double maxLon, int minZoom, int maxZoom)
+    double maxLat, double maxLon, int minZoom, int maxZoom)
         {
+            // Встановлюємо новий CancellationTokenSource для цього завантаження
+            _downloadCts = new CancellationTokenSource();
+            var token = _downloadCts.Token;
+            _pauseEvent.Set(); // Переконуємося, що не на паузі з минулого разу
+
             var region = new CachedRegion
             {
                 Name = $"Region_{DateTime.Now:yyyyMMdd_HHmmss}",
@@ -69,51 +78,69 @@ namespace DocControl.Maps.Core.Services
             int totalTiles = 0;
             long totalSize = 0;
 
-            for (int zoom = minZoom; zoom <= maxZoom; zoom++)
+            try
             {
-                var (minX, minY, maxX, maxY) = LatLonToTile(minLat, minLon, maxLat, maxLon, zoom);
-
-                for (int x = minX; x <= maxX; x++)
+                for (int zoom = minZoom; zoom <= maxZoom; zoom++)
                 {
-                    for (int y = minY; y <= maxY; y++)
+                    var (minX, minY, maxX, maxY) = LatLonToTile(minLat, minLon, maxLat, maxLon, zoom);
+
+                    for (int x = minX; x <= maxX; x++)
                     {
-                        try
+                        for (int y = minY; y <= maxY; y++)
                         {
-                            // Перевіряємо чи вже є в кеші
-                            if (await IsTileCachedAsync(x, y, zoom))
-                                continue;
+                            // --- ДОДАНО ЛОГІКУ ПАУЗИ ТА СКАСУВАННЯ ---
+                            token.ThrowIfCancellationRequested(); // Перевірка на скасування
+                            _pauseEvent.Wait(token); // Чекає тут, якщо _pauseEvent.Reset() був викликаний
+                                                     // ----------------------------------------
 
-                            // Завантажуємо тайл
-                            var imageData = await _provider.DownloadTileAsync(x, y, zoom);
-
-                            if (imageData != null && imageData.Length > 0)
+                            try
                             {
-                                var tile = new MapTile
+                                // Перевіряємо чи вже є в кеші
+                                if (await IsTileCachedAsync(x, y, zoom))
+                                    continue;
+
+                                // Завантажуємо тайл
+                                var imageData = await _provider.DownloadTileAsync(x, y, zoom);
+
+                                if (imageData != null && imageData.Length > 0)
                                 {
-                                    X = x,
-                                    Y = y,
-                                    Zoom = zoom,
-                                    Provider = _provider.ProviderName,
-                                    ImageData = imageData,
-                                    DownloadedAt = DateTime.Now,
-                                    IsCached = true
-                                };
+                                    var tile = new MapTile
+                                    {
+                                        X = x,
+                                        Y = y,
+                                        Zoom = zoom,
+                                        Provider = _provider.ProviderName,
+                                        ImageData = imageData,
+                                        DownloadedAt = DateTime.Now,
+                                        IsCached = true
+                                    };
 
-                                await SaveTileAsync(tile);
+                                    await SaveTileAsync(tile);
 
-                                totalTiles++;
-                                totalSize += imageData.Length;
+                                    totalTiles++;
+                                    totalSize += imageData.Length;
+                                }
+
+                                // Затримка щоб не перевантажувати сервер
+                                await Task.Delay(100, token); // Передаємо token
                             }
-
-                            // Затримка щоб не перевантажувати сервер
-                            await Task.Delay(100);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Error downloading tile {x},{y} at zoom {zoom}: {ex.Message}");
+                            catch (Exception ex) when (ex is not OperationCanceledException)
+                            {
+                                Console.WriteLine($"Error downloading tile {x},{y} at zoom {zoom}: {ex.Message}");
+                            }
                         }
                     }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                Console.WriteLine("Download was cancelled.");
+                region.Name += " (Cancelled)";
+            }
+            finally
+            {
+                _downloadCts.Dispose();
+                _downloadCts = null;
             }
 
             region.TileCount = totalTiles;
@@ -122,6 +149,21 @@ namespace DocControl.Maps.Core.Services
             region.Id = await _repository.SaveRegionAsync(region);
 
             return region;
+        }
+
+        public void PauseDownload()
+        {
+            _pauseEvent.Reset(); // Встановлює "сигнал" на паузу
+        }
+
+        public void ResumeDownload()
+        {
+            _pauseEvent.Set(); // Знімає "сигнал" з паузи
+        }
+
+        public void CancelDownload()
+        {
+            _downloadCts?.Cancel(); // Надсилає сигнал скасування
         }
 
         private (int minX, int minY, int maxX, int maxY) LatLonToTile(

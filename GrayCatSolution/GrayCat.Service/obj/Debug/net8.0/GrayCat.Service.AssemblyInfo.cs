@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GrayCat.Service")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1194853bc1b75e369d69ca5751ea1dd4b9f6412c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+42dec311e508016b1cf44b9dadfc49700801c847")]
 [assembly: System.Reflection.AssemblyProductAttribute("GrayCat.Service")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GrayCat.Service")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -65,7 +65,7 @@ namespace DocControlUI.Windows
                 else
                 {
                     SetStatus("Створення нової геокарти...");
-                    ShowNewRoadmapDialog();
+                    await ShowNewRoadmapDialogAsync();
                 }
 
                 // Ініціалізуємо WebView2 карту
@@ -137,27 +137,52 @@ namespace DocControlUI.Windows
             }
         }
 
-        private void ShowNewRoadmapDialog()
+        private async Task ShowNewRoadmapDialogAsync()
         {
-            var dialog = new NewGeoRoadmapDialog();
-            if (dialog.ShowDialog() == true)
+            try
             {
-                _currentRoadmap = new GeoRoadmap
-                {
-                    DirectoryId = dialog.SelectedDirectoryId,
-                    Name = dialog.RoadmapName,
-                    Description = dialog.RoadmapDescription,
-                    MapProvider = MapProvider.OpenStreetMap,
-                    CenterLatitude = 50.4501,
-                    CenterLongitude = 30.5234,
-                    ZoomLevel = 10,
-                    CreatedAt = DateTime.Now
-                };
+                SetStatus("Завантаження списку директорій...");
 
-                LoadRoadmap();
+                // 1. Використовуємо метод, який точно існує (як в MainWindow)
+                var directories = await _client.GetDirectoriesAsync();
+
+                if (directories == null || !directories.Any())
+                {
+                    MessageBox.Show("Не знайдено доступних директорій. Спочатку додайте директорію в головному вікні.",
+                        "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    Close();
+                    return;
+                }
+
+                // 2. Передаємо реальний список у діалог
+                var dialog = new NewGeoRoadmapDialog(directories);
+
+                if (dialog.ShowDialog() == true)
+                {
+                    _currentRoadmap = new GeoRoadmap
+                    {
+                        DirectoryId = dialog.SelectedDirectoryId,
+                        Name = dialog.RoadmapName,
+                        Description = dialog.RoadmapDescription,
+                        MapProvider = MapProvider.OpenStreetMap,
+                        CenterLatitude = 50.4501,
+                        CenterLongitude = 30.5234,
+                        ZoomLevel = 10,
+                        CreatedAt = DateTime.Now
+                    };
+
+                    LoadRoadmap();
+                }
+                else
+                {
+                    // Якщо користувач скасував створення - закриваємо вікно редактора
+                    Close();
+                }
             }
-            else
+            catch (Exception ex)
             {
+                MessageBox.Show($"Помилка отримання списку директорій: {ex.Message}", "Помилка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
                 Close();
             }
         }
@@ -935,16 +960,121 @@ namespace DocControlUI.Windows
             }
         }
 
-        private void AddArea_Click(object sender, RoutedEventArgs e)
+        private async void AddArea_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Функція додавання областей буде реалізована в v0.4",
-                "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
+            // Вимикаємо інші режими
+            _isAddingNode = false;
+            _isConnectingNodes = false;
+            _connectFromNode = null;
+
+            // Вмикаємо режим додавання області
+            MapModeText.Text = "Режим: Малювання області (клікніть для старту)";
+            SetStatus("Почніть малювати область на карті");
+
+            // Відправляємо команду в JavaScript
+            await SendMessageToMap(new
+            {
+                action = "startDrawingArea",
+                data = new
+                {
+                    // Тут можна задати ID або колір за замовчуванням
+                    fillColor = "#2196F3",
+                    strokeColor = "#1976D2"
+                }
+            });
         }
 
-        private void AddMilestonesFromFiles_Click(object sender, RoutedEventArgs e)
+        private async void AddMilestonesFromFiles_Click(object sender, RoutedEventArgs e)
         {
-            MessageBox.Show("Функція буде реалізована в v0.4",
-                "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (_currentRoadmap == null)
+            {
+                MessageBox.Show("Спочатку потрібно зберегти карту.", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                $"Запустити AI-аналіз файлів у директорії (ID: {_currentRoadmap.DirectoryId}) для пошуку геолокацій?\n\n" +
+                "Це може зайняти деякий час.",
+                "Підтвердження",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.No) return;
+
+            try
+            {
+                SetStatus("Запуск ШІ-аналізу для пошуку локацій...");
+
+                // Створюємо запит для AI-аналізу
+                var request = new AIAnalysisRequest
+                {
+                    DirectoryId = _currentRoadmap.DirectoryId,
+                    AnalysisType = AIAnalysisType.GeoRoadmapGeneration,
+                    DeepScan = true // Або false, залежно від бажаної глибини
+                };
+
+                // Викликаємо нову команду сервісу (яку ви додали в SharedModels v0.4)
+                var analysisResult = await _client.StartAIAnalysisAsync(
+                                                                        request.DirectoryId,
+                                                                        request.AnalysisType,
+                                                                        request.DeepScan
+                                                                        );
+
+                if (analysisResult == null || !analysisResult.Recommendations.Any())
+                {
+                    SetStatus("ШІ-аналіз завершено, нових локацій не знайдено.");
+                    MessageBox.Show("Аналіз завершено, але нових локацій для додавання не знайдено.",
+                        "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                SetStatus($"ШІ-аналіз знайшов {analysisResult.Recommendations.Count} потенційних точок.");
+
+                // В майбутньому, тут можна показати діалог для вибору,
+                // а поки додамо всі знайдені точки
+
+                int addedCount = 0;
+                foreach (var rec in analysisResult.Recommendations.Where(r => r.ActionJson.Contains("Latitude")))
+                {
+                    try
+                    {
+                        // Десеріалізуємо дані з ШІ
+                        var nodeData = JsonSerializer.Deserialize<GeoRoadmapNode>(rec.ActionJson);
+
+                        var newNode = new GeoRoadmapNode
+                        {
+                            GeoRoadmapId = _currentRoadmap.Id,
+                            Title = nodeData.Title ?? rec.Title,
+                            Description = nodeData.Description ?? rec.Description,
+                            Latitude = nodeData.Latitude,
+                            Longitude = nodeData.Longitude,
+                            Address = nodeData.Address,
+                            Type = nodeData.Type,
+                            Color = nodeData.Color ?? "#FF9800", // Помаранчевий для ШІ
+                            OrderIndex = _nodes.Count
+                        };
+
+                        _nodes.Add(newNode);
+                        await AddNodeToMap(newNode);
+                        addedCount++;
+                    }
+                    catch (Exception exJson)
+                    {
+                        SetStatus($"Помилка парсингу рекомендації: {exJson.Message}");
+                    }
+                }
+
+                RefreshUI();
+                MessageBox.Show($"Додано {addedCount} нових точок з файлів.", "Аналіз завершено",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка ШІ-аналізу: {ex.Message}");
+                MessageBox.Show($"Помилка ШІ-аналізу: {ex.Message}", "Помилка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private async void SaveAsTemplate_Click(object sender, RoutedEventArgs e)
@@ -977,12 +1107,97 @@ namespace DocControlUI.Windows
 
         private void Template_SelectionChanged(object sender, SelectionChangedEventArgs e) { }
 
-        private void ApplyTemplate_Click(object sender, RoutedEventArgs e)
+        private async void ApplyTemplate_Click(object sender, RoutedEventArgs e)
         {
-            if (TemplateComboBox.SelectedItem is GeoRoadmapTemplate template)
+            if (TemplateComboBox.SelectedItem is not GeoRoadmapTemplate template)
             {
-                MessageBox.Show("Функція застосування шаблонів буде повністю реалізована в v0.4",
-                    "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Будь ласка, виберіть шаблон для застосування.", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(template.TemplateJson))
+            {
+                MessageBox.Show("Обраний шаблон порожній і не містить даних.", "Помилка шаблону",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                $"Застосувати шаблон '{template.Name}'?\n\n" +
+                "Всі існуючі точки та маршрути на цій карті буде видалено.",
+                "Підтвердження",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result == MessageBoxResult.No) return;
+
+            try
+            {
+                SetStatus($"Застосування шаблону: {template.Name}...");
+
+                // Десеріалізуємо JSON шаблону в тимчасовий об'єкт GeoRoadmap
+                // Використовуємо JsonSerializerOptions, щоб ігнорувати регістр властивостей
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var templateMap = JsonSerializer.Deserialize<GeoRoadmap>(template.TemplateJson, options);
+
+                if (templateMap == null)
+                {
+                    throw new Exception("Не вдалося розпізнати дані шаблону.");
+                }
+
+                // Очищуємо поточну карту
+                _nodes.Clear();
+                _routes.Clear();
+                _areas.Clear();
+                await ClearMap(); // Очищує карту в WebView2
+
+                // Копіюємо налаштування з шаблону (окрім назви та опису)
+                _currentRoadmap.CenterLatitude = templateMap.CenterLatitude;
+                _currentRoadmap.CenterLongitude = templateMap.CenterLongitude;
+                _currentRoadmap.ZoomLevel = templateMap.ZoomLevel;
+                _currentRoadmap.MapProvider = templateMap.MapProvider;
+
+                // Додаємо нові вузли з шаблону
+                if (templateMap.Nodes != null)
+                {
+                    foreach (var node in templateMap.Nodes)
+                    {
+                        node.Id = 0; // Скидаємо ID, щоб вони були створені як нові
+                        node.GeoRoadmapId = _currentRoadmap?.Id ?? 0;
+                        _nodes.Add(node);
+                    }
+                }
+
+                // Додаємо нові маршрути з шаблону
+                if (templateMap.Routes != null)
+                {
+                    foreach (var route in templateMap.Routes)
+                    {
+                        route.Id = 0; // Скидаємо ID
+                        route.GeoRoadmapId = _currentRoadmap?.Id ?? 0;
+                        _routes.Add(route);
+                    }
+                }
+
+                // Оновлюємо UI та перемальовуємо карту
+                await RenderMap();
+                RefreshUI();
+
+                // Оновлюємо поля налаштувань карти в UI
+                MapNameTextBox.Text = _currentRoadmap.Name;
+                MapDescriptionTextBox.Text = _currentRoadmap.Description;
+                CenterLatTextBox.Text = _currentRoadmap.CenterLatitude.ToString("F6");
+                CenterLngTextBox.Text = _currentRoadmap.CenterLongitude.ToString("F6");
+                ZoomSlider.Value = _currentRoadmap.ZoomLevel;
+
+                SetStatus("Шаблон успішно застосовано.");
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка застосування шаблону: {ex.Message}");
+                MessageBox.Show($"Помилка застосування шаблону: {ex.Message}", "Помилка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1044,13 +1259,16 @@ namespace DocControlUI.Windows
 
         public string RoadmapName => nameTextBox.Text;
         public string RoadmapDescription => descriptionTextBox.Text;
-        public int SelectedDirectoryId => directoryComboBox.SelectedIndex + 1;
 
-        public NewGeoRoadmapDialog()
+        // Беремо реальний ID вибраної директорії
+        public int SelectedDirectoryId => (int)directoryComboBox.SelectedValue;
+
+        // Конструктор тепер приймає список моделей (як в MainWindow)
+        public NewGeoRoadmapDialog(IEnumerable<DirectoryWithAccessModel> directories)
         {
             Title = "Нова геодорожня карта";
             Width = 500;
-            Height = 300;
+            Height = 350; // Трохи збільшив висоту
             WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
             var grid = new Grid { Margin = new Thickness(15) };
@@ -1060,6 +1278,7 @@ namespace DocControlUI.Windows
             grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
+            // 1. Назва
             var nameLabel = new TextBlock { Text = "Назва карти:", Margin = new Thickness(0, 5, 0, 5) };
             Grid.SetRow(nameLabel, 0);
             grid.Children.Add(nameLabel);
@@ -1068,6 +1287,7 @@ namespace DocControlUI.Windows
             Grid.SetRow(nameTextBox, 0);
             grid.Children.Add(nameTextBox);
 
+            // 2. Опис
             var descLabel = new TextBlock { Text = "Опис:", Margin = new Thickness(0, 5, 0, 5) };
             Grid.SetRow(descLabel, 1);
             grid.Children.Add(descLabel);
@@ -1082,16 +1302,29 @@ namespace DocControlUI.Windows
             Grid.SetRow(descriptionTextBox, 1);
             grid.Children.Add(descriptionTextBox);
 
-            var dirLabel = new TextBlock { Text = "Директорія:", Margin = new Thickness(0, 5, 0, 5) };
+            // 3. Директорія (Випадаючий список)
+            var dirLabel = new TextBlock { Text = "Прив'язати до директорії:", Margin = new Thickness(0, 5, 0, 5) };
             Grid.SetRow(dirLabel, 2);
             grid.Children.Add(dirLabel);
 
-            directoryComboBox = new ComboBox { Margin = new Thickness(0, 0, 0, 10) };
-            directoryComboBox.Items.Add("Директорія 1");
-            directoryComboBox.SelectedIndex = 0;
+            directoryComboBox = new ComboBox
+            {
+                Margin = new Thickness(0, 0, 0, 10),
+                ItemsSource = directories,      // Прив'язуємо реальні дані
+                DisplayMemberPath = "Name",     // Показуємо назву
+                SelectedValuePath = "Id"        // Зберігаємо ID
+            };
+
+            // Вибираємо перший елемент, щоб не було пусто
+            if (directories.Any())
+            {
+                directoryComboBox.SelectedIndex = 0;
+            }
+
             Grid.SetRow(directoryComboBox, 2);
             grid.Children.Add(directoryComboBox);
 
+            // 4. Кнопки
             var buttonPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -1107,7 +1340,24 @@ namespace DocControlUI.Windows
                 Margin = new Thickness(5),
                 IsDefault = true
             };
-            okButton.Click += (s, e) => { DialogResult = true; Close(); };
+
+            // Валідація
+            okButton.Click += (s, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(nameTextBox.Text))
+                {
+                    MessageBox.Show("Будь ласка, введіть назву карти.", "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                if (directoryComboBox.SelectedItem == null)
+                {
+                    MessageBox.Show("Будь ласка, виберіть директорію.", "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                DialogResult = true;
+                Close();
+            };
 
             var cancelButton = new Button
             {
