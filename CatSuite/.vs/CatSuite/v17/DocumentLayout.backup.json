@@ -32,7 +32,7 @@
               "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Data\\GeoRoadmapRepository.cs",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Data\\GeoRoadmapRepository.cs",
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Data\\GeoRoadmapRepository.cs",
-              "ViewState": "AgIAAKoAAAAAAAAAAAAAABQAAAAvAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABQAAAAvAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-11-19T16:11:28.825Z",
               "EditorCaption": ""
@@ -47,8 +47,7 @@
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Maps\\map.html",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001512|",
-              "WhenOpened": "2025-11-19T16:03:20.279Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-11-19T16:03:20.279Z"
             },
             {
               "$type": "Document",
@@ -60,8 +59,7 @@
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\GeoRoadmapEditorWindow.xaml.cs",
               "ViewState": "AgIAADoFAAAAAAAAAAAmwGAFAAAFAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-19T15:42:33.007Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-11-19T15:42:33.007Z"
             },
             {
               "$type": "Document",
@@ -72,8 +70,7 @@
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\GeoRoadmapEditorWindow.xaml",
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\GeoRoadmapEditorWindow.xaml",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-11-19T15:11:46.272Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-11-19T15:11:46.272Z"
             }
           ]
         }
