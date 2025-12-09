@@ -103,9 +103,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <!-- Деталі директорії -->
@@ -125,7 +123,7 @@
 
                     <Separator Grid.Row="1" Margin="0,15"/>
 
-                    <!-- Статистика з графіками -->
+                    <!-- Прокручуваний контент: Статистика + Кнопки -->
                     <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <TextBlock Text="📊 Візуальна статистика"
@@ -247,47 +245,47 @@
                                     </StackPanel>
                                 </Grid>
                             </Border>
+
+                            <!-- Кнопки дій -->
+                            <StackPanel Margin="0,20,0,0">
+                                <Button Content="💾 Зберегти зміни"
+                                        Click="SaveChanges_Click"
+                                        Background="#4CAF50" Foreground="White"
+                                        Padding="10,8" Margin="0,5"/>
+
+                                <Button Content="🔄 Скасувати"
+                                        Click="CancelChanges_Click"
+                                        Padding="10,8" Margin="0,5"/>
+
+                                <Separator Margin="0,10"/>
+
+                                <Button Content="🔍 Сканувати"
+                                        Click="ScanDirectory_Click"
+                                        Padding="10,8" Margin="0,5"/>
+
+                                <Button Content="🗑️ Видалити"
+                                        Click="DeleteDirectory_Click"
+                                        Background="#F44336" Foreground="White"
+                                        Padding="10,8" Margin="0,5"/>
+
+                                <Separator Margin="0,10"/>
+
+                                <TextBlock Text="📤 Експорт даних"
+                                           FontWeight="Bold" FontSize="12"
+                                           Margin="0,5"/>
+
+                                <Button Content="📊 Експорт в Excel"
+                                        Click="ExportToExcel_Click"
+                                        Background="#217346" Foreground="White"
+                                        Padding="10,8" Margin="0,5"/>
+
+                                <Button Content="📄 Експорт в Word"
+                                        Click="ExportToWord_Click"
+                                        Background="#2B579A" Foreground="White"
+                                        Padding="10,8" Margin="0,5"/>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
-
-                    <!-- Кнопки дій -->
-                    <StackPanel Grid.Row="4" Margin="0,20,0,0">
-                        <Button Content="💾 Зберегти зміни"
-                                Click="SaveChanges_Click"
-                                Background="#4CAF50" Foreground="White"
-                                Padding="10,8" Margin="0,5"/>
-
-                        <Button Content="🔄 Скасувати"
-                                Click="CancelChanges_Click"
-                                Padding="10,8" Margin="0,5"/>
-
-                        <Separator Margin="0,10"/>
-
-                        <Button Content="🔍 Сканувати"
-                                Click="ScanDirectory_Click"
-                                Padding="10,8" Margin="0,5"/>
-
-                        <Button Content="🗑️ Видалити"
-                                Click="DeleteDirectory_Click"
-                                Background="#F44336" Foreground="White"
-                                Padding="10,8" Margin="0,5"/>
-
-                        <Separator Margin="0,10"/>
-
-                        <TextBlock Text="📤 Експорт даних"
-                                   FontWeight="Bold" FontSize="12"
-                                   Margin="0,5"/>
-
-                        <Button Content="📊 Експорт в Excel"
-                                Click="ExportToExcel_Click"
-                                Background="#217346" Foreground="White"
-                                Padding="10,8" Margin="0,5"/>
-
-                        <Button Content="📄 Експорт в Word"
-                                Click="ExportToWord_Click"
-                                Background="#2B579A" Foreground="White"
-                                Padding="10,8" Margin="0,5"/>
-                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>
