@@ -235,6 +235,66 @@ namespace DocControlService.Client
             return true;
         }
 
+        public async Task<bool> UpdateDirectoryAsync(int directoryId, string newName, string newPath)
+        {
+            var request = new UpdateDirectoryRequest
+            {
+                DirectoryId = directoryId,
+                NewName = newName,
+                NewPath = newPath
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.UpdateDirectory,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        public async Task<List<DirectoryModel>> SearchDirectoriesAsync(string searchQuery)
+        {
+            var request = new SearchDirectoriesRequest
+            {
+                SearchQuery = searchQuery
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.SearchDirectories,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<DirectoryModel>>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<DirectoryStatisticsModel> GetDirectoryStatisticsAsync(int directoryId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetDirectoryStatistics,
+                Data = directoryId.ToString()
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<DirectoryStatisticsModel>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
         #endregion
 
         #region Device Operations

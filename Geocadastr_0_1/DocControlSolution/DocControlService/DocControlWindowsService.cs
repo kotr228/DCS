@@ -422,8 +422,17 @@ namespace DocControlService
                     case CommandType.UpdateDirectoryName:
                         return HandleUpdateDirectoryName(command.Data);
 
+                    case CommandType.UpdateDirectory:
+                        return HandleUpdateDirectory(command.Data);
+
                     case CommandType.ScanDirectory:
                         return HandleScanDirectory(command.Data);
+
+                    case CommandType.SearchDirectories:
+                        return HandleSearchDirectories(command.Data);
+
+                    case CommandType.GetDirectoryStatistics:
+                        return HandleGetDirectoryStatistics(command.Data);
 
                     case CommandType.GetDevices:
                         return HandleGetDevices();
@@ -805,6 +814,86 @@ namespace DocControlService
             {
                 Success = true,
                 Message = "Directory scanned successfully"
+            };
+        }
+
+        private ServiceResponse HandleUpdateDirectory(string data)
+        {
+            var request = JsonSerializer.Deserialize<UpdateDirectoryRequest>(data);
+            var dir = _dirRepo.GetById(request.DirectoryId);
+
+            if (dir == null)
+            {
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = "Directory not found"
+                };
+            }
+
+            bool success = _dirRepo.UpdateDirectory(request.DirectoryId, request.NewName, request.NewPath);
+
+            if (success)
+            {
+                Log($"Updated directory: {dir.Name} -> {request.NewName}, {dir.Browse} -> {request.NewPath}");
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = "Directory updated successfully"
+                };
+            }
+
+            return new ServiceResponse
+            {
+                Success = false,
+                Message = "Failed to update directory"
+            };
+        }
+
+        private ServiceResponse HandleSearchDirectories(string data)
+        {
+            var request = JsonSerializer.Deserialize<SearchDirectoriesRequest>(data);
+            var directories = _dirRepo.SearchDirectories(request.SearchQuery);
+
+            return new ServiceResponse
+            {
+                Success = true,
+                Data = JsonSerializer.Serialize(directories),
+                Message = $"Found {directories.Count} directories"
+            };
+        }
+
+        private ServiceResponse HandleGetDirectoryStatistics(string data)
+        {
+            int dirId = int.Parse(data);
+            var dir = _dirRepo.GetById(dirId);
+
+            if (dir == null)
+            {
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = "Directory not found"
+                };
+            }
+
+            var stats = _dirRepo.GetDirectoryStatistics(dirId);
+
+            // Конвертуємо в модель для клієнта
+            var statsModel = new DirectoryStatisticsModel
+            {
+                DirectoryId = stats.DirectoryId,
+                ObjectsCount = stats.ObjectsCount,
+                FoldersCount = stats.FoldersCount,
+                FilesCount = stats.FilesCount,
+                AllowedDevicesCount = stats.AllowedDevicesCount,
+                IsShared = stats.IsShared
+            };
+
+            return new ServiceResponse
+            {
+                Success = true,
+                Data = JsonSerializer.Serialize(statsModel)
             };
         }
 

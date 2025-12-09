@@ -224,7 +224,10 @@ namespace DocControlService.Shared
         AddDirectory,
         RemoveDirectory,
         UpdateDirectoryName,
+        UpdateDirectory,
         ScanDirectory,
+        SearchDirectories,
+        GetDirectoryStatistics,
 
         // Device operations
         GetDevices,
@@ -428,6 +431,31 @@ namespace DocControlService.Shared
     {
         public int DirectoryId { get; set; }
         public string NewName { get; set; }
+    }
+
+    [Serializable]
+    public class UpdateDirectoryRequest
+    {
+        public int DirectoryId { get; set; }
+        public string NewName { get; set; }
+        public string NewPath { get; set; }
+    }
+
+    [Serializable]
+    public class SearchDirectoriesRequest
+    {
+        public string SearchQuery { get; set; }
+    }
+
+    [Serializable]
+    public class DirectoryStatisticsModel
+    {
+        public int DirectoryId { get; set; }
+        public int ObjectsCount { get; set; }
+        public int FoldersCount { get; set; }
+        public int FilesCount { get; set; }
+        public int AllowedDevicesCount { get; set; }
+        public bool IsShared { get; set; }
     }
 
     [Serializable]

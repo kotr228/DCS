@@ -1344,6 +1344,22 @@ namespace DocControlUI
             }
         }
 
+        private void OpenDirectoryManager_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var managerWindow = new DirectoryManagerWindow { Owner = this };
+                managerWindow.ShowDialog();
+
+                // Оновлюємо дані після закриття вікна
+                RefreshAllData().Wait();
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка відкриття менеджера директорій", ex.Message);
+            }
+        }
+
         private async void GenerateAIRoadmap_Click(object sender, RoutedEventArgs e)
         {
             var selectedDir = RoadmapDirectoryCombo.SelectedItem as DirectoryWithAccessModel;

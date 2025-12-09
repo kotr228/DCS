@@ -80,6 +80,12 @@
                         <Button Content="🗑️ Видалити" Click="RemoveDirectory_Click"/>
                         <Separator Width="20" Background="Transparent"/>
 
+                        <!-- НОВИЙ МЕНЕДЖЕР ДИРЕКТОРІЙ -->
+                        <Button Content="📁 Менеджер Директорій" Click="OpenDirectoryManager_Click"
+                                Background="#FF9800" Foreground="White"
+                                ToolTip="Розширений пошук та редагування директорій"/>
+                        <Separator Width="20" Background="Transparent"/>
+
                         <!-- НОВЕ -->
                         <Button Content="🤖 AI Аналіз" Click="OpenAIAnalysis_Click"
                                 Foreground="White"
