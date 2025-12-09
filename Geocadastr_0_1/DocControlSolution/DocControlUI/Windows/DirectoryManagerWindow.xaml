@@ -125,40 +125,130 @@
 
                     <Separator Grid.Row="1" Margin="0,15"/>
 
-                    <!-- Статистика -->
-                    <StackPanel Grid.Row="2">
-                        <TextBlock Text="📊 Статистика"
-                                   FontSize="16" FontWeight="Bold" Margin="0,0,0,15"/>
+                    <!-- Статистика з графіками -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="📊 Візуальна статистика"
+                                       FontSize="16" FontWeight="Bold" Margin="0,0,0,15"/>
 
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
+                            <!-- Кругова діаграма -->
+                            <Border BorderBrush="#E0E0E0" BorderThickness="1"
+                                    Background="#FAFAFA" CornerRadius="5" Padding="10" Margin="0,0,0,15">
+                                <StackPanel>
+                                    <TextBlock Text="Розподіл вмісту" FontWeight="Bold" Margin="0,0,0,10"/>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Об'єкти:" Margin="0,5,0,0"/>
-                            <TextBlock Grid.Row="0" Grid.Column="1" x:Name="StatsObjectsText" Text="-" FontWeight="Bold" Margin="10,5,0,0"/>
+                                    <Grid Height="150">
+                                        <Canvas x:Name="PieChartCanvas"
+                                                Width="120" Height="120"
+                                                HorizontalAlignment="Center"/>
+                                    </Grid>
 
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Папки:" Margin="0,5,0,0"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1" x:Name="StatsFoldersText" Text="-" FontWeight="Bold" Margin="10,5,0,0"/>
+                                    <!-- Легенда -->
+                                    <StackPanel Margin="0,10,0,0">
+                                        <StackPanel Orientation="Horizontal" Margin="0,3">
+                                            <Rectangle Width="12" Height="12" Fill="#2196F3" Margin="0,0,5,0"/>
+                                            <TextBlock x:Name="LegendObjectsText" Text="Об'єкти: 0" FontSize="11"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,3">
+                                            <Rectangle Width="12" Height="12" Fill="#4CAF50" Margin="0,0,5,0"/>
+                                            <TextBlock x:Name="LegendFoldersText" Text="Папки: 0" FontSize="11"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,3">
+                                            <Rectangle Width="12" Height="12" Fill="#FF9800" Margin="0,0,5,0"/>
+                                            <TextBlock x:Name="LegendFilesText" Text="Файли: 0" FontSize="11"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
 
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Файли:" Margin="0,5,0,0"/>
-                            <TextBlock Grid.Row="2" Grid.Column="1" x:Name="StatsFilesText" Text="-" FontWeight="Bold" Margin="10,5,0,0"/>
+                            <!-- Прогрес бари -->
+                            <Border BorderBrush="#E0E0E0" BorderThickness="1"
+                                    Background="#FAFAFA" CornerRadius="5" Padding="10" Margin="0,0,0,15">
+                                <StackPanel>
+                                    <TextBlock Text="Детальна статистика" FontWeight="Bold" Margin="0,0,0,10"/>
 
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Дозволені пристрої:" Margin="0,5,0,0"/>
-                            <TextBlock Grid.Row="3" Grid.Column="1" x:Name="StatsDevicesText" Text="-" FontWeight="Bold" Margin="10,5,0,0"/>
+                                    <!-- Об'єкти -->
+                                    <StackPanel Margin="0,5">
+                                        <Grid>
+                                            <TextBlock Text="Об'єкти" FontSize="11" FontWeight="Bold"/>
+                                            <TextBlock x:Name="StatsObjectsText" Text="0"
+                                                       HorizontalAlignment="Right" FontSize="11" FontWeight="Bold"/>
+                                        </Grid>
+                                        <ProgressBar x:Name="ObjectsProgressBar"
+                                                     Height="8" Margin="0,3,0,0"
+                                                     Foreground="#2196F3"
+                                                     Maximum="100" Value="0"/>
+                                    </StackPanel>
 
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Статус:" Margin="0,5,0,0"/>
-                            <TextBlock Grid.Row="4" Grid.Column="1" x:Name="StatsSharedText" Text="-" FontWeight="Bold" Margin="10,5,0,0"/>
-                        </Grid>
-                    </StackPanel>
+                                    <!-- Папки -->
+                                    <StackPanel Margin="0,8,0,0">
+                                        <Grid>
+                                            <TextBlock Text="Папки" FontSize="11" FontWeight="Bold"/>
+                                            <TextBlock x:Name="StatsFoldersText" Text="0"
+                                                       HorizontalAlignment="Right" FontSize="11" FontWeight="Bold"/>
+                                        </Grid>
+                                        <ProgressBar x:Name="FoldersProgressBar"
+                                                     Height="8" Margin="0,3,0,0"
+                                                     Foreground="#4CAF50"
+                                                     Maximum="100" Value="0"/>
+                                    </StackPanel>
+
+                                    <!-- Файли -->
+                                    <StackPanel Margin="0,8,0,0">
+                                        <Grid>
+                                            <TextBlock Text="Файли" FontSize="11" FontWeight="Bold"/>
+                                            <TextBlock x:Name="StatsFilesText" Text="0"
+                                                       HorizontalAlignment="Right" FontSize="11" FontWeight="Bold"/>
+                                        </Grid>
+                                        <ProgressBar x:Name="FilesProgressBar"
+                                                     Height="8" Margin="0,3,0,0"
+                                                     Foreground="#FF9800"
+                                                     Maximum="100" Value="0"/>
+                                    </StackPanel>
+
+                                    <!-- Пристрої -->
+                                    <StackPanel Margin="0,8,0,0">
+                                        <Grid>
+                                            <TextBlock Text="Дозволені пристрої" FontSize="11" FontWeight="Bold"/>
+                                            <TextBlock x:Name="StatsDevicesText" Text="0"
+                                                       HorizontalAlignment="Right" FontSize="11" FontWeight="Bold"/>
+                                        </Grid>
+                                        <ProgressBar x:Name="DevicesProgressBar"
+                                                     Height="8" Margin="0,3,0,0"
+                                                     Foreground="#9C27B0"
+                                                     Maximum="20" Value="0"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Статус доступу -->
+                            <Border x:Name="StatusBorder"
+                                    BorderBrush="#E0E0E0" BorderThickness="1"
+                                    Background="#FAFAFA" CornerRadius="5" Padding="15">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Ellipse x:Name="StatusIndicator"
+                                             Width="16" Height="16"
+                                             Fill="#9E9E9E"
+                                             Grid.Column="0"
+                                             Margin="0,0,10,0"/>
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="Статус спільного доступу"
+                                                   FontSize="11" FontWeight="Bold"/>
+                                        <TextBlock x:Name="StatsSharedText"
+                                                   Text="Невідомо"
+                                                   FontSize="11"
+                                                   Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
 
                     <!-- Кнопки дій -->
                     <StackPanel Grid.Row="4" Margin="0,20,0,0">

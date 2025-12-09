@@ -7,6 +7,8 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shapes;
 
 namespace DocControlUI.Windows
 {
@@ -134,11 +136,26 @@ namespace DocControlUI.Windows
 
                 var stats = await _client.GetDirectoryStatisticsAsync(directoryId);
 
+                // Оновлюємо текстові значення
                 StatsObjectsText.Text = stats.ObjectsCount.ToString();
                 StatsFoldersText.Text = stats.FoldersCount.ToString();
                 StatsFilesText.Text = stats.FilesCount.ToString();
                 StatsDevicesText.Text = stats.AllowedDevicesCount.ToString();
                 StatsSharedText.Text = stats.IsShared ? "✅ Відкрито" : "🔒 Закрито";
+
+                // Оновлюємо легенду
+                LegendObjectsText.Text = $"Об'єкти: {stats.ObjectsCount}";
+                LegendFoldersText.Text = $"Папки: {stats.FoldersCount}";
+                LegendFilesText.Text = $"Файли: {stats.FilesCount}";
+
+                // Малюємо кругову діаграму
+                DrawPieChart(stats.ObjectsCount, stats.FoldersCount, stats.FilesCount);
+
+                // Оновлюємо прогрес бари
+                UpdateProgressBars(stats);
+
+                // Оновлюємо індикатор статусу
+                UpdateStatusIndicator(stats.IsShared);
 
                 SetStatus("Готово");
             }
@@ -149,13 +166,171 @@ namespace DocControlUI.Windows
             }
         }
 
+        private void DrawPieChart(int objects, int folders, int files)
+        {
+            PieChartCanvas.Children.Clear();
+
+            int total = objects + folders + files;
+            if (total == 0)
+            {
+                // Показуємо порожню діаграму
+                var emptyCircle = new Ellipse
+                {
+                    Width = 120,
+                    Height = 120,
+                    Fill = new SolidColorBrush(Color.FromRgb(224, 224, 224)),
+                    Stroke = new SolidColorBrush(Color.FromRgb(189, 189, 189)),
+                    StrokeThickness = 2
+                };
+                Canvas.SetLeft(emptyCircle, 0);
+                Canvas.SetTop(emptyCircle, 0);
+                PieChartCanvas.Children.Add(emptyCircle);
+                return;
+            }
+
+            double centerX = 60;
+            double centerY = 60;
+            double radius = 58;
+
+            double startAngle = -90; // Початок зверху
+
+            // Об'єкти (синій)
+            if (objects > 0)
+            {
+                double angle = (objects / (double)total) * 360;
+                DrawPieSlice(centerX, centerY, radius, startAngle, angle, Color.FromRgb(33, 150, 243));
+                startAngle += angle;
+            }
+
+            // Папки (зелений)
+            if (folders > 0)
+            {
+                double angle = (folders / (double)total) * 360;
+                DrawPieSlice(centerX, centerY, radius, startAngle, angle, Color.FromRgb(76, 175, 80));
+                startAngle += angle;
+            }
+
+            // Файли (помаранчевий)
+            if (files > 0)
+            {
+                double angle = (files / (double)total) * 360;
+                DrawPieSlice(centerX, centerY, radius, startAngle, angle, Color.FromRgb(255, 152, 0));
+            }
+        }
+
+        private void DrawPieSlice(double centerX, double centerY, double radius, double startAngle, double angle, Color color)
+        {
+            if (angle >= 360)
+            {
+                // Повне коло
+                var circle = new Ellipse
+                {
+                    Width = radius * 2,
+                    Height = radius * 2,
+                    Fill = new SolidColorBrush(color),
+                    Stroke = Brushes.White,
+                    StrokeThickness = 2
+                };
+                Canvas.SetLeft(circle, centerX - radius);
+                Canvas.SetTop(circle, centerY - radius);
+                PieChartCanvas.Children.Add(circle);
+                return;
+            }
+
+            var path = new Path
+            {
+                Fill = new SolidColorBrush(color),
+                Stroke = Brushes.White,
+                StrokeThickness = 2
+            };
+
+            var figure = new PathFigure { StartPoint = new Point(centerX, centerY) };
+
+            double startRad = startAngle * Math.PI / 180;
+            double endRad = (startAngle + angle) * Math.PI / 180;
+
+            Point startPoint = new Point(
+                centerX + radius * Math.Cos(startRad),
+                centerY + radius * Math.Sin(startRad)
+            );
+
+            Point endPoint = new Point(
+                centerX + radius * Math.Cos(endRad),
+                centerY + radius * Math.Sin(endRad)
+            );
+
+            figure.Segments.Add(new LineSegment(startPoint, false));
+            figure.Segments.Add(new ArcSegment
+            {
+                Point = endPoint,
+                Size = new Size(radius, radius),
+                SweepDirection = SweepDirection.Clockwise,
+                IsLargeArc = angle > 180
+            });
+            figure.Segments.Add(new LineSegment(new Point(centerX, centerY), false));
+
+            var geometry = new PathGeometry();
+            geometry.Figures.Add(figure);
+            path.Data = geometry;
+
+            PieChartCanvas.Children.Add(path);
+        }
+
+        private void UpdateProgressBars(DirectoryStatisticsModel stats)
+        {
+            int total = stats.ObjectsCount + stats.FoldersCount + stats.FilesCount;
+
+            if (total == 0)
+            {
+                ObjectsProgressBar.Value = 0;
+                FoldersProgressBar.Value = 0;
+                FilesProgressBar.Value = 0;
+            }
+            else
+            {
+                ObjectsProgressBar.Value = (stats.ObjectsCount / (double)total) * 100;
+                FoldersProgressBar.Value = (stats.FoldersCount / (double)total) * 100;
+                FilesProgressBar.Value = (stats.FilesCount / (double)total) * 100;
+            }
+
+            DevicesProgressBar.Value = Math.Min(stats.AllowedDevicesCount, 20);
+        }
+
+        private void UpdateStatusIndicator(bool isShared)
+        {
+            if (isShared)
+            {
+                StatusIndicator.Fill = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Зелений
+                StatsSharedText.Text = "✅ Відкрито";
+                StatusBorder.Background = new SolidColorBrush(Color.FromArgb(20, 76, 175, 80));
+            }
+            else
+            {
+                StatusIndicator.Fill = new SolidColorBrush(Color.FromRgb(244, 67, 54)); // Червоний
+                StatsSharedText.Text = "🔒 Закрито";
+                StatusBorder.Background = new SolidColorBrush(Color.FromRgb(250, 250, 250));
+            }
+        }
+
         private void ClearStatistics()
         {
-            StatsObjectsText.Text = "-";
-            StatsFoldersText.Text = "-";
-            StatsFilesText.Text = "-";
-            StatsDevicesText.Text = "-";
-            StatsSharedText.Text = "-";
+            StatsObjectsText.Text = "0";
+            StatsFoldersText.Text = "0";
+            StatsFilesText.Text = "0";
+            StatsDevicesText.Text = "0";
+            StatsSharedText.Text = "Невідомо";
+
+            LegendObjectsText.Text = "Об'єкти: 0";
+            LegendFoldersText.Text = "Папки: 0";
+            LegendFilesText.Text = "Файли: 0";
+
+            PieChartCanvas.Children.Clear();
+            ObjectsProgressBar.Value = 0;
+            FoldersProgressBar.Value = 0;
+            FilesProgressBar.Value = 0;
+            DevicesProgressBar.Value = 0;
+
+            StatusIndicator.Fill = new SolidColorBrush(Color.FromRgb(158, 158, 158));
         }
 
         private async void SaveChanges_Click(object sender, RoutedEventArgs e)
