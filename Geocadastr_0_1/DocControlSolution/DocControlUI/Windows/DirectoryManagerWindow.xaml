@@ -271,6 +271,22 @@
                                 Click="DeleteDirectory_Click"
                                 Background="#F44336" Foreground="White"
                                 Padding="10,8" Margin="0,5"/>
+
+                        <Separator Margin="0,10"/>
+
+                        <TextBlock Text="📤 Експорт даних"
+                                   FontWeight="Bold" FontSize="12"
+                                   Margin="0,5"/>
+
+                        <Button Content="📊 Експорт в Excel"
+                                Click="ExportToExcel_Click"
+                                Background="#217346" Foreground="White"
+                                Padding="10,8" Margin="0,5"/>
+
+                        <Button Content="📄 Експорт в Word"
+                                Click="ExportToWord_Click"
+                                Background="#2B579A" Foreground="White"
+                                Padding="10,8" Margin="0,5"/>
                     </StackPanel>
                 </Grid>
             </Border>

@@ -9,6 +9,11 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using ClosedXML.Excel;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
+using DocumentFormat.OpenXml.Wordprocessing;
+using Microsoft.Win32;
 
 namespace DocControlUI.Windows
 {
@@ -464,5 +469,249 @@ namespace DocControlUI.Windows
         {
             StatusText.Text = message;
         }
+
+        #region Export Methods
+
+        private async void ExportToExcel_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var saveFileDialog = new SaveFileDialog
+                {
+                    Filter = "Excel файли (*.xlsx)|*.xlsx",
+                    FileName = $"Директорії_{DateTime.Now:yyyy-MM-dd_HH-mm}.xlsx"
+                };
+
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    SetStatus("Експорт в Excel...");
+
+                    await System.Threading.Tasks.Task.Run(() => ExportToExcel(saveFileDialog.FileName));
+
+                    SetStatus("Готово");
+                    MessageBox.Show($"Дані успішно експортовано в:\n{saveFileDialog.FileName}",
+                        "Експорт завершено", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    // Відкрити файл
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = saveFileDialog.FileName,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка експорту: {ex.Message}");
+                MessageBox.Show($"Помилка при експорті в Excel:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ExportToExcel(string filePath)
+        {
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("Директорії");
+
+            // Заголовок
+            worksheet.Cell(1, 1).Value = "Звіт по директоріям";
+            worksheet.Cell(1, 1).Style.Font.Bold = true;
+            worksheet.Cell(1, 1).Style.Font.FontSize = 16;
+            worksheet.Range(1, 1, 1, 7).Merge();
+
+            worksheet.Cell(2, 1).Value = $"Дата формування: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
+            worksheet.Range(2, 1, 2, 7).Merge();
+
+            // Заголовки таблиці
+            int row = 4;
+            worksheet.Cell(row, 1).Value = "ID";
+            worksheet.Cell(row, 2).Value = "Назва";
+            worksheet.Cell(row, 3).Value = "Шлях";
+            worksheet.Cell(row, 4).Value = "Об'єкти";
+            worksheet.Cell(row, 5).Value = "Папки";
+            worksheet.Cell(row, 6).Value = "Файли";
+            worksheet.Cell(row, 7).Value = "Пристрої";
+
+            worksheet.Range(row, 1, row, 7).Style.Font.Bold = true;
+            worksheet.Range(row, 1, row, 7).Style.Fill.BackgroundColor = XLColor.LightBlue;
+
+            // Дані
+            row++;
+            foreach (var directory in _filteredDirectories)
+            {
+                worksheet.Cell(row, 1).Value = directory.Id;
+                worksheet.Cell(row, 2).Value = directory.Name;
+                worksheet.Cell(row, 3).Value = directory.Browse;
+
+                // Отримуємо статистику синхронно
+                try
+                {
+                    var stats = _client.GetDirectoryStatisticsAsync(directory.Id).Result;
+                    worksheet.Cell(row, 4).Value = stats.ObjectsCount;
+                    worksheet.Cell(row, 5).Value = stats.FoldersCount;
+                    worksheet.Cell(row, 6).Value = stats.FilesCount;
+                    worksheet.Cell(row, 7).Value = stats.AllowedDevicesCount;
+                }
+                catch
+                {
+                    worksheet.Cell(row, 4).Value = "-";
+                    worksheet.Cell(row, 5).Value = "-";
+                    worksheet.Cell(row, 6).Value = "-";
+                    worksheet.Cell(row, 7).Value = "-";
+                }
+
+                row++;
+            }
+
+            // Автоширина колонок
+            worksheet.Columns().AdjustToContents();
+
+            workbook.SaveAs(filePath);
+        }
+
+        private async void ExportToWord_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var saveFileDialog = new SaveFileDialog
+                {
+                    Filter = "Word документи (*.docx)|*.docx",
+                    FileName = $"Директорії_{DateTime.Now:yyyy-MM-dd_HH-mm}.docx"
+                };
+
+                if (saveFileDialog.ShowDialog() == true)
+                {
+                    SetStatus("Експорт в Word...");
+
+                    await System.Threading.Tasks.Task.Run(() => ExportToWord(saveFileDialog.FileName));
+
+                    SetStatus("Готово");
+                    MessageBox.Show($"Дані успішно експортовано в:\n{saveFileDialog.FileName}",
+                        "Експорт завершено", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    // Відкрити файл
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = saveFileDialog.FileName,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка експорту: {ex.Message}");
+                MessageBox.Show($"Помилка при експорті в Word:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ExportToWord(string filePath)
+        {
+            using var wordDocument = WordprocessingDocument.Create(filePath, WordprocessingDocumentType.Document);
+            var mainPart = wordDocument.AddMainDocumentPart();
+            mainPart.Document = new Document();
+            var body = mainPart.Document.AppendChild(new Body());
+
+            // Заголовок
+            var titleParagraph = body.AppendChild(new Paragraph());
+            var titleRun = titleParagraph.AppendChild(new Run());
+            titleRun.AppendChild(new Text("Звіт по директоріям"));
+            var titleRunProperties = titleRun.AppendChild(new RunProperties());
+            titleRunProperties.AppendChild(new Bold());
+            titleRunProperties.AppendChild(new FontSize { Val = "32" });
+
+            // Дата
+            var dateParagraph = body.AppendChild(new Paragraph());
+            dateParagraph.AppendChild(new Run(new Text($"Дата формування: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")));
+
+            body.AppendChild(new Paragraph()); // Порожній рядок
+
+            // Створюємо таблицю
+            var table = new Table();
+
+            // Властивості таблиці
+            var tableProperties = new TableProperties(
+                new TableBorders(
+                    new TopBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                    new BottomBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                    new LeftBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                    new RightBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                    new InsideHorizontalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
+                    new InsideVerticalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 }
+                )
+            );
+            table.AppendChild(tableProperties);
+
+            // Заголовки таблиці
+            var headerRow = new TableRow();
+            headerRow.Append(
+                CreateTableCell("ID", true),
+                CreateTableCell("Назва", true),
+                CreateTableCell("Шлях", true),
+                CreateTableCell("Об'єкти", true),
+                CreateTableCell("Папки", true),
+                CreateTableCell("Файли", true),
+                CreateTableCell("Пристрої", true)
+            );
+            table.Append(headerRow);
+
+            // Дані
+            foreach (var directory in _filteredDirectories)
+            {
+                try
+                {
+                    var stats = _client.GetDirectoryStatisticsAsync(directory.Id).Result;
+
+                    var dataRow = new TableRow();
+                    dataRow.Append(
+                        CreateTableCell(directory.Id.ToString()),
+                        CreateTableCell(directory.Name),
+                        CreateTableCell(directory.Browse),
+                        CreateTableCell(stats.ObjectsCount.ToString()),
+                        CreateTableCell(stats.FoldersCount.ToString()),
+                        CreateTableCell(stats.FilesCount.ToString()),
+                        CreateTableCell(stats.AllowedDevicesCount.ToString())
+                    );
+                    table.Append(dataRow);
+                }
+                catch
+                {
+                    var dataRow = new TableRow();
+                    dataRow.Append(
+                        CreateTableCell(directory.Id.ToString()),
+                        CreateTableCell(directory.Name),
+                        CreateTableCell(directory.Browse),
+                        CreateTableCell("-"),
+                        CreateTableCell("-"),
+                        CreateTableCell("-"),
+                        CreateTableCell("-")
+                    );
+                    table.Append(dataRow);
+                }
+            }
+
+            body.Append(table);
+            mainPart.Document.Save();
+        }
+
+        private TableCell CreateTableCell(string text, bool isBold = false)
+        {
+            var cell = new TableCell();
+            var paragraph = new Paragraph();
+            var run = new Run(new Text(text));
+
+            if (isBold)
+            {
+                var runProperties = new RunProperties();
+                runProperties.AppendChild(new Bold());
+                run.PrependChild(runProperties);
+            }
+
+            paragraph.Append(run);
+            cell.Append(paragraph);
+            return cell;
+        }
+
+        #endregion
     }
 }
