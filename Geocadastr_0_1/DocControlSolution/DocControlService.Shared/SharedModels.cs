@@ -6,6 +6,14 @@ namespace DocControlService.Shared
     // =============== ІСНУЮЧІ МОДЕЛІ (v0.1-0.2) ===============
 
     [Serializable]
+    public class DirectoryModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public string Browse { get; set; }
+    }
+
+    [Serializable]
     public class DeviceModel
     {
         public int Id { get; set; }

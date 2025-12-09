@@ -1,5 +1,4 @@
 using DocControlService.Client;
-using DocControlService.Models;
 using DocControlService.Shared;
 using MahApps.Metro.Controls;
 using System;

@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
 using DocControlService.Models;
+using DocControlService.Shared;
 
 namespace DocControlService.Data
 {
