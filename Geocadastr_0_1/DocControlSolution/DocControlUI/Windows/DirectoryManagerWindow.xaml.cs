@@ -12,7 +12,7 @@ using System.Windows.Shapes;
 using ClosedXML.Excel;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Wordprocessing;
+using OpenXmlWord = DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Win32;
 
 namespace DocControlUI.Windows
@@ -609,41 +609,41 @@ namespace DocControlUI.Windows
         {
             using var wordDocument = WordprocessingDocument.Create(filePath, WordprocessingDocumentType.Document);
             var mainPart = wordDocument.AddMainDocumentPart();
-            mainPart.Document = new Document();
-            var body = mainPart.Document.AppendChild(new Body());
+            mainPart.Document = new OpenXmlWord.Document();
+            var body = mainPart.Document.AppendChild(new OpenXmlWord.Body());
 
             // Заголовок
-            var titleParagraph = body.AppendChild(new Paragraph());
-            var titleRun = titleParagraph.AppendChild(new Run());
-            titleRun.AppendChild(new Text("Звіт по директоріям"));
-            var titleRunProperties = titleRun.AppendChild(new RunProperties());
-            titleRunProperties.AppendChild(new Bold());
-            titleRunProperties.AppendChild(new FontSize { Val = "32" });
+            var titleParagraph = body.AppendChild(new OpenXmlWord.Paragraph());
+            var titleRun = titleParagraph.AppendChild(new OpenXmlWord.Run());
+            titleRun.AppendChild(new OpenXmlWord.Text("Звіт по директоріям"));
+            var titleRunProperties = titleRun.AppendChild(new OpenXmlWord.RunProperties());
+            titleRunProperties.AppendChild(new OpenXmlWord.Bold());
+            titleRunProperties.AppendChild(new OpenXmlWord.FontSize { Val = "32" });
 
             // Дата
-            var dateParagraph = body.AppendChild(new Paragraph());
-            dateParagraph.AppendChild(new Run(new Text($"Дата формування: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")));
+            var dateParagraph = body.AppendChild(new OpenXmlWord.Paragraph());
+            dateParagraph.AppendChild(new OpenXmlWord.Run(new OpenXmlWord.Text($"Дата формування: {DateTime.Now:yyyy-MM-dd HH:mm:ss}")));
 
-            body.AppendChild(new Paragraph()); // Порожній рядок
+            body.AppendChild(new OpenXmlWord.Paragraph()); // Порожній рядок
 
             // Створюємо таблицю
-            var table = new Table();
+            var table = new OpenXmlWord.Table();
 
             // Властивості таблиці
-            var tableProperties = new TableProperties(
-                new TableBorders(
-                    new TopBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                    new BottomBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                    new LeftBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                    new RightBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                    new InsideHorizontalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 },
-                    new InsideVerticalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 12 }
+            var tableProperties = new OpenXmlWord.TableProperties(
+                new OpenXmlWord.TableBorders(
+                    new OpenXmlWord.TopBorder { Val = new EnumValue<OpenXmlWord.BorderValues>(OpenXmlWord.BorderValues.Single), Size = 12 },
+                    new OpenXmlWord.BottomBorder { Val = new EnumValue<OpenXmlWord.BorderValues>(OpenXmlWord.BorderValues.Single), Size = 12 },
+                    new OpenXmlWord.LeftBorder { Val = new EnumValue<OpenXmlWord.BorderValues>(OpenXmlWord.BorderValues.Single), Size = 12 },
+                    new OpenXmlWord.RightBorder { Val = new EnumValue<OpenXmlWord.BorderValues>(OpenXmlWord.BorderValues.Single), Size = 12 },
+                    new OpenXmlWord.InsideHorizontalBorder { Val = new EnumValue<OpenXmlWord.BorderValues>(OpenXmlWord.BorderValues.Single), Size = 12 },
+                    new OpenXmlWord.InsideVerticalBorder { Val = new EnumValue<OpenXmlWord.BorderValues>(OpenXmlWord.BorderValues.Single), Size = 12 }
                 )
             );
             table.AppendChild(tableProperties);
 
             // Заголовки таблиці
-            var headerRow = new TableRow();
+            var headerRow = new OpenXmlWord.TableRow();
             headerRow.Append(
                 CreateTableCell("ID", true),
                 CreateTableCell("Назва", true),
@@ -662,7 +662,7 @@ namespace DocControlUI.Windows
                 {
                     var stats = _client.GetDirectoryStatisticsAsync(directory.Id).Result;
 
-                    var dataRow = new TableRow();
+                    var dataRow = new OpenXmlWord.TableRow();
                     dataRow.Append(
                         CreateTableCell(directory.Id.ToString()),
                         CreateTableCell(directory.Name),
@@ -676,7 +676,7 @@ namespace DocControlUI.Windows
                 }
                 catch
                 {
-                    var dataRow = new TableRow();
+                    var dataRow = new OpenXmlWord.TableRow();
                     dataRow.Append(
                         CreateTableCell(directory.Id.ToString()),
                         CreateTableCell(directory.Name),
@@ -694,16 +694,16 @@ namespace DocControlUI.Windows
             mainPart.Document.Save();
         }
 
-        private TableCell CreateTableCell(string text, bool isBold = false)
+        private OpenXmlWord.TableCell CreateTableCell(string text, bool isBold = false)
         {
-            var cell = new TableCell();
-            var paragraph = new Paragraph();
-            var run = new Run(new Text(text));
+            var cell = new OpenXmlWord.TableCell();
+            var paragraph = new OpenXmlWord.Paragraph();
+            var run = new OpenXmlWord.Run(new OpenXmlWord.Text(text));
 
             if (isBold)
             {
-                var runProperties = new RunProperties();
-                runProperties.AppendChild(new Bold());
+                var runProperties = new OpenXmlWord.RunProperties();
+                runProperties.AppendChild(new OpenXmlWord.Bold());
                 run.PrependChild(runProperties);
             }
 
