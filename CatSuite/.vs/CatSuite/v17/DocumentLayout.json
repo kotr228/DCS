@@ -3,19 +3,25 @@
   "WorkspaceRootPath": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{B9CE9E0F-0A52-6469-9B50-D1B61E4B43AD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\doccontrolwindowsservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4DEA4E29-B8F1-6715-5A40-D2469C9EB2C2}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice.shared\\sharedmodels.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{B9CE9E0F-0A52-6469-9B50-D1B61E4B43AD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\models\\databaseschema.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\windows\\directorymanagerwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\windows\\directorymanagerwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{B9CE9E0F-0A52-6469-9B50-D1B61E4B43AD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\models\\databaseschema.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{B9CE9E0F-0A52-6469-9B50-D1B61E4B43AD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\data\\georoadmaprepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
@@ -31,7 +37,7 @@
       "DocumentGroups": [
         {
           "DockedHeight": 200,
-          "SelectedChildIndex": 4,
+          "SelectedChildIndex": 1,
           "Children": [
             {
               "$type": "Bookmark",
@@ -39,15 +45,40 @@
             },
             {
               "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "DocControlWindowsService.cs",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
+              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
+              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
+              "ViewState": "AgIAAHoFAAAAAAAAAAAwwIACAAAgAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-12-09T10:26:15.611Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
               "DocumentIndex": 1,
+              "Title": "SharedModels.cs",
+              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\SharedModels.cs",
+              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\SharedModels.cs",
+              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\SharedModels.cs",
+              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\SharedModels.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAAAcAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-12-09T10:24:16.926Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
               "Title": "DirectoryManagerWindow.xaml",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\DirectoryManagerWindow.xaml",
               "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\DirectoryManagerWindow.xaml",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\DirectoryManagerWindow.xaml",
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\DirectoryManagerWindow.xaml",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-12-09T04:19:40.156Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-12-09T04:19:40.156Z"
             },
             {
               "$type": "Document",
@@ -57,26 +88,25 @@
               "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml.cs",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml.cs",
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml.cs",
-              "ViewState": "AgIAAMIEAAAAAAAAAIAwwMIEAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAE0AAAAAAAAAAAAAAF4AAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-12-09T04:12:28.755Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 6,
               "Title": "MainWindow.xaml",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
               "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-12-09T04:02:20.759Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-12-09T04:02:20.759Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 4,
               "Title": "DirectoryManagerWindow.xaml.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\DirectoryManagerWindow.xaml.cs",
               "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\DirectoryManagerWindow.xaml.cs",
@@ -89,19 +119,20 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 3,
               "Title": "DatabaseSchema.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
               "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAwAAAAQAAAAAAAAAA==",
+              "ViewState": "AgIAACIBAAAAAAAAAAAwwDoBAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-23T13:47:57.238Z"
+              "WhenOpened": "2025-11-23T13:47:57.238Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 7,
               "Title": "GeoRoadmapRepository.cs",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Data\\GeoRoadmapRepository.cs",
               "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Data\\GeoRoadmapRepository.cs",
@@ -113,7 +144,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 8,
               "Title": "map.html",
               "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Maps\\map.html",
               "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Maps\\map.html",
