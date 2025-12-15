@@ -51,7 +51,7 @@
               "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
               "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
-              "ViewState": "AgIAAHQCAAAAAAAAAAAwwIACAAAgAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAIACAAAgAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-12-09T10:26:15.611Z",
               "EditorCaption": ""
@@ -66,8 +66,7 @@
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\SharedModels.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAAAcAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-09T10:24:16.926Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-12-09T10:24:16.926Z"
             },
             {
               "$type": "Document",
@@ -90,8 +89,7 @@
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml.cs",
               "ViewState": "AgIAAE0AAAAAAAAAAAAAAF4AAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-09T04:12:28.755Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-12-09T04:12:28.755Z"
             },
             {
               "$type": "Document",
@@ -114,8 +112,7 @@
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\DirectoryManagerWindow.xaml.cs",
               "ViewState": "AgIAACwCAAAAAAAAAIAwwDgCAAAMAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-09T03:50:20.278Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-12-09T03:50:20.278Z"
             },
             {
               "$type": "Document",
@@ -127,8 +124,7 @@
               "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
               "ViewState": "AgIAACIBAAAAAAAAAAAwwDoBAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-11-23T13:47:57.238Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-11-23T13:47:57.238Z"
             },
             {
               "$type": "Document",
