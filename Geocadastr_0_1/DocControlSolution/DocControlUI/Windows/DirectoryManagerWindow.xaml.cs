@@ -14,6 +14,8 @@ using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using OpenXmlWord = DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Win32;
+using System.IO;
+using System.Diagnostics;
 
 namespace DocControlUI.Windows
 {
@@ -25,16 +27,23 @@ namespace DocControlUI.Windows
         private DirectoryModel _selectedDirectory;
         private int _selectedDirectoryId;
 
+        // Файловий провідник
+        private string _currentPath;
+        private FileSystemItem _selectedFileSystemItem;
+        private List<FileSystemItem> _currentFileSystemItems;
+
         public DirectoryManagerWindow()
         {
             InitializeComponent();
             _client = new DocControlServiceClient();
+            _currentPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             Loaded += DirectoryManagerWindow_Loaded;
         }
 
         private async void DirectoryManagerWindow_Loaded(object sender, RoutedEventArgs e)
         {
             await RefreshDirectories();
+            LoadFileExplorer(_currentPath);
         }
 
         private async System.Threading.Tasks.Task RefreshDirectories()
@@ -713,5 +722,599 @@ namespace DocControlUI.Windows
         }
 
         #endregion
+
+        #region File Explorer Methods
+
+        // Модель для відображення файлів та папок
+        private class FileSystemItem
+        {
+            public string Name { get; set; }
+            public string FullPath { get; set; }
+            public bool IsDirectory { get; set; }
+            public long Size { get; set; }
+            public DateTime Modified { get; set; }
+            public DateTime Created { get; set; }
+            public FileAttributes Attributes { get; set; }
+
+            public string Icon => IsDirectory ? "📁" : "📄";
+            public string SizeString => IsDirectory ? "<DIR>" : FormatFileSize(Size);
+            public string ModifiedString => Modified.ToString("yyyy-MM-dd HH:mm");
+
+            private static string FormatFileSize(long bytes)
+            {
+                string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+                int order = 0;
+                double size = bytes;
+                while (size >= 1024 && order < sizes.Length - 1)
+                {
+                    order++;
+                    size /= 1024;
+                }
+                return $"{size:0.##} {sizes[order]}";
+            }
+        }
+
+        // Завантаження файлового провідника
+        private void LoadFileExplorer(string path)
+        {
+            try
+            {
+                if (!Directory.Exists(path))
+                {
+                    MessageBox.Show($"Шлях не існує: {path}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                _currentPath = path;
+                CurrentPathTextBox.Text = path;
+
+                var items = new List<FileSystemItem>();
+
+                // Додаємо директорії
+                try
+                {
+                    var directories = Directory.GetDirectories(path);
+                    foreach (var dir in directories)
+                    {
+                        try
+                        {
+                            var dirInfo = new DirectoryInfo(dir);
+                            items.Add(new FileSystemItem
+                            {
+                                Name = dirInfo.Name,
+                                FullPath = dirInfo.FullName,
+                                IsDirectory = true,
+                                Modified = dirInfo.LastWriteTime,
+                                Created = dirInfo.CreationTime,
+                                Attributes = dirInfo.Attributes
+                            });
+                        }
+                        catch
+                        {
+                            // Ігноруємо папки, до яких немає доступу
+                        }
+                    }
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    MessageBox.Show("Немає доступу до деяких папок у цій директорії", "Увага",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+
+                // Додаємо файли
+                try
+                {
+                    var files = Directory.GetFiles(path);
+                    foreach (var file in files)
+                    {
+                        try
+                        {
+                            var fileInfo = new FileInfo(file);
+                            items.Add(new FileSystemItem
+                            {
+                                Name = fileInfo.Name,
+                                FullPath = fileInfo.FullName,
+                                IsDirectory = false,
+                                Size = fileInfo.Length,
+                                Modified = fileInfo.LastWriteTime,
+                                Created = fileInfo.CreationTime,
+                                Attributes = fileInfo.Attributes
+                            });
+                        }
+                        catch
+                        {
+                            // Ігноруємо файли, до яких немає доступу
+                        }
+                    }
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    MessageBox.Show("Немає доступу до деяких файлів у цій директорії", "Увага",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+
+                // Сортуємо: спочатку папки, потім файли
+                items = items.OrderByDescending(x => x.IsDirectory).ThenBy(x => x.Name).ToList();
+
+                _currentFileSystemItems = items;
+                FileSystemGrid.ItemsSource = _currentFileSystemItems;
+
+                SetStatus($"Завантажено {items.Count(x => x.IsDirectory)} папок і {items.Count(x => !x.IsDirectory)} файлів");
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка завантаження: {ex.Message}");
+                MessageBox.Show($"Помилка завантаження директорії:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Навігація
+        private void NavigateToHome_Click(object sender, RoutedEventArgs e)
+        {
+            string homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            LoadFileExplorer(homePath);
+        }
+
+        private void NavigateUp_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var parentDir = Directory.GetParent(_currentPath);
+                if (parentDir != null)
+                {
+                    LoadFileExplorer(parentDir.FullName);
+                }
+                else
+                {
+                    MessageBox.Show("Неможливо піднятися вище", "Увага",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка навігації:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void NavigateToPath_Click(object sender, RoutedEventArgs e)
+        {
+            string path = CurrentPathTextBox.Text?.Trim();
+            if (!string.IsNullOrEmpty(path))
+            {
+                LoadFileExplorer(path);
+            }
+        }
+
+        private void CurrentPathTextBox_KeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter)
+            {
+                NavigateToPath_Click(sender, e);
+            }
+        }
+
+        // Вибір файлу/папки
+        private void FileSystemGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (FileSystemGrid.SelectedItem is FileSystemItem item)
+            {
+                _selectedFileSystemItem = item;
+                ShowFileDetails(item);
+                RenameButton.IsEnabled = true;
+                DeleteButton.IsEnabled = true;
+            }
+            else
+            {
+                _selectedFileSystemItem = null;
+                ClearFileDetails();
+                RenameButton.IsEnabled = false;
+                DeleteButton.IsEnabled = false;
+            }
+        }
+
+        // Подвійний клік - відкрити папку або файл
+        private void FileSystemGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (_selectedFileSystemItem != null)
+            {
+                if (_selectedFileSystemItem.IsDirectory)
+                {
+                    LoadFileExplorer(_selectedFileSystemItem.FullPath);
+                }
+                else
+                {
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = _selectedFileSystemItem.FullPath,
+                            UseShellExecute = true
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Не вдалося відкрити файл:\n{ex.Message}",
+                            "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+        }
+
+        // Відображення деталей файлу/папки
+        private void ShowFileDetails(FileSystemItem item)
+        {
+            FileDetailNameText.Text = item.Name;
+            FileDetailPathText.Text = item.FullPath;
+            FileDetailTypeText.Text = item.IsDirectory ? "Папка" : "Файл";
+            FileDetailSizeText.Text = item.SizeString;
+            FileDetailCreatedText.Text = item.Created.ToString("yyyy-MM-dd HH:mm:ss");
+            FileDetailModifiedText.Text = item.Modified.ToString("yyyy-MM-dd HH:mm:ss");
+            FileDetailAttributesText.Text = item.Attributes.ToString();
+
+            // Показуємо додаткові дії для файлів
+            if (!item.IsDirectory)
+            {
+                FileActionsPanel.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                FileActionsPanel.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void ClearFileDetails()
+        {
+            FileDetailNameText.Text = "-";
+            FileDetailPathText.Text = "-";
+            FileDetailTypeText.Text = "-";
+            FileDetailSizeText.Text = "-";
+            FileDetailCreatedText.Text = "-";
+            FileDetailModifiedText.Text = "-";
+            FileDetailAttributesText.Text = "-";
+            FileActionsPanel.Visibility = Visibility.Collapsed;
+        }
+
+        // CRUD Операції
+
+        // Створення папки
+        private void CreateFolder_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dialog = new InputDialog("Створення папки", "Введіть назву нової папки:");
+                if (dialog.ShowDialog() == true)
+                {
+                    string folderName = dialog.ResponseText?.Trim();
+                    if (string.IsNullOrEmpty(folderName))
+                    {
+                        MessageBox.Show("Назва папки не може бути порожньою",
+                            "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    string newFolderPath = Path.Combine(_currentPath, folderName);
+                    if (Directory.Exists(newFolderPath))
+                    {
+                        MessageBox.Show("Папка з такою назвою вже існує",
+                            "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    Directory.CreateDirectory(newFolderPath);
+                    MessageBox.Show($"Папку '{folderName}' успішно створено!",
+                        "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    LoadFileExplorer(_currentPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Не вдалося створити папку:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Створення файлу
+        private void CreateFile_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dialog = new InputDialog("Створення файлу", "Введіть назву нового файлу:");
+                if (dialog.ShowDialog() == true)
+                {
+                    string fileName = dialog.ResponseText?.Trim();
+                    if (string.IsNullOrEmpty(fileName))
+                    {
+                        MessageBox.Show("Назва файлу не може бути порожньою",
+                            "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    string newFilePath = Path.Combine(_currentPath, fileName);
+                    if (File.Exists(newFilePath))
+                    {
+                        MessageBox.Show("Файл з такою назвою вже існує",
+                            "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    File.Create(newFilePath).Dispose();
+                    MessageBox.Show($"Файл '{fileName}' успішно створено!",
+                        "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    LoadFileExplorer(_currentPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Не вдалося створити файл:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Перейменування
+        private void Rename_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedFileSystemItem == null)
+            {
+                MessageBox.Show("Виберіть файл або папку для перейменування",
+                    "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                var dialog = new InputDialog("Перейменування",
+                    $"Введіть нову назву для '{_selectedFileSystemItem.Name}':",
+                    _selectedFileSystemItem.Name);
+
+                if (dialog.ShowDialog() == true)
+                {
+                    string newName = dialog.ResponseText?.Trim();
+                    if (string.IsNullOrEmpty(newName))
+                    {
+                        MessageBox.Show("Назва не може бути порожньою",
+                            "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    if (newName == _selectedFileSystemItem.Name)
+                    {
+                        return; // Назва не змінилась
+                    }
+
+                    string newPath = Path.Combine(_currentPath, newName);
+
+                    if (_selectedFileSystemItem.IsDirectory)
+                    {
+                        if (Directory.Exists(newPath))
+                        {
+                            MessageBox.Show("Папка з такою назвою вже існує",
+                                "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+                        Directory.Move(_selectedFileSystemItem.FullPath, newPath);
+                    }
+                    else
+                    {
+                        if (File.Exists(newPath))
+                        {
+                            MessageBox.Show("Файл з такою назвою вже існує",
+                                "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                            return;
+                        }
+                        File.Move(_selectedFileSystemItem.FullPath, newPath);
+                    }
+
+                    MessageBox.Show($"Успішно перейменовано на '{newName}'!",
+                        "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    LoadFileExplorer(_currentPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Не вдалося перейменувати:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Видалення
+        private void Delete_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedFileSystemItem == null)
+            {
+                MessageBox.Show("Виберіть файл або папку для видалення",
+                    "Увага", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                $"Ви впевнені, що хочете видалити '{_selectedFileSystemItem.Name}'?",
+                "Підтвердження", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                if (_selectedFileSystemItem.IsDirectory)
+                {
+                    // Перевіряємо чи папка порожня
+                    if (Directory.GetFileSystemEntries(_selectedFileSystemItem.FullPath).Length > 0)
+                    {
+                        var deleteAllResult = MessageBox.Show(
+                            "Папка не порожня. Видалити разом з усім вмістом?",
+                            "Підтвердження", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                        if (deleteAllResult != MessageBoxResult.Yes)
+                            return;
+
+                        Directory.Delete(_selectedFileSystemItem.FullPath, true);
+                    }
+                    else
+                    {
+                        Directory.Delete(_selectedFileSystemItem.FullPath);
+                    }
+                }
+                else
+                {
+                    File.Delete(_selectedFileSystemItem.FullPath);
+                }
+
+                MessageBox.Show("Успішно видалено!",
+                    "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                LoadFileExplorer(_currentPath);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Не вдалося видалити:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Додаткові дії
+        private void OpenInNotepad_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedFileSystemItem != null && !_selectedFileSystemItem.IsDirectory)
+            {
+                try
+                {
+                    Process.Start("notepad.exe", _selectedFileSystemItem.FullPath);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Не вдалося відкрити файл у блокноті:\n{ex.Message}",
+                        "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void OpenLocation_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedFileSystemItem != null)
+            {
+                try
+                {
+                    Process.Start("explorer.exe", $"/select,\"{_selectedFileSystemItem.FullPath}\"");
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Не вдалося відкрити розташування:\n{ex.Message}",
+                        "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void CopyPath_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedFileSystemItem != null)
+            {
+                try
+                {
+                    Clipboard.SetText(_selectedFileSystemItem.FullPath);
+                    MessageBox.Show("Шлях скопійовано в буфер обміну!",
+                        "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Не вдалося скопіювати шлях:\n{ex.Message}",
+                        "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        #endregion
+    }
+
+    // Діалог для введення тексту
+    public class InputDialog : Window
+    {
+        private TextBox _textBox;
+        public string ResponseText { get; private set; }
+
+        public InputDialog(string title, string question, string defaultValue = "")
+        {
+            Title = title;
+            Width = 400;
+            Height = 180;
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+
+            var grid = new Grid();
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var questionText = new TextBlock
+            {
+                Text = question,
+                Margin = new Thickness(15, 15, 15, 10),
+                FontSize = 14
+            };
+            Grid.SetRow(questionText, 0);
+            grid.Children.Add(questionText);
+
+            _textBox = new TextBox
+            {
+                Text = defaultValue,
+                Margin = new Thickness(15, 5, 15, 15),
+                Padding = new Thickness(5),
+                FontSize = 14
+            };
+            _textBox.KeyUp += (s, e) =>
+            {
+                if (e.Key == Key.Enter)
+                {
+                    ResponseText = _textBox.Text;
+                    DialogResult = true;
+                }
+            };
+            Grid.SetRow(_textBox, 1);
+            grid.Children.Add(_textBox);
+
+            var buttonPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(15, 10, 15, 15)
+            };
+
+            var okButton = new Button
+            {
+                Content = "OK",
+                Width = 80,
+                Height = 30,
+                Margin = new Thickness(5, 0, 5, 0)
+            };
+            okButton.Click += (s, e) =>
+            {
+                ResponseText = _textBox.Text;
+                DialogResult = true;
+            };
+
+            var cancelButton = new Button
+            {
+                Content = "Скасувати",
+                Width = 80,
+                Height = 30,
+                Margin = new Thickness(5, 0, 5, 0)
+            };
+            cancelButton.Click += (s, e) =>
+            {
+                DialogResult = false;
+            };
+
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            Grid.SetRow(buttonPanel, 2);
+            grid.Children.Add(buttonPanel);
+
+            Content = grid;
+
+            Loaded += (s, e) => _textBox.Focus();
+        }
     }
 }
