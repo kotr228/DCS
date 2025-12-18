@@ -280,7 +280,7 @@ namespace DocControlUI.Windows {
                 return;
             }
             _contentLoaded = true;
-            System.Uri resourceLocater = new System.Uri("/DocControlUI;component/windows/georoadmapeditorwindow.xaml", System.UriKind.Relative);
+            System.Uri resourceLocater = new System.Uri("/DocControlUI;V1.0.0.0;component/windows/georoadmapeditorwindow.xaml", System.UriKind.Relative);
             
             #line 1 "..\..\..\..\Windows\GeoRoadmapEditorWindow.xaml"
             System.Windows.Application.LoadComponent(this, resourceLocater);
