@@ -1,6 +1,7 @@
 using DocControlNetworkCore.Models;
 using DocControlNetworkCore.Services;
 using DocControlService.Data;
+using DocControlService.Models;
 using DocControlService.Shared;
 using System;
 using System.Collections.Concurrent;
