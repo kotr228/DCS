@@ -1,0 +1,427 @@
+using DocControlNetworkCore.Models;
+using System;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace DocControlNetworkCore.Services
+{
+    /// <summary>
+    /// Сервіс для обміну командами між вузлами
+    /// </summary>
+    public class CommandLayerService : IDisposable
+    {
+        private readonly PeerIdentity _localIdentity;
+        private readonly string _allowedBasePath;
+        private TcpListener? _tcpListener;
+        private CancellationTokenSource? _cancellationTokenSource;
+        private Task? _listenerTask;
+
+        /// <summary>
+        /// Подія отримання команди
+        /// </summary>
+        public event Action<NetworkCommand, IPEndPoint>? CommandReceived;
+
+        public CommandLayerService(PeerIdentity localIdentity, string allowedBasePath)
+        {
+            _localIdentity = localIdentity;
+            _allowedBasePath = Path.GetFullPath(allowedBasePath);
+        }
+
+        /// <summary>
+        /// Запустити TCP сервер для прийому команд
+        /// </summary>
+        public void Start()
+        {
+            if (_cancellationTokenSource != null)
+            {
+                Console.WriteLine("[CommandLayer] Сервіс вже запущено");
+                return;
+            }
+
+            _cancellationTokenSource = new CancellationTokenSource();
+            _tcpListener = new TcpListener(IPAddress.Any, _localIdentity.TcpPort);
+            _tcpListener.Start();
+
+            _listenerTask = Task.Run(() => RunListenerAsync(_cancellationTokenSource.Token));
+
+            Console.WriteLine($"[CommandLayer] TCP сервер запущено на порту {_localIdentity.TcpPort}");
+        }
+
+        /// <summary>
+        /// Зупинити TCP сервер
+        /// </summary>
+        public void Stop()
+        {
+            Console.WriteLine("[CommandLayer] Зупинка сервісу...");
+
+            _cancellationTokenSource?.Cancel();
+            _tcpListener?.Stop();
+
+            try
+            {
+                _listenerTask?.Wait(TimeSpan.FromSeconds(5));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CommandLayer] Помилка при зупинці: {ex.Message}");
+            }
+
+            Console.WriteLine("[CommandLayer] Сервіс зупинено");
+        }
+
+        /// <summary>
+        /// TCP Listener - приймає вхідні з'єднання
+        /// </summary>
+        private async Task RunListenerAsync(CancellationToken cancellationToken)
+        {
+            Console.WriteLine("[CommandLayer] Listener запущено");
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    var client = await _tcpListener!.AcceptTcpClientAsync(cancellationToken);
+                    _ = Task.Run(() => HandleClientAsync(client, cancellationToken), cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[CommandLayer] Помилка прийому з'єднання: {ex.Message}");
+                }
+            }
+
+            Console.WriteLine("[CommandLayer] Listener зупинено");
+        }
+
+        /// <summary>
+        /// Обробка клієнтського з'єднання
+        /// </summary>
+        private async Task HandleClientAsync(TcpClient client, CancellationToken cancellationToken)
+        {
+            try
+            {
+                using var stream = client.GetStream();
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                using var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+
+                var endpoint = (IPEndPoint)client.Client.RemoteEndPoint!;
+                Console.WriteLine($"[CommandLayer] Нове з'єднання від {endpoint}");
+
+                // Читання команди
+                var commandJson = await reader.ReadLineAsync(cancellationToken);
+                if (string.IsNullOrEmpty(commandJson))
+                {
+                    Console.WriteLine("[CommandLayer] Порожня команда");
+                    return;
+                }
+
+                var command = JsonSerializer.Deserialize<NetworkCommand>(commandJson);
+                if (command == null)
+                {
+                    Console.WriteLine("[CommandLayer] Неможливо розпарсити команду");
+                    return;
+                }
+
+                Console.WriteLine($"[CommandLayer] Отримано команду: {command.Type} від {endpoint}");
+
+                // Обробка команди
+                var response = await ProcessCommandAsync(command);
+
+                // Відправка відповіді
+                var responseJson = JsonSerializer.Serialize(response);
+                await writer.WriteLineAsync(responseJson);
+
+                Console.WriteLine($"[CommandLayer] Відповідь відправлено: Success={response.Success}");
+
+                // Виклик події
+                CommandReceived?.Invoke(command, endpoint);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CommandLayer] Помилка обробки клієнта: {ex.Message}");
+            }
+            finally
+            {
+                client.Close();
+            }
+        }
+
+        /// <summary>
+        /// Обробка команди
+        /// </summary>
+        private async Task<CommandResponse> ProcessCommandAsync(NetworkCommand command)
+        {
+            try
+            {
+                switch (command.Type)
+                {
+                    case CommandType.GetFileList:
+                        return await HandleGetFileListAsync(command);
+
+                    case CommandType.GetFileMeta:
+                        return await HandleGetFileMetaAsync(command);
+
+                    case CommandType.Ping:
+                        return HandlePing(command);
+
+                    case CommandType.Heartbeat:
+                        return HandleHeartbeat(command);
+
+                    default:
+                        return new CommandResponse
+                        {
+                            RequestId = command.RequestId,
+                            Success = false,
+                            ErrorMessage = $"Непідтримувана команда: {command.Type}"
+                        };
+                }
+            }
+            catch (Exception ex)
+            {
+                return new CommandResponse
+                {
+                    RequestId = command.RequestId,
+                    Success = false,
+                    ErrorMessage = $"Помилка обробки команди: {ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Обробка команди GetFileList
+        /// </summary>
+        private async Task<CommandResponse> HandleGetFileListAsync(NetworkCommand command)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<GetFileListRequest>(command.Payload);
+                if (request == null)
+                {
+                    return new CommandResponse
+                    {
+                        RequestId = command.RequestId,
+                        Success = false,
+                        ErrorMessage = "Невалідний запит"
+                    };
+                }
+
+                // Валідація шляху (безпека)
+                var fullPath = Path.GetFullPath(Path.Combine(_allowedBasePath, request.DirectoryPath));
+                if (!fullPath.StartsWith(_allowedBasePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new CommandResponse
+                    {
+                        RequestId = command.RequestId,
+                        Success = false,
+                        ErrorMessage = "Доступ заборонено: шлях поза дозволеною директорією"
+                    };
+                }
+
+                if (!Directory.Exists(fullPath))
+                {
+                    return new CommandResponse
+                    {
+                        RequestId = command.RequestId,
+                        Success = false,
+                        ErrorMessage = "Директорія не знайдена"
+                    };
+                }
+
+                // Отримання списку файлів
+                var searchOption = request.IncludeSubdirectories
+                    ? SearchOption.AllDirectories
+                    : SearchOption.TopDirectoryOnly;
+
+                var files = Directory.GetFiles(fullPath, request.Filter, searchOption);
+                var directories = Directory.GetDirectories(fullPath, "*", searchOption);
+
+                var fileList = files.Select(f =>
+                {
+                    var fi = new FileInfo(f);
+                    return new FileMetadata
+                    {
+                        FileName = fi.Name,
+                        FullPath = f.Replace(_allowedBasePath, "").TrimStart('\\', '/'),
+                        Size = fi.Length,
+                        CreatedDate = fi.CreationTime,
+                        ModifiedDate = fi.LastWriteTime,
+                        IsDirectory = false,
+                        Extension = fi.Extension
+                    };
+                }).Concat(directories.Select(d =>
+                {
+                    var di = new DirectoryInfo(d);
+                    return new FileMetadata
+                    {
+                        FileName = di.Name,
+                        FullPath = d.Replace(_allowedBasePath, "").TrimStart('\\', '/'),
+                        Size = 0,
+                        CreatedDate = di.CreationTime,
+                        ModifiedDate = di.LastWriteTime,
+                        IsDirectory = true,
+                        Extension = ""
+                    };
+                })).ToList();
+
+                return new CommandResponse
+                {
+                    RequestId = command.RequestId,
+                    Success = true,
+                    Data = JsonSerializer.Serialize(fileList)
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResponse
+                {
+                    RequestId = command.RequestId,
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Обробка команди GetFileMeta
+        /// </summary>
+        private async Task<CommandResponse> HandleGetFileMetaAsync(NetworkCommand command)
+        {
+            try
+            {
+                var filePath = command.Payload;
+
+                // Валідація шляху
+                var fullPath = Path.GetFullPath(Path.Combine(_allowedBasePath, filePath));
+                if (!fullPath.StartsWith(_allowedBasePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    return new CommandResponse
+                    {
+                        RequestId = command.RequestId,
+                        Success = false,
+                        ErrorMessage = "Доступ заборонено"
+                    };
+                }
+
+                if (!File.Exists(fullPath))
+                {
+                    return new CommandResponse
+                    {
+                        RequestId = command.RequestId,
+                        Success = false,
+                        ErrorMessage = "Файл не знайдено"
+                    };
+                }
+
+                var fi = new FileInfo(fullPath);
+                var metadata = new FileMetadata
+                {
+                    FileName = fi.Name,
+                    FullPath = filePath,
+                    Size = fi.Length,
+                    CreatedDate = fi.CreationTime,
+                    ModifiedDate = fi.LastWriteTime,
+                    IsDirectory = false,
+                    Extension = fi.Extension
+                };
+
+                return new CommandResponse
+                {
+                    RequestId = command.RequestId,
+                    Success = true,
+                    Data = JsonSerializer.Serialize(metadata)
+                };
+            }
+            catch (Exception ex)
+            {
+                return new CommandResponse
+                {
+                    RequestId = command.RequestId,
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Обробка Ping
+        /// </summary>
+        private CommandResponse HandlePing(NetworkCommand command)
+        {
+            return new CommandResponse
+            {
+                RequestId = command.RequestId,
+                Success = true,
+                Data = JsonSerializer.Serialize(new { Message = "Pong", Identity = _localIdentity })
+            };
+        }
+
+        /// <summary>
+        /// Обробка Heartbeat
+        /// </summary>
+        private CommandResponse HandleHeartbeat(NetworkCommand command)
+        {
+            return new CommandResponse
+            {
+                RequestId = command.RequestId,
+                Success = true,
+                Data = JsonSerializer.Serialize(new { Status = "Alive", Timestamp = DateTime.Now })
+            };
+        }
+
+        /// <summary>
+        /// Відправити команду іншому вузлу
+        /// </summary>
+        public async Task<CommandResponse?> SendCommandAsync(string ipAddress, int port, NetworkCommand command, int timeoutMs = 5000)
+        {
+            try
+            {
+                using var client = new TcpClient();
+                await client.ConnectAsync(ipAddress, port).WaitAsync(TimeSpan.FromMilliseconds(timeoutMs));
+
+                using var stream = client.GetStream();
+                using var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+
+                // Відправка команди
+                var commandJson = JsonSerializer.Serialize(command);
+                await writer.WriteLineAsync(commandJson);
+
+                Console.WriteLine($"[CommandLayer] Команду відправлено до {ipAddress}:{port}");
+
+                // Очікування відповіді
+                var responseJson = await reader.ReadLineAsync().WaitAsync(TimeSpan.FromMilliseconds(timeoutMs));
+                if (string.IsNullOrEmpty(responseJson))
+                {
+                    Console.WriteLine("[CommandLayer] Порожня відповідь");
+                    return null;
+                }
+
+                var response = JsonSerializer.Deserialize<CommandResponse>(responseJson);
+                Console.WriteLine($"[CommandLayer] Отримано відповідь: Success={response?.Success}");
+
+                return response;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CommandLayer] Помилка відправки команди: {ex.Message}");
+                return null;
+            }
+        }
+
+        public void Dispose()
+        {
+            Stop();
+            _tcpListener?.Stop();
+            _cancellationTokenSource?.Dispose();
+        }
+    }
+}
