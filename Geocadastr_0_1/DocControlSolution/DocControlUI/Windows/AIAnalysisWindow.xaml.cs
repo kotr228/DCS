@@ -36,14 +36,30 @@ namespace DocControlUI.Windows
             _currentDirectoryPath = directoryPath;
             _currentDirectoryId = directoryId;
 
-            _serviceClient = new DocControlServiceClient();
-            _ollama = new OllamaClient();
-            _structureAnalyzer = new DirectoryStructureAnalyzer(_ollama);
-            _chronoGenerator = new ChronologicalRoadmapGenerator(_ollama);
-            _reorganizer = new FileReorganizationService();
-            _exporter = new DataExportService();
+            try
+            {
+                _serviceClient = new DocControlServiceClient();
+                _ollama = new OllamaClient();
+                _structureAnalyzer = new DirectoryStructureAnalyzer(_ollama);
+                _chronoGenerator = new ChronologicalRoadmapGenerator(_ollama);
+                _reorganizer = new FileReorganizationService();
+                _exporter = new DataExportService();
 
-            Loaded += AIAnalysisWindow_Loaded;
+                Loaded += AIAnalysisWindow_Loaded;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    $"❌ Помилка ініціалізації AI модуля:\n\n{ex.Message}\n\n" +
+                    "Перевірте:\n" +
+                    "1. Файл моделі знаходиться в папці Models/\n" +
+                    "2. DocControl Service працює\n" +
+                    "3. База даних доступна",
+                    "Критична помилка",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                Close();
+            }
         }
 
         private async void AIAnalysisWindow_Loaded(object sender, RoutedEventArgs e)
@@ -62,6 +78,34 @@ namespace DocControlUI.Windows
         {
             try
             {
+                // Перевірка існування директорії
+                if (!System.IO.Directory.Exists(_currentDirectoryPath))
+                {
+                    MessageBox.Show(
+                        $"❌ Директорія не існує:\n\n{_currentDirectoryPath}\n\n" +
+                        "Можливо, вона була видалена або перейменована.",
+                        "Помилка",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
+
+                // Перевірка доступу до директорії
+                try
+                {
+                    var testAccess = System.IO.Directory.GetFiles(_currentDirectoryPath);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    MessageBox.Show(
+                        $"❌ Немає доступу до директорії:\n\n{_currentDirectoryPath}\n\n" +
+                        "Запустіть програму від імені адміністратора або надайте відповідні права.",
+                        "Помилка доступу",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
+
                 SetStatus("🤖 AI аналізує структуру директорії...");
                 AnalysisStatusText.Text = "⏳ Аналіз в процесі...";
                 AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Orange;
@@ -140,21 +184,85 @@ namespace DocControlUI.Windows
                         MessageBoxImage.Information);
                 }
             }
-            catch (Exception ex)
+            catch (System.IO.IOException ioEx)
             {
                 MessageBox.Show(
-                    $"❌ Помилка AI аналізу:\n\n{ex.Message}\n\n" +
-                    "Перевірте:\n" +
+                    $"❌ Помилка читання файлової системи:\n\n{ioEx.Message}\n\n" +
+                    "Можливі причини:\n" +
+                    "• Відсутні права доступу до деяких файлів\n" +
+                    "• Файли використовуються іншою програмою\n" +
+                    "• Пошкоджена файлова система",
+                    "Помилка файлової системи",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                AnalysisStatusText.Text = "❌ Помилка читання";
+                AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Red;
+                SetStatus("Помилка читання файлової системи");
+            }
+            catch (System.Net.Sockets.SocketException)
+            {
+                MessageBox.Show(
+                    "❌ Помилка підключення до сервісу!\n\n" +
+                    "DocControl Service не відповідає.\n\n" +
+                    "Виконайте:\n" +
+                    "1. Перевірте чи працює служба DocControlService\n" +
+                    "2. Перезапустіть службу через services.msc\n" +
+                    "3. Перевірте Named Pipe підключення",
+                    "Помилка підключення",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                AnalysisStatusText.Text = "❌ Немає зв'язку з сервісом";
+                AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Red;
+                SetStatus("DocControl Service недоступний");
+            }
+            catch (TimeoutException)
+            {
+                MessageBox.Show(
+                    "⏱️ Перевищено час очікування!\n\n" +
+                    "AI аналіз займає занадто багато часу.\n\n" +
+                    "Можливо:\n" +
+                    "• Директорія містить дуже багато файлів\n" +
+                    "• AI модель працює повільно\n" +
+                    "• Недостатньо ресурсів системи\n\n" +
+                    "Спробуйте проаналізувати меншу директорію.",
+                    "Таймаут",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                AnalysisStatusText.Text = "⏱️ Таймаут";
+                AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Orange;
+                SetStatus("Перевищено час очікування");
+            }
+            catch (Exception ex)
+            {
+                string detailedMessage = $"❌ Помилка AI аналізу:\n\n{ex.Message}\n\n";
+
+                if (ex.InnerException != null)
+                {
+                    detailedMessage += $"Деталі: {ex.InnerException.Message}\n\n";
+                }
+
+                detailedMessage += "Перевірте:\n" +
                     "1. Ollama запущений (ollama serve)\n" +
                     "2. Модель завантажена (ollama pull llama3)\n" +
-                    "3. DocControl Service працює",
-                    "Помилка",
+                    "3. DocControl Service працює\n" +
+                    "4. База даних доступна\n" +
+                    "5. Достатньо місця на диску";
+
+                MessageBox.Show(
+                    detailedMessage,
+                    "Помилка аналізу",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
 
                 AnalysisStatusText.Text = "❌ Помилка аналізу";
                 AnalysisStatusText.Foreground = System.Windows.Media.Brushes.Red;
-                SetStatus("Помилка аналізу");
+                SetStatus($"Помилка: {ex.GetType().Name}");
+
+                // Логування для діагностики
+                System.Diagnostics.Debug.WriteLine($"AI Analysis Error: {ex}");
             }
         }
 
@@ -236,6 +344,36 @@ namespace DocControlUI.Windows
         {
             try
             {
+                // Перевірка існування директорії
+                if (!System.IO.Directory.Exists(_currentDirectoryPath))
+                {
+                    MessageBox.Show(
+                        $"❌ Директорія не існує:\n\n{_currentDirectoryPath}",
+                        "Помилка",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
+                }
+
+                // Перевірка AI статусу
+                var (isRunning, _, isModelLoaded) = await _ollama.GetStatusAsync();
+                if (!isRunning || !isModelLoaded)
+                {
+                    var result = MessageBox.Show(
+                        "⚠️ AI модель не готова!\n\n" +
+                        "Хронологічна карта без AI буде містити тільки базову інформацію " +
+                        "(дати створення/модифікації файлів).\n\n" +
+                        "Продовжити без AI інсайтів?",
+                        "AI недоступний",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+
+                    if (result == MessageBoxResult.No)
+                    {
+                        return;
+                    }
+                }
+
                 SetStatus("🤖 AI генерує хронологічну карту...");
 
                 var roadmapName = Microsoft.VisualBasic.Interaction.InputBox(
@@ -270,19 +408,58 @@ namespace DocControlUI.Windows
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
             }
-            catch (Exception ex)
+            catch (System.IO.IOException ioEx)
             {
                 MessageBox.Show(
-                    $"❌ Помилка генерації карти:\n\n{ex.Message}\n\n" +
-                    "Переконайтеся що:\n" +
-                    "• Ollama запущений\n" +
-                    "• Модель llama3 завантажена\n" +
-                    "• DocControl Service працює",
+                    $"❌ Помилка читання файлів:\n\n{ioEx.Message}\n\n" +
+                    "Можливі причини:\n" +
+                    "• Файли заблоковані іншою програмою\n" +
+                    "• Відсутні права доступу\n" +
+                    "• Пошкоджені файли метаданих",
+                    "Помилка файлової системи",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                SetStatus("Помилка читання файлів");
+            }
+            catch (InvalidOperationException invalidEx)
+            {
+                MessageBox.Show(
+                    $"❌ Помилка операції:\n\n{invalidEx.Message}\n\n" +
+                    "Можливо:\n" +
+                    "• Директорія порожня\n" +
+                    "• Немає файлів з датами\n" +
+                    "• База даних недоступна",
                     "Помилка",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
 
-                SetStatus("Помилка генерації");
+                SetStatus("Неможливо згенерувати карту");
+            }
+            catch (Exception ex)
+            {
+                string detailedMessage = $"❌ Помилка генерації карти:\n\n{ex.Message}\n\n";
+
+                if (ex.InnerException != null)
+                {
+                    detailedMessage += $"Деталі: {ex.InnerException.Message}\n\n";
+                }
+
+                detailedMessage += "Переконайтеся що:\n" +
+                    "• Ollama запущений (ollama serve)\n" +
+                    "• Модель llama3 завантажена\n" +
+                    "• DocControl Service працює\n" +
+                    "• Директорія містить файли\n" +
+                    "• База даних доступна";
+
+                MessageBox.Show(
+                    detailedMessage,
+                    "Помилка генерації",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+
+                SetStatus($"Помилка: {ex.GetType().Name}");
+                System.Diagnostics.Debug.WriteLine($"Chronological Roadmap Error: {ex}");
             }
         }
 
@@ -422,6 +599,8 @@ namespace DocControlUI.Windows
         {
             try
             {
+                SetStatus("Завантаження попередніх результатів...");
+
                 var analyses = await _serviceClient.GetAIAnalysisResultsAsync(_currentDirectoryId);
 
                 if (analyses != null && analyses.Count > 0)
@@ -431,16 +610,59 @@ namespace DocControlUI.Windows
                     LastAnalysisText.Text = lastAnalysis.AnalysisDate.ToString("yyyy-MM-dd HH:mm:ss");
                     TotalViolationsText.Text = lastAnalysis.Violations.Count.ToString();
                 }
+                else
+                {
+                    TotalAnalysesText.Text = "0";
+                    LastAnalysisText.Text = "Ще не виконувався";
+                    TotalViolationsText.Text = "0";
+                }
 
                 var roadmaps = await _serviceClient.GetAIChronologicalRoadmapsAsync(_currentDirectoryId);
                 if (roadmaps != null)
                 {
-                    // за потреби — онови лічильники в UI
+                    // за потреби — оновити лічильники в UI
+                    System.Diagnostics.Debug.WriteLine($"Завантажено {roadmaps.Count} хронологічних карт");
                 }
+
+                SetStatus("Історію завантажено");
+            }
+            catch (System.Net.Sockets.SocketException)
+            {
+                SetStatus("Сервіс недоступний - історія не завантажена");
+                System.Diagnostics.Debug.WriteLine("Не вдалося підключитися до сервісу для завантаження історії");
+
+                // Встановлюємо значення за замовчуванням
+                TotalAnalysesText.Text = "?";
+                LastAnalysisText.Text = "Сервіс недоступний";
+                TotalViolationsText.Text = "?";
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException sqlEx)
+            {
+                SetStatus("Помилка БД - історія не завантажена");
+                System.Diagnostics.Debug.WriteLine($"Помилка бази даних при завантаженні історії: {sqlEx.Message}");
+
+                MessageBox.Show(
+                    $"⚠️ Помилка бази даних:\n\n{sqlEx.Message}\n\n" +
+                    "База даних може бути пошкоджена або недоступна.\n" +
+                    "Попередні результати не завантажено.",
+                    "Помилка БД",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                TotalAnalysesText.Text = "?";
+                LastAnalysisText.Text = "Помилка БД";
+                TotalViolationsText.Text = "?";
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Помилка завантаження історії: {ex.Message}");
+                SetStatus("Помилка завантаження історії");
+                System.Diagnostics.Debug.WriteLine($"Помилка завантаження історії: {ex}");
+
+                // Не показуємо MessageBox тут, щоб не заважати запуску вікна
+                // Просто логуємо і встановлюємо значення за замовчуванням
+                TotalAnalysesText.Text = "?";
+                LastAnalysisText.Text = "Помилка завантаження";
+                TotalViolationsText.Text = "?";
             }
         }
 

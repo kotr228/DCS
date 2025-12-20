@@ -21,10 +21,20 @@ namespace DocControlAI.Core
         private InteractiveExecutor _executor;
         private bool _isModelLoaded = false;
 
-        public OllamaClient(string ollamaUrl = "Models/meta-llama-3-8b-instruct.Q4_K_M.gguf", string modelName = "llama3")
+        public OllamaClient(string modelPath = "Models/meta-llama-3-8b-instruct.Q4_K_M.gguf", string modelName = "llama3")
         {
-            _modelPath = ollamaUrl;
+            // Конвертуємо відносний шлях до абсолютного
+            if (!Path.IsPathRooted(modelPath))
+            {
+                _modelPath = Path.Combine(AppContext.BaseDirectory, modelPath);
+            }
+            else
+            {
+                _modelPath = modelPath;
+            }
+
             _modelName = modelName;
+            Console.WriteLine($"📍 Шлях до AI моделі: {_modelPath}");
         }
 
         public async Task<bool> IsOllamaRunningAsync()
