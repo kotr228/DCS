@@ -156,15 +156,6 @@ namespace DocControlService.Services
         /// </summary>
         public PeerIdentity? GetLocalIdentity() => _localIdentity;
 
-        /// <summary>
-        /// Отримати файлову систему віддаленого вузла
-        /// </summary>
-        public IFileSystemService? GetRemoteFileSystem(Guid peerId)
-        {
-            _remoteFileSystems.TryGetValue(peerId, out var remoteFs);
-            return remoteFs;
-        }
-
         #region Event Handlers
 
         private void OnPeerDiscovered(PeerIdentity peer)
