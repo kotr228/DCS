@@ -821,6 +821,7 @@ namespace DocControlUI.Windows
                 FileSystemGrid.ItemsSource = _currentFileSystemItems;
 
                 CurrentPathTextBox.Text = "📁 Директорії з бази даних";
+                ScanAndSaveButton.IsEnabled = false; // Вимикаємо кнопку на головній сторінці
                 SetStatus($"Показано {items.Count} директорій з БД");
             }
             catch (Exception ex)
@@ -924,6 +925,9 @@ namespace DocControlUI.Windows
 
                 _currentFileSystemItems = items;
                 FileSystemGrid.ItemsSource = _currentFileSystemItems;
+
+                // Увімкнуємо кнопку "Сканувати і зберегти", коли всередині директорії БД
+                ScanAndSaveButton.IsEnabled = _currentDirectory != null;
 
                 SetStatus($"Завантажено {items.Count(x => x.IsDirectory)} папок і {items.Count(x => !x.IsDirectory)} файлів");
             }
@@ -1387,6 +1391,43 @@ namespace DocControlUI.Windows
                     MessageBox.Show($"Не вдалося скопіювати шлях:\n{ex.Message}",
                         "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
+            }
+        }
+
+        // Сканування та збереження директорії
+        private async void ScanAndSave_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentDirectory == null)
+            {
+                MessageBox.Show("Помилка: не обрано директорію з БД",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            try
+            {
+                SetStatus("Сканування директорії...");
+                ScanAndSaveButton.IsEnabled = false; // Вимикаємо кнопку під час сканування
+
+                await _client.ScanDirectoryAsync(_currentDirectory.Id);
+
+                MessageBox.Show("Директорію успішно просканована та збережено в БД!",
+                    "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                SetStatus("Готово");
+
+                // Оновлюємо відображення файлів
+                LoadFileExplorer(_currentPath);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка сканування:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                SetStatus($"Помилка: {ex.Message}");
+            }
+            finally
+            {
+                ScanAndSaveButton.IsEnabled = _currentDirectory != null; // Відновлюємо кнопку
             }
         }
 

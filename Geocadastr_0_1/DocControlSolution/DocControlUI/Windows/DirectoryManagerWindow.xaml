@@ -335,6 +335,10 @@
                                 <Button Content="🗑️ Видалити" x:Name="DeleteButton" Click="Delete_Click"
                                         Background="#F44336" Foreground="White"
                                         Padding="10,5" Margin="5,0" IsEnabled="False"/>
+                                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="5,0"/>
+                                <Button Content="💾 Сканувати і зберегти" x:Name="ScanAndSaveButton" Click="ScanAndSave_Click"
+                                        Background="#FF9800" Foreground="White"
+                                        Padding="10,5" Margin="5,0" IsEnabled="False"/>
                             </StackPanel>
                         </Grid>
                     </Border>
