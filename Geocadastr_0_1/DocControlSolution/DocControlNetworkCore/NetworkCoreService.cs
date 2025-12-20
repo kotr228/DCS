@@ -211,7 +211,7 @@ namespace DocControlNetworkCore
             {
                 try
                 {
-                    EventLog.WriteEntry(ServiceName, logMessage,
+                    System.Diagnostics.EventLog.WriteEntry(ServiceName, logMessage,
                         isError ? System.Diagnostics.EventLogEntryType.Error : System.Diagnostics.EventLogEntryType.Information);
                 }
                 catch
