@@ -1555,7 +1555,7 @@ namespace DocControlUI
 
                 var request = new RemoteFileListRequest
                 {
-                    NodeId = _selectedRemoteNode.InstanceId,
+                    PeerId = _selectedRemoteNode.InstanceId,
                     Path = _currentRemotePath,
                     Filter = "*.*",
                     IncludeSubdirectories = false
@@ -1682,7 +1682,7 @@ namespace DocControlUI
 
                 var request = new RemoteDownloadRequest
                 {
-                    NodeId = _selectedRemoteNode.InstanceId,
+                    PeerId = _selectedRemoteNode.InstanceId,
                     RemotePath = file.FullPath,
                     LocalPath = saveDialog.FileName
                 };
