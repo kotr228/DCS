@@ -656,13 +656,32 @@ namespace DocControlService
         private ServiceResponse HandleGetDirectories()
         {
             var directories = _dirRepo.GetAllDirectories();
-            var result = directories.Select(d => new DirectoryWithAccessModel
+            var result = directories.Select(d =>
             {
-                Id = d.Id,
-                Name = d.Name,
-                Browse = d.Browse,
-                IsShared = _accessRepo.IsDirectoryShared(d.Id),
-                AllowedDevices = _accessRepo.GetAllowedDevicesForDirectory(d.Id)
+                // Отримуємо статус Git для директорії
+                string gitStatus = "Не ініціалізовано";
+                try
+                {
+                    var vcs = _versionFactory.GetServiceFor(d.Id);
+                    if (vcs != null)
+                    {
+                        gitStatus = vcs.GetStatus();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    gitStatus = $"Помилка: {ex.Message}";
+                }
+
+                return new DirectoryWithAccessModel
+                {
+                    Id = d.Id,
+                    Name = d.Name,
+                    Browse = d.Browse,
+                    IsShared = _accessRepo.IsDirectoryShared(d.Id),
+                    GitStatus = gitStatus,
+                    AllowedDevices = _accessRepo.GetAllowedDevicesForDirectory(d.Id)
+                };
             }).ToList();
 
             return new ServiceResponse
@@ -855,11 +874,40 @@ namespace DocControlService
             var request = JsonSerializer.Deserialize<SearchDirectoriesRequest>(data);
             var directories = _dirRepo.SearchDirectories(request.SearchQuery);
 
+            // Конвертуємо в DirectoryWithAccessModel з GitStatus
+            var result = directories.Select(d =>
+            {
+                // Отримуємо статус Git для директорії
+                string gitStatus = "Не ініціалізовано";
+                try
+                {
+                    var vcs = _versionFactory.GetServiceFor(d.Id);
+                    if (vcs != null)
+                    {
+                        gitStatus = vcs.GetStatus();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    gitStatus = $"Помилка: {ex.Message}";
+                }
+
+                return new DirectoryWithAccessModel
+                {
+                    Id = d.Id,
+                    Name = d.Name,
+                    Browse = d.Browse,
+                    IsShared = _accessRepo.IsDirectoryShared(d.Id),
+                    GitStatus = gitStatus,
+                    AllowedDevices = _accessRepo.GetAllowedDevicesForDirectory(d.Id)
+                };
+            }).ToList();
+
             return new ServiceResponse
             {
                 Success = true,
-                Data = JsonSerializer.Serialize(directories),
-                Message = $"Found {directories.Count} directories"
+                Data = JsonSerializer.Serialize(result),
+                Message = $"Found {result.Count} directories"
             };
         }
 
