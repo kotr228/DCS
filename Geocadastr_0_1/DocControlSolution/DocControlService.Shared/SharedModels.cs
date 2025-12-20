@@ -365,7 +365,14 @@ namespace DocControlService.Shared
         PreviewReorganization,
 
         // AI Statistics
-        GetAIStatistics
+        GetAIStatistics,
+
+        // Network Core (v0.5 - NetworkCore Integration)
+        GetRemoteNodes,
+        GetRemoteFileList,
+        GetRemoteFileMetadata,
+        DownloadRemoteFile,
+        PingRemoteNode
 
     }
 
@@ -382,6 +389,32 @@ namespace DocControlService.Shared
         public bool Success { get; set; }
         public string Message { get; set; }
         public string Data { get; set; }
+    }
+
+    // =============== NETWORK CORE REQUESTS (v0.5) ===============
+
+    [Serializable]
+    public class RemoteFileListRequest
+    {
+        public Guid PeerId { get; set; }
+        public string Path { get; set; } = "/";
+        public string Filter { get; set; } = "*.*";
+        public bool IncludeSubdirectories { get; set; } = false;
+    }
+
+    [Serializable]
+    public class RemoteFileRequest
+    {
+        public Guid PeerId { get; set; }
+        public string FilePath { get; set; } = string.Empty;
+    }
+
+    [Serializable]
+    public class RemoteDownloadRequest
+    {
+        public Guid PeerId { get; set; }
+        public string RemotePath { get; set; } = string.Empty;
+        public string LocalPath { get; set; } = string.Empty;
     }
 
     [Serializable]

@@ -62,6 +62,9 @@ namespace DocControlService
         private ChronologicalRoadmapGenerator _chronoGenerator;
         private FileReorganizationService _fileReorganizer;
 
+        // Координатор файлових систем (локальна + мережева)
+        private FileSystemCoordinator _fileSystemCoordinator;
+
         public DocControlWindowsService(bool debugMode = false)
         {
             _debugMode = debugMode;
@@ -118,6 +121,8 @@ namespace DocControlService
             _chronoGenerator = new ChronologicalRoadmapGenerator(_ollamaClient);
             _fileReorganizer = new FileReorganizationService();
 
+            // Координатор файлових систем
+            _fileSystemCoordinator = new FileSystemCoordinator(_dbManager);
 
             // Ініціалізуємо дефолтні налаштування
             _settingsRepo.InitializeDefaults();
@@ -135,8 +140,13 @@ namespace DocControlService
                 // Синхронізуємо таблицю доступу
                 _accessService.SyncAccessTable();
 
-                // Відновлюємо мережеві шари для активних директорій
-                RestoreNetworkShares();
+                // Запускаємо мережеве ядро (замість старих Windows shares)
+                var sharedDir = GetSharedDirectory();
+                _fileSystemCoordinator.StartNetworkCore(sharedDir);
+                Log($"Network Core started with shared directory: {sharedDir}");
+
+                // Відновлюємо мережеві шари для активних директорій (DEPRECATED - буде замінено на NetworkCore)
+                // RestoreNetworkShares();
 
                 // Запускаємо Named Pipe сервер для комунікації з UI
                 _pipeServerTask = Task.Run(() => RunPipeServer(_cancellationTokenSource.Token));
@@ -164,12 +174,15 @@ namespace DocControlService
             {
                 _cancellationTokenSource?.Cancel();
 
+                // Зупиняємо мережеве ядро
+                _fileSystemCoordinator?.StopNetworkCore();
+
                 // Чекаємо завершення задач
                 Task.WaitAll(new[] { _pipeServerTask, _monitoringTask, _versionControlTask }
                     .Where(t => t != null).ToArray(),
                     TimeSpan.FromSeconds(10));
 
-                // Закриваємо всі шари при зупинці сервісу (опціонально)
+                // Закриваємо всі шари при зупинці сервісу (DEPRECATED)
                 // CloseAllNetworkShares();
 
                 Log("Service stopped");
@@ -632,6 +645,21 @@ namespace DocControlService
                     case CommandType.GetAIStatistics:
                         return HandleGetAIStatistics();
 
+                    // Network Core commands
+                    case CommandType.GetRemoteNodes:
+                        return HandleGetRemoteNodes();
+
+                    case CommandType.GetRemoteFileList:
+                        return await HandleGetRemoteFileListAsync(command.Data);
+
+                    case CommandType.GetRemoteFileMetadata:
+                        return await HandleGetRemoteFileMetadataAsync(command.Data);
+
+                    case CommandType.DownloadRemoteFile:
+                        return await HandleDownloadRemoteFileAsync(command.Data);
+
+                    case CommandType.PingRemoteNode:
+                        return await HandlePingRemoteNodeAsync(command.Data);
 
                     default:
                         return new ServiceResponse
@@ -1159,6 +1187,206 @@ namespace DocControlService
                 Success = true,
                 Message = $"Commit interval set to {minutes} minutes"
             };
+        }
+
+        #endregion
+
+        #region Network Core Handlers
+
+        /// <summary>
+        /// Отримати список активних віддалених вузлів
+        /// </summary>
+        private ServiceResponse HandleGetRemoteNodes()
+        {
+            try
+            {
+                var nodes = _fileSystemCoordinator.GetRemoteNodes();
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(nodes)
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error getting remote nodes: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Отримати список файлів з віддаленого вузла
+        /// </summary>
+        private async Task<ServiceResponse> HandleGetRemoteFileListAsync(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteFileListRequest>(data);
+                if (request == null)
+                {
+                    return new ServiceResponse { Success = false, Message = "Invalid request" };
+                }
+
+                var remoteFs = _fileSystemCoordinator.GetRemoteFileSystem(request.PeerId);
+                if (remoteFs == null)
+                {
+                    return new ServiceResponse { Success = false, Message = "Remote node not found" };
+                }
+
+                var result = await remoteFs.GetFileListAsync(request.Path, request.Filter, request.IncludeSubdirectories);
+
+                return new ServiceResponse
+                {
+                    Success = result.Success,
+                    Message = result.ErrorMessage,
+                    Data = JsonSerializer.Serialize(result.Items)
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error getting remote file list: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        /// <summary>
+        /// Отримати метадані файлу з віддаленого вузла
+        /// </summary>
+        private async Task<ServiceResponse> HandleGetRemoteFileMetadataAsync(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteFileRequest>(data);
+                if (request == null)
+                {
+                    return new ServiceResponse { Success = false, Message = "Invalid request" };
+                }
+
+                var remoteFs = _fileSystemCoordinator.GetRemoteFileSystem(request.PeerId);
+                if (remoteFs == null)
+                {
+                    return new ServiceResponse { Success = false, Message = "Remote node not found" };
+                }
+
+                var metadata = await remoteFs.GetFileMetadataAsync(request.FilePath);
+
+                if (metadata == null)
+                {
+                    return new ServiceResponse { Success = false, Message = "File not found" };
+                }
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(metadata)
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error getting remote file metadata: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        /// <summary>
+        /// Завантажити файл з віддаленого вузла
+        /// </summary>
+        private async Task<ServiceResponse> HandleDownloadRemoteFileAsync(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteDownloadRequest>(data);
+                if (request == null)
+                {
+                    return new ServiceResponse { Success = false, Message = "Invalid request" };
+                }
+
+                var remoteFs = _fileSystemCoordinator.GetRemoteFileSystem(request.PeerId);
+                if (remoteFs == null)
+                {
+                    return new ServiceResponse { Success = false, Message = "Remote node not found" };
+                }
+
+                var success = await remoteFs.DownloadFileAsync(request.RemotePath, request.LocalPath);
+
+                return new ServiceResponse
+                {
+                    Success = success,
+                    Message = success ? "File downloaded successfully" : "Download failed"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error downloading remote file: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        /// <summary>
+        /// Перевірити доступність віддаленого вузла
+        /// </summary>
+        private async Task<ServiceResponse> HandlePingRemoteNodeAsync(string data)
+        {
+            try
+            {
+                var peerId = Guid.Parse(data);
+                var remoteFs = _fileSystemCoordinator.GetRemoteFileSystem(peerId);
+
+                if (remoteFs == null)
+                {
+                    return new ServiceResponse { Success = false, Message = "Remote node not found" };
+                }
+
+                var isAvailable = await remoteFs.PingAsync();
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(new { IsAvailable = isAvailable })
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error pinging remote node: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        /// <summary>
+        /// Отримати шляхдо спільної директорії
+        /// </summary>
+        private string GetSharedDirectory()
+        {
+            // Спробуємо отримати з налаштувань
+            try
+            {
+                var setting = _settingsRepo.GetSetting("NetworkCore_SharedDirectory");
+                if (!string.IsNullOrEmpty(setting))
+                {
+                    return setting;
+                }
+            }
+            catch { }
+
+            // За замовчуванням - перша зареєстрована директорія або C:\SharedFiles
+            var dirs = _dirRepo.GetAllDirectories();
+            if (dirs.Count > 0)
+            {
+                return dirs[0].Browse;
+            }
+
+            // Fallback
+            var defaultPath = @"C:\SharedFiles";
+            if (!Directory.Exists(defaultPath))
+            {
+                Directory.CreateDirectory(defaultPath);
+            }
+
+            return defaultPath;
         }
 
         #endregion
