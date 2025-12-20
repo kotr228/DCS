@@ -636,13 +636,13 @@ namespace DocControlUI.Windows
                 LastAnalysisText.Text = "Сервіс недоступний";
                 TotalViolationsText.Text = "?";
             }
-            catch (Microsoft.Data.Sqlite.SqliteException sqlEx)
+            catch (InvalidOperationException dbEx) when (dbEx.Message.Contains("database") || dbEx.Message.Contains("БД"))
             {
                 SetStatus("Помилка БД - історія не завантажена");
-                System.Diagnostics.Debug.WriteLine($"Помилка бази даних при завантаженні історії: {sqlEx.Message}");
+                System.Diagnostics.Debug.WriteLine($"Помилка бази даних при завантаженні історії: {dbEx.Message}");
 
                 MessageBox.Show(
-                    $"⚠️ Помилка бази даних:\n\n{sqlEx.Message}\n\n" +
+                    $"⚠️ Помилка бази даних:\n\n{dbEx.Message}\n\n" +
                     "База даних може бути пошкоджена або недоступна.\n" +
                     "Попередні результати не завантажено.",
                     "Помилка БД",
