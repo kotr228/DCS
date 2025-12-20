@@ -461,6 +461,9 @@ namespace DocControlService
                     case CommandType.ForceCommit:
                         return HandleForceCommit();
 
+                    case CommandType.CommitDirectory:
+                        return HandleCommitDirectory(command.Data);
+
                     case CommandType.SetCommitInterval:
                         return HandleSetCommitInterval(command.Data);
 
@@ -1092,6 +1095,46 @@ namespace DocControlService
                 Success = true,
                 Message = "Commit performed successfully"
             };
+        }
+
+        private ServiceResponse HandleCommitDirectory(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<CommitRequest>(data);
+                var vcs = _versionFactory.GetServiceFor(request.DirectoryId);
+
+                if (vcs == null)
+                {
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = "Version control service not found for directory"
+                    };
+                }
+
+                string message = string.IsNullOrWhiteSpace(request.Message)
+                    ? $"Manual commit at {DateTime.Now:yyyy-MM-dd HH:mm:ss}"
+                    : request.Message;
+
+                vcs.CommitAll(message);
+                Log($"Commit executed for directory {request.DirectoryId}: {message}");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = "Commit performed successfully"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error committing directory: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
         }
 
         private ServiceResponse HandleSetCommitInterval(string data)

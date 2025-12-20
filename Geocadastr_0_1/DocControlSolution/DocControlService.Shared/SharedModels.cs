@@ -256,6 +256,7 @@ namespace DocControlService.Shared
 
         // Version control
         ForceCommit,
+        CommitDirectory,
         GetCommitLog,
         SetCommitInterval,
         GetGitHistory,
@@ -478,6 +479,13 @@ namespace DocControlService.Shared
     {
         public int DirectoryId { get; set; }
         public string CommitHash { get; set; }
+    }
+
+    [Serializable]
+    public class CommitRequest
+    {
+        public int DirectoryId { get; set; }
+        public string Message { get; set; }
     }
 
     [Serializable]

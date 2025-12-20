@@ -35,6 +35,10 @@ namespace DocControlUI.Windows
         private DirectoryModel _currentDirectory; // Поточна директорія з БД
         private bool _isShowingDirectories = true; // Режим: показ директорій БД або вміст папки
 
+        // Контроль версій
+        private DirectoryModel _vcSelectedDirectory;
+        private List<GitCommitModel> _vcCommitHistory;
+
         public DirectoryManagerWindow()
         {
             InitializeComponent();
@@ -46,6 +50,7 @@ namespace DocControlUI.Windows
         {
             await RefreshDirectories();
             LoadDirectoriesFromDatabase();
+            InitializeVersionControl();
         }
 
         private async System.Threading.Tasks.Task RefreshDirectories()
@@ -1393,6 +1398,292 @@ namespace DocControlUI.Windows
             {
                 ScanAndSaveButton.IsEnabled = _currentDirectory != null; // Відновлюємо кнопку
             }
+        }
+
+        #endregion
+
+        #region Version Control Methods
+
+        // Модель для відображення комітів
+        private class GitCommitModel
+        {
+            public string Hash { get; set; }
+            public string HashShort => Hash?.Length > 7 ? Hash.Substring(0, 7) : Hash;
+            public string Message { get; set; }
+            public string Author { get; set; }
+            public DateTime Date { get; set; }
+            public string DateString => Date.ToString("yyyy-MM-dd HH:mm");
+        }
+
+        private void InitializeVersionControl()
+        {
+            // Заповнюємо комбобокс директоріями
+            VcDirectoryCombo.ItemsSource = _allDirectories;
+
+            if (_allDirectories != null && _allDirectories.Count > 0)
+            {
+                VcDirectoryCombo.SelectedIndex = 0;
+            }
+        }
+
+        private async void VcDirectoryCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (VcDirectoryCombo.SelectedItem is DirectoryModel directory)
+            {
+                _vcSelectedDirectory = directory;
+                await RefreshVersionControlData();
+            }
+        }
+
+        private async System.Threading.Tasks.Task RefreshVersionControlData()
+        {
+            if (_vcSelectedDirectory == null) return;
+
+            try
+            {
+                SetStatus("Завантаження інформації про репозиторій...");
+
+                // Оновлюємо шлях
+                VcRepoPathText.Text = _vcSelectedDirectory.Browse;
+
+                // Отримуємо історію комітів
+                var history = await _client.GetGitHistoryAsync(_vcSelectedDirectory.Id);
+
+                _vcCommitHistory = history.Select(h => new GitCommitModel
+                {
+                    Hash = h.Hash,
+                    Message = h.Message,
+                    Author = h.Author,
+                    Date = h.Date
+                }).ToList();
+
+                VcHistoryGrid.ItemsSource = _vcCommitHistory;
+                VcTotalCommitsText.Text = _vcCommitHistory.Count.ToString();
+
+                if (_vcCommitHistory.Count > 0)
+                {
+                    var lastCommit = _vcCommitHistory[0];
+                    VcLastCommitText.Text = lastCommit.Date.ToString("yyyy-MM-dd HH:mm");
+                    VcLastAuthorText.Text = lastCommit.Author;
+                }
+                else
+                {
+                    VcLastCommitText.Text = "-";
+                    VcLastAuthorText.Text = "-";
+                }
+
+                // Отримуємо статус змін (тут потрібно було б додати API метод, але поки використаємо GitStatus)
+                await UpdateGitStatus();
+
+                SetStatus("Готово");
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка: {ex.Message}");
+                MessageBox.Show($"Не вдалося завантажити дані:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async System.Threading.Tasks.Task UpdateGitStatus()
+        {
+            try
+            {
+                // Отримуємо оновлені дані про всі директорії
+                var directoriesWithAccess = await _client.GetDirectoriesAsync();
+                var currentDir = directoriesWithAccess.FirstOrDefault(d => d.Id == _vcSelectedDirectory.Id);
+
+                if (currentDir != null && !string.IsNullOrEmpty(currentDir.GitStatus))
+                {
+                    string status = currentDir.GitStatus;
+                    VcGitStatusLabel.Text = status;
+
+                    // Оновлюємо колір індикатора
+                    if (status.Contains("Чисто"))
+                    {
+                        VcGitStatusText.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Зелений
+                        VcChangesCount.Text = "0";
+                        VcChangesListBox.ItemsSource = null;
+                        VcCommitButton.IsEnabled = false;
+                    }
+                    else if (status.Contains("Змін:"))
+                    {
+                        VcGitStatusText.Foreground = new SolidColorBrush(Color.FromRgb(255, 152, 0)); // Помаранчевий
+
+                        // Парсимо кількість змін
+                        var match = System.Text.RegularExpressions.Regex.Match(status, @"Змін:\s*(\d+)");
+                        if (match.Success)
+                        {
+                            VcChangesCount.Text = match.Groups[1].Value;
+                        }
+
+                        // Тут можна було б показати список файлів, але поки показуємо заглушку
+                        VcChangesListBox.ItemsSource = new List<string>
+                        {
+                            "Модифіковані файли (деталі недоступні)",
+                            "Використайте git status у терміналі для деталей"
+                        };
+                        VcCommitButton.IsEnabled = true;
+                    }
+                    else
+                    {
+                        VcGitStatusText.Foreground = new SolidColorBrush(Color.FromRgb(244, 67, 54)); // Червоний
+                        VcChangesCount.Text = "?";
+                        VcChangesListBox.ItemsSource = null;
+                        VcCommitButton.IsEnabled = false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Помилка оновлення статусу Git: {ex.Message}");
+            }
+        }
+
+        private async void VcCommit_Click(object sender, RoutedEventArgs e)
+        {
+            if (_vcSelectedDirectory == null)
+            {
+                MessageBox.Show("Виберіть репозиторій", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            string commitMessage = VcCommitMessageBox.Text?.Trim();
+            if (string.IsNullOrEmpty(commitMessage))
+            {
+                MessageBox.Show("Введіть повідомлення коміту", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                VcCommitMessageBox.Focus();
+                return;
+            }
+
+            try
+            {
+                SetStatus("Виконання коміту...");
+                VcCommitButton.IsEnabled = false;
+
+                await _client.CommitDirectoryAsync(_vcSelectedDirectory.Id, commitMessage);
+
+                MessageBox.Show("Коміт успішно виконано!", "Успіх",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // Очищуємо поле повідомлення
+                VcCommitMessageBox.Text = "";
+
+                // Оновлюємо дані
+                await RefreshVersionControlData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка виконання коміту:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                SetStatus("Готово");
+            }
+        }
+
+        private async void VcShowHistory_Click(object sender, RoutedEventArgs e)
+        {
+            if (_vcSelectedDirectory == null)
+            {
+                MessageBox.Show("Виберіть репозиторій", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                var history = await _client.GetGitHistoryAsync(_vcSelectedDirectory.Id);
+
+                if (history.Count == 0)
+                {
+                    MessageBox.Show("Історія комітів порожня", "Інформація",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                // Можна відкрити окреме вікно з історією, або показати у MessageBox
+                var historyText = string.Join("\n", history.Take(20).Select(h =>
+                    $"{h.Hash.Substring(0, 7)} - {h.Date:yyyy-MM-dd HH:mm} - {h.Author}\n  {h.Message}"));
+
+                MessageBox.Show($"Історія комітів:\n\n{historyText}",
+                    $"Історія: {_vcSelectedDirectory.Name}",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка отримання історії:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void VcRevert_Click(object sender, RoutedEventArgs e)
+        {
+            if (_vcSelectedDirectory == null)
+            {
+                MessageBox.Show("Виберіть репозиторій", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var selectedCommit = VcHistoryGrid.SelectedItem as GitCommitModel;
+            if (selectedCommit == null)
+            {
+                MessageBox.Show("Виберіть коміт з історії для відкату", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                $"Ви впевнені, що хочете відкотити репозиторій до коміту?\n\n" +
+                $"Hash: {selectedCommit.HashShort}\n" +
+                $"Повідомлення: {selectedCommit.Message}\n" +
+                $"Автор: {selectedCommit.Author}\n" +
+                $"Дата: {selectedCommit.DateString}\n\n" +
+                $"УВАГА: Всі незбережені зміни будуть втрачені!",
+                "Підтвердження відкату",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result != MessageBoxResult.Yes)
+                return;
+
+            try
+            {
+                SetStatus("Відкат до коміту...");
+
+                await _client.RevertToCommitAsync(_vcSelectedDirectory.Id, selectedCommit.Hash);
+
+                MessageBox.Show("Відкат успішно виконано!", "Успіх",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // Оновлюємо дані
+                await RefreshVersionControlData();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка відкату:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                SetStatus("Готово");
+            }
+        }
+
+        private async void VcRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            if (_vcSelectedDirectory == null)
+            {
+                MessageBox.Show("Виберіть репозиторій", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            await RefreshVersionControlData();
         }
 
         #endregion

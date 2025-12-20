@@ -464,6 +464,28 @@ namespace DocControlService.Client
             return true;
         }
 
+        public async Task<bool> CommitDirectoryAsync(int directoryId, string message)
+        {
+            var request = new CommitRequest
+            {
+                DirectoryId = directoryId,
+                Message = message
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.CommitDirectory,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
         public async Task<bool> SetCommitIntervalAsync(int minutes)
         {
             var response = await SendCommandAsync(new ServiceCommand

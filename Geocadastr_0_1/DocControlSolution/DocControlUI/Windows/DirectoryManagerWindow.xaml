@@ -426,6 +426,228 @@
                     </Grid>
                 </Grid>
             </TabItem>
+
+            <!-- Вкладка 3: Контроль версій -->
+            <TabItem Header="🔄 Контроль версій">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Панель вибору директорії та дій -->
+                    <Border Grid.Row="0" Background="White" BorderBrush="#E0E0E0" BorderThickness="1"
+                            CornerRadius="4" Padding="15" Margin="0,0,0,10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- Вибір репозиторію -->
+                            <Grid Grid.Row="0" Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0" Text="📁 Репозиторій:"
+                                           VerticalAlignment="Center" FontWeight="Bold"
+                                           FontSize="13" Margin="0,0,10,0"/>
+
+                                <ComboBox Grid.Column="1" x:Name="VcDirectoryCombo"
+                                          DisplayMemberPath="Name"
+                                          SelectedValuePath="Id"
+                                          SelectionChanged="VcDirectoryCombo_SelectionChanged"
+                                          Padding="8" FontSize="12"/>
+
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0,0,0">
+                                    <TextBlock x:Name="VcGitStatusText" Text="●" FontSize="16"
+                                               VerticalAlignment="Center" Margin="0,0,5,0" Foreground="#4CAF50"/>
+                                    <TextBlock x:Name="VcGitStatusLabel" Text="Чисто"
+                                               VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Кнопки дій -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal">
+                                <Button Content="🔄 Виконати коміт" x:Name="VcCommitButton" Click="VcCommit_Click"
+                                        Background="#4CAF50" Foreground="White"
+                                        Padding="12,6" Margin="0,0,5,0" IsEnabled="False"/>
+                                <Button Content="🔍 Історія комітів" Click="VcShowHistory_Click"
+                                        Padding="12,6" Margin="5,0"/>
+                                <Button Content="⏪ Відкат версії" Click="VcRevert_Click"
+                                        Padding="12,6" Margin="5,0"/>
+                                <Button Content="🔃 Оновити" Click="VcRefresh_Click"
+                                        Padding="12,6" Margin="5,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Основний контент: Зміни та Історія -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="5"/>
+                            <ColumnDefinition Width="3*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Ліва панель: Зміни -->
+                        <Border Grid.Column="0" Background="White" BorderBrush="#E0E0E0"
+                                BorderThickness="1" CornerRadius="4">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Заголовок змін -->
+                                <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#E0E0E0"
+                                        BorderThickness="0,0,0,1" Padding="12,10">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="📝 Зміни" FontWeight="Bold" FontSize="14"/>
+                                        <TextBlock Grid.Column="1" x:Name="VcChangesCount" Text="0"
+                                                   Foreground="#666" FontWeight="SemiBold"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Список змін -->
+                                <ListBox Grid.Row="1" x:Name="VcChangesListBox"
+                                         BorderThickness="0" Padding="5">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="0,3">
+                                                <TextBlock Text="●" Foreground="#FF9800" Margin="0,0,8,0"
+                                                           FontSize="10" VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding}" FontFamily="Consolas"
+                                                           FontSize="11" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+
+                                <!-- Повідомлення коміту -->
+                                <Border Grid.Row="2" Background="#FAFAFA" BorderBrush="#E0E0E0"
+                                        BorderThickness="0,1,0,0" Padding="10">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Text="Повідомлення коміту:"
+                                                   FontSize="11" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                                        <TextBox Grid.Row="1" x:Name="VcCommitMessageBox"
+                                                 Height="60" TextWrapping="Wrap" AcceptsReturn="True"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 Padding="5" FontSize="11"/>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- Розділювач -->
+                        <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"
+                                      Background="Transparent" ResizeBehavior="PreviousAndNext"/>
+
+                        <!-- Права панель: Історія комітів -->
+                        <Border Grid.Column="2" Background="White" BorderBrush="#E0E0E0"
+                                BorderThickness="1" CornerRadius="4">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Заголовок історії -->
+                                <Border Grid.Row="0" Background="#F5F5F5" BorderBrush="#E0E0E0"
+                                        BorderThickness="0,0,0,1" Padding="12,10">
+                                    <TextBlock Text="📜 Історія комітів" FontWeight="Bold" FontSize="14"/>
+                                </Border>
+
+                                <!-- DataGrid історії -->
+                                <DataGrid Grid.Row="1" x:Name="VcHistoryGrid"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          SelectionMode="Single"
+                                          GridLinesVisibility="Horizontal"
+                                          HeadersVisibility="Column"
+                                          BorderThickness="0"
+                                          RowHeight="40"
+                                          FontSize="11">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Hash" Binding="{Binding HashShort}" Width="70">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="FontFamily" Value="Consolas"/>
+                                                    <Setter Property="Foreground" Value="#2196F3"/>
+                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                    <Setter Property="Padding" Value="5,0"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="Повідомлення" Binding="{Binding Message}" Width="*">
+                                            <DataGridTextColumn.ElementStyle>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="TextWrapping" Value="Wrap"/>
+                                                    <Setter Property="Padding" Value="5,8"/>
+                                                </Style>
+                                            </DataGridTextColumn.ElementStyle>
+                                        </DataGridTextColumn>
+                                        <DataGridTextColumn Header="Автор" Binding="{Binding Author}" Width="100"/>
+                                        <DataGridTextColumn Header="Дата" Binding="{Binding DateString}" Width="130"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- Статистика внизу -->
+                    <Border Grid.Row="2" Background="#FAFAFA" BorderBrush="#E0E0E0"
+                            BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,10,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" x:Name="VcRepoPathText" Text=""
+                                       FontSize="10" Foreground="#666" VerticalAlignment="Center"
+                                       FontFamily="Consolas"/>
+
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,0">
+                                <TextBlock Text="📊 Комітів:" FontSize="10" Foreground="#666"
+                                           VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBlock x:Name="VcTotalCommitsText" Text="0" FontSize="10"
+                                           FontWeight="Bold" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="10,0">
+                                <TextBlock Text="⏰ Останній:" FontSize="10" Foreground="#666"
+                                           VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBlock x:Name="VcLastCommitText" Text="-" FontSize="10"
+                                           FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="10,0,0,0">
+                                <TextBlock Text="✍️ Автор:" FontSize="10" Foreground="#666"
+                                           VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <TextBlock x:Name="VcLastAuthorText" Text="-" FontSize="10"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
         </TabControl>
 
         <!-- Статус бар -->
