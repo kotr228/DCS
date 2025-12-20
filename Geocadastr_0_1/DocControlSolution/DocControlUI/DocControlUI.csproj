@@ -42,9 +42,4 @@
 	  </None>
 	</ItemGroup>
 
-	<ItemGroup>
-	  <Compile Include="Converters\BoolToColorConverter.cs" />
-	  <Compile Include="Converters\FileSizeConverter.cs" />
-	</ItemGroup>
-
 </Project>
