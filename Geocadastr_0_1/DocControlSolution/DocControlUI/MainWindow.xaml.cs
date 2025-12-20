@@ -4,6 +4,7 @@ using DocControlService.Client;
 using DocControlService.Shared;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -16,11 +17,15 @@ namespace DocControlUI
         private readonly DocControlServiceClient _client;
         private List<DirectoryWithAccessModel> _directories;
         private List<DeviceModel> _devices;
+        private ObservableCollection<RemoteNode> _remoteNodes;
+        private RemoteNode _selectedRemoteNode;
+        private string _currentRemotePath = "";
 
         public MainWindow()
         {
             InitializeComponent();
             _client = new DocControlServiceClient();
+            _remoteNodes = new ObservableCollection<RemoteNode>();
             Loaded += MainWindow_Loaded;
         }
 
@@ -1453,6 +1458,298 @@ namespace DocControlUI
             contextMenu.Items.Add(scanItem);
 
             contextMenu.IsOpen = true;
+        }
+
+        #endregion
+
+        #region Network Core Operations
+
+        private async void RefreshNetworkNodes_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                SetStatus("Оновлення списку вузлів...");
+                var nodes = await _client.GetRemoteNodesAsync();
+
+                _remoteNodes.Clear();
+                foreach (var node in nodes)
+                {
+                    _remoteNodes.Add(node);
+                }
+
+                RemoteNodesListBox.ItemsSource = _remoteNodes;
+                SetStatus($"Знайдено {nodes.Count} вузлів");
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка оновлення вузлів", ex.Message);
+            }
+        }
+
+        private void DiscoverNodes_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show(
+                "Відкриття мережі здійснюється автоматично.\n\nВузли з'являються в списку після виявлення через UDP broadcast.",
+                "Інформація",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+
+            RefreshNetworkNodes_Click(sender, e);
+        }
+
+        private async void ShowNodeDetails_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedRemoteNode == null)
+            {
+                MessageBox.Show("Виберіть вузол зі списку", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                bool isOnline = await _client.PingRemoteNodeAsync(_selectedRemoteNode.InstanceId);
+
+                string message = $"Деталі вузла\n\n" +
+                    $"Користувач: {_selectedRemoteNode.UserName}\n" +
+                    $"Комп'ютер: {_selectedRemoteNode.MachineName}\n" +
+                    $"IP адреса: {_selectedRemoteNode.IpAddress}\n" +
+                    $"TCP порт: {_selectedRemoteNode.TcpPort}\n" +
+                    $"ID екземпляра: {_selectedRemoteNode.InstanceId}\n" +
+                    $"Останній раз бачили: {_selectedRemoteNode.LastSeen:yyyy-MM-dd HH:mm:ss}\n" +
+                    $"Статус: {(isOnline ? "✅ Онлайн" : "❌ Офлайн")}";
+
+                MessageBox.Show(message, "Деталі вузла", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка отримання деталей", ex.Message);
+            }
+        }
+
+        private async void RemoteNodesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (RemoteNodesListBox.SelectedItem == null)
+            {
+                _selectedRemoteNode = null;
+                RemoteFilesGrid.ItemsSource = null;
+                CurrentPathText.Text = "";
+                return;
+            }
+
+            _selectedRemoteNode = RemoteNodesListBox.SelectedItem as RemoteNode;
+            _currentRemotePath = "";
+
+            await LoadRemoteFiles();
+        }
+
+        private async System.Threading.Tasks.Task LoadRemoteFiles()
+        {
+            if (_selectedRemoteNode == null) return;
+
+            try
+            {
+                SetStatus($"Завантаження файлів з {_selectedRemoteNode.DisplayName}...");
+                FileTransferProgress.Visibility = Visibility.Visible;
+                FileTransferProgress.IsIndeterminate = true;
+
+                var request = new RemoteFileListRequest
+                {
+                    NodeId = _selectedRemoteNode.InstanceId,
+                    Path = _currentRemotePath,
+                    Filter = "*.*",
+                    IncludeSubdirectories = false
+                };
+
+                var result = await _client.GetRemoteFileListAsync(request);
+
+                if (result.Success)
+                {
+                    RemoteFilesGrid.ItemsSource = result.Items;
+                    CurrentPathText.Text = string.IsNullOrEmpty(_currentRemotePath) ?
+                        $"{_selectedRemoteNode.DisplayName} \\ Коренева папка" :
+                        $"{_selectedRemoteNode.DisplayName} \\ {_currentRemotePath}";
+                    SetStatus($"Завантажено {result.Items.Count} елементів");
+                }
+                else
+                {
+                    MessageBox.Show($"Помилка: {result.ErrorMessage}", "Помилка",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    SetStatus("Помилка завантаження файлів");
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка завантаження файлів", ex.Message);
+            }
+            finally
+            {
+                FileTransferProgress.IsIndeterminate = false;
+                FileTransferProgress.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private async void RemoteFilesGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (RemoteFilesGrid.SelectedItem == null) return;
+
+            var item = RemoteFilesGrid.SelectedItem as FileSystemItem;
+            if (item == null) return;
+
+            if (item.IsDirectory)
+            {
+                // Навігація в папку
+                _currentRemotePath = item.FullPath;
+                await LoadRemoteFiles();
+            }
+            else
+            {
+                // Файл - пропонуємо завантажити
+                var result = MessageBox.Show(
+                    $"Завантажити файл '{item.Name}' ({FormatFileSize(item.Size)})?",
+                    "Завантаження файлу",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    await DownloadFileAsync(item);
+                }
+            }
+        }
+
+        private void NavigateUp_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_currentRemotePath)) return;
+
+            // Перейти на рівень вище
+            var lastSeparator = _currentRemotePath.LastIndexOf('\\');
+            if (lastSeparator > 0)
+            {
+                _currentRemotePath = _currentRemotePath.Substring(0, lastSeparator);
+            }
+            else
+            {
+                _currentRemotePath = "";
+            }
+
+            LoadRemoteFiles().Wait();
+        }
+
+        private void NavigateHome_Click(object sender, RoutedEventArgs e)
+        {
+            _currentRemotePath = "";
+            LoadRemoteFiles().Wait();
+        }
+
+        private async void DownloadFile_Click(object sender, RoutedEventArgs e)
+        {
+            if (RemoteFilesGrid.SelectedItem == null)
+            {
+                MessageBox.Show("Виберіть файл для завантаження", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var item = RemoteFilesGrid.SelectedItem as FileSystemItem;
+            if (item == null || item.IsDirectory)
+            {
+                MessageBox.Show("Виберіть файл (не папку) для завантаження", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            await DownloadFileAsync(item);
+        }
+
+        private async System.Threading.Tasks.Task DownloadFileAsync(FileSystemItem file)
+        {
+            try
+            {
+                var saveDialog = new Microsoft.Win32.SaveFileDialog
+                {
+                    FileName = file.Name,
+                    Filter = $"Всі файли (*.*)|*.*"
+                };
+
+                if (saveDialog.ShowDialog() != true) return;
+
+                SetStatus($"Завантаження {file.Name}...");
+                FileTransferProgress.Visibility = Visibility.Visible;
+                FileTransferProgress.IsIndeterminate = false;
+                FileTransferProgress.Maximum = 100;
+                FileTransferProgress.Value = 0;
+
+                var request = new RemoteDownloadRequest
+                {
+                    NodeId = _selectedRemoteNode.InstanceId,
+                    RemotePath = file.FullPath,
+                    LocalPath = saveDialog.FileName
+                };
+
+                bool success = await _client.DownloadRemoteFileAsync(request);
+
+                if (success)
+                {
+                    FileTransferProgress.Value = 100;
+                    MessageBox.Show($"Файл '{file.Name}' успішно завантажено!", "Успіх",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    SetStatus($"Файл завантажено: {file.Name}");
+                }
+                else
+                {
+                    MessageBox.Show($"Помилка завантаження файлу '{file.Name}'", "Помилка",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    SetStatus("Помилка завантаження");
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка завантаження файлу", ex.Message);
+            }
+            finally
+            {
+                FileTransferProgress.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void ShowFileProperties_Click(object sender, RoutedEventArgs e)
+        {
+            if (RemoteFilesGrid.SelectedItem == null)
+            {
+                MessageBox.Show("Виберіть файл для перегляду властивостей", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var item = RemoteFilesGrid.SelectedItem as FileSystemItem;
+            if (item == null) return;
+
+            string message = $"Властивості\n\n" +
+                $"Назва: {item.Name}\n" +
+                $"Тип: {(item.IsDirectory ? "📁 Папка" : "📄 Файл")}\n" +
+                $"Розмір: {FormatFileSize(item.Size)}\n" +
+                $"Створено: {item.CreatedDate:yyyy-MM-dd HH:mm:ss}\n" +
+                $"Змінено: {item.ModifiedDate:yyyy-MM-dd HH:mm:ss}\n" +
+                $"Розширення: {item.Extension}\n" +
+                $"Повний шлях: {item.FullPath}";
+
+            MessageBox.Show(message, "Властивості", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private string FormatFileSize(long bytes)
+        {
+            string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+            double len = bytes;
+            int order = 0;
+
+            while (len >= 1024 && order < sizes.Length - 1)
+            {
+                order++;
+                len = len / 1024;
+            }
+
+            return $"{len:0.##} {sizes[order]}";
         }
 
         #endregion

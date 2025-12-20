@@ -13,6 +13,10 @@
         Background="{StaticResource BackgroundBrush}"
         >
     <Window.Resources>
+        <!-- Конвертери -->
+        <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <local:FileSizeConverter x:Key="FileSizeConverter"/>
+
         <Style TargetType="Button">
             <Setter Property="Padding" Value="10,5"/>
             <Setter Property="Margin" Value="5"/>
@@ -121,8 +125,119 @@
                 </Grid>
             </TabItem>
 
-            <!-- Вкладка Пристрої -->
-            <TabItem Header="💻 Пристрої">
+            <!-- Вкладка Мережеві вузли (Network Core) -->
+            <TabItem Header="💻 Мережа">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Панель управління -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+                        <TextBlock Text="Мережеве ядро:" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="NetworkCoreStatusText" Text="Невідомо" Margin="10,0" VerticalAlignment="Center"/>
+                        <Button Content="🔄 Оновити" Click="RefreshNetworkNodes_Click"/>
+                        <Separator Width="20" Background="Transparent"/>
+                        <Button Content="🌐 Пошук вузлів" Click="DiscoverNodes_Click" ToolTip="Примусове широкомовлення для виявлення вузлів"/>
+                        <Button Content="📋 Детальна інформація" Click="ShowNodeDetails_Click" ToolTip="Показати деталі обраного вузла"/>
+                    </StackPanel>
+
+                    <!-- Розділений екран: список вузлів + файлова система -->
+                    <Grid Grid.Row="1" Margin="5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="300"/>
+                            <ColumnDefinition Width="5"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Ліва панель: Список вузлів -->
+                        <GroupBox Grid.Column="0" Header="📡 Доступні вузли">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Локальна система -->
+                                <Border Grid.Row="0" BorderBrush="#4CAF50" BorderThickness="2" CornerRadius="5" Padding="10" Margin="0,0,0,5" Background="#E8F5E9">
+                                    <StackPanel>
+                                        <TextBlock Text="💻 Цей комп'ютер" FontWeight="Bold" FontSize="14"/>
+                                        <TextBlock x:Name="LocalSystemInfo" Text="Завантаження..." Margin="0,5,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Віддалені вузли -->
+                                <ListBox Grid.Row="1" x:Name="RemoteNodesListBox"
+                                         SelectionChanged="RemoteNodesListBox_SelectionChanged"
+                                         BorderBrush="#2196F3" BorderThickness="2">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="3" Padding="8" Margin="2">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" FontSize="13"/>
+                                                    <TextBlock Text="{Binding IpAddress, StringFormat='IP: {0}'}" Margin="0,2,0,0" FontSize="11"/>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                        <TextBlock Text="🌐" Foreground="{Binding IsOnline, Converter={StaticResource BoolToColorConverter}}" FontSize="12"/>
+                                                        <TextBlock Text="{Binding LastSeen, StringFormat='Останній контакт: {0:HH:mm:ss}'}" Margin="5,0,0,0" FontSize="10"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </GroupBox>
+
+                        <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="Gray"/>
+
+                        <!-- Права панель: Файловий провідник для обраного вузла -->
+                        <GroupBox Grid.Column="2" Header="📁 Файли">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Хлібні крихти (Breadcrumb) -->
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="📂 Шлях:" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="CurrentPathText" Text="/" Margin="10,0" VerticalAlignment="Center"/>
+                                    <Button Content="⬆️ Вгору" Click="NavigateUp_Click" Margin="5,0"/>
+                                    <Button Content="🏠 На початок" Click="NavigateHome_Click" Margin="5,0"/>
+                                </StackPanel>
+
+                                <!-- Список файлів та папок -->
+                                <DataGrid Grid.Row="1" x:Name="RemoteFilesGrid"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          SelectionMode="Single"
+                                          MouseDoubleClick="RemoteFilesGrid_MouseDoubleClick"
+                                          CanUserAddRows="False">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="📄 Назва" Binding="{Binding Name}" Width="*"/>
+                                        <DataGridTextColumn Header="Розмір" Binding="{Binding Size, Converter={StaticResource FileSizeConverter}}" Width="100"/>
+                                        <DataGridTextColumn Header="Дата зміни" Binding="{Binding ModifiedDate, StringFormat='yyyy-MM-dd HH:mm'}" Width="150"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <!-- Панель дій -->
+                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,5,0,0">
+                                    <Button Content="⬇️ Завантажити" Click="DownloadFile_Click" ToolTip="Завантажити обраний файл"/>
+                                    <Button Content="📋 Властивості" Click="ShowFileProperties_Click" Margin="5,0,0,0"/>
+                                    <Separator Width="20" Background="Transparent"/>
+                                    <TextBlock x:Name="FileOperationStatus" Text="" VerticalAlignment="Center" Margin="10,0"/>
+                                    <ProgressBar x:Name="FileTransferProgress" Width="200" Height="20" Margin="10,0" Visibility="Collapsed"/>
+                                </StackPanel>
+                            </Grid>
+                        </GroupBox>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- DEPRECATED: Старі пристрої (залишаємо для сумісності) -->
+            <TabItem Header="⚙️ Пристрої (старе)" Visibility="Collapsed">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -137,8 +252,8 @@
                     </StackPanel>
 
                     <!-- Список пристроїв -->
-                    <DataGrid Grid.Row="1" x:Name="DevicesGrid" 
-                              AutoGenerateColumns="False" 
+                    <DataGrid Grid.Row="1" x:Name="DevicesGrid"
+                              AutoGenerateColumns="False"
                               IsReadOnly="True"
                               SelectionMode="Single"
                               CanUserAddRows="False"

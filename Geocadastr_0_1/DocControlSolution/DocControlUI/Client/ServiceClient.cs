@@ -1464,6 +1464,79 @@ namespace DocControlService.Client
 
         #endregion
 
+        #region Network Core Operations
+
+        public async Task<List<RemoteNode>> GetRemoteNodesAsync()
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetRemoteNodes
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<RemoteNode>>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<FileSystemItemList> GetRemoteFileListAsync(RemoteFileListRequest request)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetRemoteFileList,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<FileSystemItemList>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<FileSystemItem> GetRemoteFileMetadataAsync(RemoteFileRequest request)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetRemoteFileMetadata,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<FileSystemItem>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<bool> DownloadRemoteFileAsync(RemoteDownloadRequest request)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.DownloadRemoteFile,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            return response.Success;
+        }
+
+        public async Task<bool> PingRemoteNodeAsync(Guid nodeId)
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.PingRemoteNode,
+                Data = nodeId.ToString()
+            });
+
+            return response.Success && bool.Parse(response.Data);
+        }
+
+        #endregion
+
 
         public void Dispose()
         {
