@@ -16,6 +16,7 @@ using OpenXmlWord = DocumentFormat.OpenXml.Wordprocessing;
 using Microsoft.Win32;
 using System.IO;
 using System.Diagnostics;
+using IOPath = System.IO.Path;
 
 namespace DocControlUI.Windows
 {
@@ -994,7 +995,7 @@ namespace DocControlUI.Windows
                         return;
                     }
 
-                    string newFolderPath = Path.Combine(_currentPath, folderName);
+                    string newFolderPath = IOPath.Combine(_currentPath, folderName);
                     if (Directory.Exists(newFolderPath))
                     {
                         MessageBox.Show("Папка з такою назвою вже існує",
@@ -1032,7 +1033,7 @@ namespace DocControlUI.Windows
                         return;
                     }
 
-                    string newFilePath = Path.Combine(_currentPath, fileName);
+                    string newFilePath = IOPath.Combine(_currentPath, fileName);
                     if (File.Exists(newFilePath))
                     {
                         MessageBox.Show("Файл з такою назвою вже існує",
@@ -1085,7 +1086,7 @@ namespace DocControlUI.Windows
                         return; // Назва не змінилась
                     }
 
-                    string newPath = Path.Combine(_currentPath, newName);
+                    string newPath = IOPath.Combine(_currentPath, newName);
 
                     if (_selectedFileSystemItem.IsDirectory)
                     {
