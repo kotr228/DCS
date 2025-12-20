@@ -1241,9 +1241,8 @@ namespace DocControlService
 
                 return new ServiceResponse
                 {
-                    Success = result.Success,
-                    Message = result.ErrorMessage,
-                    Data = JsonSerializer.Serialize(result.Items)
+                    Success = true,
+                    Data = JsonSerializer.Serialize(result)
                 };
             }
             catch (Exception ex)
