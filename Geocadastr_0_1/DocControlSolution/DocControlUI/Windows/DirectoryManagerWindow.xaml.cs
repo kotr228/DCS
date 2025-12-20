@@ -32,19 +32,20 @@ namespace DocControlUI.Windows
         private string _currentPath;
         private FileSystemItem _selectedFileSystemItem;
         private List<FileSystemItem> _currentFileSystemItems;
+        private DirectoryModel _currentDirectory; // Поточна директорія з БД
+        private bool _isShowingDirectories = true; // Режим: показ директорій БД або вміст папки
 
         public DirectoryManagerWindow()
         {
             InitializeComponent();
             _client = new DocControlServiceClient();
-            _currentPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             Loaded += DirectoryManagerWindow_Loaded;
         }
 
         private async void DirectoryManagerWindow_Loaded(object sender, RoutedEventArgs e)
         {
             await RefreshDirectories();
-            LoadFileExplorer(_currentPath);
+            LoadDirectoriesFromDatabase();
         }
 
         private async System.Threading.Tasks.Task RefreshDirectories()
@@ -736,6 +737,7 @@ namespace DocControlUI.Windows
             public DateTime Modified { get; set; }
             public DateTime Created { get; set; }
             public FileAttributes Attributes { get; set; }
+            public int? DirectoryId { get; set; } // ID директорії з БД (якщо це директорія з БД)
 
             public string Icon => IsDirectory ? "📁" : "📄";
             public string SizeString => IsDirectory ? "<DIR>" : FormatFileSize(Size);
@@ -755,17 +757,100 @@ namespace DocControlUI.Windows
             }
         }
 
-        // Завантаження файлового провідника
+        // Завантаження списку директорій з БД
+        private void LoadDirectoriesFromDatabase()
+        {
+            try
+            {
+                _isShowingDirectories = true;
+                _currentDirectory = null;
+                _currentPath = null;
+
+                var items = new List<FileSystemItem>();
+
+                // Показуємо всі директорії з БД
+                foreach (var directory in _allDirectories)
+                {
+                    if (Directory.Exists(directory.Browse))
+                    {
+                        try
+                        {
+                            var dirInfo = new DirectoryInfo(directory.Browse);
+                            items.Add(new FileSystemItem
+                            {
+                                Name = directory.Name,
+                                FullPath = directory.Browse,
+                                IsDirectory = true,
+                                DirectoryId = directory.Id,
+                                Modified = dirInfo.LastWriteTime,
+                                Created = dirInfo.CreationTime,
+                                Attributes = dirInfo.Attributes
+                            });
+                        }
+                        catch
+                        {
+                            // Якщо немає доступу, все одно показуємо
+                            items.Add(new FileSystemItem
+                            {
+                                Name = $"{directory.Name} (недоступно)",
+                                FullPath = directory.Browse,
+                                IsDirectory = true,
+                                DirectoryId = directory.Id,
+                                Modified = DateTime.MinValue,
+                                Created = DateTime.MinValue
+                            });
+                        }
+                    }
+                    else
+                    {
+                        // Директорія не існує на диску
+                        items.Add(new FileSystemItem
+                        {
+                            Name = $"{directory.Name} (не знайдено)",
+                            FullPath = directory.Browse,
+                            IsDirectory = true,
+                            DirectoryId = directory.Id,
+                            Modified = DateTime.MinValue,
+                            Created = DateTime.MinValue
+                        });
+                    }
+                }
+
+                items = items.OrderBy(x => x.Name).ToList();
+                _currentFileSystemItems = items;
+                FileSystemGrid.ItemsSource = _currentFileSystemItems;
+
+                CurrentPathTextBox.Text = "📁 Директорії з бази даних";
+                SetStatus($"Показано {items.Count} директорій з БД");
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка завантаження: {ex.Message}");
+                MessageBox.Show($"Помилка завантаження директорій:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // Завантаження файлового провідника (вміст директорії з БД)
         private void LoadFileExplorer(string path)
         {
             try
             {
+                // Перевірка, чи шлях всередині поточної директорії БД
+                if (_currentDirectory != null && !path.StartsWith(_currentDirectory.Browse, StringComparison.OrdinalIgnoreCase))
+                {
+                    MessageBox.Show("Неможливо вийти за межі директорії з БД", "Увага",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
                 if (!Directory.Exists(path))
                 {
                     MessageBox.Show($"Шлях не існує: {path}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
+                _isShowingDirectories = false;
                 _currentPath = path;
                 CurrentPathTextBox.Text = path;
 
@@ -853,23 +938,52 @@ namespace DocControlUI.Windows
         // Навігація
         private void NavigateToHome_Click(object sender, RoutedEventArgs e)
         {
-            string homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            LoadFileExplorer(homePath);
+            // Повернення до списку директорій з БД
+            LoadDirectoriesFromDatabase();
         }
 
         private void NavigateUp_Click(object sender, RoutedEventArgs e)
         {
             try
             {
+                if (_isShowingDirectories)
+                {
+                    MessageBox.Show("Ви вже на рівні директорій БД", "Інформація",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                if (_currentDirectory == null || string.IsNullOrEmpty(_currentPath))
+                {
+                    LoadDirectoriesFromDatabase();
+                    return;
+                }
+
+                // Перевіряємо, чи ми на корені директорії БД
+                if (_currentPath.Equals(_currentDirectory.Browse, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Повертаємось до списку директорій БД
+                    LoadDirectoriesFromDatabase();
+                    return;
+                }
+
                 var parentDir = Directory.GetParent(_currentPath);
                 if (parentDir != null)
                 {
-                    LoadFileExplorer(parentDir.FullName);
+                    // Перевіряємо, щоб не вийти за межі директорії БД
+                    if (parentDir.FullName.StartsWith(_currentDirectory.Browse, StringComparison.OrdinalIgnoreCase))
+                    {
+                        LoadFileExplorer(parentDir.FullName);
+                    }
+                    else
+                    {
+                        // Якщо батьківська папка вище за корінь директорії БД - повертаємось до кореня
+                        LoadFileExplorer(_currentDirectory.Browse);
+                    }
                 }
                 else
                 {
-                    MessageBox.Show("Неможливо піднятися вище", "Увага",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    LoadDirectoriesFromDatabase();
                 }
             }
             catch (Exception ex)
@@ -882,10 +996,29 @@ namespace DocControlUI.Windows
         private void NavigateToPath_Click(object sender, RoutedEventArgs e)
         {
             string path = CurrentPathTextBox.Text?.Trim();
-            if (!string.IsNullOrEmpty(path))
+
+            if (string.IsNullOrEmpty(path))
+                return;
+
+            // Якщо це текст про директорії БД - показуємо їх
+            if (path.Contains("Директорії з бази даних"))
             {
-                LoadFileExplorer(path);
+                LoadDirectoriesFromDatabase();
+                return;
             }
+
+            // Інакше перевіряємо, чи шлях всередині поточної директорії БД
+            if (_currentDirectory != null)
+            {
+                if (!path.StartsWith(_currentDirectory.Browse, StringComparison.OrdinalIgnoreCase))
+                {
+                    MessageBox.Show("Шлях повинен бути всередині поточної директорії з БД", "Увага",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            LoadFileExplorer(path);
         }
 
         private void CurrentPathTextBox_KeyUp(object sender, KeyEventArgs e)
@@ -922,7 +1055,20 @@ namespace DocControlUI.Windows
             {
                 if (_selectedFileSystemItem.IsDirectory)
                 {
-                    LoadFileExplorer(_selectedFileSystemItem.FullPath);
+                    // Якщо це директорія з БД - встановлюємо її як поточну
+                    if (_selectedFileSystemItem.DirectoryId.HasValue)
+                    {
+                        _currentDirectory = _allDirectories.FirstOrDefault(d => d.Id == _selectedFileSystemItem.DirectoryId.Value);
+                        if (_currentDirectory != null)
+                        {
+                            LoadFileExplorer(_currentDirectory.Browse);
+                        }
+                    }
+                    else
+                    {
+                        // Звичайна підпапка всередині директорії БД
+                        LoadFileExplorer(_selectedFileSystemItem.FullPath);
+                    }
                 }
                 else
                 {
@@ -982,6 +1128,14 @@ namespace DocControlUI.Windows
         // Створення папки
         private void CreateFolder_Click(object sender, RoutedEventArgs e)
         {
+            // Перевірка, чи ми всередині директорії БД
+            if (_isShowingDirectories || _currentDirectory == null || string.IsNullOrEmpty(_currentPath))
+            {
+                MessageBox.Show("Спочатку оберіть директорію з БД для роботи", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             try
             {
                 var dialog = new InputDialog("Створення папки", "Введіть назву нової папки:");
@@ -1020,6 +1174,14 @@ namespace DocControlUI.Windows
         // Створення файлу
         private void CreateFile_Click(object sender, RoutedEventArgs e)
         {
+            // Перевірка, чи ми всередині директорії БД
+            if (_isShowingDirectories || _currentDirectory == null || string.IsNullOrEmpty(_currentPath))
+            {
+                MessageBox.Show("Спочатку оберіть директорію з БД для роботи", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             try
             {
                 var dialog = new InputDialog("Створення файлу", "Введіть назву нового файлу:");
