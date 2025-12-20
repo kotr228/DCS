@@ -997,42 +997,6 @@ namespace DocControlUI.Windows
             }
         }
 
-        private void NavigateToPath_Click(object sender, RoutedEventArgs e)
-        {
-            string path = CurrentPathTextBox.Text?.Trim();
-
-            if (string.IsNullOrEmpty(path))
-                return;
-
-            // Якщо це текст про директорії БД - показуємо їх
-            if (path.Contains("Директорії з бази даних"))
-            {
-                LoadDirectoriesFromDatabase();
-                return;
-            }
-
-            // Інакше перевіряємо, чи шлях всередині поточної директорії БД
-            if (_currentDirectory != null)
-            {
-                if (!path.StartsWith(_currentDirectory.Browse, StringComparison.OrdinalIgnoreCase))
-                {
-                    MessageBox.Show("Шлях повинен бути всередині поточної директорії з БД", "Увага",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
-                }
-            }
-
-            LoadFileExplorer(path);
-        }
-
-        private void CurrentPathTextBox_KeyUp(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Enter)
-            {
-                NavigateToPath_Click(sender, e);
-            }
-        }
-
         // Вибір файлу/папки
         private void FileSystemGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {

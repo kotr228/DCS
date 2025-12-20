@@ -318,8 +318,7 @@
                                          VerticalContentAlignment="Center"
                                          MinWidth="300"
                                          Padding="8"
-                                         KeyUp="CurrentPathTextBox_KeyUp"/>
-                                <Button Content="➡️" Click="NavigateToPath_Click" Padding="10,5" Margin="5,0,0,0"/>
+                                         IsReadOnly="True"/>
                             </StackPanel>
 
                             <!-- Кнопки дій -->
