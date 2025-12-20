@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using NetworkCommandType = DocControlNetworkCore.Models.CommandType;
 
 namespace DocControlService.Services
 {
@@ -50,7 +51,7 @@ namespace DocControlService.Services
 
                 var command = new NetworkCommand
                 {
-                    Type = CommandType.GetFileList,
+                    Type = NetworkCommandType.GetFileList,
                     Payload = JsonSerializer.Serialize(request),
                     SenderId = Guid.Empty // Буде заповнено в CommandLayer
                 };
@@ -131,7 +132,7 @@ namespace DocControlService.Services
             {
                 var command = new NetworkCommand
                 {
-                    Type = CommandType.GetFileMeta,
+                    Type = NetworkCommandType.GetFileMeta,
                     Payload = filePath,
                     SenderId = Guid.Empty
                 };
@@ -225,7 +226,7 @@ namespace DocControlService.Services
             {
                 var command = new NetworkCommand
                 {
-                    Type = CommandType.Ping,
+                    Type = NetworkCommandType.Ping,
                     Payload = "",
                     SenderId = Guid.Empty
                 };
