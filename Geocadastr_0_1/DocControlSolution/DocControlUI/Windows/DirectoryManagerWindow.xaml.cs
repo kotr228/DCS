@@ -252,7 +252,7 @@ namespace DocControlUI.Windows
                 return;
             }
 
-            var path = new Path
+            var path = new System.Windows.Shapes.Path
             {
                 Fill = new SolidColorBrush(color),
                 Stroke = Brushes.White,
