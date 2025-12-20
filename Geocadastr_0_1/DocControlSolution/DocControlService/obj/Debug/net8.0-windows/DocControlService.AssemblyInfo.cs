@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DocControlService")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+07257d3c4583e1bd060cd0385a569c27fc5bd5a8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+0e0f9ab3b0d9c85dfdc2cfb68efaeb22e02036c6")]
 [assembly: System.Reflection.AssemblyProductAttribute("DocControlService")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DocControlService")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
