@@ -5,12 +5,12 @@ C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\Temp
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\Templates\NodeJsApi\package.json
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\Templates\ReactNative\package.json
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\Templates\React\package.json
+C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\GrayCat.Service.staticwebassets.endpoints.json
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\Templates\NextJs\next.config.js
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\Templates\NodeJsApi\index.js
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\Templates\ReactNative\App.js
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\Templates\React\App.css
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\Templates\React\index.html
-C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\GrayCat.Service.staticwebassets.endpoints.json
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\GrayCat.Service.exe
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\GrayCat.Service.deps.json
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\bin\Debug\net8.0\GrayCat.Service.runtimeconfig.json
@@ -68,7 +68,6 @@ C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\obj\Debug\net8.0\Gray
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\obj\Debug\net8.0\GrayCat.Service.AssemblyInfo.cs
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\obj\Debug\net8.0\GrayCat.Service.csproj.CoreCompileInputs.cache
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\obj\Debug\net8.0\GrayCat.Service.MvcApplicationPartsAssemblyInfo.cache
-C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\obj\Debug\net8.0\GrayCat.Service.sourcelink.json
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\obj\Debug\net8.0\rjimswa.dswa.cache.json
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\obj\Debug\net8.0\rjsmrazor.dswa.cache.json
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.Service\obj\Debug\net8.0\rjsmcshtml.dswa.cache.json

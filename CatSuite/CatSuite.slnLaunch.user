@@ -9,6 +9,10 @@
       {
         "Path": "..\\..\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj",
         "Action": "Start"
+      },
+      {
+        "Path": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj",
+        "Action": "Start"
       }
     ]
   },

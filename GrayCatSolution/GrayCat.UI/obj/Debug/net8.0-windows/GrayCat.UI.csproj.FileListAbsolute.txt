@@ -76,7 +76,6 @@ C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.UI\obj\Debug\net8.0-windows\G
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.UI\obj\Debug\net8.0-windows\GrayCat.UI.AssemblyInfoInputs.cache
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.UI\obj\Debug\net8.0-windows\GrayCat.UI.AssemblyInfo.cs
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.UI\obj\Debug\net8.0-windows\GrayCat.UI.csproj.CoreCompileInputs.cache
-C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.UI\obj\Debug\net8.0-windows\GrayCat.UI.sourcelink.json
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.UI\obj\Debug\net8.0-windows\GrayCat.UI.csproj.Up2Date
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.UI\obj\Debug\net8.0-windows\GrayCat.UI.dll
 C:\Users\trock\Desktop\DCS\GrayCatSolution\GrayCat.UI\obj\Debug\net8.0-windows\refint\GrayCat.UI.dll
