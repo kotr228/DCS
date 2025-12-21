@@ -1,5 +1,4 @@
 ﻿using DocControlService.Shared;
-using DocControlNetworkCore.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,6 +6,8 @@ using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using PeerIdentity = DocControlNetworkCore.Models.PeerIdentity;
+using ServiceCommandType = DocControlService.Shared.CommandType;
 
 namespace DocControlService.Client
 {
@@ -149,7 +150,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetDirectories
+                Type = ServiceCommandType.GetDirectories
             });
 
             if (response.Success)
@@ -170,7 +171,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.AddDirectory,
+                Type = ServiceCommandType.AddDirectory,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -186,7 +187,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.RemoveDirectory,
+                Type = ServiceCommandType.RemoveDirectory,
                 Data = directoryId.ToString()
             });
 
@@ -208,7 +209,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.UpdateDirectoryName,
+                Type = ServiceCommandType.UpdateDirectoryName,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -224,7 +225,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.ScanDirectory,
+                Type = ServiceCommandType.ScanDirectory,
                 Data = directoryId.ToString()
             });
 
@@ -247,7 +248,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.UpdateDirectory,
+                Type = ServiceCommandType.UpdateDirectory,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -268,7 +269,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.SearchDirectories,
+                Type = ServiceCommandType.SearchDirectories,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -284,7 +285,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetDirectoryStatistics,
+                Type = ServiceCommandType.GetDirectoryStatistics,
                 Data = directoryId.ToString()
             });
 
@@ -304,7 +305,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetDevices
+                Type = ServiceCommandType.GetDevices
             });
 
             if (response.Success)
@@ -325,7 +326,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.AddDevice,
+                Type = ServiceCommandType.AddDevice,
                 Data = JsonSerializer.Serialize(device)
             });
 
@@ -341,7 +342,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.RemoveDevice,
+                Type = ServiceCommandType.RemoveDevice,
                 Data = deviceId.ToString()
             });
 
@@ -367,7 +368,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GrantAccess,
+                Type = ServiceCommandType.GrantAccess,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -389,7 +390,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.RevokeAccess,
+                Type = ServiceCommandType.RevokeAccess,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -405,7 +406,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.OpenAllShares
+                Type = ServiceCommandType.OpenAllShares
             });
 
             if (!response.Success)
@@ -420,7 +421,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.CloseAllShares
+                Type = ServiceCommandType.CloseAllShares
             });
 
             if (!response.Success)
@@ -439,7 +440,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetStatus
+                Type = ServiceCommandType.GetStatus
             });
 
             if (response.Success)
@@ -454,7 +455,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.ForceCommit
+                Type = ServiceCommandType.ForceCommit
             });
 
             if (!response.Success)
@@ -475,7 +476,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.CommitDirectory,
+                Type = ServiceCommandType.CommitDirectory,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -491,7 +492,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.SetCommitInterval,
+                Type = ServiceCommandType.SetCommitInterval,
                 Data = minutes.ToString()
             });
 
@@ -513,7 +514,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetCommitLog,
+                Type = ServiceCommandType.GetCommitLog,
                 Data = data
             });
 
@@ -529,7 +530,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetGitHistory,
+                Type = ServiceCommandType.GetGitHistory,
                 Data = directoryId.ToString()
             });
 
@@ -551,7 +552,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.RevertToCommit,
+                Type = ServiceCommandType.RevertToCommit,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -571,7 +572,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetErrorLog,
+                Type = ServiceCommandType.GetErrorLog,
                 Data = onlyUnresolved.ToString()
             });
 
@@ -587,7 +588,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.MarkErrorResolved,
+                Type = ServiceCommandType.MarkErrorResolved,
                 Data = errorId.ToString()
             });
 
@@ -603,7 +604,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.ClearResolvedErrors
+                Type = ServiceCommandType.ClearResolvedErrors
             });
 
             if (!response.Success)
@@ -618,7 +619,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetUnresolvedErrorCount
+                Type = ServiceCommandType.GetUnresolvedErrorCount
             });
 
             if (response.Success)
@@ -637,7 +638,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetSettings
+                Type = ServiceCommandType.GetSettings
             });
 
             if (response.Success)
@@ -652,7 +653,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.SaveSettings,
+                Type = ServiceCommandType.SaveSettings,
                 Data = JsonSerializer.Serialize(settings)
             });
 
@@ -700,7 +701,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.CreateRoadmap,
+                Type = ServiceCommandType.CreateRoadmap,
                 Data = JsonSerializer.Serialize(data)
             });
 
@@ -716,7 +717,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetRoadmaps
+                Type = ServiceCommandType.GetRoadmaps
             });
 
             if (response.Success)
@@ -731,7 +732,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.AnalyzeDirectoryForRoadmap,
+                Type = ServiceCommandType.AnalyzeDirectoryForRoadmap,
                 Data = directoryId.ToString()
             });
 
@@ -747,7 +748,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.ExportRoadmapAsJson,
+                Type = ServiceCommandType.ExportRoadmapAsJson,
                 Data = roadmapId.ToString()
             });
 
@@ -763,7 +764,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.DeleteRoadmap,
+                Type = ServiceCommandType.DeleteRoadmap,
                 Data = roadmapId.ToString()
             });
 
@@ -783,7 +784,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.ScanNetwork
+                Type = ServiceCommandType.ScanNetwork
             });
 
             if (response.Success)
@@ -798,7 +799,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetNetworkInterfaces
+                Type = ServiceCommandType.GetNetworkInterfaces
             });
 
             if (response.Success)
@@ -817,7 +818,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetExternalServices
+                Type = ServiceCommandType.GetExternalServices
             });
 
             if (response.Success)
@@ -841,7 +842,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.AddExternalService,
+                Type = ServiceCommandType.AddExternalService,
                 Data = JsonSerializer.Serialize(service)
             });
 
@@ -857,7 +858,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.UpdateExternalService,
+                Type = ServiceCommandType.UpdateExternalService,
                 Data = JsonSerializer.Serialize(service)
             });
 
@@ -873,7 +874,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.DeleteExternalService,
+                Type = ServiceCommandType.DeleteExternalService,
                 Data = serviceId.ToString()
             });
 
@@ -889,7 +890,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.TestExternalService,
+                Type = ServiceCommandType.TestExternalService,
                 Data = serviceId.ToString()
             });
 
@@ -904,7 +905,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.CreateGeoRoadmap,
+                Type = ServiceCommandType.CreateGeoRoadmap,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -920,7 +921,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetGeoRoadmaps
+                Type = ServiceCommandType.GetGeoRoadmaps
             });
 
             if (response.Success)
@@ -935,7 +936,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetGeoRoadmapById,
+                Type = ServiceCommandType.GetGeoRoadmapById,
                 Data = roadmapId.ToString()
             });
 
@@ -951,7 +952,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.UpdateGeoRoadmap,
+                Type = ServiceCommandType.UpdateGeoRoadmap,
                 Data = JsonSerializer.Serialize(roadmap)
             });
 
@@ -967,7 +968,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.DeleteGeoRoadmap,
+                Type = ServiceCommandType.DeleteGeoRoadmap,
                 Data = roadmapId.ToString()
             });
 
@@ -987,7 +988,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.AddGeoNode,
+                Type = ServiceCommandType.AddGeoNode,
                 Data = JsonSerializer.Serialize(node)
             });
 
@@ -1003,7 +1004,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.UpdateGeoNode,
+                Type = ServiceCommandType.UpdateGeoNode,
                 Data = JsonSerializer.Serialize(node)
             });
 
@@ -1019,7 +1020,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.DeleteGeoNode,
+                Type = ServiceCommandType.DeleteGeoNode,
                 Data = nodeId.ToString()
             });
 
@@ -1035,7 +1036,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetGeoNodesByRoadmap,
+                Type = ServiceCommandType.GetGeoNodesByRoadmap,
                 Data = roadmapId.ToString()
             });
 
@@ -1055,7 +1056,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.AddGeoRoute,
+                Type = ServiceCommandType.AddGeoRoute,
                 Data = JsonSerializer.Serialize(route)
             });
 
@@ -1071,7 +1072,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.DeleteGeoRoute,
+                Type = ServiceCommandType.DeleteGeoRoute,
                 Data = routeId.ToString()
             });
 
@@ -1091,7 +1092,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.AddGeoArea,
+                Type = ServiceCommandType.AddGeoArea,
                 Data = JsonSerializer.Serialize(area)
             });
 
@@ -1107,7 +1108,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.DeleteGeoArea,
+                Type = ServiceCommandType.DeleteGeoArea,
                 Data = areaId.ToString()
             });
 
@@ -1127,7 +1128,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetGeoRoadmapTemplates
+                Type = ServiceCommandType.GetGeoRoadmapTemplates
             });
 
             if (response.Success)
@@ -1144,7 +1145,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.CreateFromTemplate,
+                Type = ServiceCommandType.CreateFromTemplate,
                 Data = JsonSerializer.Serialize(data)
             });
 
@@ -1162,7 +1163,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.SaveAsTemplate,
+                Type = ServiceCommandType.SaveAsTemplate,
                 Data = JsonSerializer.Serialize(data)
             });
 
@@ -1182,7 +1183,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GeocodeAddress,
+                Type = ServiceCommandType.GeocodeAddress,
                 Data = JsonSerializer.Serialize(new GeocodeRequest { Address = address })
             });
 
@@ -1200,7 +1201,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.ReverseGeocode,
+                Type = ServiceCommandType.ReverseGeocode,
                 Data = JsonSerializer.Serialize(data)
             });
 
@@ -1220,7 +1221,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetIpFilterRules
+                Type = ServiceCommandType.GetIpFilterRules
             });
 
             if (response.Success)
@@ -1235,7 +1236,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.AddIpFilterRule,
+                Type = ServiceCommandType.AddIpFilterRule,
                 Data = JsonSerializer.Serialize(rule)
             });
 
@@ -1251,7 +1252,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.UpdateIpFilterRule,
+                Type = ServiceCommandType.UpdateIpFilterRule,
                 Data = JsonSerializer.Serialize(rule)
             });
 
@@ -1267,7 +1268,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.DeleteIpFilterRule,
+                Type = ServiceCommandType.DeleteIpFilterRule,
                 Data = ruleId.ToString()
             });
 
@@ -1285,7 +1286,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.TestIpAccess,
+                Type = ServiceCommandType.TestIpAccess,
                 Data = JsonSerializer.Serialize(data)
             });
 
@@ -1307,7 +1308,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.StartAIAnalysis,
+                Type = ServiceCommandType.StartAIAnalysis,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -1321,7 +1322,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetAIAnalysisResults,
+                Type = ServiceCommandType.GetAIAnalysisResults,
                 Data = directoryId.ToString()
             });
 
@@ -1342,7 +1343,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.ApplyAIRecommendations,
+                Type = ServiceCommandType.ApplyAIRecommendations,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -1356,7 +1357,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetAIServiceStatus
+                Type = ServiceCommandType.GetAIServiceStatus
             });
 
             if (response.Success)
@@ -1380,7 +1381,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GenerateAIChronologicalRoadmap,
+                Type = ServiceCommandType.GenerateAIChronologicalRoadmap,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -1394,7 +1395,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetAIChronologicalRoadmaps,
+                Type = ServiceCommandType.GetAIChronologicalRoadmaps,
                 Data = directoryId.ToString()
             });
 
@@ -1408,7 +1409,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetAIChronologicalRoadmapById,
+                Type = ServiceCommandType.GetAIChronologicalRoadmapById,
                 Data = roadmapId.ToString()
             });
 
@@ -1422,7 +1423,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.DeleteAIChronologicalRoadmap,
+                Type = ServiceCommandType.DeleteAIChronologicalRoadmap,
                 Data = roadmapId.ToString()
             });
 
@@ -1436,7 +1437,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.ExportAIChronologicalRoadmap,
+                Type = ServiceCommandType.ExportAIChronologicalRoadmap,
                 Data = roadmapId.ToString()
             });
 
@@ -1454,7 +1455,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetAIStatistics
+                Type = ServiceCommandType.GetAIStatistics
             });
 
             if (response.Success)
@@ -1471,7 +1472,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetNetworkCoreStatus
+                Type = ServiceCommandType.GetNetworkCoreStatus
             });
 
             if (response.Success)
@@ -1490,7 +1491,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetRemoteNodes
+                Type = ServiceCommandType.GetRemoteNodes
             });
 
             if (response.Success)
@@ -1505,7 +1506,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetRemoteFileList,
+                Type = ServiceCommandType.GetRemoteFileList,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -1521,7 +1522,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.GetRemoteFileMetadata,
+                Type = ServiceCommandType.GetRemoteFileMetadata,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -1537,7 +1538,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.DownloadRemoteFile,
+                Type = ServiceCommandType.DownloadRemoteFile,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -1548,7 +1549,7 @@ namespace DocControlService.Client
         {
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = CommandType.PingRemoteNode,
+                Type = ServiceCommandType.PingRemoteNode,
                 Data = nodeId.ToString()
             });
 
