@@ -36,6 +36,9 @@ namespace DocControlUI
 
             // Оновлюємо статус AI
             try { await RefreshAIStatus_Click(null, null); } catch { }
+
+            // Оновлюємо список мережевих вузлів
+            try { await RefreshNetworkNodes_Click(null, null); } catch { }
         }
 
         #region Service Status
@@ -1469,6 +1472,15 @@ namespace DocControlUI
             try
             {
                 SetStatus("Оновлення списку вузлів...");
+
+                // Оновити інформацію про локальну систему
+                var localUser = System.Environment.UserName;
+                var localMachine = System.Environment.MachineName;
+                var localIp = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName())
+                    .AddressList.FirstOrDefault(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                LocalSystemInfo.Text = $"{localUser}@{localMachine}\nIP: {localIp}\nПорт: 8000 (TCP), 9000 (UDP)";
+
+                // Оновити список віддалених вузлів
                 var nodes = await _client.GetRemoteNodesAsync();
 
                 _remoteNodes.Clear();
