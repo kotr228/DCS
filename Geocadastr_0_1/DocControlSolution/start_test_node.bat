@@ -20,22 +20,54 @@ echo Тестовий файл 1 > "%TEST_DIR%\SharedFiles\test1.txt"
 echo Тестовий файл 2 > "%TEST_DIR%\SharedFiles\test2.txt"
 echo Створено тестові файли
 
-REM Знайти NetworkCore.exe в різних можливих місцях
-set SOURCE_EXE=
-if exist ".\DocControlNetworkCore\bin\Debug\net8.0-windows\DocControlNetworkCore.exe" (
-    set SOURCE_EXE=.\DocControlNetworkCore\bin\Debug\net8.0-windows\DocControlNetworkCore.exe
-)
-if exist ".\DocControlNetworkCore\bin\Release\net8.0-windows\DocControlNetworkCore.exe" (
-    set SOURCE_EXE=.\DocControlNetworkCore\bin\Release\net8.0-windows\DocControlNetworkCore.exe
+REM Перевірка що ми в правильній папці
+if not exist "DocControlNetworkCore" (
+    echo ПОМИЛКА: Скрипт запущено з неправильної папки!
+    echo.
+    echo Поточна папка: %CD%
+    echo.
+    echo Скрипт має запускатися з папки DocControlSolution:
+    echo Приклад: C:\Users\...\DCS\Geocadastr_0_1\DocControlSolution\
+    echo.
+    pause
+    exit /b 1
 )
 
-if "%SOURCE_EXE%"=="" (
-    echo ПОМИЛКА: Не знайдено DocControlNetworkCore.exe
+REM Перевірка наявності dotnet SDK
+where dotnet >nul 2>nul
+if errorlevel 1 (
+    echo ПОМИЛКА: dotnet SDK не знайдено!
     echo.
-    echo Збери проект DocControlNetworkCore в Visual Studio:
-    echo 1. Відкрий DocControlSolution.sln
-    echo 2. Правий клік на DocControlNetworkCore -^> Build
-    echo 3. Або Build -^> Build Solution
+    echo Встанови .NET 8.0 SDK з https://dotnet.microsoft.com/download
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Автоматична збірка проекту
+echo ========================================
+echo  Збірка проекту DocControlNetworkCore
+echo ========================================
+echo.
+dotnet build DocControlNetworkCore\DocControlNetworkCore.csproj -c Debug --verbosity minimal
+if errorlevel 1 (
+    echo.
+    echo ПОМИЛКА: Збірка проекту не вдалась!
+    echo.
+    echo Відкрий проект у Visual Studio і подивись на помилки компіляції.
+    echo.
+    pause
+    exit /b 1
+)
+echo.
+echo ✓ Проект успішно зібрано
+echo.
+
+REM Знайти NetworkCore.exe
+set SOURCE_EXE=.\DocControlNetworkCore\bin\Debug\net8.0-windows\DocControlNetworkCore.exe
+if not exist "%SOURCE_EXE%" (
+    echo ПОМИЛКА: Не знайдено %SOURCE_EXE%
+    echo Збірка завершилась, але exe не створено. Перевір помилки компіляції.
     echo.
     pause
     exit /b 1
