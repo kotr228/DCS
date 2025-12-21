@@ -38,7 +38,7 @@ namespace DocControlUI
             try { await RefreshAIStatus_Click(null, null); } catch { }
 
             // Оновлюємо список мережевих вузлів
-            try { await RefreshNetworkNodes_Click(null, null); } catch { }
+            try { RefreshNetworkNodes_Click(null, null); } catch { }
         }
 
         #region Service Status
