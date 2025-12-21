@@ -32,13 +32,15 @@ namespace DocControlUI
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             await CheckServiceAndRefresh();
-            RefreshNetworkInterfaces_Click(null, null);
+
+            // Оновлюємо мережеві інтерфейси
+            try { await RefreshNetworkInterfacesAsync(); } catch { }
 
             // Оновлюємо статус AI
-            try { await RefreshAIStatus_Click(null, null); } catch { }
+            try { await RefreshAIStatusAsync(); } catch { }
 
             // Оновлюємо список мережевих вузлів
-            try { RefreshNetworkNodes_Click(null, null); } catch { }
+            try { await RefreshNetworkNodesAsync(); } catch { }
         }
 
         #region Service Status
@@ -1052,14 +1054,19 @@ namespace DocControlUI
             }
         }
 
+        private async Task RefreshNetworkInterfacesAsync()
+        {
+            SetStatus("Завантаження мережевих інтерфейсів...");
+            var interfaces = await _client.GetNetworkInterfacesAsync();
+            NetworkInterfacesGrid.ItemsSource = interfaces;
+            SetStatus($"Знайдено {interfaces.Count} мережевих інтерфейсів");
+        }
+
         private async void RefreshNetworkInterfaces_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                SetStatus("Завантаження мережевих інтерфейсів...");
-                var interfaces = await _client.GetNetworkInterfacesAsync();
-                NetworkInterfacesGrid.ItemsSource = interfaces;
-                SetStatus($"Знайдено {interfaces.Count} мережевих інтерфейсів");
+                await RefreshNetworkInterfacesAsync();
             }
             catch (Exception ex)
             {
@@ -1397,26 +1404,31 @@ namespace DocControlUI
 
         #region Фінальні методи (статус на головному вікні)
 
-        private async Task RefreshAIStatus_Click(object sender, RoutedEventArgs e)
+        private async Task RefreshAIStatusAsync()
+        {
+            SetStatus("Оновлення AI статусу...");
+
+            var aiStatus = await _client.GetAIServiceStatusAsync();
+
+            AIStatusText.Text = aiStatus.IsOllamaRunning
+                ? $"✅ Ollama працює | Модель: {aiStatus.ModelName} {(aiStatus.IsModelLoaded ? "✅" : "❌")}"
+                : "❌ Ollama не запущений";
+
+            var stats = await _client.GetAIStatisticsAsync();
+
+            TotalAIAnalysesText.Text = stats.GetValueOrDefault("TotalAnalyses", 0).ToString();
+            UnresolvedViolationsText.Text = stats.GetValueOrDefault("UnresolvedViolations", 0).ToString();
+            PendingRecommendationsText.Text = stats.GetValueOrDefault("PendingRecommendations", 0).ToString();
+            TotalAIRoadmapsText.Text = stats.GetValueOrDefault("TotalRoadmaps", 0).ToString();
+
+            SetStatus("AI статистику оновлено");
+        }
+
+        private async void RefreshAIStatus_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                SetStatus("Оновлення AI статусу...");
-
-                var aiStatus = await _client.GetAIServiceStatusAsync();
-
-                AIStatusText.Text = aiStatus.IsOllamaRunning
-                    ? $"✅ Ollama працює | Модель: {aiStatus.ModelName} {(aiStatus.IsModelLoaded ? "✅" : "❌")}"
-                    : "❌ Ollama не запущений";
-
-                var stats = await _client.GetAIStatisticsAsync();
-
-                TotalAIAnalysesText.Text = stats.GetValueOrDefault("TotalAnalyses", 0).ToString();
-                UnresolvedViolationsText.Text = stats.GetValueOrDefault("UnresolvedViolations", 0).ToString();
-                PendingRecommendationsText.Text = stats.GetValueOrDefault("PendingRecommendations", 0).ToString();
-                TotalAIRoadmapsText.Text = stats.GetValueOrDefault("TotalRoadmaps", 0).ToString();
-
-                SetStatus("AI статистику оновлено");
+                await RefreshAIStatusAsync();
             }
             catch (Exception ex)
             {
@@ -1467,30 +1479,56 @@ namespace DocControlUI
 
         #region Network Core Operations
 
-        private async void RefreshNetworkNodes_Click(object sender, RoutedEventArgs e)
+        private async Task RefreshNetworkNodesAsync()
         {
-            try
-            {
-                SetStatus("Оновлення списку вузлів...");
+            SetStatus("Оновлення списку вузлів...");
 
-                // Оновити інформацію про локальну систему
+            // Отримати статус NetworkCore
+            var (isRunning, localIdentity) = await _client.GetNetworkCoreStatusAsync();
+
+            // Оновити статус NetworkCore
+            if (isRunning)
+            {
+                NetworkCoreStatusText.Text = "✅ Запущено";
+                NetworkCoreStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green);
+
+                // Відобразити локальну систему з даних NetworkCore
+                if (localIdentity != null)
+                {
+                    LocalSystemInfo.Text = $"{localIdentity.UserName}@{localIdentity.MachineName}\nIP: {localIdentity.IpAddress}\nПорт: {localIdentity.TcpPort} (TCP), {localIdentity.UdpPort} (UDP)";
+                }
+            }
+            else
+            {
+                NetworkCoreStatusText.Text = "❌ Не запущено";
+                NetworkCoreStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
+
+                // Показати системну інформацію якщо NetworkCore не запущений
                 var localUser = System.Environment.UserName;
                 var localMachine = System.Environment.MachineName;
                 var localIp = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName())
                     .AddressList.FirstOrDefault(ip => ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
-                LocalSystemInfo.Text = $"{localUser}@{localMachine}\nIP: {localIp}\nПорт: 8000 (TCP), 9000 (UDP)";
+                LocalSystemInfo.Text = $"{localUser}@{localMachine}\nIP: {localIp}\nПорт: N/A (NetworkCore не запущено)";
+            }
 
-                // Оновити список віддалених вузлів
-                var nodes = await _client.GetRemoteNodesAsync();
+            // Оновити список віддалених вузлів
+            var nodes = await _client.GetRemoteNodesAsync();
 
-                _remoteNodes.Clear();
-                foreach (var node in nodes)
-                {
-                    _remoteNodes.Add(node);
-                }
+            _remoteNodes.Clear();
+            foreach (var node in nodes)
+            {
+                _remoteNodes.Add(node);
+            }
 
-                RemoteNodesListBox.ItemsSource = _remoteNodes;
-                SetStatus($"Знайдено {nodes.Count} вузлів");
+            RemoteNodesListBox.ItemsSource = _remoteNodes;
+            SetStatus($"Знайдено {nodes.Count} вузлів");
+        }
+
+        private async void RefreshNetworkNodes_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                await RefreshNetworkNodesAsync();
             }
             catch (Exception ex)
             {
@@ -1498,7 +1536,7 @@ namespace DocControlUI
             }
         }
 
-        private void DiscoverNodes_Click(object sender, RoutedEventArgs e)
+        private async void DiscoverNodes_Click(object sender, RoutedEventArgs e)
         {
             MessageBox.Show(
                 "Відкриття мережі здійснюється автоматично.\n\nВузли з'являються в списку після виявлення через UDP broadcast.",
@@ -1506,7 +1544,14 @@ namespace DocControlUI
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
 
-            RefreshNetworkNodes_Click(sender, e);
+            try
+            {
+                await RefreshNetworkNodesAsync();
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка оновлення вузлів", ex.Message);
+            }
         }
 
         private async void ShowNodeDetails_Click(object sender, RoutedEventArgs e)

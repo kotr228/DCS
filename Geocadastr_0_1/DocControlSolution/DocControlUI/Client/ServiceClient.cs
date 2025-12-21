@@ -1,4 +1,5 @@
 ﻿using DocControlService.Shared;
+using DocControlNetworkCore.Models;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -1465,6 +1466,25 @@ namespace DocControlService.Client
         #endregion
 
         #region Network Core Operations
+
+        public async Task<(bool IsRunning, PeerIdentity LocalIdentity)> GetNetworkCoreStatusAsync()
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = CommandType.GetNetworkCoreStatus
+            });
+
+            if (response.Success)
+            {
+                var statusObj = JsonSerializer.Deserialize<JsonElement>(response.Data);
+                var isRunning = statusObj.GetProperty("IsRunning").GetBoolean();
+                var localIdentity = statusObj.GetProperty("LocalIdentity").Deserialize<PeerIdentity>();
+
+                return (isRunning, localIdentity);
+            }
+
+            throw new Exception(response.Message);
+        }
 
         public async Task<List<RemoteNode>> GetRemoteNodesAsync()
         {

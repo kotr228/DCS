@@ -368,6 +368,7 @@ namespace DocControlService.Shared
         GetAIStatistics,
 
         // Network Core (v0.5 - NetworkCore Integration)
+        GetNetworkCoreStatus,
         GetRemoteNodes,
         GetRemoteFileList,
         GetRemoteFileMetadata,

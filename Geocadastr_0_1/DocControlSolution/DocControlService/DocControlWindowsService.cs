@@ -646,6 +646,9 @@ namespace DocControlService
                         return HandleGetAIStatistics();
 
                     // Network Core commands
+                    case CommandType.GetNetworkCoreStatus:
+                        return HandleGetNetworkCoreStatus();
+
                     case CommandType.GetRemoteNodes:
                         return HandleGetRemoteNodes();
 
@@ -1192,6 +1195,39 @@ namespace DocControlService
         #endregion
 
         #region Network Core Handlers
+
+        /// <summary>
+        /// Отримати статус мережевого ядра
+        /// </summary>
+        private ServiceResponse HandleGetNetworkCoreStatus()
+        {
+            try
+            {
+                var isRunning = _fileSystemCoordinator.IsNetworkCoreRunning;
+                var localIdentity = _fileSystemCoordinator.GetLocalIdentity();
+
+                var status = new
+                {
+                    IsRunning = isRunning,
+                    LocalIdentity = localIdentity
+                };
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(status)
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error getting network core status: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
 
         /// <summary>
         /// Отримати список активних віддалених вузлів
