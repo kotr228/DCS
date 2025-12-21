@@ -43,10 +43,11 @@ if "%SOURCE_EXE%"=="" (
 
 echo Знайдено: %SOURCE_EXE%
 
-REM Копіюємо всі файли з папки bin
+REM Копіюємо всі файли з папки bin рекурсивно
 for %%F in ("%SOURCE_EXE%") do set SOURCE_DIR=%%~dpF
-xcopy /Y /Q "%SOURCE_DIR%*.*" "%TEST_DIR%\" > nul
-echo Скопійовано NetworkCore.exe та залежності
+echo Копіювання файлів з %SOURCE_DIR%...
+xcopy /E /I /Y /Q "%SOURCE_DIR%*" "%TEST_DIR%\" > nul
+echo Скопійовано NetworkCore.exe та всі залежності (включаючи DLL)
 
 REM Створити network_identity.json з іншими портами
 echo { > "%TEST_DIR%\network_identity.json"
