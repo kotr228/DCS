@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DocControlAI\DocControlAI.csproj" />
+    <ProjectReference Include="..\DocControlNetworkCore\DocControlNetworkCore.csproj" />
     <ProjectReference Include="..\DocControlService.Shared\DocControlService.Shared.csproj" />
   </ItemGroup>
 
