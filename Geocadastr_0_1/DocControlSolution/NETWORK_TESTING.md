@@ -13,8 +13,13 @@
 ### Крок 1: Збери проект
 ```bash
 # В Visual Studio
-Build → Rebuild Solution
+1. Відкрий DocControlSolution.sln
+2. Правий клік на проект "DocControlNetworkCore" → Build
+   (або Build → Build Solution для всього рішення)
+3. Перевір що немає помилок компіляції
 ```
+
+**Важливо**: Проект DocControlNetworkCore має бути успішно зібраний!
 
 ### Крок 2: Запусти основний сервіс
 1. Запусти **DocControlService** (Windows Service)
