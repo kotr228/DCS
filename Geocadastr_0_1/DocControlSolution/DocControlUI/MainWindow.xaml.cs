@@ -1529,7 +1529,9 @@ namespace DocControlUI
                 _remoteNodes.Add(node);
             }
 
-            RemoteNodesListBox.ItemsSource = _remoteNodes;
+            // Оновити пристрої з БД (вони автоматично додаються NetworkCore при виявленні)
+            await RefreshDevicesFromDBAsync();
+
             SetStatus($"Знайдено {nodes.Count} вузлів");
         }
 
@@ -1593,6 +1595,8 @@ namespace DocControlUI
             }
         }
 
+        // DEPRECATED: Старий UI для перегляду файлів віддалених вузлів - закоментовано
+        /*
         private async void RemoteNodesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (RemoteNodesListBox.SelectedItem == null)
@@ -1608,7 +1612,10 @@ namespace DocControlUI
 
             await LoadRemoteFiles();
         }
+        */
 
+        // DEPRECATED: Методи для роботи з віддаленими файлами - закоментовано
+        /*
         private async System.Threading.Tasks.Task LoadRemoteFiles()
         {
             if (_selectedRemoteNode == null) return;
@@ -1802,6 +1809,7 @@ namespace DocControlUI
 
             MessageBox.Show(message, "Властивості", MessageBoxButton.OK, MessageBoxImage.Information);
         }
+        */
 
         private string FormatFileSize(long bytes)
         {
@@ -1953,7 +1961,7 @@ namespace DocControlUI
 
                 // Оновити список доступів
                 await RefreshDirectories();
-                await MyDirectoriesComboBox_SelectionChanged(null, null);
+                MyDirectoriesComboBox_SelectionChanged(null, null);
 
                 SetStatus("Доступ надано успішно");
             }
@@ -2001,7 +2009,7 @@ namespace DocControlUI
 
                 // Оновити список доступів
                 await RefreshDirectories();
-                await MyDirectoriesComboBox_SelectionChanged(null, null);
+                MyDirectoriesComboBox_SelectionChanged(null, null);
 
                 SetStatus("Доступ відкликано");
             }
