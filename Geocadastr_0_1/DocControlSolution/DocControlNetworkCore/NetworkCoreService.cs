@@ -261,7 +261,7 @@ namespace DocControlNetworkCore
                     // Створити команду AddDevice
                     var command = new ServiceCommand
                     {
-                        Type = CommandType.AddDevice,
+                        Type = DocControlService.Shared.CommandType.AddDevice,
                         Data = JsonSerializer.Serialize(new DeviceModel
                         {
                             Name = deviceName,
@@ -291,7 +291,7 @@ namespace DocControlNetworkCore
                     }
                 }
             }
-            catch (TimeoutException)
+            catch (System.TimeoutException)
             {
                 Log($"[NetworkCore] ⏱️  Timeout при підключенні до DocControlService", isError: true);
             }
