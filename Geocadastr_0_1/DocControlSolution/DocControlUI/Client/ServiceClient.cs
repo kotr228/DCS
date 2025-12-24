@@ -1558,6 +1558,54 @@ namespace DocControlService.Client
 
         #endregion
 
+        #region Device Management
+
+        public async Task<List<DeviceModel>> GetDevicesAsync()
+        {
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.GetDevices
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<DeviceModel>>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        public async Task<bool> UpdateDeviceAccessAsync(int deviceId, bool hasAccess)
+        {
+            var request = new { DeviceId = deviceId, HasAccess = hasAccess };
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.UpdateDevice,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            return response.Success;
+        }
+
+        public async Task<List<NetworkAccessModel>> GetDirectoryAccessListAsync(int directoryId)
+        {
+            var request = new { DirectoryId = directoryId };
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.GetNetworkAccess,
+                Data = directoryId.ToString()
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<NetworkAccessModel>>(response.Data);
+            }
+
+            return new List<NetworkAccessModel>();
+        }
+
+        #endregion
+
 
         public void Dispose()
         {

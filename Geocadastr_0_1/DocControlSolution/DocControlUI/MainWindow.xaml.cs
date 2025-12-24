@@ -21,11 +21,17 @@ namespace DocControlUI
         private RemoteNode _selectedRemoteNode;
         private string _currentRemotePath = "";
 
+        // Для нового UI пристроїв
+        private ObservableCollection<DeviceModel> _devicesFromDB;
+        private DeviceModel _selectedDevice;
+        private DirectoryWithAccessModel _selectedMyDirectory;
+
         public MainWindow()
         {
             InitializeComponent();
             _client = new DocControlServiceClient();
             _remoteNodes = new ObservableCollection<RemoteNode>();
+            _devicesFromDB = new ObservableCollection<DeviceModel>();
             Loaded += MainWindow_Loaded;
         }
 
@@ -41,6 +47,9 @@ namespace DocControlUI
 
             // Оновлюємо список мережевих вузлів
             try { await RefreshNetworkNodesAsync(); } catch { }
+
+            // Оновлюємо пристрої з БД для нового UI
+            try { await RefreshDevicesFromDBAsync(); } catch { }
         }
 
         #region Service Status
@@ -1807,6 +1816,199 @@ namespace DocControlUI
             }
 
             return $"{len:0.##} {sizes[order]}";
+        }
+
+        #endregion
+
+        #region Device Management UI (3-column layout)
+
+        /// <summary>
+        /// Оновити список пристроїв з БД
+        /// </summary>
+        private async System.Threading.Tasks.Task RefreshDevicesFromDBAsync()
+        {
+            try
+            {
+                SetStatus("Завантаження пристроїв з БД...");
+
+                var devices = await _client.GetDevicesAsync();
+
+                _devicesFromDB.Clear();
+                foreach (var device in devices)
+                {
+                    _devicesFromDB.Add(device);
+                }
+
+                DevicesListBox.ItemsSource = _devicesFromDB;
+
+                // Оновити комбобокс власних директорій
+                MyDirectoriesComboBox.ItemsSource = _directories;
+
+                SetStatus($"Завантажено {devices.Count} пристроїв з БД");
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка завантаження пристроїв", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Обробник вибору пристрою - показати директорії пристрою
+        /// </summary>
+        private async void DevicesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (DevicesListBox.SelectedItem == null)
+            {
+                _selectedDevice = null;
+                RemoteDirectoriesListBox.ItemsSource = null;
+                return;
+            }
+
+            _selectedDevice = DevicesListBox.SelectedItem as DeviceModel;
+
+            try
+            {
+                SetStatus($"Завантаження директорій пристрою {_selectedDevice.Name}...");
+
+                // Отримати список директорій пристрою
+                // TODO: Додати метод GetDeviceDirectoriesAsync до ServiceClient
+                // Поки що показуємо всі директорії з доступом для цього пристрою
+                if (_directories != null)
+                {
+                    var deviceDirectories = _directories
+                        .Where(d => d.AllowedDevices != null && d.AllowedDevices.Any(dev => dev.Id == _selectedDevice.Id))
+                        .ToList();
+
+                    RemoteDirectoriesListBox.ItemsSource = deviceDirectories;
+                    SetStatus($"Знайдено {deviceDirectories.Count} директорій для {_selectedDevice.Name}");
+                }
+                else
+                {
+                    RemoteDirectoriesListBox.ItemsSource = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка завантаження директорій пристрою", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Обробник вибору власної директорії - показати які пристрої мають доступ
+        /// </summary>
+        private async void MyDirectoriesComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (MyDirectoriesComboBox.SelectedItem == null)
+            {
+                _selectedMyDirectory = null;
+                DirectoryAccessListBox.ItemsSource = null;
+                return;
+            }
+
+            _selectedMyDirectory = MyDirectoriesComboBox.SelectedItem as DirectoryWithAccessModel;
+
+            try
+            {
+                SetStatus($"Завантаження доступів для {_selectedMyDirectory.Name}...");
+
+                // Отримати список пристроїв з доступом до цієї директорії
+                var accessList = await _client.GetDirectoryAccessListAsync(_selectedMyDirectory.Id);
+
+                DirectoryAccessListBox.ItemsSource = accessList;
+                SetStatus($"{accessList.Count} пристроїв мають доступ до {_selectedMyDirectory.Name}");
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка завантаження списку доступів", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Надати доступ обраному пристрою до обраної директорії
+        /// </summary>
+        private async void GrantAccessToDevice_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedDevice == null)
+            {
+                MessageBox.Show("Оберіть пристрій зі списку знайдених пристроїв", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (_selectedMyDirectory == null)
+            {
+                MessageBox.Show("Оберіть вашу директорію для надання доступу", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                SetStatus($"Надання доступу пристрою {_selectedDevice.Name} до {_selectedMyDirectory.Name}...");
+
+                await _client.GrantAccessAsync(_selectedMyDirectory.Id, _selectedDevice.Id);
+
+                MessageBox.Show($"Доступ надано!\n\nПристрій: {_selectedDevice.Name}\nДиректорія: {_selectedMyDirectory.Name}",
+                    "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // Оновити список доступів
+                await RefreshDirectories();
+                await MyDirectoriesComboBox_SelectionChanged(null, null);
+
+                SetStatus("Доступ надано успішно");
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка надання доступу", ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Відкликати доступ від обраного пристрою
+        /// </summary>
+        private async void RevokeAccessFromDevice_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selectedDevice == null)
+            {
+                MessageBox.Show("Оберіть пристрій зі списку знайдених пристроїв", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (_selectedMyDirectory == null)
+            {
+                MessageBox.Show("Оберіть вашу директорію", "Увага",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                $"Відкликати доступ пристрою '{_selectedDevice.Name}' до директорії '{_selectedMyDirectory.Name}'?",
+                "Підтвердження",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes) return;
+
+            try
+            {
+                SetStatus($"Відкликання доступу пристрою {_selectedDevice.Name}...");
+
+                await _client.RevokeAccessAsync(_selectedMyDirectory.Id, _selectedDevice.Id);
+
+                MessageBox.Show($"Доступ відкликано!\n\nПристрій: {_selectedDevice.Name}\nДиректорія: {_selectedMyDirectory.Name}",
+                    "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                // Оновити список доступів
+                await RefreshDirectories();
+                await MyDirectoriesComboBox_SelectionChanged(null, null);
+
+                SetStatus("Доступ відкликано");
+            }
+            catch (Exception ex)
+            {
+                ShowError("Помилка відкликання доступу", ex.Message);
+            }
         }
 
         #endregion

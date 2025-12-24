@@ -15,6 +15,7 @@
     <Window.Resources>
         <!-- Конвертери -->
         <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <local:BoolToTextConverter x:Key="BoolToTextConverter"/>
         <local:FileSizeConverter x:Key="FileSizeConverter"/>
 
         <Style TargetType="Button">
@@ -143,23 +144,25 @@
                         <Button Content="📋 Детальна інформація" Click="ShowNodeDetails_Click" ToolTip="Показати деталі обраного вузла"/>
                     </StackPanel>
 
-                    <!-- Розділений екран: список вузлів + файлова система -->
+                    <!-- Розділений екран: 3 колонки (пристрої | директорії | доступи) -->
                     <Grid Grid.Row="1" Margin="5">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="300"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="5"/>
+                            <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="5"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Ліва панель: Список вузлів -->
-                        <GroupBox Grid.Column="0" Header="📡 Доступні вузли">
+                        <!-- Колонка 1: Знайдені пристрої -->
+                        <GroupBox Grid.Column="0" Header="🔍 Знайдені пристрої">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Локальна система -->
+                                <!-- Інфо про локальну систему -->
                                 <Border Grid.Row="0" BorderBrush="#4CAF50" BorderThickness="2" CornerRadius="5" Padding="10" Margin="0,0,0,5" Background="#E8F5E9">
                                     <StackPanel>
                                         <TextBlock Text="💻 Цей комп'ютер" FontWeight="Bold" FontSize="14" Foreground="#1B5E20"/>
@@ -167,19 +170,20 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Віддалені вузли -->
-                                <ListBox Grid.Row="1" x:Name="RemoteNodesListBox"
-                                         SelectionChanged="RemoteNodesListBox_SelectionChanged"
-                                         BorderBrush="#2196F3" BorderThickness="2">
+                                <!-- Список знайдених пристроїв з БД -->
+                                <ListBox Grid.Row="1" x:Name="DevicesListBox"
+                                         SelectionChanged="DevicesListBox_SelectionChanged"
+                                         BorderBrush="#FF9800" BorderThickness="2">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="3" Padding="8" Margin="2" Background="White">
+                                            <Border BorderBrush="Gray" BorderThickness="1" CornerRadius="3" Padding="8" Margin="2"
+                                                    Background="{Binding Access, Converter={StaticResource BoolToColorConverter}}">
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding DisplayName}" FontWeight="Bold" FontSize="13" Foreground="#1565C0"/>
-                                                    <TextBlock Text="{Binding IpAddress, StringFormat='IP: {0}'}" Margin="0,2,0,0" FontSize="11" Foreground="#424242"/>
-                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                                        <TextBlock Text="🌐" Foreground="{Binding IsOnline, Converter={StaticResource BoolToColorConverter}}" FontSize="12"/>
-                                                        <TextBlock Text="{Binding LastSeen, StringFormat='Останній контакт: {0:HH:mm:ss}'}" Margin="5,0,0,0" FontSize="10" Foreground="#757575"/>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="12" Foreground="#212121" TextWrapping="Wrap"/>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="🔒" FontSize="12" Margin="0,0,5,0"/>
+                                                        <TextBlock Text="{Binding Access, Converter={StaticResource BoolToTextConverter}}"
+                                                                   FontSize="10" Foreground="#616161"/>
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Border>
@@ -191,8 +195,26 @@
 
                         <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="Gray"/>
 
-                        <!-- Права панель: Файловий провідник для обраного вузла -->
-                        <GroupBox Grid.Column="2" Header="📁 Файли">
+                        <!-- Колонка 2: Директорії обраного пристрою -->
+                        <GroupBox Grid.Column="2" Header="📁 Директорії пристрою">
+                            <ListBox x:Name="RemoteDirectoriesListBox" BorderBrush="#2196F3" BorderThickness="2">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="LightGray" BorderThickness="1" CornerRadius="3" Padding="6" Margin="2" Background="White">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="12" Foreground="#1565C0"/>
+                                                <TextBlock Text="{Binding Browse, StringFormat='Шлях: {0}'}" FontSize="10" Foreground="#757575" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </GroupBox>
+
+                        <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" Background="Gray"/>
+
+                        <!-- Колонка 3: Управління доступами до власних директорій -->
+                        <GroupBox Grid.Column="4" Header="🔐 Надати доступ">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -200,35 +222,30 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <!-- Хлібні крихти (Breadcrumb) -->
-                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
-                                    <TextBlock Text="📂 Шлях:" FontWeight="Bold" VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="CurrentPathText" Text="/" Margin="10,0" VerticalAlignment="Center"/>
-                                    <Button Content="⬆️ Вгору" Click="NavigateUp_Click" Margin="5,0"/>
-                                    <Button Content="🏠 На початок" Click="NavigateHome_Click" Margin="5,0"/>
+                                <!-- Вибір власної директорії -->
+                                <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                                    <TextBlock Text="Оберіть вашу директорію:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <ComboBox x:Name="MyDirectoriesComboBox" DisplayMemberPath="Name" SelectionChanged="MyDirectoriesComboBox_SelectionChanged"/>
                                 </StackPanel>
 
-                                <!-- Список файлів та папок -->
-                                <DataGrid Grid.Row="1" x:Name="RemoteFilesGrid"
-                                          AutoGenerateColumns="False"
-                                          IsReadOnly="True"
-                                          SelectionMode="Single"
-                                          MouseDoubleClick="RemoteFilesGrid_MouseDoubleClick"
-                                          CanUserAddRows="False">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="📄 Назва" Binding="{Binding Name}" Width="*"/>
-                                        <DataGridTextColumn Header="Розмір" Binding="{Binding Size, Converter={StaticResource FileSizeConverter}}" Width="100"/>
-                                        <DataGridTextColumn Header="Дата зміни" Binding="{Binding ModifiedDate, StringFormat='yyyy-MM-dd HH:mm'}" Width="150"/>
-                                    </DataGrid.Columns>
-                                </DataGrid>
+                                <!-- Список пристроїв з доступом до обраної директорії -->
+                                <GroupBox Grid.Row="1" Header="Пристрої з доступом:">
+                                    <ListBox x:Name="DirectoryAccessListBox" BorderBrush="#4CAF50" BorderThickness="1">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="✅" Margin="0,0,5,0"/>
+                                                    <TextBlock Text="{Binding DeviceName}" FontSize="11"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </GroupBox>
 
-                                <!-- Панель дій -->
-                                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,5,0,0">
-                                    <Button Content="⬇️ Завантажити" Click="DownloadFile_Click" ToolTip="Завантажити обраний файл"/>
-                                    <Button Content="📋 Властивості" Click="ShowFileProperties_Click" Margin="5,0,0,0"/>
-                                    <Separator Width="20" Background="Transparent"/>
-                                    <TextBlock x:Name="FileOperationStatus" Text="" VerticalAlignment="Center" Margin="10,0"/>
-                                    <ProgressBar x:Name="FileTransferProgress" Width="200" Height="20" Margin="10,0" Visibility="Collapsed"/>
+                                <!-- Кнопки управління доступом -->
+                                <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                                    <Button Content="✅ Надати доступ" Click="GrantAccessToDevice_Click" Margin="0,0,0,5" Background="#4CAF50" Foreground="White"/>
+                                    <Button Content="❌ Відкликати доступ" Click="RevokeAccessFromDevice_Click" Background="#F44336" Foreground="White"/>
                                 </StackPanel>
                             </Grid>
                         </GroupBox>
