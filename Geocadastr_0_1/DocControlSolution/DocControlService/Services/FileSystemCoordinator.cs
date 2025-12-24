@@ -16,6 +16,7 @@ namespace DocControlService.Services
     public class FileSystemCoordinator
     {
         private readonly DatabaseManager _dbManager;
+        private readonly DeviceRepository _deviceRepository;
         private readonly LocalFileSystemService _localFileSystem;
         private readonly ConcurrentDictionary<Guid, RemoteFileSystemService> _remoteFileSystems;
 
@@ -38,6 +39,7 @@ namespace DocControlService.Services
         public FileSystemCoordinator(DatabaseManager dbManager)
         {
             _dbManager = dbManager;
+            _deviceRepository = new DeviceRepository(dbManager);
             _localFileSystem = new LocalFileSystemService(dbManager);
             _remoteFileSystems = new ConcurrentDictionary<Guid, RemoteFileSystemService>();
         }
@@ -167,6 +169,18 @@ namespace DocControlService.Services
         private void OnPeerAdded(PeerIdentity peer)
         {
             Console.WriteLine($"[FileSystemCoordinator] Вузол приєднався: {peer}");
+
+            // Зберегти пристрій в БД
+            try
+            {
+                string deviceName = $"{peer.UserName}@{peer.MachineName} ({peer.IpAddress})";
+                _deviceRepository.GetOrCreateDevice(deviceName, defaultAccess: false);
+                Console.WriteLine($"[FileSystemCoordinator] Пристрій збережено в БД: {deviceName}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[FileSystemCoordinator] Помилка збереження пристрою: {ex.Message}");
+            }
 
             // Створити RemoteFileSystemService для нового вузла
             if (_commandLayer != null && _fileTransfer != null)

@@ -103,5 +103,54 @@ namespace DocControlService.Data
             int rows = cmd.ExecuteNonQuery();
             return rows > 0;
         }
+
+        /// <summary>
+        /// Знайти пристрій за іменем або створити новий
+        /// </summary>
+        public DeviceModel GetOrCreateDevice(string name, bool defaultAccess = false)
+        {
+            using var conn = _db.GetConnection();
+            conn.Open();
+
+            // Спочатку шукаємо існуючий
+            using (var cmd = conn.CreateCommand())
+            {
+                cmd.CommandText = "SELECT id, Name, Acces FROM Devises WHERE Name = @name LIMIT 1;";
+                cmd.Parameters.AddWithValue("@name", name);
+
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    return new DeviceModel
+                    {
+                        Id = reader.GetInt32(0),
+                        Name = reader.GetString(1),
+                        Access = reader.GetBoolean(2)
+                    };
+                }
+            }
+
+            // Якщо не знайдено - створюємо новий
+            using (var txn = conn.BeginTransaction())
+            {
+                using var cmd = conn.CreateCommand();
+                cmd.Transaction = txn;
+                cmd.CommandText = "INSERT INTO Devises (Name, Acces) VALUES (@name, @access);";
+                cmd.Parameters.AddWithValue("@name", name);
+                cmd.Parameters.AddWithValue("@access", defaultAccess);
+                cmd.ExecuteNonQuery();
+
+                cmd.CommandText = "SELECT last_insert_rowid();";
+                long id = (long)cmd.ExecuteScalar();
+                txn.Commit();
+
+                return new DeviceModel
+                {
+                    Id = (int)id,
+                    Name = name,
+                    Access = defaultAccess
+                };
+            }
+        }
     }
 }
