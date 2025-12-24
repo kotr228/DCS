@@ -140,10 +140,11 @@ namespace DocControlService
                 // Синхронізуємо таблицю доступу
                 _accessService.SyncAccessTable();
 
-                // Запускаємо мережеве ядро (замість старих Windows shares)
-                var sharedDir = GetSharedDirectory();
-                _fileSystemCoordinator.StartNetworkCore(sharedDir);
-                Log($"Network Core started with shared directory: {sharedDir}");
+                // ВИМКНЕНО: NetworkCore запускається як окремий процес DocControlNetworkCore.exe
+                // Він передає знайдені пристрої через Named Pipes
+                // var sharedDir = GetSharedDirectory();
+                // _fileSystemCoordinator.StartNetworkCore(sharedDir);
+                // Log($"Network Core started with shared directory: {sharedDir}");
 
                 // Відновлюємо мережеві шари для активних директорій (DEPRECATED - буде замінено на NetworkCore)
                 // RestoreNetworkShares();

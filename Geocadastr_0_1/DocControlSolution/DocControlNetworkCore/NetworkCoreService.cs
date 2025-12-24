@@ -1,7 +1,11 @@
 using DocControlNetworkCore.Models;
 using DocControlNetworkCore.Services;
+using DocControlService.Shared;
 using System;
+using System.IO.Pipes;
 using System.ServiceProcess;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -147,6 +151,9 @@ namespace DocControlNetworkCore
         private void OnPeerAdded(PeerIdentity peer)
         {
             Log($"➕ Вузол приєднався: {peer}");
+
+            // Повідомити DocControlService про новий пристрій
+            Task.Run(() => NotifyDocControlService(peer));
         }
 
         private void OnPeerRemoved(PeerIdentity peer)
@@ -218,6 +225,79 @@ namespace DocControlNetworkCore
                 {
                     // Ігноруємо помилки логування
                 }
+            }
+        }
+
+        /// <summary>
+        /// Повідомити DocControlService про новий пристрій через Named Pipe
+        /// </summary>
+        private async Task NotifyDocControlService(PeerIdentity peer)
+        {
+            try
+            {
+                // Перевірити чи це не власний вузол
+                if (_localIdentity != null &&
+                    peer.UserName == _localIdentity.UserName &&
+                    peer.MachineName == _localIdentity.MachineName &&
+                    peer.IpAddress == _localIdentity.IpAddress)
+                {
+                    Log($"[NetworkCore] ⏭️  Пропускаємо власний вузол: {peer}");
+                    return;
+                }
+
+                string deviceName = $"{peer.UserName}@{peer.MachineName} ({peer.IpAddress})";
+
+                using (var pipeClient = new NamedPipeClientStream(".", "DocControlServicePipe", PipeDirection.InOut))
+                {
+                    // Спроба підключення з таймаутом
+                    await pipeClient.ConnectAsync(5000);
+
+                    if (!pipeClient.IsConnected)
+                    {
+                        Log($"[NetworkCore] ⚠️  Не вдалося підключитися до DocControlService", isError: true);
+                        return;
+                    }
+
+                    // Створити команду AddDevice
+                    var command = new ServiceCommand
+                    {
+                        Type = CommandType.AddDevice,
+                        Data = JsonSerializer.Serialize(new DeviceModel
+                        {
+                            Name = deviceName,
+                            Access = false // За замовчуванням доступ заборонений
+                        })
+                    };
+
+                    // Відправити команду
+                    string requestJson = JsonSerializer.Serialize(command);
+                    byte[] requestData = Encoding.UTF8.GetBytes(requestJson);
+                    await pipeClient.WriteAsync(requestData, 0, requestData.Length);
+                    await pipeClient.FlushAsync();
+
+                    // Отримати відповідь
+                    byte[] buffer = new byte[4096];
+                    int bytesRead = await pipeClient.ReadAsync(buffer, 0, buffer.Length);
+                    string responseJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    var response = JsonSerializer.Deserialize<ServiceResponse>(responseJson);
+
+                    if (response != null && response.Success)
+                    {
+                        Log($"[NetworkCore] ✅ Пристрій передано в DocControlService: {deviceName}");
+                    }
+                    else
+                    {
+                        Log($"[NetworkCore] ❌ Помилка додавання пристрою: {response?.Message}", isError: true);
+                    }
+                }
+            }
+            catch (TimeoutException)
+            {
+                Log($"[NetworkCore] ⏱️  Timeout при підключенні до DocControlService", isError: true);
+            }
+            catch (Exception ex)
+            {
+                Log($"[NetworkCore] ❌ Помилка відправки в DocControlService: {ex.Message}", isError: true);
             }
         }
 
