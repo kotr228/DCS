@@ -32,9 +32,11 @@ namespace DocControlService.Data
                 {
                     Id = reader.GetInt32(0),
                     Name = reader.IsDBNull(1) ? null : reader.GetString(1),
-                    Access = reader.GetBoolean(2)
+                    Access = reader.GetBoolean(2),
+                    IsOnline = false // За замовчуванням офлайн, буде оновлено пізніше
                 });
             }
+            Console.WriteLine($"[DeviceRepo] GetAllDevices: знайдено {result.Count} пристроїв в БД");
             return result;
         }
 
@@ -109,6 +111,8 @@ namespace DocControlService.Data
         /// </summary>
         public DeviceModel GetOrCreateDevice(string name, bool defaultAccess = false)
         {
+            Console.WriteLine($"[DeviceRepo] GetOrCreateDevice: name='{name}', defaultAccess={defaultAccess}");
+
             using var conn = _db.GetConnection();
             conn.Open();
 
@@ -121,16 +125,19 @@ namespace DocControlService.Data
                 using var reader = cmd.ExecuteReader();
                 if (reader.Read())
                 {
-                    return new DeviceModel
+                    var device = new DeviceModel
                     {
                         Id = reader.GetInt32(0),
                         Name = reader.GetString(1),
                         Access = reader.GetBoolean(2)
                     };
+                    Console.WriteLine($"[DeviceRepo] ✅ Знайдено існуючий пристрій: ID={device.Id}, Access={device.Access}");
+                    return device;
                 }
             }
 
             // Якщо не знайдено - створюємо новий
+            Console.WriteLine($"[DeviceRepo] 🆕 Пристрій не знайдено, створюємо новий...");
             using (var txn = conn.BeginTransaction())
             {
                 using var cmd = conn.CreateCommand();
@@ -143,6 +150,8 @@ namespace DocControlService.Data
                 cmd.CommandText = "SELECT last_insert_rowid();";
                 long id = (long)cmd.ExecuteScalar();
                 txn.Commit();
+
+                Console.WriteLine($"[DeviceRepo] ✅ Створено новий пристрій: ID={id}, Name='{name}', Access={defaultAccess}");
 
                 return new DeviceModel
                 {
