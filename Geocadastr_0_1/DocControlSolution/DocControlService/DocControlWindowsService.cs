@@ -1051,12 +1051,10 @@ namespace DocControlService
             // Надаємо доступ в БД
             int accessId = _accessRepo.GrantAccess(request.DirectoryId, request.DeviceId);
 
-            // Відкриваємо мережевий шар
-            var dir = _dirRepo.GetById(request.DirectoryId);
-            string shareName = $"DocShare_{request.DirectoryId}";
-            _shareService.OpenShare(shareName, dir.Browse);
+            // ПРИМІТКА: NetworkCore використовує власну систему доступу через БД
+            // Windows Shares НЕ потрібні - доступ контролюється в CommandLayerService
 
-            Log($"Granted access: Directory {request.DirectoryId} -> Device {request.DeviceId}");
+            Log($"Granted access: Directory {request.DirectoryId} -> Device {request.DeviceId} (NetworkCore)");
 
             return new ServiceResponse
             {
@@ -1071,14 +1069,10 @@ namespace DocControlService
 
             bool revoked = _accessRepo.RevokeAccess(request.DirectoryId, request.DeviceId);
 
-            // Перевіряємо чи є ще активні доступи до цієї директорії
-            if (!_accessRepo.IsDirectoryShared(request.DirectoryId))
-            {
-                string shareName = $"DocShare_{request.DirectoryId}";
-                _shareService.CloseShare(shareName);
-            }
+            // ПРИМІТКА: NetworkCore використовує власну систему доступу через БД
+            // Windows Shares НЕ потрібні - доступ контролюється в CommandLayerService
 
-            Log($"Revoked access: Directory {request.DirectoryId} -> Device {request.DeviceId}");
+            Log($"Revoked access: Directory {request.DirectoryId} -> Device {request.DeviceId} (NetworkCore)");
 
             return new ServiceResponse
             {

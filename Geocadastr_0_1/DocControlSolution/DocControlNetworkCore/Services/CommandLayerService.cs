@@ -23,6 +23,12 @@ namespace DocControlNetworkCore.Services
         private Task? _listenerTask;
 
         /// <summary>
+        /// Callback для перевірки доступу пристрою до шляху
+        /// Параметри: (remotePeerName, requestedPath) => hasAccess
+        /// </summary>
+        public Func<string, string, bool>? CheckAccessCallback { get; set; }
+
+        /// <summary>
         /// Подія отримання команди
         /// </summary>
         public event Action<NetworkCommand, IPEndPoint>? CommandReceived;
@@ -134,7 +140,7 @@ namespace DocControlNetworkCore.Services
                 Console.WriteLine($"[CommandLayer] Отримано команду: {command.Type} від {endpoint}");
 
                 // Обробка команди
-                var response = await ProcessCommandAsync(command);
+                var response = await ProcessCommandAsync(command, endpoint);
 
                 // Відправка відповіді
                 var responseJson = JsonSerializer.Serialize(response);
@@ -158,17 +164,17 @@ namespace DocControlNetworkCore.Services
         /// <summary>
         /// Обробка команди
         /// </summary>
-        private async Task<CommandResponse> ProcessCommandAsync(NetworkCommand command)
+        private async Task<CommandResponse> ProcessCommandAsync(NetworkCommand command, IPEndPoint senderEndpoint)
         {
             try
             {
                 switch (command.Type)
                 {
                     case CommandType.GetFileList:
-                        return await HandleGetFileListAsync(command);
+                        return await HandleGetFileListAsync(command, senderEndpoint);
 
                     case CommandType.GetFileMeta:
-                        return await HandleGetFileMetaAsync(command);
+                        return await HandleGetFileMetaAsync(command, senderEndpoint);
 
                     case CommandType.Ping:
                         return HandlePing(command);
@@ -199,7 +205,7 @@ namespace DocControlNetworkCore.Services
         /// <summary>
         /// Обробка команди GetFileList
         /// </summary>
-        private async Task<CommandResponse> HandleGetFileListAsync(NetworkCommand command)
+        private async Task<CommandResponse> HandleGetFileListAsync(NetworkCommand command, IPEndPoint senderEndpoint)
         {
             try
             {
@@ -212,6 +218,26 @@ namespace DocControlNetworkCore.Services
                         Success = false,
                         ErrorMessage = "Невалідний запит"
                     };
+                }
+
+                // Перевірка доступу пристрою (через callback)
+                if (CheckAccessCallback != null)
+                {
+                    string senderIp = senderEndpoint.Address.ToString();
+                    bool hasAccess = CheckAccessCallback(senderIp, request.DirectoryPath);
+
+                    if (!hasAccess)
+                    {
+                        Console.WriteLine($"[CommandLayer] ДОСТУП ЗАБОРОНЕНО: {senderIp} -> {request.DirectoryPath}");
+                        return new CommandResponse
+                        {
+                            RequestId = command.RequestId,
+                            Success = false,
+                            ErrorMessage = "Доступ заборонено: пристрій не має дозволу на цю директорію"
+                        };
+                    }
+
+                    Console.WriteLine($"[CommandLayer] Доступ надано: {senderIp} -> {request.DirectoryPath}");
                 }
 
                 // Валідація шляху (безпека)
@@ -293,11 +319,29 @@ namespace DocControlNetworkCore.Services
         /// <summary>
         /// Обробка команди GetFileMeta
         /// </summary>
-        private async Task<CommandResponse> HandleGetFileMetaAsync(NetworkCommand command)
+        private async Task<CommandResponse> HandleGetFileMetaAsync(NetworkCommand command, IPEndPoint senderEndpoint)
         {
             try
             {
                 var filePath = command.Payload;
+
+                // Перевірка доступу пристрою (через callback)
+                if (CheckAccessCallback != null)
+                {
+                    string senderIp = senderEndpoint.Address.ToString();
+                    bool hasAccess = CheckAccessCallback(senderIp, filePath);
+
+                    if (!hasAccess)
+                    {
+                        Console.WriteLine($"[CommandLayer] ДОСТУП ЗАБОРОНЕНО: {senderIp} -> {filePath}");
+                        return new CommandResponse
+                        {
+                            RequestId = command.RequestId,
+                            Success = false,
+                            ErrorMessage = "Доступ заборонено: пристрій не має дозволу на цей файл"
+                        };
+                    }
+                }
 
                 // Валідація шляху
                 var fullPath = Path.GetFullPath(Path.Combine(_allowedBasePath, filePath));

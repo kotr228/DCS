@@ -18,6 +18,8 @@ namespace DocControlService.Services
     {
         private readonly DatabaseManager _dbManager;
         private readonly DeviceRepository _deviceRepository;
+        private readonly NetworkAccessRepository _networkAccessRepository;
+        private readonly DirectoryRepository _directoryRepository;
         private readonly LocalFileSystemService _localFileSystem;
         private readonly ConcurrentDictionary<Guid, RemoteFileSystemService> _remoteFileSystems;
 
@@ -41,6 +43,8 @@ namespace DocControlService.Services
         {
             _dbManager = dbManager;
             _deviceRepository = new DeviceRepository(dbManager);
+            _networkAccessRepository = new NetworkAccessRepository(dbManager);
+            _directoryRepository = new DirectoryRepository(dbManager);
             _localFileSystem = new LocalFileSystemService(dbManager);
             _remoteFileSystems = new ConcurrentDictionary<Guid, RemoteFileSystemService>();
         }
@@ -78,6 +82,53 @@ namespace DocControlService.Services
 
             // 5. Ініціалізація Command Layer
             _commandLayer = new CommandLayerService(_localIdentity, sharedDirectory);
+
+            // Підключити перевірку доступу до директорій через БД
+            _commandLayer.CheckAccessCallback = (senderIp, requestedPath) =>
+            {
+                try
+                {
+                    // Знайти пристрій за IP адресою
+                    var allDevices = _deviceRepository.GetAllDevices();
+                    var device = allDevices.FirstOrDefault(d => d.Name != null && d.Name.Contains(senderIp));
+
+                    if (device == null)
+                    {
+                        Console.WriteLine($"[AccessCheck] Пристрій з IP {senderIp} не знайдено в БД");
+                        return false; // Пристрій не зареєстрований - заборонити
+                    }
+
+                    if (!device.Access)
+                    {
+                        Console.WriteLine($"[AccessCheck] Пристрій {device.Name} має Access=false");
+                        return false; // Пристрій заблокований глобально
+                    }
+
+                    // Отримати всі директорії та знайти відповідну за шляхом
+                    var directories = _directoryRepository.GetAllDirectories();
+                    var targetDirectory = directories.FirstOrDefault(dir =>
+                        requestedPath.StartsWith(dir.Browse, StringComparison.OrdinalIgnoreCase));
+
+                    if (targetDirectory == null)
+                    {
+                        Console.WriteLine($"[AccessCheck] Директорія для шляху {requestedPath} не знайдена");
+                        return true; // Якщо директорія не визначена, дозволити доступ (для сумісності)
+                    }
+
+                    // Перевірити чи є доступ до цієї директорії в NetworkAccesDirectory
+                    var accessList = _networkAccessRepository.GetAccessByDirectory(targetDirectory.Id);
+                    var hasAccess = accessList.Any(a => a.DeviceId == device.Id && a.Status);
+
+                    Console.WriteLine($"[AccessCheck] {device.Name} -> {targetDirectory.Name}: {(hasAccess ? "✅ ДОЗВОЛЕНО" : "❌ ЗАБОРОНЕНО")}");
+                    return hasAccess;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[AccessCheck] Помилка перевірки доступу: {ex.Message}");
+                    return false; // При помилці - заборонити доступ
+                }
+            };
+
             _commandLayer.Start();
 
             // 6. Ініціалізація File Transfer
