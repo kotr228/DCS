@@ -153,7 +153,19 @@ namespace DocControlNetworkCore
             Log($"➕ Вузол приєднався: {peer}");
 
             // Повідомити DocControlService про новий пристрій
-            Task.Run(() => NotifyDocControlService(peer));
+            Task.Run(async () =>
+            {
+                try
+                {
+                    Log($"[DEBUG] Спроба відправки в DocControlService: {peer.UserName}@{peer.MachineName}");
+                    await NotifyDocControlService(peer);
+                }
+                catch (Exception ex)
+                {
+                    Log($"[DEBUG] ❌ Критична помилка в Task.Run: {ex.Message}", isError: true);
+                    Log($"[DEBUG] StackTrace: {ex.StackTrace}", isError: true);
+                }
+            });
         }
 
         private void OnPeerRemoved(PeerIdentity peer)
