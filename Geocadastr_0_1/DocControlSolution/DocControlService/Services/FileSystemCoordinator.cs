@@ -172,21 +172,39 @@ namespace DocControlService.Services
             Console.WriteLine($"[FileSystemCoordinator] Вузол приєднався: {peer}");
             LogToEventLog($"Вузол приєднався: {peer}", EventLogEntryType.Information);
 
-            // Зберегти пристрій в БД
-            try
+            // Перевірка чи це не власний вузол (не зберігаємо сам себе)
+            bool isSelf = false;
+            if (_localIdentity != null)
             {
-                string deviceName = $"{peer.UserName}@{peer.MachineName} ({peer.IpAddress})";
-                LogToEventLog($"Спроба збереження пристрою: {deviceName}", EventLogEntryType.Information);
-
-                var device = _deviceRepository.GetOrCreateDevice(deviceName, defaultAccess: false);
-
-                Console.WriteLine($"[FileSystemCoordinator] Пристрій збережено в БД: {deviceName}, ID={device.Id}");
-                LogToEventLog($"Пристрій збережено в БД: {deviceName}, ID={device.Id}, Access={device.Access}", EventLogEntryType.Information);
+                // Порівнюємо UserName, MachineName та IpAddress
+                if (peer.UserName == _localIdentity.UserName &&
+                    peer.MachineName == _localIdentity.MachineName &&
+                    peer.IpAddress == _localIdentity.IpAddress)
+                {
+                    isSelf = true;
+                    Console.WriteLine($"[FileSystemCoordinator] Пропускаємо власний вузол: {peer}");
+                    LogToEventLog($"Пропущено власний вузол (не зберігається в БД): {peer}", EventLogEntryType.Information);
+                }
             }
-            catch (Exception ex)
+
+            // Зберегти пристрій в БД тільки якщо це НЕ власний вузол
+            if (!isSelf)
             {
-                Console.WriteLine($"[FileSystemCoordinator] Помилка збереження пристрою: {ex.Message}");
-                LogToEventLog($"ПОМИЛКА збереження пристрою: {ex.Message}\nStack: {ex.StackTrace}", EventLogEntryType.Error);
+                try
+                {
+                    string deviceName = $"{peer.UserName}@{peer.MachineName} ({peer.IpAddress})";
+                    LogToEventLog($"Спроба збереження пристрою: {deviceName}", EventLogEntryType.Information);
+
+                    var device = _deviceRepository.GetOrCreateDevice(deviceName, defaultAccess: false);
+
+                    Console.WriteLine($"[FileSystemCoordinator] Пристрій збережено в БД: {deviceName}, ID={device.Id}");
+                    LogToEventLog($"Пристрій збережено в БД: {deviceName}, ID={device.Id}, Access={device.Access}", EventLogEntryType.Information);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[FileSystemCoordinator] Помилка збереження пристрою: {ex.Message}");
+                    LogToEventLog($"ПОМИЛКА збереження пристрою: {ex.Message}\nStack: {ex.StackTrace}", EventLogEntryType.Error);
+                }
             }
 
             // Створити RemoteFileSystemService для нового вузла
