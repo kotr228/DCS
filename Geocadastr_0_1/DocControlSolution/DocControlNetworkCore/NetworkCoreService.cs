@@ -247,6 +247,8 @@ namespace DocControlNetworkCore
         {
             try
             {
+                Log($"[NetworkCore] 🔍 Step 1: Перевірка чи це власний вузол...");
+
                 // Перевірити чи це не власний вузол
                 if (_localIdentity != null &&
                     peer.UserName == _localIdentity.UserName &&
@@ -258,17 +260,24 @@ namespace DocControlNetworkCore
                 }
 
                 string deviceName = $"{peer.UserName}@{peer.MachineName} ({peer.IpAddress})";
+                Log($"[NetworkCore] 🔍 Step 2: Створення Named Pipe клієнта для {deviceName}");
 
                 using (var pipeClient = new NamedPipeClientStream(".", "DocControlServicePipe", PipeDirection.InOut))
                 {
+                    Log($"[NetworkCore] 🔍 Step 3: Спроба підключення до pipe (timeout 5000ms)...");
+
                     // Спроба підключення з таймаутом
                     await pipeClient.ConnectAsync(5000);
+
+                    Log($"[NetworkCore] 🔍 Step 4: Підключено = {pipeClient.IsConnected}");
 
                     if (!pipeClient.IsConnected)
                     {
                         Log($"[NetworkCore] ⚠️  Не вдалося підключитися до DocControlService", isError: true);
                         return;
                     }
+
+                    Log($"[NetworkCore] 🔍 Step 5: Створення команди AddDevice...");
 
                     // Створити команду AddDevice
                     var command = new ServiceCommand
@@ -281,18 +290,27 @@ namespace DocControlNetworkCore
                         })
                     };
 
+                    Log($"[NetworkCore] 🔍 Step 6: Серіалізація команди...");
+
                     // Відправити команду
                     string requestJson = JsonSerializer.Serialize(command);
                     byte[] requestData = Encoding.UTF8.GetBytes(requestJson);
+
+                    Log($"[NetworkCore] 🔍 Step 7: Відправка {requestData.Length} байт...");
                     await pipeClient.WriteAsync(requestData, 0, requestData.Length);
                     await pipeClient.FlushAsync();
+
+                    Log($"[NetworkCore] 🔍 Step 8: Очікування відповіді...");
 
                     // Отримати відповідь
                     byte[] buffer = new byte[4096];
                     int bytesRead = await pipeClient.ReadAsync(buffer, 0, buffer.Length);
+
+                    Log($"[NetworkCore] 🔍 Step 9: Отримано {bytesRead} байт, десеріалізація...");
                     string responseJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
                     var response = JsonSerializer.Deserialize<ServiceResponse>(responseJson);
 
+                    Log($"[NetworkCore] 🔍 Step 10: Обробка відповіді...");
                     if (response != null && response.Success)
                     {
                         Log($"[NetworkCore] ✅ Пристрій передано в DocControlService: {deviceName}");
@@ -303,13 +321,18 @@ namespace DocControlNetworkCore
                     }
                 }
             }
-            catch (System.TimeoutException)
+            catch (System.TimeoutException ex)
             {
-                Log($"[NetworkCore] ⏱️  Timeout при підключенні до DocControlService", isError: true);
+                Log($"[NetworkCore] ⏱️  Timeout при підключенні до DocControlService: {ex.Message}", isError: true);
             }
             catch (Exception ex)
             {
-                Log($"[NetworkCore] ❌ Помилка відправки в DocControlService: {ex.Message}", isError: true);
+                Log($"[NetworkCore] ❌ Помилка відправки в DocControlService: {ex.GetType().Name} - {ex.Message}", isError: true);
+                Log($"[NetworkCore] ❌ StackTrace: {ex.StackTrace}", isError: true);
+            }
+            finally
+            {
+                Log($"[NetworkCore] 🔍 NotifyDocControlService завершено для {peer.UserName}@{peer.MachineName}");
             }
         }
 
