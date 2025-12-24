@@ -1077,7 +1077,7 @@ namespace DocControlService
             try
             {
                 int directoryId = int.Parse(data);
-                var accessList = _networkAccessRepo.GetAccessByDirectory(directoryId);
+                var accessList = _accessRepo.GetAccessByDirectory(directoryId);
 
                 return new ServiceResponse
                 {
