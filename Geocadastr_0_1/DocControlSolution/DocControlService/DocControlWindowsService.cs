@@ -985,6 +985,21 @@ namespace DocControlService
         private ServiceResponse HandleGetDevices()
         {
             var devices = _deviceRepo.GetAllDevices();
+
+            // Отримати список онлайн вузлів з мережевого ядра
+            var remoteNodes = _fileSystemCoordinator.GetRemoteNodes();
+
+            // Позначити які пристрої онлайн
+            foreach (var device in devices)
+            {
+                // Перевіряємо чи є пристрій серед активних вузлів мережі
+                device.IsOnline = remoteNodes.Any(node =>
+                {
+                    var nodeName = $"{node.UserName}@{node.MachineName} ({node.IpAddress})";
+                    return device.Name == nodeName;
+                });
+            }
+
             return new ServiceResponse
             {
                 Success = true,

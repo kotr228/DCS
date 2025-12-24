@@ -19,6 +19,7 @@ namespace DocControlService.Shared
         public int Id { get; set; }
         public string Name { get; set; }
         public bool Access { get; set; }
+        public bool IsOnline { get; set; }  // Чи пристрій зараз в мережі
     }
 
     [Serializable]
