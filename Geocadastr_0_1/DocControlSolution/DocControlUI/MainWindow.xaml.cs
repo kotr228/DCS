@@ -26,6 +26,9 @@ namespace DocControlUI
         private DeviceModel _selectedDevice;
         private DirectoryWithAccessModel _selectedMyDirectory;
 
+        // Таймер для автоматичного оновлення мережевих пристроїв
+        private System.Windows.Threading.DispatcherTimer _networkRefreshTimer;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -33,6 +36,17 @@ namespace DocControlUI
             _remoteNodes = new ObservableCollection<RemoteNode>();
             _devicesFromDB = new ObservableCollection<DeviceModel>();
             Loaded += MainWindow_Loaded;
+
+            // Ініціалізація таймера для оновлення мережі
+            _networkRefreshTimer = new System.Windows.Threading.DispatcherTimer();
+            _networkRefreshTimer.Interval = TimeSpan.FromSeconds(5);
+            _networkRefreshTimer.Tick += async (s, e) => await RefreshNetworkDataAsync();
+
+            // Підписка на зміну вкладок
+            MainTabControl.SelectionChanged += MainTabControl_SelectionChanged;
+
+            // Підписка на закриття вікна
+            Closing += (s, e) => _networkRefreshTimer?.Stop();
         }
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -50,6 +64,39 @@ namespace DocControlUI
 
             // Оновлюємо пристрої з БД для нового UI
             try { await RefreshDevicesFromDBAsync(); } catch { }
+        }
+
+        /// <summary>
+        /// Обробник зміни вкладок - запускає/зупиняє таймер оновлення мережі
+        /// </summary>
+        private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (MainTabControl.SelectedIndex == 1) // Вкладка "Мережа" (індекс 1)
+            {
+                _networkRefreshTimer.Start();
+                _ = RefreshNetworkDataAsync(); // Оновити одразу
+            }
+            else
+            {
+                _networkRefreshTimer.Stop();
+            }
+        }
+
+        /// <summary>
+        /// Оновлення мережевих даних (вузли + пристрої з БД)
+        /// </summary>
+        private async System.Threading.Tasks.Task RefreshNetworkDataAsync()
+        {
+            try
+            {
+                await RefreshNetworkNodesAsync();
+                await RefreshDevicesFromDBAsync();
+            }
+            catch (Exception ex)
+            {
+                // Ігноруємо помилки під час фонового оновлення
+                System.Diagnostics.Debug.WriteLine($"Network refresh error: {ex.Message}");
+            }
         }
 
         #region Service Status
