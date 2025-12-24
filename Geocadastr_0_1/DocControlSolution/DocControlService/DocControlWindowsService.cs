@@ -462,6 +462,9 @@ namespace DocControlService
                     case CommandType.RevokeAccess:
                         return HandleRevokeAccess(command.Data);
 
+                    case CommandType.GetNetworkAccess:
+                        return HandleGetNetworkAccess(command.Data);
+
                     case CommandType.OpenAllShares:
                         return HandleOpenAllShares();
 
@@ -1067,6 +1070,31 @@ namespace DocControlService
                 Success = revoked,
                 Message = revoked ? "Access revoked successfully" : "Failed to revoke access"
             };
+        }
+
+        private ServiceResponse HandleGetNetworkAccess(string data)
+        {
+            try
+            {
+                int directoryId = int.Parse(data);
+                var accessList = _networkAccessRepo.GetAccessByDirectory(directoryId);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(accessList),
+                    Message = "Network access list retrieved successfully"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error getting network access: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = $"Failed to get network access: {ex.Message}"
+                };
+            }
         }
 
         private ServiceResponse HandleOpenAllShares()

@@ -9,12 +9,14 @@ namespace DocControlService.Models
         private readonly string _dbPath;
         private readonly string _connectionString;
         private readonly DatabaseValidator _validator;
+        private readonly DatabaseMigrator _migrator;
 
         public DatabaseManager(string dbFileName = "DocControl.db")
         {
             _dbPath = Path.Combine(AppContext.BaseDirectory, dbFileName);
             _connectionString = $"Data Source={_dbPath}";
             _validator = new DatabaseValidator(_dbPath);
+            _migrator = new DatabaseMigrator(_dbPath);
 
             InitializeDatabase();
         }
@@ -35,24 +37,20 @@ namespace DocControlService.Models
                 }
                 else
                 {
-                    Console.WriteLine("➡ Перевірка валідності існуючої БД...");
+                    Console.WriteLine("➡ БД існує. Виконуємо міграції...");
 
-                    bool valid = false;
+                    // НОВА ЛОГІКА: Замість видалення - виконуємо міграції
                     try
                     {
-                        valid = _validator.ValidateStructure();
+                        _migrator.RunMigrations();
+                        Console.WriteLine("✅ База даних оновлена через міграції.");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"❌ Помилка перевірки структури: {ex.Message}");
-                    }
+                        Console.WriteLine($"❌ Помилка виконання міграцій: {ex.Message}");
+                        Console.WriteLine("⚠️ Спроба пересоздати БД...");
 
-                    if (!valid)
-                    {
-                        Console.WriteLine("⚠️ База пошкоджена або структура не відповідає.");
-                        Console.WriteLine("➡ Видаляємо існуючу БД...");
-
-                        // Закриваємо всі відкриті конекшени
+                        // Тільки якщо міграції не вдалися - видаляємо та створюємо заново
                         GC.Collect();
                         GC.WaitForPendingFinalizers();
 
@@ -60,18 +58,12 @@ namespace DocControlService.Models
                         {
                             _validator.DropDatabase();
                             Console.WriteLine("🗑️ Існуюча БД видалена.");
+                            CreateSchema();
                         }
-                        catch (Exception ex)
+                        catch (Exception dropEx)
                         {
-                            Console.WriteLine($"❌ Не вдалося видалити БД: {ex.Message}");
+                            Console.WriteLine($"❌ Критична помилка: {dropEx.Message}");
                         }
-
-                        Console.WriteLine("➡ Створюємо нову БД...");
-                        CreateSchema();
-                    }
-                    else
-                    {
-                        Console.WriteLine("✅ База існує і структура валідна.");
                     }
                 }
             }
@@ -102,7 +94,23 @@ namespace DocControlService.Models
                 Console.WriteLine($"   + {firstLine} ✓");
             }
 
-            Console.WriteLine("✅ Усі таблиці створено.");
+            // Вставка дефолтних шаблонів геокарт
+            Console.WriteLine("➡ Вставка вбудованих шаблонів...");
+            foreach (var sql in DatabaseSchema.InsertDefaultTemplates)
+            {
+                try
+                {
+                    using var cmd = connection.CreateCommand();
+                    cmd.CommandText = sql;
+                    cmd.ExecuteNonQuery();
+                }
+                catch
+                {
+                    // Ігноруємо помилки вставки (шаблон вже існує)
+                }
+            }
+
+            Console.WriteLine("✅ Усі таблиці та дані створено.");
         }
 
         // 🔹 метод перевірки запитів

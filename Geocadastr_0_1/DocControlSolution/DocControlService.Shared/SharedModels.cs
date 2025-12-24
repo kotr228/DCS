@@ -28,6 +28,7 @@ namespace DocControlService.Shared
         public int DirectoryId { get; set; }
         public bool Status { get; set; }
         public int DeviceId { get; set; }
+        public string DeviceName { get; set; }  // Назва пристрою для відображення в UI
     }
 
     [Serializable]

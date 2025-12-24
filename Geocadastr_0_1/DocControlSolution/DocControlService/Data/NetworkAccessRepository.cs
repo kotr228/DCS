@@ -46,7 +46,12 @@ namespace DocControlService.Data
             conn.Open();
 
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id, idDyrectory, Status, idDevises FROM NetworkAccesDirectory WHERE idDyrectory = @dirId;";
+            // JOIN з Devises щоб отримати назву пристрою
+            cmd.CommandText = @"
+                SELECT na.id, na.idDyrectory, na.Status, na.idDevises, d.Name
+                FROM NetworkAccesDirectory na
+                LEFT JOIN Devises d ON na.idDevises = d.id
+                WHERE na.idDyrectory = @dirId;";
             cmd.Parameters.AddWithValue("@dirId", directoryId);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
@@ -56,7 +61,8 @@ namespace DocControlService.Data
                     Id = reader.GetInt32(0),
                     DirectoryId = reader.GetInt32(1),
                     Status = reader.GetBoolean(2),
-                    DeviceId = reader.GetInt32(3)
+                    DeviceId = reader.GetInt32(3),
+                    DeviceName = reader.IsDBNull(4) ? "Невідомий пристрій" : reader.GetString(4)
                 });
             }
             return result;
