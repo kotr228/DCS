@@ -6,6 +6,7 @@ using DocControlService.Shared;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace DocControlService.Services
@@ -169,17 +170,23 @@ namespace DocControlService.Services
         private void OnPeerAdded(PeerIdentity peer)
         {
             Console.WriteLine($"[FileSystemCoordinator] Вузол приєднався: {peer}");
+            LogToEventLog($"Вузол приєднався: {peer}", EventLogEntryType.Information);
 
             // Зберегти пристрій в БД
             try
             {
                 string deviceName = $"{peer.UserName}@{peer.MachineName} ({peer.IpAddress})";
-                _deviceRepository.GetOrCreateDevice(deviceName, defaultAccess: false);
-                Console.WriteLine($"[FileSystemCoordinator] Пристрій збережено в БД: {deviceName}");
+                LogToEventLog($"Спроба збереження пристрою: {deviceName}", EventLogEntryType.Information);
+
+                var device = _deviceRepository.GetOrCreateDevice(deviceName, defaultAccess: false);
+
+                Console.WriteLine($"[FileSystemCoordinator] Пристрій збережено в БД: {deviceName}, ID={device.Id}");
+                LogToEventLog($"Пристрій збережено в БД: {deviceName}, ID={device.Id}, Access={device.Access}", EventLogEntryType.Information);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[FileSystemCoordinator] Помилка збереження пристрою: {ex.Message}");
+                LogToEventLog($"ПОМИЛКА збереження пристрою: {ex.Message}\nStack: {ex.StackTrace}", EventLogEntryType.Error);
             }
 
             // Створити RemoteFileSystemService для нового вузла
@@ -213,6 +220,22 @@ namespace DocControlService.Services
         {
             var nodes = GetRemoteNodes();
             RemoteNodesChanged?.Invoke(nodes);
+        }
+
+        private void LogToEventLog(string message, EventLogEntryType type)
+        {
+            try
+            {
+                if (!EventLog.SourceExists("DocControlService"))
+                {
+                    EventLog.CreateEventSource("DocControlService", "Application");
+                }
+                EventLog.WriteEntry("DocControlService", $"[NetworkCore] {message}", type);
+            }
+            catch
+            {
+                // Якщо не вдалось записати в EventLog - ігноруємо
+            }
         }
 
         #endregion
