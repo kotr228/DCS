@@ -373,14 +373,7 @@ namespace DocControlService.Shared
         GetRemoteFileList,
         GetRemoteFileMetadata,
         DownloadRemoteFile,
-        PingRemoteNode,
-
-        // Device Management (v0.6)
-        GetDevices,
-        UpdateDeviceAccess,
-        GetDirectoryAccessList,
-        GrantDirectoryAccess,
-        RevokeDirectoryAccess
+        PingRemoteNode
 
     }
 
@@ -820,21 +813,6 @@ namespace DocControlService.Shared
         public int AnalysisResultId { get; set; }
         public bool CreateBackup { get; set; }
         public List<int> ViolationIds { get; set; }
-    }
-
-    // =============== DEVICE MANAGEMENT REQUESTS (v0.6) ===============
-
-    [Serializable]
-    public class UpdateDeviceAccessRequest
-    {
-        public int DeviceId { get; set; }
-        public bool HasAccess { get; set; }
-    }
-
-    [Serializable]
-    public class DirectoryAccessListRequest
-    {
-        public int DirectoryId { get; set; }
     }
 
     // =============== ОНОВЛЕНІ КОМАНДИ v0.4 ===============
