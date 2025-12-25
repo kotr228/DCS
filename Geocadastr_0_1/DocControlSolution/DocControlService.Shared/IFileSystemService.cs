@@ -121,8 +121,16 @@ namespace DocControlService.Shared
         public string IpAddress { get; set; } = string.Empty;
         public int TcpPort { get; set; }
         public int UdpPort { get; set; }
-        public DateTime LastSeen { get; set; }
+        public DateTime LastSeen { get; set; } = DateTime.Now;
         public string ProtocolVersion { get; set; } = "1.0";
+
+        /// <summary>
+        /// Перевірка чи це цей же екземпляр (щоб не знаходити самого себе)
+        /// </summary>
+        public bool IsSelf(Guid localInstanceId)
+        {
+            return InstanceId == localInstanceId;
+        }
 
         public override string ToString()
         {
