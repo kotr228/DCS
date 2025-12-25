@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using NetworkCommandType = DocControlNetworkCore.Models.CommandType;
 
 namespace DocControlNetworkCore.Services
 {
@@ -171,16 +172,16 @@ namespace DocControlNetworkCore.Services
             {
                 switch (command.Type)
                 {
-                    case CommandType.GetFileList:
+                    case NetworkCommandType.GetFileList:
                         return await HandleGetFileListAsync(command, senderEndpoint);
 
-                    case CommandType.GetFileMeta:
+                    case NetworkCommandType.GetFileMeta:
                         return await HandleGetFileMetaAsync(command, senderEndpoint);
 
-                    case CommandType.Ping:
+                    case NetworkCommandType.Ping:
                         return HandlePing(command);
 
-                    case CommandType.Heartbeat:
+                    case NetworkCommandType.Heartbeat:
                         return HandleHeartbeat(command);
 
                     default:
