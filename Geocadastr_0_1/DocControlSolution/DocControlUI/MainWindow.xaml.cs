@@ -196,6 +196,9 @@ namespace DocControlUI
                 DirectoriesGrid.ItemsSource = displayData;
                 AccessDirectoryCombo.ItemsSource = _directories;
 
+                // Оновлюємо комбобокс для нового Device Management UI
+                MyDirectoriesComboBox.ItemsSource = _directories;
+
                 // Оновлюємо дані для контролю версій
                 await RefreshVersionControl();
             }
