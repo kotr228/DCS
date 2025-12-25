@@ -37,9 +37,9 @@ namespace DocControlUI
             _devicesFromDB = new ObservableCollection<DeviceModel>();
             Loaded += MainWindow_Loaded;
 
-            // Ініціалізація таймера для оновлення мережі
+            // Ініціалізація таймера для оновлення мережі (15 секунд щоб не заважати користувачеві)
             _networkRefreshTimer = new System.Windows.Threading.DispatcherTimer();
-            _networkRefreshTimer.Interval = TimeSpan.FromSeconds(5);
+            _networkRefreshTimer.Interval = TimeSpan.FromSeconds(15);
             _networkRefreshTimer.Tick += async (s, e) => await RefreshNetworkDataAsync();
 
             // Підписка на зміну вкладок

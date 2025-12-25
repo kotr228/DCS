@@ -65,6 +65,10 @@ namespace DocControlService
         // Координатор файлових систем (локальна + мережева)
         private FileSystemCoordinator _fileSystemCoordinator;
 
+        // Список активних мережевих вузлів (отриманих від DocControlNetworkCore)
+        private Dictionary<string, (RemoteNode Node, DateTime LastSeen)> _activeNetworkNodes;
+        private readonly object _nodesLock = new object();
+
         public DocControlWindowsService(bool debugMode = false)
         {
             _debugMode = debugMode;
@@ -123,6 +127,9 @@ namespace DocControlService
 
             // Координатор файлових систем
             _fileSystemCoordinator = new FileSystemCoordinator(_dbManager);
+
+            // Ініціалізація списку активних вузлів
+            _activeNetworkNodes = new Dictionary<string, (RemoteNode, DateTime)>();
 
             // Ініціалізуємо дефолтні налаштування
             _settingsRepo.InitializeDefaults();
@@ -987,18 +994,30 @@ namespace DocControlService
         {
             var devices = _deviceRepo.GetAllDevices();
 
-            // Отримати список онлайн вузлів з мережевого ядра
-            var remoteNodes = _fileSystemCoordinator.GetRemoteNodes();
+            // Отримати список онлайн вузлів з внутрішнього кешу (оновлюється NetworkCore через Named Pipe)
+            List<string> activeDeviceNames;
+            lock (_nodesLock)
+            {
+                // Очистити старі вузли (timeout 60 секунд)
+                var now = DateTime.UtcNow;
+                var expiredKeys = _activeNetworkNodes
+                    .Where(kvp => (now - kvp.Value.LastSeen).TotalSeconds > 60)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+
+                foreach (var key in expiredKeys)
+                {
+                    _activeNetworkNodes.Remove(key);
+                    Log($"[Network] Вузол видалено (timeout): {key}");
+                }
+
+                activeDeviceNames = _activeNetworkNodes.Keys.ToList();
+            }
 
             // Позначити які пристрої онлайн
             foreach (var device in devices)
             {
-                // Перевіряємо чи є пристрій серед активних вузлів мережі
-                device.IsOnline = remoteNodes.Any(node =>
-                {
-                    var nodeName = $"{node.UserName}@{node.MachineName} ({node.IpAddress})";
-                    return device.Name == nodeName;
-                });
+                device.IsOnline = activeDeviceNames.Contains(device.Name);
             }
 
             return new ServiceResponse
@@ -1014,6 +1033,39 @@ namespace DocControlService
             int deviceId = _deviceRepo.AddDevice(device.Name, device.Access);
 
             Log($"Added device: {device.Name} (id={deviceId})");
+
+            // Парсимо назву пристрою для додавання до списку активних вузлів
+            // Формат: "username@machinename (ip)"
+            try
+            {
+                var parts = device.Name.Split(new[] { '@', '(', ')' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length >= 3)
+                {
+                    string userName = parts[0].Trim();
+                    string machineName = parts[1].Trim();
+                    string ipAddress = parts[2].Trim();
+
+                    var remoteNode = new RemoteNode
+                    {
+                        Id = Guid.NewGuid(),
+                        UserName = userName,
+                        MachineName = machineName,
+                        IpAddress = ipAddress,
+                        IsOnline = true
+                    };
+
+                    lock (_nodesLock)
+                    {
+                        _activeNetworkNodes[device.Name] = (remoteNode, DateTime.UtcNow);
+                    }
+
+                    Log($"[Network] Додано активний вузол: {device.Name}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"[Network] Помилка парсингу назви пристрою: {ex.Message}", EventLogEntryType.Warning);
+            }
 
             return new ServiceResponse
             {
@@ -1241,8 +1293,34 @@ namespace DocControlService
         {
             try
             {
-                var isRunning = _fileSystemCoordinator.IsNetworkCoreRunning;
-                var localIdentity = _fileSystemCoordinator.GetLocalIdentity();
+                // Перевіряємо чи процес DocControlNetworkCore.exe запущений
+                bool isRunning = false;
+                PeerIdentity localIdentity = null;
+
+                try
+                {
+                    var processes = System.Diagnostics.Process.GetProcessesByName("DocControlNetworkCore");
+                    isRunning = processes.Length > 0;
+
+                    // Якщо процес запущений, спробуємо отримати локальну ідентичність з активних вузлів
+                    if (isRunning)
+                    {
+                        // Створюємо базову ідентичність з системної інформації
+                        localIdentity = new PeerIdentity(
+                            Guid.NewGuid(),
+                            System.Environment.UserName,
+                            System.Environment.MachineName,
+                            GetLocalIpAddress(),
+                            8000,
+                            9000
+                        );
+                    }
+                }
+                catch
+                {
+                    // Якщо не можемо перевірити процес - вважаємо що не запущений
+                    isRunning = false;
+                }
 
                 var status = new
                 {
@@ -1274,7 +1352,25 @@ namespace DocControlService
         {
             try
             {
-                var nodes = _fileSystemCoordinator.GetRemoteNodes();
+                // Отримати список вузлів з внутрішнього кешу
+                List<RemoteNode> nodes;
+                lock (_nodesLock)
+                {
+                    // Очистити старі вузли (timeout 60 секунд)
+                    var now = DateTime.UtcNow;
+                    var expiredKeys = _activeNetworkNodes
+                        .Where(kvp => (now - kvp.Value.LastSeen).TotalSeconds > 60)
+                        .Select(kvp => kvp.Key)
+                        .ToList();
+
+                    foreach (var key in expiredKeys)
+                    {
+                        _activeNetworkNodes.Remove(key);
+                    }
+
+                    nodes = _activeNetworkNodes.Values.Select(v => v.Node).ToList();
+                }
+
                 return new ServiceResponse
                 {
                     Success = true,
@@ -1485,6 +1581,23 @@ namespace DocControlService
                     // Ігноруємо помилки логування
                 }
             }
+        }
+
+        private string GetLocalIpAddress()
+        {
+            try
+            {
+                var host = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
+                foreach (var ip in host.AddressList)
+                {
+                    if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    {
+                        return ip.ToString();
+                    }
+                }
+            }
+            catch { }
+            return "127.0.0.1";
         }
 
         #endregion
