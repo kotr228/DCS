@@ -6,7 +6,6 @@ using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using PeerIdentity = DocControlNetworkCore.Models.PeerIdentity;
 using ServiceCommandType = DocControlService.Shared.CommandType;
 
 namespace DocControlService.Client
