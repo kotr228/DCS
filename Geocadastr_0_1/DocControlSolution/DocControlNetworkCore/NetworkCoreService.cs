@@ -2,6 +2,7 @@ using DocControlNetworkCore.Models;
 using DocControlNetworkCore.Services;
 using DocControlService.Shared;
 using System;
+using System.IO;
 using System.IO.Pipes;
 using System.ServiceProcess;
 using System.Text;
@@ -292,9 +293,9 @@ namespace DocControlNetworkCore
 
                     Log($"[NetworkCore] 🔍 Step 6: Серіалізація команди...");
 
-                    // Відправити команду
+                    // Відправити команду (ВАЖЛИВО: додаємо \n для StreamReader.ReadLineAsync на сервері)
                     string requestJson = JsonSerializer.Serialize(command);
-                    byte[] requestData = Encoding.UTF8.GetBytes(requestJson);
+                    byte[] requestData = Encoding.UTF8.GetBytes(requestJson + "\n");  // Додаємо \n!
 
                     Log($"[NetworkCore] 🔍 Step 7: Відправка {requestData.Length} байт...");
                     await pipeClient.WriteAsync(requestData, 0, requestData.Length);
@@ -302,12 +303,14 @@ namespace DocControlNetworkCore
 
                     Log($"[NetworkCore] 🔍 Step 8: Очікування відповіді...");
 
-                    // Отримати відповідь
-                    byte[] buffer = new byte[4096];
-                    int bytesRead = await pipeClient.ReadAsync(buffer, 0, buffer.Length);
+                    // Отримати відповідь (через StreamReader для ReadLineAsync)
+                    string responseJson;
+                    using (var reader = new StreamReader(pipeClient, Encoding.UTF8, false, 1024, true))
+                    {
+                        responseJson = await reader.ReadLineAsync();
+                    }
 
-                    Log($"[NetworkCore] 🔍 Step 9: Отримано {bytesRead} байт, десеріалізація...");
-                    string responseJson = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                    Log($"[NetworkCore] 🔍 Step 9: Отримано {responseJson?.Length ?? 0} символів, десеріалізація...");
                     var response = JsonSerializer.Deserialize<ServiceResponse>(responseJson);
 
                     Log($"[NetworkCore] 🔍 Step 10: Обробка відповіді...");
