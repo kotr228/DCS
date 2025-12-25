@@ -109,4 +109,24 @@ namespace DocControlService.Shared
 
         public string DisplayName => $"{UserName}@{MachineName}";
     }
+
+    /// <summary>
+    /// Ідентичність вузла в мережі (використовується для NetworkCore)
+    /// </summary>
+    public class PeerIdentity
+    {
+        public Guid InstanceId { get; set; }
+        public string UserName { get; set; } = string.Empty;
+        public string MachineName { get; set; } = string.Empty;
+        public string IpAddress { get; set; } = string.Empty;
+        public int TcpPort { get; set; }
+        public int UdpPort { get; set; }
+        public DateTime LastSeen { get; set; }
+        public string ProtocolVersion { get; set; } = "1.0";
+
+        public override string ToString()
+        {
+            return $"{UserName}@{MachineName} ({IpAddress}:{TcpPort})";
+        }
+    }
 }

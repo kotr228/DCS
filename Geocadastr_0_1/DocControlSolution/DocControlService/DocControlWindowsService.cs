@@ -1047,11 +1047,13 @@ namespace DocControlService
 
                     var remoteNode = new RemoteNode
                     {
-                        Id = Guid.NewGuid(),
+                        InstanceId = Guid.NewGuid(),
                         UserName = userName,
                         MachineName = machineName,
                         IpAddress = ipAddress,
-                        IsOnline = true
+                        TcpPort = 8000,
+                        IsOnline = true,
+                        LastSeen = DateTime.UtcNow
                     };
 
                     lock (_nodesLock)
@@ -1306,14 +1308,17 @@ namespace DocControlService
                     if (isRunning)
                     {
                         // Створюємо базову ідентичність з системної інформації
-                        localIdentity = new PeerIdentity(
-                            Guid.NewGuid(),
-                            System.Environment.UserName,
-                            System.Environment.MachineName,
-                            GetLocalIpAddress(),
-                            8000,
-                            9000
-                        );
+                        localIdentity = new PeerIdentity
+                        {
+                            InstanceId = Guid.NewGuid(),
+                            UserName = System.Environment.UserName,
+                            MachineName = System.Environment.MachineName,
+                            IpAddress = GetLocalIpAddress(),
+                            TcpPort = 8000,
+                            UdpPort = 9000,
+                            LastSeen = DateTime.UtcNow,
+                            ProtocolVersion = "1.0"
+                        };
                     }
                 }
                 catch
