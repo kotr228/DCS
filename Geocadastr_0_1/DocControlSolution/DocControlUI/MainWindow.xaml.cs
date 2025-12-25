@@ -37,6 +37,9 @@ namespace DocControlUI
             _devicesFromDB = new ObservableCollection<DeviceModel>();
             Loaded += MainWindow_Loaded;
 
+            // Встановлюємо ItemsSource ОДИН РАЗ - ObservableCollection автоматично оновлює UI
+            DevicesListBox.ItemsSource = _devicesFromDB;
+
             // Ініціалізація таймера для оновлення мережі (15 секунд щоб не заважати користувачеві)
             _networkRefreshTimer = new System.Windows.Threading.DispatcherTimer();
             _networkRefreshTimer.Interval = TimeSpan.FromSeconds(15);
@@ -1878,7 +1881,7 @@ namespace DocControlUI
         #region Device Management UI (3-column layout)
 
         /// <summary>
-        /// Оновити список пристроїв з БД
+        /// Оновити список пристроїв з БД (Smart Update - тільки змінені властивості)
         /// </summary>
         private async System.Threading.Tasks.Task RefreshDevicesFromDBAsync()
         {
@@ -1888,16 +1891,35 @@ namespace DocControlUI
 
                 var devices = await _client.GetDevicesAsync();
 
-                _devicesFromDB.Clear();
-                foreach (var device in devices)
+                // Smart Update: оновлюємо тільки змінені властивості, не перемальовуємо весь ListBox
+                foreach (var newDevice in devices)
                 {
-                    _devicesFromDB.Add(device);
+                    var existing = _devicesFromDB.FirstOrDefault(d => d.Id == newDevice.Id);
+                    if (existing != null)
+                    {
+                        // Оновлюємо тільки змінені властивості (INotifyPropertyChanged автоматично оновить UI)
+                        if (existing.IsOnline != newDevice.IsOnline)
+                            existing.IsOnline = newDevice.IsOnline;
+
+                        if (existing.Access != newDevice.Access)
+                            existing.Access = newDevice.Access;
+
+                        if (existing.Name != newDevice.Name)
+                            existing.Name = newDevice.Name;
+                    }
+                    else
+                    {
+                        // Новий пристрій - додаємо
+                        _devicesFromDB.Add(newDevice);
+                    }
                 }
 
-                DevicesListBox.ItemsSource = _devicesFromDB;
-
-                // Оновити комбобокс власних директорій
-                MyDirectoriesComboBox.ItemsSource = _directories;
+                // Видаляємо пристрої які більше не існують
+                var toRemove = _devicesFromDB.Where(d => !devices.Any(nd => nd.Id == d.Id)).ToList();
+                foreach (var device in toRemove)
+                {
+                    _devicesFromDB.Remove(device);
+                }
 
                 SetStatus($"Завантажено {devices.Count} пристроїв з БД");
             }

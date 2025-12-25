@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 namespace DocControlService.Shared
 {
@@ -14,12 +16,44 @@ namespace DocControlService.Shared
     }
 
     [Serializable]
-    public class DeviceModel
+    public class DeviceModel : INotifyPropertyChanged
     {
-        public int Id { get; set; }
-        public string Name { get; set; }
-        public bool Access { get; set; }
-        public bool IsOnline { get; set; }  // Чи пристрій зараз в мережі
+        private int _id;
+        private string _name;
+        private bool _access;
+        private bool _isOnline;
+
+        public int Id
+        {
+            get => _id;
+            set { _id = value; OnPropertyChanged(); }
+        }
+
+        public string Name
+        {
+            get => _name;
+            set { _name = value; OnPropertyChanged(); }
+        }
+
+        public bool Access
+        {
+            get => _access;
+            set { _access = value; OnPropertyChanged(); }
+        }
+
+        public bool IsOnline
+        {
+            get => _isOnline;
+            set { _isOnline = value; OnPropertyChanged(); }
+        }
+
+        [field: NonSerialized]
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
     [Serializable]
