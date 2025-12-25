@@ -22,6 +22,7 @@ namespace DocControlService.Shared
         private string _name;
         private bool _access;
         private bool _isOnline;
+        private int _accessDirectoriesCount;
 
         public int Id
         {
@@ -45,6 +46,15 @@ namespace DocControlService.Shared
         {
             get => _isOnline;
             set { _isOnline = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Кількість директорій до яких пристрій має доступ
+        /// </summary>
+        public int AccessDirectoriesCount
+        {
+            get => _accessDirectoriesCount;
+            set { _accessDirectoriesCount = value; OnPropertyChanged(); }
         }
 
         [field: NonSerialized]

@@ -1014,10 +1014,23 @@ namespace DocControlService
                 activeDeviceNames = _activeNetworkNodes.Keys.ToList();
             }
 
-            // Позначити які пристрої онлайн
+            // Отримати всі доступи для підрахунку кількості директорій
+            var allAccess = _accessRepo.GetAllAccess();
+            var accessCountByDevice = allAccess
+                .Where(a => a.Status) // Тільки активні доступи
+                .GroupBy(a => a.DeviceId)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            // Оновити інформацію про кожний пристрій
             foreach (var device in devices)
             {
+                // Позначити чи пристрій онлайн
                 device.IsOnline = activeDeviceNames.Contains(device.Name);
+
+                // Підрахувати кількість директорій до яких є доступ
+                device.AccessDirectoriesCount = accessCountByDevice.ContainsKey(device.Id)
+                    ? accessCountByDevice[device.Id]
+                    : 0;
             }
 
             return new ServiceResponse

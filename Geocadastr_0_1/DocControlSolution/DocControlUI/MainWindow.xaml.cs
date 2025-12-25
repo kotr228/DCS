@@ -1909,6 +1909,9 @@ namespace DocControlUI
 
                         if (existing.Name != newDevice.Name)
                             existing.Name = newDevice.Name;
+
+                        if (existing.AccessDirectoriesCount != newDevice.AccessDirectoriesCount)
+                            existing.AccessDirectoriesCount = newDevice.AccessDirectoriesCount;
                     }
                     else
                     {

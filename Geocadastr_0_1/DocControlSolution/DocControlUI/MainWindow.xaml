@@ -16,6 +16,7 @@
         <!-- Конвертери -->
         <local:BoolToColorConverter x:Key="BoolToColorConverter"/>
         <local:BoolToTextConverter x:Key="BoolToTextConverter"/>
+        <local:IntToAccessTextConverter x:Key="IntToAccessTextConverter"/>
         <local:FileSizeConverter x:Key="FileSizeConverter"/>
 
         <Style TargetType="Button">
@@ -216,8 +217,7 @@
 
                                                     <!-- Статус доступу -->
                                                     <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                                        <TextBlock Text="🔒" FontSize="10" Margin="0,0,3,0"/>
-                                                        <TextBlock Text="{Binding Access, Converter={StaticResource BoolToTextConverter}}"
+                                                        <TextBlock Text="{Binding AccessDirectoriesCount, Converter={StaticResource IntToAccessTextConverter}}"
                                                                    FontSize="10" Foreground="#616161"/>
                                                     </StackPanel>
                                                 </StackPanel>
