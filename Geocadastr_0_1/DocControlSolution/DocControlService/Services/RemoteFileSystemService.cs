@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using NetworkCommandType = DocControlNetworkCore.Models.CommandType;
+using PeerIdentity = DocControlService.Shared.PeerIdentity;
 
 namespace DocControlService.Services
 {

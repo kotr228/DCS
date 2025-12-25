@@ -1,4 +1,5 @@
 using DocControlNetworkCore.Models;
+using DocControlService.Shared;
 using System;
 using System.Net;
 using System.Net.Sockets;
