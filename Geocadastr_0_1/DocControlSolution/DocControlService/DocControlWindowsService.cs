@@ -1,7 +1,6 @@
 ﻿using DocControlAI.Analyzers;
 using DocControlAI.Core;
 using DocControlAI.Services;
-using DocControlNetworkCore.Models;
 using DocControlService.Data;
 using DocControlService.Models;
 using DocControlService.Services;
@@ -16,6 +15,10 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using NetworkCommand = DocControlNetworkCore.Models.NetworkCommand;
+using NetworkCommandType = DocControlNetworkCore.Models.CommandType;
+using NetworkCommandResponse = DocControlNetworkCore.Models.CommandResponse;
+using ServiceCommandType = DocControlService.Shared.CommandType;
 
 
 namespace DocControlService
@@ -432,251 +435,251 @@ namespace DocControlService
 
                 switch (command.Type)
                 {
-                    case CommandType.GetDirectories:
+                    case ServiceCommandType.GetDirectories:
                         return HandleGetDirectories();
 
-                    case CommandType.AddDirectory:
+                    case ServiceCommandType.AddDirectory:
                         return HandleAddDirectory(command.Data);
 
-                    case CommandType.RemoveDirectory:
+                    case ServiceCommandType.RemoveDirectory:
                         return HandleRemoveDirectory(command.Data);
 
-                    case CommandType.UpdateDirectoryName:
+                    case ServiceCommandType.UpdateDirectoryName:
                         return HandleUpdateDirectoryName(command.Data);
 
-                    case CommandType.UpdateDirectory:
+                    case ServiceCommandType.UpdateDirectory:
                         return HandleUpdateDirectory(command.Data);
 
-                    case CommandType.ScanDirectory:
+                    case ServiceCommandType.ScanDirectory:
                         return HandleScanDirectory(command.Data);
 
-                    case CommandType.SearchDirectories:
+                    case ServiceCommandType.SearchDirectories:
                         return HandleSearchDirectories(command.Data);
 
-                    case CommandType.GetDirectoryStatistics:
+                    case ServiceCommandType.GetDirectoryStatistics:
                         return HandleGetDirectoryStatistics(command.Data);
 
-                    case CommandType.GetDevices:
+                    case ServiceCommandType.GetDevices:
                         return HandleGetDevices();
 
-                    case CommandType.AddDevice:
+                    case ServiceCommandType.AddDevice:
                         return HandleAddDevice(command.Data);
 
-                    case CommandType.RemoveDevice:
+                    case ServiceCommandType.RemoveDevice:
                         return HandleRemoveDevice(command.Data);
 
-                    case CommandType.GrantAccess:
+                    case ServiceCommandType.GrantAccess:
                         return HandleGrantAccess(command.Data);
 
-                    case CommandType.RevokeAccess:
+                    case ServiceCommandType.RevokeAccess:
                         return HandleRevokeAccess(command.Data);
 
-                    case CommandType.GetNetworkAccess:
+                    case ServiceCommandType.GetNetworkAccess:
                         return HandleGetNetworkAccess(command.Data);
 
-                    case CommandType.OpenAllShares:
+                    case ServiceCommandType.OpenAllShares:
                         return HandleOpenAllShares();
 
-                    case CommandType.CloseAllShares:
+                    case ServiceCommandType.CloseAllShares:
                         return HandleCloseAllShares();
 
-                    case CommandType.GetStatus:
+                    case ServiceCommandType.GetStatus:
                         return HandleGetStatus();
 
-                    case CommandType.ForceCommit:
+                    case ServiceCommandType.ForceCommit:
                         return HandleForceCommit();
 
-                    case CommandType.CommitDirectory:
+                    case ServiceCommandType.CommitDirectory:
                         return HandleCommitDirectory(command.Data);
 
-                    case CommandType.SetCommitInterval:
+                    case ServiceCommandType.SetCommitInterval:
                         return HandleSetCommitInterval(command.Data);
 
-                    case CommandType.GetCommitLog:
+                    case ServiceCommandType.GetCommitLog:
                         return HandleGetCommitLog(command.Data);
 
-                    case CommandType.GetGitHistory:
+                    case ServiceCommandType.GetGitHistory:
                         return HandleGetGitHistory(command.Data);
 
-                    case CommandType.RevertToCommit:
+                    case ServiceCommandType.RevertToCommit:
                         return HandleRevertToCommit(command.Data);
 
-                    case CommandType.GetErrorLog:
+                    case ServiceCommandType.GetErrorLog:
                         return HandleGetErrorLog(command.Data);
 
-                    case CommandType.MarkErrorResolved:
+                    case ServiceCommandType.MarkErrorResolved:
                         return HandleMarkErrorResolved(command.Data);
 
-                    case CommandType.ClearResolvedErrors:
+                    case ServiceCommandType.ClearResolvedErrors:
                         return HandleClearResolvedErrors();
 
-                    case CommandType.GetUnresolvedErrorCount:
+                    case ServiceCommandType.GetUnresolvedErrorCount:
                         return HandleGetUnresolvedErrorCount();
 
-                    case CommandType.GetSettings:
+                    case ServiceCommandType.GetSettings:
                         return HandleGetSettings();
 
-                    case CommandType.SaveSettings:
+                    case ServiceCommandType.SaveSettings:
                         return HandleSaveSettings(command.Data);
 
-                    case CommandType.CreateRoadmap:
+                    case ServiceCommandType.CreateRoadmap:
                         return HandleCreateRoadmap(command.Data);
 
-                    case CommandType.GetRoadmaps:
+                    case ServiceCommandType.GetRoadmaps:
                         return HandleGetRoadmaps();
 
-                    case CommandType.GetRoadmapById:
+                    case ServiceCommandType.GetRoadmapById:
                         return HandleGetRoadmapById(command.Data);
 
-                    case CommandType.DeleteRoadmap:
+                    case ServiceCommandType.DeleteRoadmap:
                         return HandleDeleteRoadmap(command.Data);
 
-                    case CommandType.AnalyzeDirectoryForRoadmap:
+                    case ServiceCommandType.AnalyzeDirectoryForRoadmap:
                         return HandleAnalyzeDirectoryForRoadmap(command.Data);
 
-                    case CommandType.ExportRoadmapAsJson:
+                    case ServiceCommandType.ExportRoadmapAsJson:
                         return HandleExportRoadmapAsJson(command.Data);
 
-                    case CommandType.ScanNetwork:
+                    case ServiceCommandType.ScanNetwork:
                         return HandleScanNetwork();
 
-                    case CommandType.GetNetworkInterfaces:
+                    case ServiceCommandType.GetNetworkInterfaces:
                         return HandleGetNetworkInterfaces();
 
-                    case CommandType.GetExternalServices:
+                    case ServiceCommandType.GetExternalServices:
                         return HandleGetExternalServices();
 
-                    case CommandType.AddExternalService:
+                    case ServiceCommandType.AddExternalService:
                         return HandleAddExternalService(command.Data);
 
-                    case CommandType.UpdateExternalService:
+                    case ServiceCommandType.UpdateExternalService:
                         return HandleUpdateExternalService(command.Data);
 
-                    case CommandType.DeleteExternalService:
+                    case ServiceCommandType.DeleteExternalService:
                         return HandleDeleteExternalService(command.Data);
 
-                    case CommandType.TestExternalService:
+                    case ServiceCommandType.TestExternalService:
                         return HandleTestExternalService(command.Data);
 
-                    case CommandType.CreateGeoRoadmap:
+                    case ServiceCommandType.CreateGeoRoadmap:
                         return HandleCreateGeoRoadmap(command.Data);
 
-                    case CommandType.GetGeoRoadmaps:
+                    case ServiceCommandType.GetGeoRoadmaps:
                         return HandleGetGeoRoadmaps();
 
-                    case CommandType.GetGeoRoadmapById:
+                    case ServiceCommandType.GetGeoRoadmapById:
                         return HandleGetGeoRoadmapById(command.Data);
 
-                    case CommandType.UpdateGeoRoadmap:
+                    case ServiceCommandType.UpdateGeoRoadmap:
                         return HandleUpdateGeoRoadmap(command.Data);
 
-                    case CommandType.DeleteGeoRoadmap:
+                    case ServiceCommandType.DeleteGeoRoadmap:
                         return HandleDeleteGeoRoadmap(command.Data);
 
-                    case CommandType.AddGeoNode:
+                    case ServiceCommandType.AddGeoNode:
                         return HandleAddGeoNode(command.Data);
 
-                    case CommandType.UpdateGeoNode:
+                    case ServiceCommandType.UpdateGeoNode:
                         return HandleUpdateGeoNode(command.Data);
 
-                    case CommandType.DeleteGeoNode:
+                    case ServiceCommandType.DeleteGeoNode:
                         return HandleDeleteGeoNode(command.Data);
 
-                    case CommandType.GetGeoNodesByRoadmap:
+                    case ServiceCommandType.GetGeoNodesByRoadmap:
                         return HandleGetGeoNodesByRoadmap(command.Data);
 
-                    case CommandType.AddGeoRoute:
+                    case ServiceCommandType.AddGeoRoute:
                         return HandleAddGeoRoute(command.Data);
 
-                    case CommandType.DeleteGeoRoute:
+                    case ServiceCommandType.DeleteGeoRoute:
                         return HandleDeleteGeoRoute(command.Data);
 
-                    case CommandType.AddGeoArea:
+                    case ServiceCommandType.AddGeoArea:
                         return HandleAddGeoArea(command.Data);
 
-                    case CommandType.DeleteGeoArea:
+                    case ServiceCommandType.DeleteGeoArea:
                         return HandleDeleteGeoArea(command.Data);
 
-                    case CommandType.GetGeoRoadmapTemplates:
+                    case ServiceCommandType.GetGeoRoadmapTemplates:
                         return HandleGetGeoRoadmapTemplates();
 
-                    case CommandType.CreateFromTemplate:
+                    case ServiceCommandType.CreateFromTemplate:
                         return HandleCreateFromTemplate(command.Data);
 
-                    case CommandType.SaveAsTemplate:
+                    case ServiceCommandType.SaveAsTemplate:
                         return HandleSaveAsTemplate(command.Data);
 
-                    case CommandType.GeocodeAddress:
+                    case ServiceCommandType.GeocodeAddress:
                         return HandleGeocodeAddress(command.Data);
 
-                    case CommandType.ReverseGeocode:
+                    case ServiceCommandType.ReverseGeocode:
                         return HandleReverseGeocode(command.Data);
 
-                    case CommandType.GetIpFilterRules:
+                    case ServiceCommandType.GetIpFilterRules:
                         return HandleGetIpFilterRules();
 
-                    case CommandType.AddIpFilterRule:
+                    case ServiceCommandType.AddIpFilterRule:
                         return HandleAddIpFilterRule(command.Data);
 
-                    case CommandType.UpdateIpFilterRule:
+                    case ServiceCommandType.UpdateIpFilterRule:
                         return HandleUpdateIpFilterRule(command.Data);
 
-                    case CommandType.DeleteIpFilterRule:
+                    case ServiceCommandType.DeleteIpFilterRule:
                         return HandleDeleteIpFilterRule(command.Data);
 
-                    case CommandType.TestIpAccess:
+                    case ServiceCommandType.TestIpAccess:
                         return HandleTestIpAccess(command.Data);
 
-                    case CommandType.StartAIAnalysis:
+                    case ServiceCommandType.StartAIAnalysis:
                         return await HandleStartAIAnalysis(command.Data);
 
-                    case CommandType.GetAIAnalysisResults:
+                    case ServiceCommandType.GetAIAnalysisResults:
                         return HandleGetAIAnalysisResults(command.Data);
 
-                    case CommandType.GetAIServiceStatus:
+                    case ServiceCommandType.GetAIServiceStatus:
                         return await HandleGetAIServiceStatus();
 
-                    case CommandType.ApplyAIRecommendations:
+                    case ServiceCommandType.ApplyAIRecommendations:
                         return await HandleApplyAIRecommendations(command.Data);
 
-                    case CommandType.GenerateAIChronologicalRoadmap:
+                    case ServiceCommandType.GenerateAIChronologicalRoadmap:
                         return await HandleGenerateAIChronologicalRoadmap(command.Data);
 
-                    case CommandType.GetAIChronologicalRoadmaps:
+                    case ServiceCommandType.GetAIChronologicalRoadmaps:
                         return HandleGetAIChronologicalRoadmaps(command.Data);
 
-                    case CommandType.GetAIChronologicalRoadmapById:
+                    case ServiceCommandType.GetAIChronologicalRoadmapById:
                         return HandleGetAIChronologicalRoadmapById(command.Data);
 
-                    case CommandType.DeleteAIChronologicalRoadmap:
+                    case ServiceCommandType.DeleteAIChronologicalRoadmap:
                         return HandleDeleteAIChronologicalRoadmap(command.Data);
 
-                    case CommandType.ExportAIChronologicalRoadmap:
+                    case ServiceCommandType.ExportAIChronologicalRoadmap:
                         return HandleExportAIChronologicalRoadmap(command.Data);
 
-                    case CommandType.GetAIStatistics:
+                    case ServiceCommandType.GetAIStatistics:
                         return HandleGetAIStatistics();
 
                     // Network Core commands
-                    case CommandType.GetNetworkCoreStatus:
+                    case ServiceCommandType.GetNetworkCoreStatus:
                         return HandleGetNetworkCoreStatus();
 
-                    case CommandType.GetRemoteNodes:
+                    case ServiceCommandType.GetRemoteNodes:
                         return HandleGetRemoteNodes();
 
-                    case CommandType.GetRemoteFileList:
+                    case ServiceCommandType.GetRemoteFileList:
                         return await HandleGetRemoteFileListAsync(command.Data);
 
-                    case CommandType.GetRemoteFileMetadata:
+                    case ServiceCommandType.GetRemoteFileMetadata:
                         return await HandleGetRemoteFileMetadataAsync(command.Data);
 
-                    case CommandType.DownloadRemoteFile:
+                    case ServiceCommandType.DownloadRemoteFile:
                         return await HandleDownloadRemoteFileAsync(command.Data);
 
-                    case CommandType.PingRemoteNode:
+                    case ServiceCommandType.PingRemoteNode:
                         return await HandlePingRemoteNodeAsync(command.Data);
 
-                    case CommandType.GetRemoteDirectories:
+                    case ServiceCommandType.GetRemoteDirectories:
                         return await HandleGetRemoteDirectoriesAsync(command.Data);
 
                     default:
@@ -1603,9 +1606,9 @@ namespace DocControlService
                 }
 
                 // Відправити NetworkCommand до віддаленого пристрою
-                var networkCommand = new DocControlNetworkCore.Models.NetworkCommand
+                var networkCommand = new NetworkCommand
                 {
-                    Type = DocControlNetworkCore.Models.CommandType.GetSharedDirectories,
+                    Type = NetworkCommandType.GetSharedDirectories,
                     SenderId = Guid.Empty, // Можна використати локальний InstanceId якщо потрібно
                     Payload = ""
                 };
@@ -1628,7 +1631,7 @@ namespace DocControlService
 
                 // Отримати відповідь
                 var responseJson = await reader.ReadLineAsync();
-                var networkResponse = JsonSerializer.Deserialize<DocControlNetworkCore.Models.CommandResponse>(responseJson);
+                var networkResponse = JsonSerializer.Deserialize<NetworkCommandResponse>(responseJson);
 
                 if (networkResponse == null || !networkResponse.Success)
                 {
