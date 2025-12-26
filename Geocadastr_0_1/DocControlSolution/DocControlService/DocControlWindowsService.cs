@@ -682,14 +682,10 @@ namespace DocControlService
                     case ServiceCommandType.GetRemoteDirectories:
                         return await HandleGetRemoteDirectoriesAsync(command.Data);
 
-                    case ServiceCommandType.GetDirectoryStatistics:
-                        return HandleGetDirectoryStatistics(command.Data);
+                    // GetDirectoryStatistics та ScanDirectory вже обробляються вище (lines 459, 453)
 
                     case ServiceCommandType.GetDirectoryFileList:
                         return HandleGetDirectoryFileList(command.Data);
-
-                    case ServiceCommandType.ScanDirectory:
-                        return await HandleScanDirectoryAsync(command.Data);
 
                     case ServiceCommandType.CreateFolder:
                         return HandleCreateFolder(command.Data);
@@ -703,11 +699,11 @@ namespace DocControlService
                     case ServiceCommandType.DeleteFileOrFolder:
                         return HandleDeleteFileOrFolder(command.Data);
 
-                    case ServiceCommandType.GitCommit:
-                        return await HandleGitCommitAsync(command.Data);
+                    case ServiceCommandType.CommitDirectory:
+                        return await HandleRemoteGitCommitAsync(command.Data);
 
-                    case ServiceCommandType.GitRevert:
-                        return await HandleGitRevertAsync(command.Data);
+                    case ServiceCommandType.RevertToCommit:
+                        return await HandleRemoteGitRevertAsync(command.Data);
 
                     default:
                         return new ServiceResponse
@@ -1691,36 +1687,6 @@ namespace DocControlService
                 };
             }
         }
-
-        /// <summary>
-        /// Отримати статистику директорії
-        /// </summary>
-        private ServiceResponse HandleGetDirectoryStatistics(string data)
-        {
-            try
-            {
-                var request = JsonSerializer.Deserialize<RemoteDirectoryStatisticsRequest>(data);
-                Console.WriteLine($"[Service] GetDirectoryStatistics: DirectoryId={request.DirectoryId}");
-
-                var stats = GetDirectoryStatistics(request.DirectoryId);
-
-                return new ServiceResponse
-                {
-                    Success = true,
-                    Data = JsonSerializer.Serialize(stats)
-                };
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Service] ❌ Помилка GetDirectoryStatistics: {ex.Message}");
-                return new ServiceResponse
-                {
-                    Success = false,
-                    Message = ex.Message
-                };
-            }
-        }
-
         /// <summary>
         /// Отримати список файлів/папок у директорії
         /// </summary>
@@ -1728,7 +1694,7 @@ namespace DocControlService
         {
             try
             {
-                var request = JsonSerializer.Deserialize<RemoteFileListRequest>(data);
+                var request = JsonSerializer.Deserialize<RemoteDirectoryFileListRequest>(data);
                 Console.WriteLine($"[Service] GetDirectoryFileList: Path={request.DirectoryPath}");
 
                 if (!Directory.Exists(request.DirectoryPath))
@@ -1753,8 +1719,10 @@ namespace DocControlService
                             Name = dirInfo.Name,
                             FullPath = dirInfo.FullName,
                             IsDirectory = true,
-                            Modified = dirInfo.LastWriteTime,
-                            Created = dirInfo.CreationTime
+                            Size = 0,
+                            ModifiedDate = dirInfo.LastWriteTime,
+                            CreatedDate = dirInfo.CreationTime,
+                            Extension = string.Empty
                         });
                     }
                     catch { }
@@ -1772,8 +1740,9 @@ namespace DocControlService
                             FullPath = fileInfo.FullName,
                             IsDirectory = false,
                             Size = fileInfo.Length,
-                            Modified = fileInfo.LastWriteTime,
-                            Created = fileInfo.CreationTime
+                            ModifiedDate = fileInfo.LastWriteTime,
+                            CreatedDate = fileInfo.CreationTime,
+                            Extension = fileInfo.Extension
                         });
                     }
                     catch { }
@@ -1788,35 +1757,6 @@ namespace DocControlService
             catch (Exception ex)
             {
                 Console.WriteLine($"[Service] ❌ Помилка GetDirectoryFileList: {ex.Message}");
-                return new ServiceResponse
-                {
-                    Success = false,
-                    Message = ex.Message
-                };
-            }
-        }
-
-        /// <summary>
-        /// Сканувати директорію
-        /// </summary>
-        private async Task<ServiceResponse> HandleScanDirectoryAsync(string data)
-        {
-            try
-            {
-                var request = JsonSerializer.Deserialize<RemoteScanDirectoryRequest>(data);
-                Console.WriteLine($"[Service] ScanDirectory: DirectoryId={request.DirectoryId}");
-
-                await ScanDirectoryAsync(request.DirectoryId);
-
-                return new ServiceResponse
-                {
-                    Success = true,
-                    Message = "Директорію успішно просканов directorio"
-                };
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Service] ❌ Помилка ScanDirectory: {ex.Message}");
                 return new ServiceResponse
                 {
                     Success = false,
@@ -1999,26 +1939,27 @@ namespace DocControlService
         }
 
         /// <summary>
-        /// Git коміт
+        /// Git коміт (remote operation)
         /// </summary>
-        private async Task<ServiceResponse> HandleGitCommitAsync(string data)
+        private async Task<ServiceResponse> HandleRemoteGitCommitAsync(string data)
         {
             try
             {
                 var request = JsonSerializer.Deserialize<RemoteGitCommitRequest>(data);
-                Console.WriteLine($"[Service] GitCommit: DirectoryId={request.DirectoryId}, Message={request.CommitMessage}");
+                Console.WriteLine($"[Service] RemoteGitCommit: DirectoryId={request.DirectoryId}, Message={request.CommitMessage}");
 
-                await CommitDirectoryAsync(request.DirectoryId, request.CommitMessage);
-
-                return new ServiceResponse
+                // Використовуємо існуючий HandleCommitDirectory
+                var commitRequest = new CommitRequest
                 {
-                    Success = true,
-                    Message = "Коміт успішно виконано"
+                    DirectoryId = request.DirectoryId,
+                    Message = request.CommitMessage
                 };
+
+                return HandleCommitDirectory(JsonSerializer.Serialize(commitRequest));
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Service] ❌ Помилка GitCommit: {ex.Message}");
+                Console.WriteLine($"[Service] ❌ Помилка RemoteGitCommit: {ex.Message}");
                 return new ServiceResponse
                 {
                     Success = false,
@@ -2028,26 +1969,27 @@ namespace DocControlService
         }
 
         /// <summary>
-        /// Git відкат до версії
+        /// Git відкат до версії (remote operation)
         /// </summary>
-        private async Task<ServiceResponse> HandleGitRevertAsync(string data)
+        private async Task<ServiceResponse> HandleRemoteGitRevertAsync(string data)
         {
             try
             {
                 var request = JsonSerializer.Deserialize<RemoteGitRevertRequest>(data);
-                Console.WriteLine($"[Service] GitRevert: DirectoryId={request.DirectoryId}, CommitHash={request.CommitHash}");
+                Console.WriteLine($"[Service] RemoteGitRevert: DirectoryId={request.DirectoryId}, CommitHash={request.CommitHash}");
 
-                await RevertToCommitAsync(request.DirectoryId, request.CommitHash);
-
-                return new ServiceResponse
+                // Використовуємо існуючий HandleRevertToCommit
+                var revertRequest = new RevertRequest
                 {
-                    Success = true,
-                    Message = "Відкат успішно виконано"
+                    DirectoryId = request.DirectoryId,
+                    CommitHash = request.CommitHash
                 };
+
+                return HandleRevertToCommit(JsonSerializer.Serialize(revertRequest));
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Service] ❌ Помилка GitRevert: {ex.Message}");
+                Console.WriteLine($"[Service] ❌ Помилка RemoteGitRevert: {ex.Message}");
                 return new ServiceResponse
                 {
                     Success = false,

@@ -1803,7 +1803,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = ServiceCommandType.GitCommit,
+                Type = ServiceCommandType.CommitDirectory,
                 Data = JsonSerializer.Serialize(request)
             });
 
@@ -1855,7 +1855,7 @@ namespace DocControlService.Client
 
             var response = await SendCommandAsync(new ServiceCommand
             {
-                Type = ServiceCommandType.GitRevert,
+                Type = ServiceCommandType.RevertToCommit,
                 Data = JsonSerializer.Serialize(request)
             });
 

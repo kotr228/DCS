@@ -641,7 +641,7 @@ namespace DocControlNetworkCore.Services
                 },
                 NetworkCommandType.GitCommit => new ServiceCommand
                 {
-                    Type = DocControlService.Shared.CommandType.GitCommit,
+                    Type = DocControlService.Shared.CommandType.CommitDirectory,
                     Data = networkCommand.Payload
                 },
                 NetworkCommandType.GitHistory => new ServiceCommand
@@ -651,7 +651,7 @@ namespace DocControlNetworkCore.Services
                 },
                 NetworkCommandType.GitRevert => new ServiceCommand
                 {
-                    Type = DocControlService.Shared.CommandType.GitRevert,
+                    Type = DocControlService.Shared.CommandType.RevertToCommit,
                     Data = networkCommand.Payload
                 },
                 // Для file операцій використовуємо file system операції

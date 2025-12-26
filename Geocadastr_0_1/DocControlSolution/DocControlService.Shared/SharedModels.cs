@@ -426,15 +426,12 @@ namespace DocControlService.Shared
         GetRemoteDirectories,
 
         // Remote Operations (v0.6 - Full Remote Management)
-        GetDirectoryStatistics,
+        // Note: GetDirectoryStatistics, ScanDirectory, CommitDirectory, RevertToCommit, GetGitHistory вже існують вище
         GetDirectoryFileList,
-        ScanDirectory,
         CreateFolder,
         CreateFile,
         RenameFileOrFolder,
-        DeleteFileOrFolder,
-        GitCommit,
-        GitRevert
+        DeleteFileOrFolder
 
     }
 
