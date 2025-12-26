@@ -1043,9 +1043,10 @@ namespace DocControlService
         private ServiceResponse HandleAddDevice(string data)
         {
             var device = JsonSerializer.Deserialize<DeviceModel>(data);
-            int deviceId = _deviceRepo.AddDevice(device.Name, device.Access);
+            var existingDevice = _deviceRepo.GetOrCreateDevice(device.Name, device.Access);
+            int deviceId = existingDevice.Id;
 
-            Log($"Added device: {device.Name} (id={deviceId})");
+            Log($"Device registered: {device.Name} (id={deviceId})");
 
             // Парсимо назву пристрою для додавання до списку активних вузлів
             // Формат: "username@machinename (ip)"
