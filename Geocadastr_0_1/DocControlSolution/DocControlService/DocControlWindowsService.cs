@@ -675,6 +675,9 @@ namespace DocControlService
                     case CommandType.PingRemoteNode:
                         return await HandlePingRemoteNodeAsync(command.Data);
 
+                    case CommandType.GetRemoteDirectories:
+                        return await HandleGetRemoteDirectoriesAsync(command.Data);
+
                     default:
                         return new ServiceResponse
                         {
@@ -1564,6 +1567,97 @@ namespace DocControlService
             {
                 Log($"Error pinging remote node: {ex.Message}", EventLogEntryType.Error);
                 return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        /// <summary>
+        /// Отримати список shared директорій з віддаленого пристрою
+        /// </summary>
+        private async Task<ServiceResponse> HandleGetRemoteDirectoriesAsync(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteDirectoriesRequest>(data);
+                Console.WriteLine($"[Service] HandleGetRemoteDirectories: Запит директорій з пристрою '{request.DeviceName}'");
+
+                // Знайти RemoteNode в кеші активних вузлів
+                RemoteNode remoteNode = null;
+                lock (_nodesLock)
+                {
+                    if (_activeNetworkNodes.TryGetValue(request.DeviceName, out var nodeInfo))
+                    {
+                        remoteNode = nodeInfo.Node;
+                        Console.WriteLine($"[Service] Знайдено вузол: IP={remoteNode.IpAddress}, Port={remoteNode.TcpPort}");
+                    }
+                }
+
+                if (remoteNode == null)
+                {
+                    Console.WriteLine($"[Service] ❌ Пристрій '{request.DeviceName}' не знайдено в активних вузлах");
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = $"Пристрій '{request.DeviceName}' не в мережі або не знайдено"
+                    };
+                }
+
+                // Відправити NetworkCommand до віддаленого пристрою
+                var networkCommand = new DocControlNetworkCore.Models.NetworkCommand
+                {
+                    Type = DocControlNetworkCore.Models.CommandType.GetSharedDirectories,
+                    SenderId = Guid.Empty, // Можна використати локальний InstanceId якщо потрібно
+                    Payload = ""
+                };
+
+                Console.WriteLine($"[Service] Відправка GetSharedDirectories до {remoteNode.IpAddress}:{remoteNode.TcpPort}");
+
+                // Використовуємо TCP клієнт для відправки команди
+                using var tcpClient = new System.Net.Sockets.TcpClient();
+                await tcpClient.ConnectAsync(remoteNode.IpAddress, remoteNode.TcpPort);
+
+                using var stream = tcpClient.GetStream();
+                using var writer = new System.IO.StreamWriter(stream, System.Text.Encoding.UTF8) { AutoFlush = true };
+                using var reader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8);
+
+                // Відправити команду
+                var commandJson = JsonSerializer.Serialize(networkCommand);
+                await writer.WriteLineAsync(commandJson);
+
+                Console.WriteLine($"[Service] Очікування відповіді...");
+
+                // Отримати відповідь
+                var responseJson = await reader.ReadLineAsync();
+                var networkResponse = JsonSerializer.Deserialize<DocControlNetworkCore.Models.CommandResponse>(responseJson);
+
+                if (networkResponse == null || !networkResponse.Success)
+                {
+                    Console.WriteLine($"[Service] ❌ Помилка отримання директорій: {networkResponse?.ErrorMessage}");
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = networkResponse?.ErrorMessage ?? "Не вдалося отримати відповідь"
+                    };
+                }
+
+                // Десеріалізувати список директорій
+                var directories = JsonSerializer.Deserialize<List<DirectoryWithAccessModel>>(networkResponse.Data);
+                Console.WriteLine($"[Service] ✅ Отримано {directories?.Count ?? 0} директорій з віддаленого пристрою");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(directories ?? new List<DirectoryWithAccessModel>())
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка HandleGetRemoteDirectories: {ex.Message}");
+                Log($"Error getting remote directories: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
             }
         }
 

@@ -1945,7 +1945,7 @@ namespace DocControlUI
         }
 
         /// <summary>
-        /// Обробник вибору пристрою - показати директорії пристрою
+        /// Обробник вибору пристрою - показати REMOTE директорії, які пристрій відкриває для доступу
         /// </summary>
         private async void DevicesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
@@ -1961,44 +1961,24 @@ namespace DocControlUI
 
             try
             {
-                SetStatus($"Завантаження директорій пристрою {_selectedDevice.Name}...");
+                SetStatus($"Запит shared директорій з {_selectedDevice.Name}...");
 
-                // Отримати список директорій пристрою
-                // TODO: Додати метод GetDeviceDirectoriesAsync до ServiceClient
-                // Поки що показуємо всі директорії з доступом для цього пристрою
-                if (_directories != null)
+                // Запитати список shared директорій з ВІДДАЛЕНОГО пристрою
+                var remoteDirectories = await _client.GetRemoteDirectoriesAsync(_selectedDevice.Name);
+
+                Console.WriteLine($"[UI] ✅ Отримано {remoteDirectories.Count} shared директорій з {_selectedDevice.Name}");
+                foreach (var dir in remoteDirectories)
                 {
-                    Console.WriteLine($"[UI] Всього завантажено директорій: {_directories.Count}");
-                    foreach (var dir in _directories)
-                    {
-                        Console.WriteLine($"[UI]   - Директорія: '{dir.Name}', AllowedDevices count: {dir.AllowedDevices?.Count ?? 0}");
-                        if (dir.AllowedDevices != null)
-                        {
-                            foreach (var dev in dir.AllowedDevices)
-                            {
-                                Console.WriteLine($"[UI]       - Дозволено для: ID={dev.Id}, Name='{dev.Name}'");
-                            }
-                        }
-                    }
-
-                    var deviceDirectories = _directories
-                        .Where(d => d.AllowedDevices != null && d.AllowedDevices.Any(dev => dev.Id == _selectedDevice.Id))
-                        .ToList();
-
-                    Console.WriteLine($"[UI] Відфільтровано директорій для пристрою ID={_selectedDevice.Id}: {deviceDirectories.Count}");
-
-                    RemoteDirectoriesListBox.ItemsSource = deviceDirectories;
-                    SetStatus($"Знайдено {deviceDirectories.Count} директорій для {_selectedDevice.Name}");
+                    Console.WriteLine($"[UI]   - Remote Directory: '{dir.Name}', Path: '{dir.Browse}'");
                 }
-                else
-                {
-                    Console.WriteLine($"[UI] ⚠️ _directories == null!");
-                    RemoteDirectoriesListBox.ItemsSource = null;
-                }
+
+                RemoteDirectoriesListBox.ItemsSource = remoteDirectories;
+                SetStatus($"Знайдено {remoteDirectories.Count} shared директорій на {_selectedDevice.Name}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[UI] ❌ Помилка: {ex.Message}\n{ex.StackTrace}");
+                Console.WriteLine($"[UI] ❌ Помилка запиту remote директорій: {ex.Message}\n{ex.StackTrace}");
+                RemoteDirectoriesListBox.ItemsSource = null;
                 ShowError("Помилка завантаження директорій пристрою", ex.Message);
             }
         }

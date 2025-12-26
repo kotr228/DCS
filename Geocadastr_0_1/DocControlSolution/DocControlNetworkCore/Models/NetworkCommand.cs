@@ -34,6 +34,11 @@ namespace DocControlNetworkCore.Models
         Ping,
 
         /// <summary>
+        /// Запит списку директорій, які цей вузол відкриває для доступу
+        /// </summary>
+        GetSharedDirectories,
+
+        /// <summary>
         /// Відповідь на команду
         /// </summary>
         Response

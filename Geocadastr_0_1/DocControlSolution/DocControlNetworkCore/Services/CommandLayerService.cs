@@ -184,6 +184,9 @@ namespace DocControlNetworkCore.Services
                     case NetworkCommandType.Heartbeat:
                         return HandleHeartbeat(command);
 
+                    case NetworkCommandType.GetSharedDirectories:
+                        return await HandleGetSharedDirectoriesAsync(command, senderEndpoint);
+
                     default:
                         return new CommandResponse
                         {
@@ -421,6 +424,108 @@ namespace DocControlNetworkCore.Services
                 Success = true,
                 Data = JsonSerializer.Serialize(new { Status = "Alive", Timestamp = DateTime.Now })
             };
+        }
+
+        /// <summary>
+        /// Обробка запиту GetSharedDirectories - повертає список директорій, які цей вузол відкриває для доступу
+        /// </summary>
+        private async Task<CommandResponse> HandleGetSharedDirectoriesAsync(NetworkCommand command, IPEndPoint senderEndpoint)
+        {
+            try
+            {
+                Console.WriteLine($"[CommandLayer] GetSharedDirectories запит від {senderEndpoint}");
+
+                // Запит до DocControlService для отримання списку shared директорій
+                var sharedDirectories = await QueryLocalDocControlServiceForSharedDirectoriesAsync();
+
+                if (sharedDirectories == null)
+                {
+                    return new CommandResponse
+                    {
+                        RequestId = command.RequestId,
+                        Success = false,
+                        ErrorMessage = "Не вдалося отримати список shared директорій з локального сервісу"
+                    };
+                }
+
+                Console.WriteLine($"[CommandLayer] Повертаємо {sharedDirectories.Count} shared директорій");
+
+                return new CommandResponse
+                {
+                    RequestId = command.RequestId,
+                    Success = true,
+                    Data = JsonSerializer.Serialize(sharedDirectories)
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CommandLayer] Помилка GetSharedDirectories: {ex.Message}");
+                return new CommandResponse
+                {
+                    RequestId = command.RequestId,
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Запит до локального DocControlService через Named Pipe для отримання shared директорій
+        /// </summary>
+        private async Task<List<DirectoryWithAccessModel>> QueryLocalDocControlServiceForSharedDirectoriesAsync()
+        {
+            try
+            {
+                using (var pipeClient = new NamedPipeClientStream(".", "DocControlServicePipe", PipeDirection.InOut))
+                {
+                    await pipeClient.ConnectAsync(5000);
+
+                    if (!pipeClient.IsConnected)
+                    {
+                        Console.WriteLine("[CommandLayer] Не вдалося підключитися до DocControlService");
+                        return null;
+                    }
+
+                    // Створити команду GetSharedDirectories
+                    var command = new ServiceCommand
+                    {
+                        Type = DocControlService.Shared.CommandType.GetDirectories,
+                        Data = ""
+                    };
+
+                    // Відправити команду
+                    string requestJson = JsonSerializer.Serialize(command);
+                    byte[] requestData = Encoding.UTF8.GetBytes(requestJson + "\n");
+                    await pipeClient.WriteAsync(requestData, 0, requestData.Length);
+                    await pipeClient.FlushAsync();
+
+                    // Отримати відповідь
+                    string responseJson;
+                    using (var reader = new StreamReader(pipeClient, Encoding.UTF8, false, 1024, true))
+                    {
+                        responseJson = await reader.ReadLineAsync();
+                    }
+
+                    var response = JsonSerializer.Deserialize<ServiceResponse>(responseJson);
+                    if (response != null && response.Success)
+                    {
+                        var directories = JsonSerializer.Deserialize<List<DirectoryWithAccessModel>>(response.Data);
+
+                        // Фільтруємо тільки shared директорії
+                        var sharedDirectories = directories?.Where(d => d.IsShared).ToList() ?? new List<DirectoryWithAccessModel>();
+
+                        Console.WriteLine($"[CommandLayer] Отримано {sharedDirectories.Count} shared директорій з DocControlService");
+                        return sharedDirectories;
+                    }
+
+                    return new List<DirectoryWithAccessModel>();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CommandLayer] Помилка запиту до DocControlService: {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>

@@ -419,7 +419,8 @@ namespace DocControlService.Shared
         GetRemoteFileList,
         GetRemoteFileMetadata,
         DownloadRemoteFile,
-        PingRemoteNode
+        PingRemoteNode,
+        GetRemoteDirectories
 
     }
 
@@ -462,6 +463,12 @@ namespace DocControlService.Shared
         public Guid PeerId { get; set; }
         public string RemotePath { get; set; } = string.Empty;
         public string LocalPath { get; set; } = string.Empty;
+    }
+
+    [Serializable]
+    public class RemoteDirectoriesRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
     }
 
     [Serializable]

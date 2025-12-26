@@ -315,6 +315,27 @@ namespace DocControlService.Client
             throw new Exception(response.Message);
         }
 
+        public async Task<List<DirectoryWithAccessModel>> GetRemoteDirectoriesAsync(string deviceName)
+        {
+            var request = new RemoteDirectoriesRequest
+            {
+                DeviceName = deviceName
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.GetRemoteDirectories,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<DirectoryWithAccessModel>>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
         public async Task<int> AddDeviceAsync(string name, bool access = false)
         {
             var device = new DeviceModel
