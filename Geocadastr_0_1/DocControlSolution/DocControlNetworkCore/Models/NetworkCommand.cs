@@ -39,6 +39,56 @@ namespace DocControlNetworkCore.Models
         GetSharedDirectories,
 
         /// <summary>
+        /// Запит статистики директорії
+        /// </summary>
+        GetDirectoryStatistics,
+
+        /// <summary>
+        /// Запит списку файлів/папок у директорії
+        /// </summary>
+        GetDirectoryFileList,
+
+        /// <summary>
+        /// Створення папки
+        /// </summary>
+        CreateFolder,
+
+        /// <summary>
+        /// Створення файлу
+        /// </summary>
+        CreateFile,
+
+        /// <summary>
+        /// Перейменування файлу/папки
+        /// </summary>
+        RenameFileOrFolder,
+
+        /// <summary>
+        /// Видалення файлу/папки
+        /// </summary>
+        DeleteFileOrFolder,
+
+        /// <summary>
+        /// Сканування директорії
+        /// </summary>
+        ScanDirectory,
+
+        /// <summary>
+        /// Git коміт
+        /// </summary>
+        GitCommit,
+
+        /// <summary>
+        /// Git історія
+        /// </summary>
+        GitHistory,
+
+        /// <summary>
+        /// Git відкат до версії
+        /// </summary>
+        GitRevert,
+
+        /// <summary>
         /// Відповідь на команду
         /// </summary>
         Response
@@ -160,5 +210,93 @@ namespace DocControlNetworkCore.Models
         /// Розмір буфера
         /// </summary>
         public int BufferSize { get; set; } = 8192;
+    }
+
+    /// <summary>
+    /// Запит статистики директорії
+    /// </summary>
+    public class RemoteDirectoryStatisticsRequest
+    {
+        public int DirectoryId { get; set; }
+    }
+
+    /// <summary>
+    /// Запит списку файлів/папок у директорії
+    /// </summary>
+    public class RemoteFileListRequest
+    {
+        public string DirectoryPath { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Створення папки
+    /// </summary>
+    public class RemoteCreateFolderRequest
+    {
+        public string ParentPath { get; set; } = string.Empty;
+        public string FolderName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Створення файлу
+    /// </summary>
+    public class RemoteCreateFileRequest
+    {
+        public string ParentPath { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Перейменування файлу/папки
+    /// </summary>
+    public class RemoteRenameRequest
+    {
+        public string OldPath { get; set; } = string.Empty;
+        public string NewName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Видалення файлу/папки
+    /// </summary>
+    public class RemoteDeleteRequest
+    {
+        public string Path { get; set; } = string.Empty;
+        public bool IsDirectory { get; set; }
+        public bool Recursive { get; set; }
+    }
+
+    /// <summary>
+    /// Сканування директорії
+    /// </summary>
+    public class RemoteScanDirectoryRequest
+    {
+        public int DirectoryId { get; set; }
+    }
+
+    /// <summary>
+    /// Git коміт
+    /// </summary>
+    public class RemoteGitCommitRequest
+    {
+        public int DirectoryId { get; set; }
+        public string CommitMessage { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Git історія
+    /// </summary>
+    public class RemoteGitHistoryRequest
+    {
+        public int DirectoryId { get; set; }
+        public int MaxCount { get; set; } = 100;
+    }
+
+    /// <summary>
+    /// Git відкат до версії
+    /// </summary>
+    public class RemoteGitRevertRequest
+    {
+        public int DirectoryId { get; set; }
+        public string CommitHash { get; set; } = string.Empty;
     }
 }
