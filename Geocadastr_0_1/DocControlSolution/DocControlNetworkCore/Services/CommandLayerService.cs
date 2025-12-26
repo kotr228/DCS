@@ -2,6 +2,7 @@ using DocControlNetworkCore.Models;
 using DocControlService.Shared;
 using System;
 using System.IO;
+using System.IO.Pipes;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;

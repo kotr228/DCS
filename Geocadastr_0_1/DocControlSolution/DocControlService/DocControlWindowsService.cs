@@ -1,6 +1,7 @@
 ﻿using DocControlAI.Analyzers;
 using DocControlAI.Core;
 using DocControlAI.Services;
+using DocControlNetworkCore.Models;
 using DocControlService.Data;
 using DocControlService.Models;
 using DocControlService.Services;
