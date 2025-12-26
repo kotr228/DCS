@@ -72,12 +72,13 @@ namespace DocControlUI
         /// <summary>
         /// Обробник зміни вкладок - запускає/зупиняє таймер оновлення мережі
         /// </summary>
-        private void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void MainTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (MainTabControl.SelectedIndex == 1) // Вкладка "Мережа" (індекс 1)
             {
                 _networkRefreshTimer.Start();
-                _ = RefreshNetworkDataAsync(); // Оновити одразу
+                await RefreshNetworkDataAsync(); // Оновити вузли та пристрої
+                await RefreshDirectories(); // Завантажити директорії тільки при переході на вкладку
             }
             else
             {
@@ -86,7 +87,8 @@ namespace DocControlUI
         }
 
         /// <summary>
-        /// Оновлення мережевих даних (вузли + пристрої з БД + директорії)
+        /// Оновлення мережевих даних (вузли + пристрої з БД)
+        /// ВАЖЛИВО: Директорії НЕ оновлюються тут, щоб не збивати вибір в UI
         /// </summary>
         private async System.Threading.Tasks.Task RefreshNetworkDataAsync()
         {
@@ -94,7 +96,7 @@ namespace DocControlUI
             {
                 await RefreshNetworkNodesAsync();
                 await RefreshDevicesFromDBAsync();
-                await RefreshDirectories(); // Завантажуємо директорії для Device Management UI
+                // RefreshDirectories() викликається тільки при переході на вкладку "Мережа"
             }
             catch (Exception ex)
             {
@@ -204,8 +206,21 @@ namespace DocControlUI
                 DirectoriesGrid.ItemsSource = displayData;
                 AccessDirectoryCombo.ItemsSource = _directories;
 
+                // Зберегти поточний вибір перед оновленням
+                var selectedDirectoryId = _selectedMyDirectory?.Id;
+
                 // Оновлюємо комбобокс для нового Device Management UI
                 MyDirectoriesComboBox.ItemsSource = _directories;
+
+                // Відновити вибір після оновлення
+                if (selectedDirectoryId.HasValue)
+                {
+                    var selectedDir = _directories.FirstOrDefault(d => d.Id == selectedDirectoryId.Value);
+                    if (selectedDir != null)
+                    {
+                        MyDirectoriesComboBox.SelectedItem = selectedDir;
+                    }
+                }
 
                 // Оновлюємо дані для контролю версій
                 await RefreshVersionControl();
