@@ -423,7 +423,18 @@ namespace DocControlService.Shared
         GetRemoteFileMetadata,
         DownloadRemoteFile,
         PingRemoteNode,
-        GetRemoteDirectories
+        GetRemoteDirectories,
+
+        // Remote Operations (v0.6 - Full Remote Management)
+        GetDirectoryStatistics,
+        GetDirectoryFileList,
+        ScanDirectory,
+        CreateFolder,
+        CreateFile,
+        RenameFileOrFolder,
+        DeleteFileOrFolder,
+        GitCommit,
+        GitRevert
 
     }
 
@@ -472,6 +483,132 @@ namespace DocControlService.Shared
     public class RemoteDirectoriesRequest
     {
         public string DeviceName { get; set; } = string.Empty;
+    }
+
+    // =============== REMOTE OPERATIONS MODELS (v0.6) ===============
+
+    /// <summary>
+    /// Елемент файлової системи (файл або папка) для відображення в remote browser
+    /// </summary>
+    [Serializable]
+    public class FileSystemItemModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string FullPath { get; set; } = string.Empty;
+        public bool IsDirectory { get; set; }
+        public long Size { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime ModifiedDate { get; set; }
+        public string Extension { get; set; } = string.Empty;
+        public string Icon { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Запит статистики віддаленої директорії
+    /// </summary>
+    [Serializable]
+    public class RemoteDirectoryStatisticsRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public int DirectoryId { get; set; }
+    }
+
+    /// <summary>
+    /// Запит списку файлів/папок у віддаленій директорії
+    /// </summary>
+    [Serializable]
+    public class RemoteDirectoryFileListRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string DirectoryPath { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Створення папки на віддаленому пристрої
+    /// </summary>
+    [Serializable]
+    public class RemoteCreateFolderRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string ParentPath { get; set; } = string.Empty;
+        public string FolderName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Створення файлу на віддаленому пристрої
+    /// </summary>
+    [Serializable]
+    public class RemoteCreateFileRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string ParentPath { get; set; } = string.Empty;
+        public string FileName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Перейменування файлу/папки на віддаленому пристрої
+    /// </summary>
+    [Serializable]
+    public class RemoteRenameRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string OldPath { get; set; } = string.Empty;
+        public string NewName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Видалення файлу/папки на віддаленому пристрої
+    /// </summary>
+    [Serializable]
+    public class RemoteDeleteRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string Path { get; set; } = string.Empty;
+        public bool IsDirectory { get; set; }
+        public bool Recursive { get; set; }
+    }
+
+    /// <summary>
+    /// Сканування віддаленої директорії
+    /// </summary>
+    [Serializable]
+    public class RemoteScanDirectoryRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public int DirectoryId { get; set; }
+    }
+
+    /// <summary>
+    /// Git коміт на віддаленому пристрої
+    /// </summary>
+    [Serializable]
+    public class RemoteGitCommitRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public int DirectoryId { get; set; }
+        public string CommitMessage { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Git історія на віддаленому пристрої
+    /// </summary>
+    [Serializable]
+    public class RemoteGitHistoryRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public int DirectoryId { get; set; }
+        public int MaxCount { get; set; } = 100;
+    }
+
+    /// <summary>
+    /// Git відкат до версії на віддаленому пристрої
+    /// </summary>
+    [Serializable]
+    public class RemoteGitRevertRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public int DirectoryId { get; set; }
+        public string CommitHash { get; set; } = string.Empty;
     }
 
     [Serializable]

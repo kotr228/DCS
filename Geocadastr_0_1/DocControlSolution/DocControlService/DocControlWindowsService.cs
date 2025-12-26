@@ -682,6 +682,33 @@ namespace DocControlService
                     case ServiceCommandType.GetRemoteDirectories:
                         return await HandleGetRemoteDirectoriesAsync(command.Data);
 
+                    case ServiceCommandType.GetDirectoryStatistics:
+                        return HandleGetDirectoryStatistics(command.Data);
+
+                    case ServiceCommandType.GetDirectoryFileList:
+                        return HandleGetDirectoryFileList(command.Data);
+
+                    case ServiceCommandType.ScanDirectory:
+                        return await HandleScanDirectoryAsync(command.Data);
+
+                    case ServiceCommandType.CreateFolder:
+                        return HandleCreateFolder(command.Data);
+
+                    case ServiceCommandType.CreateFile:
+                        return HandleCreateFile(command.Data);
+
+                    case ServiceCommandType.RenameFileOrFolder:
+                        return HandleRenameFileOrFolder(command.Data);
+
+                    case ServiceCommandType.DeleteFileOrFolder:
+                        return HandleDeleteFileOrFolder(command.Data);
+
+                    case ServiceCommandType.GitCommit:
+                        return await HandleGitCommitAsync(command.Data);
+
+                    case ServiceCommandType.GitRevert:
+                        return await HandleGitRevertAsync(command.Data);
+
                     default:
                         return new ServiceResponse
                         {
@@ -1657,6 +1684,370 @@ namespace DocControlService
             {
                 Console.WriteLine($"[Service] ❌ Помилка HandleGetRemoteDirectories: {ex.Message}");
                 Log($"Error getting remote directories: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Отримати статистику директорії
+        /// </summary>
+        private ServiceResponse HandleGetDirectoryStatistics(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteDirectoryStatisticsRequest>(data);
+                Console.WriteLine($"[Service] GetDirectoryStatistics: DirectoryId={request.DirectoryId}");
+
+                var stats = GetDirectoryStatistics(request.DirectoryId);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(stats)
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка GetDirectoryStatistics: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Отримати список файлів/папок у директорії
+        /// </summary>
+        private ServiceResponse HandleGetDirectoryFileList(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteFileListRequest>(data);
+                Console.WriteLine($"[Service] GetDirectoryFileList: Path={request.DirectoryPath}");
+
+                if (!Directory.Exists(request.DirectoryPath))
+                {
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = $"Директорія не існує: {request.DirectoryPath}"
+                    };
+                }
+
+                var items = new List<FileSystemItemModel>();
+
+                // Додаємо директорії
+                foreach (var dir in Directory.GetDirectories(request.DirectoryPath))
+                {
+                    try
+                    {
+                        var dirInfo = new DirectoryInfo(dir);
+                        items.Add(new FileSystemItemModel
+                        {
+                            Name = dirInfo.Name,
+                            FullPath = dirInfo.FullName,
+                            IsDirectory = true,
+                            Modified = dirInfo.LastWriteTime,
+                            Created = dirInfo.CreationTime
+                        });
+                    }
+                    catch { }
+                }
+
+                // Додаємо файли
+                foreach (var file in Directory.GetFiles(request.DirectoryPath))
+                {
+                    try
+                    {
+                        var fileInfo = new FileInfo(file);
+                        items.Add(new FileSystemItemModel
+                        {
+                            Name = fileInfo.Name,
+                            FullPath = fileInfo.FullName,
+                            IsDirectory = false,
+                            Size = fileInfo.Length,
+                            Modified = fileInfo.LastWriteTime,
+                            Created = fileInfo.CreationTime
+                        });
+                    }
+                    catch { }
+                }
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(items)
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка GetDirectoryFileList: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Сканувати директорію
+        /// </summary>
+        private async Task<ServiceResponse> HandleScanDirectoryAsync(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteScanDirectoryRequest>(data);
+                Console.WriteLine($"[Service] ScanDirectory: DirectoryId={request.DirectoryId}");
+
+                await ScanDirectoryAsync(request.DirectoryId);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = "Директорію успішно просканов directorio"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка ScanDirectory: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Створити папку
+        /// </summary>
+        private ServiceResponse HandleCreateFolder(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteCreateFolderRequest>(data);
+                Console.WriteLine($"[Service] CreateFolder: {request.ParentPath}/{request.FolderName}");
+
+                string newFolderPath = Path.Combine(request.ParentPath, request.FolderName);
+
+                if (Directory.Exists(newFolderPath))
+                {
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = "Папка з такою назвою вже існує"
+                    };
+                }
+
+                Directory.CreateDirectory(newFolderPath);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = $"Папку '{request.FolderName}' успішно створено"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка CreateFolder: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Створити файл
+        /// </summary>
+        private ServiceResponse HandleCreateFile(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteCreateFileRequest>(data);
+                Console.WriteLine($"[Service] CreateFile: {request.ParentPath}/{request.FileName}");
+
+                string newFilePath = Path.Combine(request.ParentPath, request.FileName);
+
+                if (File.Exists(newFilePath))
+                {
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = "Файл з такою назвою вже існує"
+                    };
+                }
+
+                File.Create(newFilePath).Dispose();
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = $"Файл '{request.FileName}' успішно створено"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка CreateFile: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Перейменувати файл/папку
+        /// </summary>
+        private ServiceResponse HandleRenameFileOrFolder(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteRenameRequest>(data);
+                Console.WriteLine($"[Service] Rename: {request.OldPath} → {request.NewName}");
+
+                string parentDir = Path.GetDirectoryName(request.OldPath);
+                string newPath = Path.Combine(parentDir, request.NewName);
+
+                bool isDirectory = Directory.Exists(request.OldPath);
+
+                if (isDirectory)
+                {
+                    if (Directory.Exists(newPath))
+                    {
+                        return new ServiceResponse
+                        {
+                            Success = false,
+                            Message = "Папка з такою назвою вже існує"
+                        };
+                    }
+                    Directory.Move(request.OldPath, newPath);
+                }
+                else
+                {
+                    if (File.Exists(newPath))
+                    {
+                        return new ServiceResponse
+                        {
+                            Success = false,
+                            Message = "Файл з такою назвою вже існує"
+                        };
+                    }
+                    File.Move(request.OldPath, newPath);
+                }
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = $"Успішно перейменовано на '{request.NewName}'"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка Rename: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Видалити файл/папку
+        /// </summary>
+        private ServiceResponse HandleDeleteFileOrFolder(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteDeleteRequest>(data);
+                Console.WriteLine($"[Service] Delete: {request.Path} (IsDirectory={request.IsDirectory}, Recursive={request.Recursive})");
+
+                if (request.IsDirectory)
+                {
+                    Directory.Delete(request.Path, request.Recursive);
+                }
+                else
+                {
+                    File.Delete(request.Path);
+                }
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = "Успішно видалено"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка Delete: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Git коміт
+        /// </summary>
+        private async Task<ServiceResponse> HandleGitCommitAsync(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteGitCommitRequest>(data);
+                Console.WriteLine($"[Service] GitCommit: DirectoryId={request.DirectoryId}, Message={request.CommitMessage}");
+
+                await CommitDirectoryAsync(request.DirectoryId, request.CommitMessage);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = "Коміт успішно виконано"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка GitCommit: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Git відкат до версії
+        /// </summary>
+        private async Task<ServiceResponse> HandleGitRevertAsync(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteGitRevertRequest>(data);
+                Console.WriteLine($"[Service] GitRevert: DirectoryId={request.DirectoryId}, CommitHash={request.CommitHash}");
+
+                await RevertToCommitAsync(request.DirectoryId, request.CommitHash);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = "Відкат успішно виконано"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка GitRevert: {ex.Message}");
                 return new ServiceResponse
                 {
                     Success = false,

@@ -1607,6 +1607,268 @@ namespace DocControlService.Client
 
         #endregion
 
+        #region Remote Directory Operations (v0.6)
+
+        /// <summary>
+        /// Отримати статистику віддаленої директорії
+        /// </summary>
+        public async Task<DirectoryStatisticsModel> GetRemoteDirectoryStatisticsAsync(string deviceName, int directoryId)
+        {
+            var request = new RemoteDirectoryStatisticsRequest
+            {
+                DeviceName = deviceName,
+                DirectoryId = directoryId
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.GetDirectoryStatistics,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<DirectoryStatisticsModel>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        /// <summary>
+        /// Отримати список файлів/папок у віддаленій директорії
+        /// </summary>
+        public async Task<List<FileSystemItemModel>> GetRemoteDirectoryFileListAsync(string deviceName, string directoryPath)
+        {
+            var request = new RemoteDirectoryFileListRequest
+            {
+                DeviceName = deviceName,
+                DirectoryPath = directoryPath
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.GetDirectoryFileList,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<FileSystemItemModel>>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        /// <summary>
+        /// Сканувати віддалену директорію
+        /// </summary>
+        public async Task<bool> RemoteScanDirectoryAsync(string deviceName, int directoryId)
+        {
+            var request = new RemoteScanDirectoryRequest
+            {
+                DeviceName = deviceName,
+                DirectoryId = directoryId
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.ScanDirectory,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Створити папку на віддаленому пристрої
+        /// </summary>
+        public async Task<bool> RemoteCreateFolderAsync(string deviceName, string parentPath, string folderName)
+        {
+            var request = new RemoteCreateFolderRequest
+            {
+                DeviceName = deviceName,
+                ParentPath = parentPath,
+                FolderName = folderName
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.CreateFolder,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Створити файл на віддаленому пристрої
+        /// </summary>
+        public async Task<bool> RemoteCreateFileAsync(string deviceName, string parentPath, string fileName)
+        {
+            var request = new RemoteCreateFileRequest
+            {
+                DeviceName = deviceName,
+                ParentPath = parentPath,
+                FileName = fileName
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.CreateFile,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Перейменувати файл/папку на віддаленому пристрої
+        /// </summary>
+        public async Task<bool> RemoteRenameFileOrFolderAsync(string deviceName, string oldPath, string newName)
+        {
+            var request = new RemoteRenameRequest
+            {
+                DeviceName = deviceName,
+                OldPath = oldPath,
+                NewName = newName
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.RenameFileOrFolder,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Видалити файл/папку на віддаленому пристрої
+        /// </summary>
+        public async Task<bool> RemoteDeleteFileOrFolderAsync(string deviceName, string path, bool isDirectory, bool recursive = false)
+        {
+            var request = new RemoteDeleteRequest
+            {
+                DeviceName = deviceName,
+                Path = path,
+                IsDirectory = isDirectory,
+                Recursive = recursive
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.DeleteFileOrFolder,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Зробити git commit на віддаленому пристрої
+        /// </summary>
+        public async Task<bool> RemoteGitCommitAsync(string deviceName, int directoryId, string commitMessage)
+        {
+            var request = new RemoteGitCommitRequest
+            {
+                DeviceName = deviceName,
+                DirectoryId = directoryId,
+                CommitMessage = commitMessage
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.GitCommit,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Отримати git історію віддаленої директорії
+        /// </summary>
+        public async Task<List<GitCommitHistoryModel>> RemoteGetGitHistoryAsync(string deviceName, int directoryId, int maxCount = 100)
+        {
+            var request = new RemoteGitHistoryRequest
+            {
+                DeviceName = deviceName,
+                DirectoryId = directoryId,
+                MaxCount = maxCount
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.GetGitHistory,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (response.Success)
+            {
+                return JsonSerializer.Deserialize<List<GitCommitHistoryModel>>(response.Data);
+            }
+
+            throw new Exception(response.Message);
+        }
+
+        /// <summary>
+        /// Відкотити git commit на віддаленому пристрої
+        /// </summary>
+        public async Task<bool> RemoteGitRevertAsync(string deviceName, int directoryId, string commitHash)
+        {
+            var request = new RemoteGitRevertRequest
+            {
+                DeviceName = deviceName,
+                DirectoryId = directoryId,
+                CommitHash = commitHash
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.GitRevert,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
+        #endregion
+
 
         public void Dispose()
         {
