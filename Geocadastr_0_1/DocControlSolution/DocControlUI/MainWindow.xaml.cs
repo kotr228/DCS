@@ -183,7 +183,14 @@ namespace DocControlUI
         {
             try
             {
+                Console.WriteLine($"[UI] RefreshDirectories: Запит директорій з сервера...");
                 _directories = await _client.GetDirectoriesAsync();
+
+                Console.WriteLine($"[UI] RefreshDirectories: Отримано {_directories.Count} директорій");
+                foreach (var dir in _directories)
+                {
+                    Console.WriteLine($"[UI]   - Директорія: ID={dir.Id}, Name='{dir.Name}', AllowedDevices: {dir.AllowedDevices?.Count ?? 0}");
+                }
 
                 var displayData = _directories.Select(d => new
                 {
@@ -205,6 +212,7 @@ namespace DocControlUI
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[UI] ❌ RefreshDirectories помилка: {ex.Message}\n{ex.StackTrace}");
                 ShowError("Помилка завантаження директорій", ex.Message);
             }
         }
@@ -1949,6 +1957,7 @@ namespace DocControlUI
             }
 
             _selectedDevice = DevicesListBox.SelectedItem as DeviceModel;
+            Console.WriteLine($"[UI] Вибрано пристрій: ID={_selectedDevice.Id}, Name='{_selectedDevice.Name}'");
 
             try
             {
@@ -1959,20 +1968,37 @@ namespace DocControlUI
                 // Поки що показуємо всі директорії з доступом для цього пристрою
                 if (_directories != null)
                 {
+                    Console.WriteLine($"[UI] Всього завантажено директорій: {_directories.Count}");
+                    foreach (var dir in _directories)
+                    {
+                        Console.WriteLine($"[UI]   - Директорія: '{dir.Name}', AllowedDevices count: {dir.AllowedDevices?.Count ?? 0}");
+                        if (dir.AllowedDevices != null)
+                        {
+                            foreach (var dev in dir.AllowedDevices)
+                            {
+                                Console.WriteLine($"[UI]       - Дозволено для: ID={dev.Id}, Name='{dev.Name}'");
+                            }
+                        }
+                    }
+
                     var deviceDirectories = _directories
                         .Where(d => d.AllowedDevices != null && d.AllowedDevices.Any(dev => dev.Id == _selectedDevice.Id))
                         .ToList();
+
+                    Console.WriteLine($"[UI] Відфільтровано директорій для пристрою ID={_selectedDevice.Id}: {deviceDirectories.Count}");
 
                     RemoteDirectoriesListBox.ItemsSource = deviceDirectories;
                     SetStatus($"Знайдено {deviceDirectories.Count} директорій для {_selectedDevice.Name}");
                 }
                 else
                 {
+                    Console.WriteLine($"[UI] ⚠️ _directories == null!");
                     RemoteDirectoriesListBox.ItemsSource = null;
                 }
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[UI] ❌ Помилка: {ex.Message}\n{ex.StackTrace}");
                 ShowError("Помилка завантаження директорій пристрою", ex.Message);
             }
         }

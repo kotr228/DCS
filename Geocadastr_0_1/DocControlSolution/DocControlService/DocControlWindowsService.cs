@@ -700,7 +700,10 @@ namespace DocControlService
 
         private ServiceResponse HandleGetDirectories()
         {
+            Console.WriteLine($"[Service] HandleGetDirectories: Завантаження директорій...");
             var directories = _dirRepo.GetAllDirectories();
+            Console.WriteLine($"[Service] HandleGetDirectories: Знайдено {directories.Count} директорій в БД");
+
             var result = directories.Select(d =>
             {
                 // Отримуємо статус Git для директорії
@@ -718,6 +721,9 @@ namespace DocControlService
                     gitStatus = $"Помилка: {ex.Message}";
                 }
 
+                var allowedDevices = _accessRepo.GetAllowedDevicesForDirectory(d.Id);
+                Console.WriteLine($"[Service]   - Директорія ID={d.Id}, Name='{d.Name}', AllowedDevices: {allowedDevices.Count}");
+
                 return new DirectoryWithAccessModel
                 {
                     Id = d.Id,
@@ -725,9 +731,11 @@ namespace DocControlService
                     Browse = d.Browse,
                     IsShared = _accessRepo.IsDirectoryShared(d.Id),
                     GitStatus = gitStatus,
-                    AllowedDevices = _accessRepo.GetAllowedDevicesForDirectory(d.Id)
+                    AllowedDevices = allowedDevices
                 };
             }).ToList();
+
+            Console.WriteLine($"[Service] HandleGetDirectories: Повертаємо {result.Count} директорій з даними доступу");
 
             return new ServiceResponse
             {
@@ -993,11 +1001,19 @@ namespace DocControlService
         private ServiceResponse HandleGetDevices()
         {
             var devices = _deviceRepo.GetAllDevices();
+            Console.WriteLine($"[Service] HandleGetDevices: Завантажено {devices.Count} пристроїв з БД");
 
             // Отримати список онлайн вузлів з внутрішнього кешу (оновлюється NetworkCore через Named Pipe)
             List<string> activeDeviceNames;
             lock (_nodesLock)
             {
+                Console.WriteLine($"[Service] HandleGetDevices: Активних вузлів у кеші: {_activeNetworkNodes.Count}");
+                foreach (var kvp in _activeNetworkNodes)
+                {
+                    var age = (DateTime.UtcNow - kvp.Value.LastSeen).TotalSeconds;
+                    Console.WriteLine($"[Service]   - Вузол '{kvp.Key}', LastSeen: {age:F1}s назад");
+                }
+
                 // Очистити старі вузли (timeout 60 секунд)
                 var now = DateTime.UtcNow;
                 var expiredKeys = _activeNetworkNodes
@@ -1009,9 +1025,11 @@ namespace DocControlService
                 {
                     _activeNetworkNodes.Remove(key);
                     Log($"[Network] Вузол видалено (timeout): {key}");
+                    Console.WriteLine($"[Service] ⏰ Вузол '{key}' видалено через timeout");
                 }
 
                 activeDeviceNames = _activeNetworkNodes.Keys.ToList();
+                Console.WriteLine($"[Service] Активних вузлів після очищення: {activeDeviceNames.Count}");
             }
 
             // Отримати всі доступи для підрахунку кількості директорій
@@ -1031,6 +1049,8 @@ namespace DocControlService
                 device.AccessDirectoriesCount = accessCountByDevice.ContainsKey(device.Id)
                     ? accessCountByDevice[device.Id]
                     : 0;
+
+                Console.WriteLine($"[Service]   - Пристрій '{device.Name}': IsOnline={device.IsOnline}, Directories={device.AccessDirectoriesCount}");
             }
 
             return new ServiceResponse
@@ -1046,6 +1066,7 @@ namespace DocControlService
             var existingDevice = _deviceRepo.GetOrCreateDevice(device.Name, device.Access);
             int deviceId = existingDevice.Id;
 
+            Console.WriteLine($"[Service] HandleAddDevice: '{device.Name}' -> ID={deviceId}");
             Log($"Device registered: {device.Name} (id={deviceId})");
 
             // Парсимо назву пристрою для додавання до списку активних вузлів
@@ -1073,13 +1094,15 @@ namespace DocControlService
                     lock (_nodesLock)
                     {
                         _activeNetworkNodes[device.Name] = (remoteNode, DateTime.UtcNow);
+                        Console.WriteLine($"[Service] ✅ Оновлено _activeNetworkNodes['{device.Name}'], LastSeen={DateTime.UtcNow:HH:mm:ss}");
                     }
 
-                    Log($"[Network] Додано активний вузол: {device.Name}");
+                    Log($"[Network] Додано/оновлено активний вузол: {device.Name}");
                 }
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"[Service] ❌ Помилка парсингу: {ex.Message}");
                 Log($"[Network] Помилка парсингу назви пристрою: {ex.Message}", EventLogEntryType.Warning);
             }
 

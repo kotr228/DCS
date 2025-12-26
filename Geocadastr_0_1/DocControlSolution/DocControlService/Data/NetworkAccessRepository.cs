@@ -70,6 +70,7 @@ namespace DocControlService.Data
 
         public List<DeviceModel> GetAllowedDevicesForDirectory(int directoryId)
         {
+            Console.WriteLine($"[NetworkAccessRepo] GetAllowedDevicesForDirectory: directoryId={directoryId}");
             var result = new List<DeviceModel>();
             using var conn = _db.GetConnection();
             conn.Open();
@@ -85,13 +86,16 @@ namespace DocControlService.Data
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
             {
-                result.Add(new DeviceModel
+                var device = new DeviceModel
                 {
                     Id = reader.GetInt32(0),
                     Name = reader.IsDBNull(1) ? null : reader.GetString(1),
                     Access = reader.GetBoolean(2)
-                });
+                };
+                Console.WriteLine($"[NetworkAccessRepo]   - Знайдено пристрій: ID={device.Id}, Name='{device.Name}', Access={device.Access}");
+                result.Add(device);
             }
+            Console.WriteLine($"[NetworkAccessRepo] Всього пристроїв з доступом: {result.Count}");
             return result;
         }
 

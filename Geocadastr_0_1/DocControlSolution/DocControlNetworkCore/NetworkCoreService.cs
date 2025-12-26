@@ -147,6 +147,20 @@ namespace DocControlNetworkCore
         private void OnPeerHeartbeat(PeerIdentity peer)
         {
             _peerRegistry?.AddOrUpdatePeer(peer);
+
+            // Оновити статус пристрою в DocControlService (для підтримки онлайн статусу)
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await NotifyDocControlService(peer);
+                }
+                catch (Exception ex)
+                {
+                    // Ігноруємо помилки heartbeat оновлень (не критично)
+                    Log($"[Heartbeat] Помилка оновлення статусу: {ex.Message}", isError: false);
+                }
+            });
         }
 
         private void OnPeerAdded(PeerIdentity peer)
