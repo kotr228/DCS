@@ -188,6 +188,19 @@ namespace DocControlNetworkCore.Services
                     case NetworkCommandType.GetSharedDirectories:
                         return await HandleGetSharedDirectoriesAsync(command, senderEndpoint);
 
+                    // Remote операції - проксируємо до локального DocControlService
+                    case NetworkCommandType.GetDirectoryStatistics:
+                    case NetworkCommandType.GetDirectoryFileList:
+                    case NetworkCommandType.CreateFolder:
+                    case NetworkCommandType.CreateFile:
+                    case NetworkCommandType.RenameFileOrFolder:
+                    case NetworkCommandType.DeleteFileOrFolder:
+                    case NetworkCommandType.ScanDirectory:
+                    case NetworkCommandType.GitCommit:
+                    case NetworkCommandType.GitHistory:
+                    case NetworkCommandType.GitRevert:
+                        return await ForwardToLocalServiceAsync(command);
+
                     default:
                         return new CommandResponse
                         {
@@ -527,6 +540,143 @@ namespace DocControlNetworkCore.Services
                 Console.WriteLine($"[CommandLayer] Помилка запиту до DocControlService: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Універсальний метод для проксирування remote операцій до локального DocControlService
+        /// </summary>
+        private async Task<CommandResponse> ForwardToLocalServiceAsync(NetworkCommand networkCommand)
+        {
+            try
+            {
+                Console.WriteLine($"[CommandLayer] ForwardToLocalService: {networkCommand.Type}");
+
+                // Конвертуємо NetworkCommand в ServiceCommand на основі типу
+                var serviceCommand = ConvertNetworkCommandToServiceCommand(networkCommand);
+                if (serviceCommand == null)
+                {
+                    return new CommandResponse
+                    {
+                        RequestId = networkCommand.RequestId,
+                        Success = false,
+                        ErrorMessage = $"Не вдалося сконвертувати команду {networkCommand.Type}"
+                    };
+                }
+
+                // Відправляємо до локального DocControlService
+                using (var pipeClient = new NamedPipeClientStream(".", "DocControlServicePipe", PipeDirection.InOut))
+                {
+                    await pipeClient.ConnectAsync(5000);
+
+                    if (!pipeClient.IsConnected)
+                    {
+                        return new CommandResponse
+                        {
+                            RequestId = networkCommand.RequestId,
+                            Success = false,
+                            ErrorMessage = "Не вдалося підключитися до DocControlService"
+                        };
+                    }
+
+                    // Відправити команду
+                    string requestJson = JsonSerializer.Serialize(serviceCommand);
+                    byte[] requestData = Encoding.UTF8.GetBytes(requestJson + "\n");
+                    await pipeClient.WriteAsync(requestData, 0, requestData.Length);
+                    await pipeClient.FlushAsync();
+
+                    // Отримати відповідь
+                    string responseJson;
+                    using (var reader = new StreamReader(pipeClient, Encoding.UTF8, false, 1024, true))
+                    {
+                        responseJson = await reader.ReadLineAsync();
+                    }
+
+                    var serviceResponse = JsonSerializer.Deserialize<ServiceResponse>(responseJson);
+
+                    // Конвертуємо ServiceResponse назад в NetworkCommand.CommandResponse
+                    return new CommandResponse
+                    {
+                        RequestId = networkCommand.RequestId,
+                        Success = serviceResponse?.Success ?? false,
+                        ErrorMessage = serviceResponse?.Message,
+                        Data = serviceResponse?.Data
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[CommandLayer] Помилка ForwardToLocalService: {ex.Message}");
+                return new CommandResponse
+                {
+                    RequestId = networkCommand.RequestId,
+                    Success = false,
+                    ErrorMessage = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Конвертує NetworkCommand в ServiceCommand
+        /// </summary>
+        private ServiceCommand ConvertNetworkCommandToServiceCommand(NetworkCommand networkCommand)
+        {
+            // Payload вже містить серіалізовані дані запиту, просто передаємо їх далі
+            // ServiceCommand буде мати той самий payload
+            return networkCommand.Type switch
+            {
+                NetworkCommandType.GetDirectoryStatistics => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.GetDirectoryStatistics,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.GetDirectoryFileList => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.GetDirectoryFileList,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.ScanDirectory => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.ScanDirectory,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.GitCommit => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.GitCommit,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.GitHistory => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.GetGitHistory,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.GitRevert => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.GitRevert,
+                    Data = networkCommand.Payload
+                },
+                // Для file операцій використовуємо file system операції
+                NetworkCommandType.CreateFolder => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.CreateFolder,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.CreateFile => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.CreateFile,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.RenameFileOrFolder => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.RenameFileOrFolder,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.DeleteFileOrFolder => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.DeleteFileOrFolder,
+                    Data = networkCommand.Payload
+                },
+                _ => null
+            };
         }
 
         /// <summary>
