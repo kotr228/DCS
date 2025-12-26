@@ -683,6 +683,7 @@ namespace DocControlService
                         return await HandleGetRemoteDirectoriesAsync(command.Data);
 
                     // GetDirectoryStatistics та ScanDirectory вже обробляються вище (lines 459, 453)
+                    // CommitDirectory та RevertToCommit також обробляються вище (lines 492, 504)
 
                     case ServiceCommandType.GetDirectoryFileList:
                         return HandleGetDirectoryFileList(command.Data);
@@ -698,12 +699,6 @@ namespace DocControlService
 
                     case ServiceCommandType.DeleteFileOrFolder:
                         return HandleDeleteFileOrFolder(command.Data);
-
-                    case ServiceCommandType.CommitDirectory:
-                        return await HandleRemoteGitCommitAsync(command.Data);
-
-                    case ServiceCommandType.RevertToCommit:
-                        return await HandleRemoteGitRevertAsync(command.Data);
 
                     default:
                         return new ServiceResponse
@@ -896,7 +891,29 @@ namespace DocControlService
 
         private ServiceResponse HandleScanDirectory(string data)
         {
-            int dirId = int.Parse(data);
+            int dirId;
+
+            // Спробуємо спочатку як RemoteScanDirectoryRequest (для remote операцій)
+            try
+            {
+                var remoteRequest = JsonSerializer.Deserialize<RemoteScanDirectoryRequest>(data);
+                if (!string.IsNullOrEmpty(remoteRequest.DeviceName))
+                {
+                    // Це remote запит
+                    dirId = remoteRequest.DirectoryId;
+                }
+                else
+                {
+                    // Не remote, спробуємо як простий int
+                    dirId = int.Parse(data);
+                }
+            }
+            catch
+            {
+                // Якщо не RemoteScanDirectoryRequest, то просто int
+                dirId = int.Parse(data);
+            }
+
             var dir = _dirRepo.GetById(dirId);
 
             if (dir == null)
@@ -996,7 +1013,29 @@ namespace DocControlService
 
         private ServiceResponse HandleGetDirectoryStatistics(string data)
         {
-            int dirId = int.Parse(data);
+            int dirId;
+
+            // Спробуємо спочатку як RemoteDirectoryStatisticsRequest (для remote операцій)
+            try
+            {
+                var remoteRequest = JsonSerializer.Deserialize<RemoteDirectoryStatisticsRequest>(data);
+                if (!string.IsNullOrEmpty(remoteRequest.DeviceName))
+                {
+                    // Це remote запит
+                    dirId = remoteRequest.DirectoryId;
+                }
+                else
+                {
+                    // Не remote, спробуємо як простий int
+                    dirId = int.Parse(data);
+                }
+            }
+            catch
+            {
+                // Якщо не RemoteDirectoryStatisticsRequest, то просто int
+                dirId = int.Parse(data);
+            }
+
             var dir = _dirRepo.GetById(dirId);
 
             if (dir == null)
@@ -1291,10 +1330,44 @@ namespace DocControlService
         {
             try
             {
-                var request = JsonSerializer.Deserialize<CommitRequest>(data);
-                var vcs = _versionFactory.GetServiceFor(request.DirectoryId);
+                // Спробуємо спочатку як RemoteGitCommitRequest (для remote операцій)
+                try
+                {
+                    var remoteRequest = JsonSerializer.Deserialize<RemoteGitCommitRequest>(data);
+                    if (!string.IsNullOrEmpty(remoteRequest.DeviceName))
+                    {
+                        // Це remote запит, використовуємо directoryId та message
+                        var vcs = _versionFactory.GetServiceFor(remoteRequest.DirectoryId);
+                        if (vcs == null)
+                        {
+                            return new ServiceResponse
+                            {
+                                Success = false,
+                                Message = "Version control service not found for directory"
+                            };
+                        }
 
-                if (vcs == null)
+                        string message = string.IsNullOrWhiteSpace(remoteRequest.CommitMessage)
+                            ? $"Remote commit at {DateTime.Now:yyyy-MM-dd HH:mm:ss}"
+                            : remoteRequest.CommitMessage;
+
+                        vcs.CommitAll(message);
+                        Log($"Remote commit executed for directory {remoteRequest.DirectoryId}: {message}");
+
+                        return new ServiceResponse
+                        {
+                            Success = true,
+                            Message = "Commit performed successfully"
+                        };
+                    }
+                }
+                catch { }
+
+                // Якщо не RemoteGitCommitRequest, то звичайний CommitRequest
+                var request = JsonSerializer.Deserialize<CommitRequest>(data);
+                var vcs2 = _versionFactory.GetServiceFor(request.DirectoryId);
+
+                if (vcs2 == null)
                 {
                     return new ServiceResponse
                     {
@@ -1303,12 +1376,12 @@ namespace DocControlService
                     };
                 }
 
-                string message = string.IsNullOrWhiteSpace(request.Message)
+                string msg = string.IsNullOrWhiteSpace(request.Message)
                     ? $"Manual commit at {DateTime.Now:yyyy-MM-dd HH:mm:ss}"
                     : request.Message;
 
-                vcs.CommitAll(message);
-                Log($"Commit executed for directory {request.DirectoryId}: {message}");
+                vcs2.CommitAll(msg);
+                Log($"Commit executed for directory {request.DirectoryId}: {msg}");
 
                 return new ServiceResponse
                 {
@@ -1939,66 +2012,6 @@ namespace DocControlService
         }
 
         /// <summary>
-        /// Git коміт (remote operation)
-        /// </summary>
-        private async Task<ServiceResponse> HandleRemoteGitCommitAsync(string data)
-        {
-            try
-            {
-                var request = JsonSerializer.Deserialize<RemoteGitCommitRequest>(data);
-                Console.WriteLine($"[Service] RemoteGitCommit: DirectoryId={request.DirectoryId}, Message={request.CommitMessage}");
-
-                // Використовуємо існуючий HandleCommitDirectory
-                var commitRequest = new CommitRequest
-                {
-                    DirectoryId = request.DirectoryId,
-                    Message = request.CommitMessage
-                };
-
-                return HandleCommitDirectory(JsonSerializer.Serialize(commitRequest));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Service] ❌ Помилка RemoteGitCommit: {ex.Message}");
-                return new ServiceResponse
-                {
-                    Success = false,
-                    Message = ex.Message
-                };
-            }
-        }
-
-        /// <summary>
-        /// Git відкат до версії (remote operation)
-        /// </summary>
-        private async Task<ServiceResponse> HandleRemoteGitRevertAsync(string data)
-        {
-            try
-            {
-                var request = JsonSerializer.Deserialize<RemoteGitRevertRequest>(data);
-                Console.WriteLine($"[Service] RemoteGitRevert: DirectoryId={request.DirectoryId}, CommitHash={request.CommitHash}");
-
-                // Використовуємо існуючий HandleRevertToCommit
-                var revertRequest = new RevertRequest
-                {
-                    DirectoryId = request.DirectoryId,
-                    CommitHash = request.CommitHash
-                };
-
-                return HandleRevertToCommit(JsonSerializer.Serialize(revertRequest));
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Service] ❌ Помилка RemoteGitRevert: {ex.Message}");
-                return new ServiceResponse
-                {
-                    Success = false,
-                    Message = ex.Message
-                };
-            }
-        }
-
-        /// <summary>
         /// Отримати шляхдо спільної директорії
         /// </summary>
         private string GetSharedDirectory()
@@ -2203,13 +2216,37 @@ namespace DocControlService
         {
             try
             {
-                int dirId = int.Parse(data);
+                int dirId;
+                int maxCount = 50;
+
+                // Спробуємо спочатку як RemoteGitHistoryRequest (для remote операцій)
+                try
+                {
+                    var remoteRequest = JsonSerializer.Deserialize<RemoteGitHistoryRequest>(data);
+                    if (!string.IsNullOrEmpty(remoteRequest.DeviceName))
+                    {
+                        // Це remote запит
+                        dirId = remoteRequest.DirectoryId;
+                        maxCount = remoteRequest.MaxCount > 0 ? remoteRequest.MaxCount : 50;
+                    }
+                    else
+                    {
+                        // Не remote, спробуємо як простий int
+                        dirId = int.Parse(data);
+                    }
+                }
+                catch
+                {
+                    // Якщо не RemoteGitHistoryRequest, то просто int
+                    dirId = int.Parse(data);
+                }
+
                 var vcs = _versionFactory.GetServiceFor(dirId);
 
                 if (vcs == null)
                     return new ServiceResponse { Success = false, Message = "Git репозиторій не знайдено" };
 
-                var history = vcs.GetCommitHistory(50);
+                var history = vcs.GetCommitHistory(maxCount);
                 var models = history.Select(h => new GitCommitHistoryModel
                 {
                     Hash = h.Hash,
@@ -2235,17 +2272,41 @@ namespace DocControlService
         {
             try
             {
-                var request = JsonSerializer.Deserialize<RevertRequest>(data);
-                var vcs = _versionFactory.GetServiceFor(request.DirectoryId);
+                // Спробуємо спочатку як RemoteGitRevertRequest (для remote операцій)
+                try
+                {
+                    var remoteRequest = JsonSerializer.Deserialize<RemoteGitRevertRequest>(data);
+                    if (!string.IsNullOrEmpty(remoteRequest.DeviceName))
+                    {
+                        // Це remote запит
+                        var vcs = _versionFactory.GetServiceFor(remoteRequest.DirectoryId);
+                        if (vcs == null)
+                            return new ServiceResponse { Success = false, Message = "Git репозиторій не знайдено" };
 
-                if (vcs == null)
+                        bool success = vcs.RevertToCommit(remoteRequest.CommitHash);
+                        Log($"Remote revert executed for directory {remoteRequest.DirectoryId} to commit {remoteRequest.CommitHash}");
+
+                        return new ServiceResponse
+                        {
+                            Success = success,
+                            Message = success ? "Відкат виконано" : "Помилка відкату"
+                        };
+                    }
+                }
+                catch { }
+
+                // Якщо не RemoteGitRevertRequest, то звичайний RevertRequest
+                var request = JsonSerializer.Deserialize<RevertRequest>(data);
+                var vcs2 = _versionFactory.GetServiceFor(request.DirectoryId);
+
+                if (vcs2 == null)
                     return new ServiceResponse { Success = false, Message = "Git репозиторій не знайдено" };
 
-                bool success = vcs.RevertToCommit(request.CommitHash);
+                bool result = vcs2.RevertToCommit(request.CommitHash);
                 return new ServiceResponse
                 {
-                    Success = success,
-                    Message = success ? "Відкат виконано" : "Помилка відкату"
+                    Success = result,
+                    Message = result ? "Відкат виконано" : "Помилка відкату"
                 };
             }
             catch (Exception ex)
