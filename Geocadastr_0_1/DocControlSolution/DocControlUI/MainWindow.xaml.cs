@@ -1999,6 +1999,30 @@ namespace DocControlUI
         }
 
         /// <summary>
+        /// Обробник подвійного кліку по пристрою - відкрити вікно віддалених директорій
+        /// </summary>
+        private void DevicesListBox_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (DevicesListBox.SelectedItem is DeviceModel device)
+            {
+                try
+                {
+                    Console.WriteLine($"[UI] Подвійний клік по пристрою: {device.Name}");
+
+                    // Відкриваємо вікно віддалених директорій
+                    var remoteWindow = new Windows.RemoteDirectoryBrowserWindow(device.Name);
+                    remoteWindow.Owner = this;
+                    remoteWindow.ShowDialog();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[UI] Помилка відкриття вікна: {ex.Message}");
+                    ShowError("Помилка відкриття вікна", ex.Message);
+                }
+            }
+        }
+
+        /// <summary>
         /// Обробник вибору власної директорії - показати які пристрої мають доступ
         /// </summary>
         private async void MyDirectoriesComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

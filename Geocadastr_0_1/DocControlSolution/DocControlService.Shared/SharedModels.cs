@@ -85,6 +85,9 @@ namespace DocControlService.Shared
         public bool IsShared { get; set; }
         public string GitStatus { get; set; }
         public List<DeviceModel> AllowedDevices { get; set; } = new List<DeviceModel>();
+
+        // Додаткові властивості для UI
+        public string SharedStatusText { get; set; }
     }
 
     [Serializable]
