@@ -86,7 +86,7 @@ namespace DocControlUI
         }
 
         /// <summary>
-        /// Оновлення мережевих даних (вузли + пристрої з БД)
+        /// Оновлення мережевих даних (вузли + пристрої з БД + директорії)
         /// </summary>
         private async System.Threading.Tasks.Task RefreshNetworkDataAsync()
         {
@@ -94,6 +94,7 @@ namespace DocControlUI
             {
                 await RefreshNetworkNodesAsync();
                 await RefreshDevicesFromDBAsync();
+                await RefreshDirectories(); // Завантажуємо директорії для Device Management UI
             }
             catch (Exception ex)
             {
