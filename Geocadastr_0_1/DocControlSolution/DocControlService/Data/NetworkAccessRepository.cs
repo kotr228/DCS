@@ -76,10 +76,10 @@ namespace DocControlService.Data
 
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-                SELECT d.id, d.Name, d.Acces 
+                SELECT d.id, d.Name, d.Acces
                 FROM Devises d
                 INNER JOIN NetworkAccesDirectory na ON d.id = na.idDevises
-                WHERE na.idDyrectory = @dirId AND na.Status = 1 AND d.Acces = 1;";
+                WHERE na.idDyrectory = @dirId AND na.Status = 1;";
             cmd.Parameters.AddWithValue("@dirId", directoryId);
 
             using var reader = cmd.ExecuteReader();
