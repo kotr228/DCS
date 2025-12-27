@@ -686,19 +686,19 @@ namespace DocControlService
                     // CommitDirectory та RevertToCommit також обробляються вище (lines 492, 504)
 
                     case ServiceCommandType.GetDirectoryFileList:
-                        return HandleGetDirectoryFileList(command.Data);
+                        return await HandleGetDirectoryFileList(command.Data);
 
                     case ServiceCommandType.CreateFolder:
-                        return HandleCreateFolder(command.Data);
+                        return await HandleCreateFolder(command.Data);
 
                     case ServiceCommandType.CreateFile:
-                        return HandleCreateFile(command.Data);
+                        return await HandleCreateFile(command.Data);
 
                     case ServiceCommandType.RenameFileOrFolder:
-                        return HandleRenameFileOrFolder(command.Data);
+                        return await HandleRenameFileOrFolder(command.Data);
 
                     case ServiceCommandType.DeleteFileOrFolder:
-                        return HandleDeleteFileOrFolder(command.Data);
+                        return await HandleDeleteFileOrFolder(command.Data);
 
                     default:
                         return new ServiceResponse
@@ -1761,15 +1761,23 @@ namespace DocControlService
             }
         }
         /// <summary>
-        /// Отримати список файлів/папок у директорії
+        /// Отримати список файлів/папок у директорії (підтримує як локальні, так і віддалені запити)
         /// </summary>
-        private ServiceResponse HandleGetDirectoryFileList(string data)
+        private async Task<ServiceResponse> HandleGetDirectoryFileList(string data)
         {
             try
             {
                 var request = JsonSerializer.Deserialize<RemoteDirectoryFileListRequest>(data);
-                Console.WriteLine($"[Service] GetDirectoryFileList: Path={request.DirectoryPath}");
+                Console.WriteLine($"[Service] GetDirectoryFileList: DeviceName={request.DeviceName}, Path={request.DirectoryPath}");
 
+                // Перевірка: віддалений чи локальний запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    // Віддалений запит - відправити до іншого пристрою
+                    return await HandleRemoteDirectoryFileList(request);
+                }
+
+                // Локальний запит - виконати на цьому пристрої
                 if (!Directory.Exists(request.DirectoryPath))
                 {
                     return new ServiceResponse
@@ -1821,6 +1829,7 @@ namespace DocControlService
                     catch { }
                 }
 
+                Console.WriteLine($"[Service] ✅ Повернуто {items.Count} елементів (локально)");
                 return new ServiceResponse
                 {
                     Success = true,
@@ -1839,15 +1848,208 @@ namespace DocControlService
         }
 
         /// <summary>
-        /// Створити папку
+        /// Виконати GetDirectoryFileList на віддаленому пристрої
         /// </summary>
-        private ServiceResponse HandleCreateFolder(string data)
+        private async Task<ServiceResponse> HandleRemoteDirectoryFileList(RemoteDirectoryFileListRequest request)
+        {
+            try
+            {
+                Console.WriteLine($"[Service] 🌐 Віддалений запит GetDirectoryFileList: {request.DeviceName} -> {request.DirectoryPath}");
+
+                // Знайти віддалений вузол
+                NetworkNode? remoteNode = null;
+                lock (_nodesLock)
+                {
+                    if (_activeNetworkNodes.TryGetValue(request.DeviceName, out var nodeInfo))
+                    {
+                        remoteNode = nodeInfo.Node;
+                        Console.WriteLine($"[Service] Знайдено вузол: IP={remoteNode.IpAddress}, Port={remoteNode.TcpPort}");
+                    }
+                }
+
+                if (remoteNode == null)
+                {
+                    Console.WriteLine($"[Service] ❌ Пристрій '{request.DeviceName}' не знайдено в активних вузлах");
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = $"Пристрій '{request.DeviceName}' не в мережі або не знайдено"
+                    };
+                }
+
+                // Створити NetworkCore команду
+                var networkRequest = new DocControlNetworkCore.Models.RemoteFileListRequest
+                {
+                    DirectoryPath = request.DirectoryPath
+                };
+
+                var networkCommand = new NetworkCommand
+                {
+                    Type = NetworkCommandType.GetDirectoryFileList,
+                    SenderId = Guid.Empty,
+                    Payload = JsonSerializer.Serialize(networkRequest)
+                };
+
+                Console.WriteLine($"[Service] Відправка GetDirectoryFileList до {remoteNode.IpAddress}:{remoteNode.TcpPort}");
+
+                // Відправити команду через TCP
+                using var tcpClient = new System.Net.Sockets.TcpClient();
+                await tcpClient.ConnectAsync(remoteNode.IpAddress, remoteNode.TcpPort);
+
+                using var stream = tcpClient.GetStream();
+                using var writer = new System.IO.StreamWriter(stream, System.Text.Encoding.UTF8) { AutoFlush = true };
+                using var reader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8);
+
+                // Відправити команду
+                var commandJson = JsonSerializer.Serialize(networkCommand);
+                await writer.WriteLineAsync(commandJson);
+
+                Console.WriteLine($"[Service] Очікування відповіді...");
+
+                // Отримати відповідь
+                var responseJson = await reader.ReadLineAsync();
+                var networkResponse = JsonSerializer.Deserialize<NetworkCommandResponse>(responseJson);
+
+                if (networkResponse == null || !networkResponse.Success)
+                {
+                    Console.WriteLine($"[Service] ❌ Помилка отримання файлів: {networkResponse?.ErrorMessage}");
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = networkResponse?.ErrorMessage ?? "Не вдалося отримати відповідь"
+                    };
+                }
+
+                // Десеріалізувати список файлів
+                var items = JsonSerializer.Deserialize<List<FileSystemItemModel>>(networkResponse.Data);
+                Console.WriteLine($"[Service] ✅ Отримано {items?.Count ?? 0} елементів з віддаленого пристрою");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = JsonSerializer.Serialize(items ?? new List<FileSystemItemModel>())
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка HandleRemoteDirectoryFileList: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Універсальний метод для пересилання команд на віддалені пристрої
+        /// </summary>
+        private async Task<ServiceResponse> ForwardRemoteCommand<TRequest>(string deviceName, NetworkCommandType commandType, TRequest requestPayload)
+        {
+            try
+            {
+                Console.WriteLine($"[Service] 🌐 Віддалений запит {commandType}: {deviceName}");
+
+                // Знайти віддалений вузол
+                NetworkNode? remoteNode = null;
+                lock (_nodesLock)
+                {
+                    if (_activeNetworkNodes.TryGetValue(deviceName, out var nodeInfo))
+                    {
+                        remoteNode = nodeInfo.Node;
+                        Console.WriteLine($"[Service] Знайдено вузол: IP={remoteNode.IpAddress}, Port={remoteNode.TcpPort}");
+                    }
+                }
+
+                if (remoteNode == null)
+                {
+                    Console.WriteLine($"[Service] ❌ Пристрій '{deviceName}' не знайдено в активних вузлах");
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = $"Пристрій '{deviceName}' не в мережі або не знайдено"
+                    };
+                }
+
+                // Створити NetworkCore команду
+                var networkCommand = new NetworkCommand
+                {
+                    Type = commandType,
+                    SenderId = Guid.Empty,
+                    Payload = JsonSerializer.Serialize(requestPayload)
+                };
+
+                Console.WriteLine($"[Service] Відправка {commandType} до {remoteNode.IpAddress}:{remoteNode.TcpPort}");
+
+                // Відправити команду через TCP
+                using var tcpClient = new System.Net.Sockets.TcpClient();
+                await tcpClient.ConnectAsync(remoteNode.IpAddress, remoteNode.TcpPort);
+
+                using var stream = tcpClient.GetStream();
+                using var writer = new System.IO.StreamWriter(stream, System.Text.Encoding.UTF8) { AutoFlush = true };
+                using var reader = new System.IO.StreamReader(stream, System.Text.Encoding.UTF8);
+
+                // Відправити команду
+                var commandJson = JsonSerializer.Serialize(networkCommand);
+                await writer.WriteLineAsync(commandJson);
+
+                Console.WriteLine($"[Service] Очікування відповіді...");
+
+                // Отримати відповідь
+                var responseJson = await reader.ReadLineAsync();
+                var networkResponse = JsonSerializer.Deserialize<NetworkCommandResponse>(responseJson);
+
+                if (networkResponse == null || !networkResponse.Success)
+                {
+                    Console.WriteLine($"[Service] ❌ Помилка віддаленої операції: {networkResponse?.ErrorMessage}");
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = networkResponse?.ErrorMessage ?? "Не вдалося отримати відповідь"
+                    };
+                }
+
+                Console.WriteLine($"[Service] ✅ Віддалена операція виконана успішно");
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = networkResponse.Data,
+                    Message = "Операція виконана успішно"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка ForwardRemoteCommand: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Створити папку (підтримує як локальні, так і віддалені запити)
+        /// </summary>
+        private async Task<ServiceResponse> HandleCreateFolder(string data)
         {
             try
             {
                 var request = JsonSerializer.Deserialize<RemoteCreateFolderRequest>(data);
-                Console.WriteLine($"[Service] CreateFolder: {request.ParentPath}/{request.FolderName}");
+                Console.WriteLine($"[Service] CreateFolder: DeviceName={request.DeviceName}, Path={request.ParentPath}/{request.FolderName}");
 
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.CreateFolder,
+                        new DocControlNetworkCore.Models.RemoteCreateFolderRequest
+                        {
+                            ParentPath = request.ParentPath,
+                            FolderName = request.FolderName
+                        });
+                }
+
+                // Локальний запит
                 string newFolderPath = Path.Combine(request.ParentPath, request.FolderName);
 
                 if (Directory.Exists(newFolderPath))
@@ -1879,15 +2081,27 @@ namespace DocControlService
         }
 
         /// <summary>
-        /// Створити файл
+        /// Створити файл (підтримує як локальні, так і віддалені запити)
         /// </summary>
-        private ServiceResponse HandleCreateFile(string data)
+        private async Task<ServiceResponse> HandleCreateFile(string data)
         {
             try
             {
                 var request = JsonSerializer.Deserialize<RemoteCreateFileRequest>(data);
-                Console.WriteLine($"[Service] CreateFile: {request.ParentPath}/{request.FileName}");
+                Console.WriteLine($"[Service] CreateFile: DeviceName={request.DeviceName}, Path={request.ParentPath}/{request.FileName}");
 
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.CreateFile,
+                        new DocControlNetworkCore.Models.RemoteCreateFileRequest
+                        {
+                            ParentPath = request.ParentPath,
+                            FileName = request.FileName
+                        });
+                }
+
+                // Локальний запит
                 string newFilePath = Path.Combine(request.ParentPath, request.FileName);
 
                 if (File.Exists(newFilePath))
@@ -1919,15 +2133,27 @@ namespace DocControlService
         }
 
         /// <summary>
-        /// Перейменувати файл/папку
+        /// Перейменувати файл/папку (підтримує як локальні, так і віддалені запити)
         /// </summary>
-        private ServiceResponse HandleRenameFileOrFolder(string data)
+        private async Task<ServiceResponse> HandleRenameFileOrFolder(string data)
         {
             try
             {
                 var request = JsonSerializer.Deserialize<RemoteRenameRequest>(data);
-                Console.WriteLine($"[Service] Rename: {request.OldPath} → {request.NewName}");
+                Console.WriteLine($"[Service] Rename: DeviceName={request.DeviceName}, {request.OldPath} → {request.NewName}");
 
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.RenameFileOrFolder,
+                        new DocControlNetworkCore.Models.RemoteRenameRequest
+                        {
+                            OldPath = request.OldPath,
+                            NewName = request.NewName
+                        });
+                }
+
+                // Локальний запит
                 string parentDir = Path.GetDirectoryName(request.OldPath);
                 string newPath = Path.Combine(parentDir, request.NewName);
 
@@ -1976,15 +2202,28 @@ namespace DocControlService
         }
 
         /// <summary>
-        /// Видалити файл/папку
+        /// Видалити файл/папку (підтримує як локальні, так і віддалені запити)
         /// </summary>
-        private ServiceResponse HandleDeleteFileOrFolder(string data)
+        private async Task<ServiceResponse> HandleDeleteFileOrFolder(string data)
         {
             try
             {
                 var request = JsonSerializer.Deserialize<RemoteDeleteRequest>(data);
-                Console.WriteLine($"[Service] Delete: {request.Path} (IsDirectory={request.IsDirectory}, Recursive={request.Recursive})");
+                Console.WriteLine($"[Service] Delete: DeviceName={request.DeviceName}, Path={request.Path} (IsDirectory={request.IsDirectory}, Recursive={request.Recursive})");
 
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.DeleteFileOrFolder,
+                        new DocControlNetworkCore.Models.RemoteDeleteRequest
+                        {
+                            Path = request.Path,
+                            IsDirectory = request.IsDirectory,
+                            Recursive = request.Recursive
+                        });
+                }
+
+                // Локальний запит
                 if (request.IsDirectory)
                 {
                     Directory.Delete(request.Path, request.Recursive);
