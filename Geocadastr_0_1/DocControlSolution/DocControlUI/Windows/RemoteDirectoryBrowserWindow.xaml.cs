@@ -44,32 +44,38 @@ namespace DocControlUI.Windows
             Closing += RemoteDirectoryBrowserWindow_Closing;
         }
 
-        private async void RemoteDirectoryBrowserWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        private void RemoteDirectoryBrowserWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
             // Перевірити незбережені файли
             var unsavedFiles = _openFiles.Values.Where(f => f.IsModified).ToList();
             if (unsavedFiles.Any())
             {
-                var result = await this.ShowMessageAsync("Незбережені зміни",
-                    $"У вас є {unsavedFiles.Count} незбережених файлів. Завантажити їх назад на віддалений пристрій?",
-                    MessageDialogStyle.AffirmativeAndNegativeAndSingleAuxiliary,
-                    new MetroDialogSettings
-                    {
-                        AffirmativeButtonText = "Так, завантажити",
-                        NegativeButtonText = "Ні, відкинути зміни",
-                        FirstAuxiliaryButtonText = "Скасувати закриття"
-                    });
+                var result = MessageBox.Show(
+                    $"У вас є {unsavedFiles.Count} незбережених файлів. Завантажити їх назад на віддалений пристрій?\n\n" +
+                    $"Так - завантажити\n" +
+                    $"Ні - відкинути зміни\n" +
+                    $"Скасувати - скасувати закриття",
+                    "Незбережені зміни",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Warning);
 
-                if (result == MessageDialogResult.Affirmative)
+                if (result == MessageBoxResult.Yes)
                 {
-                    e.Cancel = true;
+                    // Завантажити всі файли синхронно
                     foreach (var file in unsavedFiles)
                     {
-                        await UploadFileToRemote(file);
+                        try
+                        {
+                            var uploadTask = UploadFileToRemote(file);
+                            uploadTask.Wait(); // Синхронне очікування
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[RemoteDirectoryBrowser] Помилка завантаження: {ex.Message}");
+                        }
                     }
-                    Close();
                 }
-                else if (result == MessageDialogResult.FirstAuxiliary)
+                else if (result == MessageBoxResult.Cancel)
                 {
                     e.Cancel = true;
                     return;
@@ -334,12 +340,7 @@ namespace DocControlUI.Windows
                 // Перевірити чи файл вже відкритий
                 if (_openFiles.ContainsKey(remotePath))
                 {
-                    // Файл вже відкритий, просто показати повідомлення
-                    await this.ShowMessageAsync("Файл вже відкритий",
-                        $"Файл '{Path.GetFileName(remotePath)}' вже відкритий.\n\n" +
-                        $"Локальний шлях: {_openFiles[remotePath].LocalPath}");
-
-                    // Спробувати відкрити ще раз (якщо програма була закрита)
+                    // Файл вже відкритий, просто відкрити знову (якщо програма була закрита)
                     try
                     {
                         Process.Start(new ProcessStartInfo
@@ -347,43 +348,24 @@ namespace DocControlUI.Windows
                             FileName = _openFiles[remotePath].LocalPath,
                             UseShellExecute = true
                         });
+                        SetStatus($"Файл відкрито: {Path.GetFileName(remotePath)}");
                     }
-                    catch { }
-
-                    SetStatus("Готово");
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[RemoteDirectoryBrowser] Помилка відкриття: {ex.Message}");
+                    }
                     return;
                 }
 
                 var fileName = Path.GetFileName(remotePath);
 
-                // Перевірка підтримки типу файлу
-                if (!IsTextFile(fileName))
-                {
-                    var result = await this.ShowMessageAsync("Бінарний файл",
-                        $"Файл '{fileName}' є бінарним (зображення, документ, відео тощо).\n\n" +
-                        $"Поточна версія підтримує тільки текстові файли для редагування.\n\n" +
-                        $"Продовжити відкриття як текстового файлу?",
-                        MessageDialogStyle.AffirmativeAndNegative,
-                        new MetroDialogSettings
-                        {
-                            AffirmativeButtonText = "Так, відкрити",
-                            NegativeButtonText = "Скасувати"
-                        });
-
-                    if (result != MessageDialogResult.Affirmative)
-                    {
-                        SetStatus("Відкриття скасовано");
-                        return;
-                    }
-                }
-
-                // Завантажити вміст файлу з віддаленого пристрою
-                var content = await _client.RemoteReadFileAsync(_deviceName, remotePath);
+                // Завантажити вміст файлу з віддаленого пристрою (бінарний режим)
+                var content = await _client.RemoteReadFileBinaryAsync(_deviceName, remotePath);
 
                 // Створити локальний файл у temp директорії
                 var localPath = Path.Combine(_tempDirectory, Guid.NewGuid().ToString(), fileName);
                 Directory.CreateDirectory(Path.GetDirectoryName(localPath));
-                await File.WriteAllTextAsync(localPath, content);
+                await File.WriteAllBytesAsync(localPath, content);
 
                 Console.WriteLine($"[RemoteDirectoryBrowser] Завантажено файл: {remotePath} -> {localPath}");
 
@@ -467,11 +449,11 @@ namespace DocControlUI.Windows
             {
                 SetStatus($"Завантаження файлу на віддалений пристрій...");
 
-                // Прочитати локальний файл
-                var content = await File.ReadAllTextAsync(tracker.LocalPath);
+                // Прочитати локальний файл (бінарний режим)
+                var content = await File.ReadAllBytesAsync(tracker.LocalPath);
 
                 // Завантажити на віддалений пристрій
-                await _client.RemoteWriteFileAsync(_deviceName, tracker.RemotePath, content);
+                await _client.RemoteWriteFileBinaryAsync(_deviceName, tracker.RemotePath, content);
 
                 tracker.IsModified = false;
                 tracker.LastModified = File.GetLastWriteTime(tracker.LocalPath);
@@ -482,7 +464,8 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteDirectoryBrowser] Помилка завантаження файлу: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося завантажити файл на віддалений пристрій:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося завантажити файл на віддалений пристрій:\n\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 SetStatus("Помилка завантаження");
             }
         }

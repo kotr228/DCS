@@ -433,7 +433,9 @@ namespace DocControlService.Shared
         RenameFileOrFolder,
         DeleteFileOrFolder,
         ReadFileContent,
-        WriteFileContent
+        WriteFileContent,
+        ReadFileBinary,
+        WriteFileBinary
 
     }
 
@@ -586,6 +588,27 @@ namespace DocControlService.Shared
         public string DeviceName { get; set; } = string.Empty;
         public string FilePath { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Читання бінарного віддаленого файлу
+    /// </summary>
+    [Serializable]
+    public class RemoteReadFileBinaryRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Запис бінарного віддаленого файлу
+    /// </summary>
+    [Serializable]
+    public class RemoteWriteFileBinaryRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+        public byte[] Content { get; set; } = Array.Empty<byte>();
     }
 
     /// <summary>

@@ -1918,6 +1918,58 @@ namespace DocControlService.Client
             return true;
         }
 
+        /// <summary>
+        /// Прочитати бінарний файл з віддаленого пристрою
+        /// </summary>
+        public async Task<byte[]> RemoteReadFileBinaryAsync(string deviceName, string filePath)
+        {
+            var request = new RemoteReadFileBinaryRequest
+            {
+                DeviceName = deviceName,
+                FilePath = filePath
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.ReadFileBinary,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            // Дані передаються як base64 string
+            return Convert.FromBase64String(response.Data ?? string.Empty);
+        }
+
+        /// <summary>
+        /// Записати бінарний файл на віддалений пристрій
+        /// </summary>
+        public async Task<bool> RemoteWriteFileBinaryAsync(string deviceName, string filePath, byte[] content)
+        {
+            var request = new RemoteWriteFileBinaryRequest
+            {
+                DeviceName = deviceName,
+                FilePath = filePath,
+                Content = content
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.WriteFileBinary,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
         #endregion
 
 

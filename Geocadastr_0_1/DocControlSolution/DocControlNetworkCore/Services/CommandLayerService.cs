@@ -201,6 +201,8 @@ namespace DocControlNetworkCore.Services
                     case NetworkCommandType.GitRevert:
                     case NetworkCommandType.ReadFileContent:
                     case NetworkCommandType.WriteFileContent:
+                    case NetworkCommandType.ReadFileBinary:
+                    case NetworkCommandType.WriteFileBinary:
                         return await ForwardToLocalServiceAsync(command);
 
                     default:
@@ -685,6 +687,16 @@ namespace DocControlNetworkCore.Services
                 NetworkCommandType.WriteFileContent => new ServiceCommand
                 {
                     Type = DocControlService.Shared.CommandType.WriteFileContent,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.ReadFileBinary => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.ReadFileBinary,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.WriteFileBinary => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.WriteFileBinary,
                     Data = networkCommand.Payload
                 },
                 _ => null

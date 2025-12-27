@@ -99,6 +99,16 @@ namespace DocControlNetworkCore.Models
         WriteFileContent,
 
         /// <summary>
+        /// Читання бінарного файлу (byte[])
+        /// </summary>
+        ReadFileBinary,
+
+        /// <summary>
+        /// Запис бінарного файлу (byte[])
+        /// </summary>
+        WriteFileBinary,
+
+        /// <summary>
         /// Відповідь на команду
         /// </summary>
         Response
@@ -325,5 +335,22 @@ namespace DocControlNetworkCore.Models
     {
         public string FilePath { get; set; } = string.Empty;
         public string Content { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Читання бінарного файлу
+    /// </summary>
+    public class RemoteReadFileBinaryRequest
+    {
+        public string FilePath { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Запис бінарного файлу
+    /// </summary>
+    public class RemoteWriteFileBinaryRequest
+    {
+        public string FilePath { get; set; } = string.Empty;
+        public byte[] Content { get; set; } = Array.Empty<byte>();
     }
 }

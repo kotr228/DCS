@@ -706,6 +706,12 @@ namespace DocControlService
                     case ServiceCommandType.WriteFileContent:
                         return await HandleWriteFileContent(command.Data);
 
+                    case ServiceCommandType.ReadFileBinary:
+                        return await HandleReadFileBinary(command.Data);
+
+                    case ServiceCommandType.WriteFileBinary:
+                        return await HandleWriteFileBinary(command.Data);
+
                     default:
                         return new ServiceResponse
                         {
@@ -2338,6 +2344,97 @@ namespace DocControlService
             catch (Exception ex)
             {
                 Console.WriteLine($"[Service] ❌ Помилка WriteFileContent: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Читання бінарного файлу (підтримує як локальні, так і віддалені запити)
+        /// </summary>
+        private async Task<ServiceResponse> HandleReadFileBinary(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteReadFileBinaryRequest>(data);
+                Console.WriteLine($"[Service] ReadFileBinary: DeviceName={request.DeviceName}, Path={request.FilePath}");
+
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.ReadFileBinary,
+                        new DocControlNetworkCore.Models.RemoteReadFileBinaryRequest
+                        {
+                            FilePath = request.FilePath
+                        });
+                }
+
+                // Локальний запит
+                if (!File.Exists(request.FilePath))
+                {
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = $"Файл не існує: {request.FilePath}"
+                    };
+                }
+
+                byte[] content = await File.ReadAllBytesAsync(request.FilePath);
+                string base64Content = Convert.ToBase64String(content);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = base64Content
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка ReadFileBinary: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Запис бінарного файлу (підтримує як локальні, так і віддалені запити)
+        /// </summary>
+        private async Task<ServiceResponse> HandleWriteFileBinary(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteWriteFileBinaryRequest>(data);
+                Console.WriteLine($"[Service] WriteFileBinary: DeviceName={request.DeviceName}, Path={request.FilePath}, Content length={request.Content.Length}");
+
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.WriteFileBinary,
+                        new DocControlNetworkCore.Models.RemoteWriteFileBinaryRequest
+                        {
+                            FilePath = request.FilePath,
+                            Content = request.Content
+                        });
+                }
+
+                // Локальний запит
+                await File.WriteAllBytesAsync(request.FilePath, request.Content);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = "Файл успішно збережено"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка WriteFileBinary: {ex.Message}");
                 return new ServiceResponse
                 {
                     Success = false,
