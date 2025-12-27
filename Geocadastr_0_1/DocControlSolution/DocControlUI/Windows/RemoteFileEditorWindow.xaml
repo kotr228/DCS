@@ -5,8 +5,7 @@
         xmlns:iconPacks="http://metro.mahapps.com/winfx/xaml/iconpacks"
         Title="Редагування віддаленого файлу"
         Width="900" Height="700"
-        WindowStartupLocation="CenterScreen"
-        Style="{StaticResource CustomMetroWindow}">
+        WindowStartupLocation="CenterScreen">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -34,9 +33,10 @@
                     <Button Content="💾 Зберегти"
                             x:Name="SaveButton"
                             Click="SaveButton_Click"
-                            Style="{StaticResource MahApps.Styles.Button.MetroSquare.Accent}"
                             Padding="15,8"
-                            Margin="5,0"/>
+                            Margin="5,0"
+                            Background="#0078D7"
+                            Foreground="White"/>
                     <Button Content="🔄 Оновити"
                             x:Name="RefreshButton"
                             Click="RefreshButton_Click"
