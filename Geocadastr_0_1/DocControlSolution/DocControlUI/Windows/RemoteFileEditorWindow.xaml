@@ -1,4 +1,4 @@
-<Window x:Class="DocControlUI.Windows.RemoteFileEditorWindow"
+<mah:MetroWindow x:Class="DocControlUI.Windows.RemoteFileEditorWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
@@ -86,4 +86,4 @@
             </Grid>
         </Border>
     </Grid>
-</Window>
+</mah:MetroWindow>
