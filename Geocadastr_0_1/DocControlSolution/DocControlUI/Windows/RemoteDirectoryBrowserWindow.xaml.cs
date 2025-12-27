@@ -246,12 +246,29 @@ namespace DocControlUI.Windows
 
         private async void FileSystemGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            if (FileSystemGrid.SelectedItem is FileSystemItemViewModel item && item.IsDirectory)
+            if (FileSystemGrid.SelectedItem is not FileSystemItemViewModel item) return;
+
+            if (item.IsDirectory)
             {
+                // Перехід до директорії
                 _currentPath = item.FullPath;
                 CurrentPathTextBox.Text = _currentPath;
                 NavigateUpButton.IsEnabled = true;
                 await LoadFileSystemItems();
+            }
+            else
+            {
+                // Відкриття файлу в редакторі
+                try
+                {
+                    var editor = new RemoteFileEditorWindow(_deviceName, item.FullPath);
+                    editor.Show();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[RemoteDirectoryBrowser] Помилка відкриття файлу: {ex.Message}");
+                    await this.ShowMessageAsync("Помилка", $"Не вдалося відкрити файл:\n\n{ex.Message}");
+                }
             }
         }
 
