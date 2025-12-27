@@ -1857,7 +1857,7 @@ namespace DocControlService
                 Console.WriteLine($"[Service] 🌐 Віддалений запит GetDirectoryFileList: {request.DeviceName} -> {request.DirectoryPath}");
 
                 // Знайти віддалений вузол
-                NetworkNode? remoteNode = null;
+                RemoteNode remoteNode = null;
                 lock (_nodesLock)
                 {
                     if (_activeNetworkNodes.TryGetValue(request.DeviceName, out var nodeInfo))
@@ -1951,7 +1951,7 @@ namespace DocControlService
                 Console.WriteLine($"[Service] 🌐 Віддалений запит {commandType}: {deviceName}");
 
                 // Знайти віддалений вузол
-                NetworkNode? remoteNode = null;
+                RemoteNode remoteNode = null;
                 lock (_nodesLock)
                 {
                     if (_activeNetworkNodes.TryGetValue(deviceName, out var nodeInfo))
