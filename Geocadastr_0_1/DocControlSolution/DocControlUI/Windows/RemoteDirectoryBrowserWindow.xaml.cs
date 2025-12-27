@@ -90,7 +90,7 @@ namespace DocControlUI.Windows
 
         #region Statistics Tab
 
-        private void ShowDirectoryDetails(DirectoryWithAccessModel directory)
+        private async void ShowDirectoryDetails(DirectoryWithAccessModel directory)
         {
             DetailNameText.Text = directory.Name;
             DetailPathText.Text = directory.Browse;
@@ -104,6 +104,9 @@ namespace DocControlUI.Windows
             StatsSharedText.Text = directory.IsShared ? "✅ Відкрито" : "🔒 Закрито";
             StatusIndicator.Fill = directory.IsShared ? new SolidColorBrush(Color.FromRgb(76, 175, 80)) :
                                                         new SolidColorBrush(Color.FromRgb(158, 158, 158));
+
+            // Завантажити файли для вибраної директорії
+            await LoadFileSystemItems();
         }
 
         private void ClearDetails()
