@@ -431,7 +431,9 @@ namespace DocControlService.Shared
         CreateFolder,
         CreateFile,
         RenameFileOrFolder,
-        DeleteFileOrFolder
+        DeleteFileOrFolder,
+        ReadFileContent,
+        WriteFileContent
 
     }
 
@@ -563,6 +565,27 @@ namespace DocControlService.Shared
         public string Path { get; set; } = string.Empty;
         public bool IsDirectory { get; set; }
         public bool Recursive { get; set; }
+    }
+
+    /// <summary>
+    /// Читання вмісту віддаленого файлу
+    /// </summary>
+    [Serializable]
+    public class RemoteReadFileRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Запис вмісту віддаленого файлу
+    /// </summary>
+    [Serializable]
+    public class RemoteWriteFileRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
     }
 
     /// <summary>

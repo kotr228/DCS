@@ -1867,6 +1867,57 @@ namespace DocControlService.Client
             return true;
         }
 
+        /// <summary>
+        /// Прочитати вміст віддаленого файлу
+        /// </summary>
+        public async Task<string> RemoteReadFileAsync(string deviceName, string filePath)
+        {
+            var request = new RemoteReadFileRequest
+            {
+                DeviceName = deviceName,
+                FilePath = filePath
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.ReadFileContent,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return response.Data ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Записати вміст віддаленого файлу
+        /// </summary>
+        public async Task<bool> RemoteWriteFileAsync(string deviceName, string filePath, string content)
+        {
+            var request = new RemoteWriteFileRequest
+            {
+                DeviceName = deviceName,
+                FilePath = filePath,
+                Content = content
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.WriteFileContent,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message);
+            }
+
+            return true;
+        }
+
         #endregion
 
 

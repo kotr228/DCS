@@ -89,6 +89,16 @@ namespace DocControlNetworkCore.Models
         GitRevert,
 
         /// <summary>
+        /// Читання вмісту файлу
+        /// </summary>
+        ReadFileContent,
+
+        /// <summary>
+        /// Запис вмісту файлу
+        /// </summary>
+        WriteFileContent,
+
+        /// <summary>
         /// Відповідь на команду
         /// </summary>
         Response
@@ -298,5 +308,22 @@ namespace DocControlNetworkCore.Models
     {
         public int DirectoryId { get; set; }
         public string CommitHash { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Читання вмісту файлу
+    /// </summary>
+    public class RemoteReadFileRequest
+    {
+        public string FilePath { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Запис вмісту файлу
+    /// </summary>
+    public class RemoteWriteFileRequest
+    {
+        public string FilePath { get; set; } = string.Empty;
+        public string Content { get; set; } = string.Empty;
     }
 }

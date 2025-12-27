@@ -199,6 +199,8 @@ namespace DocControlNetworkCore.Services
                     case NetworkCommandType.GitCommit:
                     case NetworkCommandType.GitHistory:
                     case NetworkCommandType.GitRevert:
+                    case NetworkCommandType.ReadFileContent:
+                    case NetworkCommandType.WriteFileContent:
                         return await ForwardToLocalServiceAsync(command);
 
                     default:
@@ -673,6 +675,16 @@ namespace DocControlNetworkCore.Services
                 NetworkCommandType.DeleteFileOrFolder => new ServiceCommand
                 {
                     Type = DocControlService.Shared.CommandType.DeleteFileOrFolder,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.ReadFileContent => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.ReadFileContent,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.WriteFileContent => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.WriteFileContent,
                     Data = networkCommand.Payload
                 },
                 _ => null

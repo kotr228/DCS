@@ -700,6 +700,12 @@ namespace DocControlService
                     case ServiceCommandType.DeleteFileOrFolder:
                         return await HandleDeleteFileOrFolder(command.Data);
 
+                    case ServiceCommandType.ReadFileContent:
+                        return await HandleReadFileContent(command.Data);
+
+                    case ServiceCommandType.WriteFileContent:
+                        return await HandleWriteFileContent(command.Data);
+
                     default:
                         return new ServiceResponse
                         {
@@ -2242,6 +2248,96 @@ namespace DocControlService
             catch (Exception ex)
             {
                 Console.WriteLine($"[Service] ❌ Помилка Delete: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Читання вмісту файлу (підтримує як локальні, так і віддалені запити)
+        /// </summary>
+        private async Task<ServiceResponse> HandleReadFileContent(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteReadFileRequest>(data);
+                Console.WriteLine($"[Service] ReadFileContent: DeviceName={request.DeviceName}, Path={request.FilePath}");
+
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.ReadFileContent,
+                        new DocControlNetworkCore.Models.RemoteReadFileRequest
+                        {
+                            FilePath = request.FilePath
+                        });
+                }
+
+                // Локальний запит
+                if (!File.Exists(request.FilePath))
+                {
+                    return new ServiceResponse
+                    {
+                        Success = false,
+                        Message = $"Файл не існує: {request.FilePath}"
+                    };
+                }
+
+                string content = await File.ReadAllTextAsync(request.FilePath);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = content
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка ReadFileContent: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Запис вмісту файлу (підтримує як локальні, так і віддалені запити)
+        /// </summary>
+        private async Task<ServiceResponse> HandleWriteFileContent(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteWriteFileRequest>(data);
+                Console.WriteLine($"[Service] WriteFileContent: DeviceName={request.DeviceName}, Path={request.FilePath}, Content length={request.Content.Length}");
+
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.WriteFileContent,
+                        new DocControlNetworkCore.Models.RemoteWriteFileRequest
+                        {
+                            FilePath = request.FilePath,
+                            Content = request.Content
+                        });
+                }
+
+                // Локальний запит
+                await File.WriteAllTextAsync(request.FilePath, request.Content);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = "Файл успішно збережено"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка WriteFileContent: {ex.Message}");
                 return new ServiceResponse
                 {
                     Success = false,
