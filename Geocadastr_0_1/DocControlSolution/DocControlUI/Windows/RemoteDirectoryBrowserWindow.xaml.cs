@@ -5,6 +5,8 @@ using MahApps.Metro.Controls.Dialogs;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -21,6 +23,8 @@ namespace DocControlUI.Windows
         private DirectoryWithAccessModel _selectedDirectory;
         private ObservableCollection<FileSystemItemViewModel> _fileSystemItems;
         private string _currentPath;
+        private Dictionary<string, OpenFileTracker> _openFiles = new Dictionary<string, OpenFileTracker>();
+        private string _tempDirectory;
 
         public RemoteDirectoryBrowserWindow(string deviceName)
         {
@@ -29,10 +33,68 @@ namespace DocControlUI.Windows
             _deviceName = deviceName;
             _fileSystemItems = new ObservableCollection<FileSystemItemViewModel>();
 
+            // Створити тимчасову директорію для завантажених файлів
+            _tempDirectory = Path.Combine(Path.GetTempPath(), "DocControl_Remote", _deviceName);
+            Directory.CreateDirectory(_tempDirectory);
+
             DeviceNameText.Text = $"Пристрій: {_deviceName}";
             Title = $"🌐 Віддалені директорії - {_deviceName}";
 
             Loaded += RemoteDirectoryBrowserWindow_Loaded;
+            Closing += RemoteDirectoryBrowserWindow_Closing;
+        }
+
+        private async void RemoteDirectoryBrowserWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            // Перевірити незбережені файли
+            var unsavedFiles = _openFiles.Values.Where(f => f.IsModified).ToList();
+            if (unsavedFiles.Any())
+            {
+                var result = await this.ShowMessageAsync("Незбережені зміни",
+                    $"У вас є {unsavedFiles.Count} незбережених файлів. Завантажити їх назад на віддалений пристрій?",
+                    MessageDialogStyle.AffirmativeAndNegativeAndSingleAuxiliary,
+                    new MetroDialogSettings
+                    {
+                        AffirmativeButtonText = "Так, завантажити",
+                        NegativeButtonText = "Ні, відкинути зміни",
+                        FirstAuxiliaryButtonText = "Скасувати закриття"
+                    });
+
+                if (result == MessageDialogResult.Affirmative)
+                {
+                    e.Cancel = true;
+                    foreach (var file in unsavedFiles)
+                    {
+                        await UploadFileToRemote(file);
+                    }
+                    Close();
+                }
+                else if (result == MessageDialogResult.FirstAuxiliary)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+            }
+
+            // Очистити FileSystemWatcher'и
+            foreach (var tracker in _openFiles.Values)
+            {
+                tracker.Watcher?.Dispose();
+            }
+            _openFiles.Clear();
+
+            // Видалити тимчасові файли
+            try
+            {
+                if (Directory.Exists(_tempDirectory))
+                {
+                    Directory.Delete(_tempDirectory, recursive: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RemoteDirectoryBrowser] Помилка видалення temp: {ex.Message}");
+            }
         }
 
         private async void RemoteDirectoryBrowserWindow_Loaded(object sender, RoutedEventArgs e)
@@ -258,18 +320,184 @@ namespace DocControlUI.Windows
             }
             else
             {
-                // Відкриття файлу в редакторі
-                try
-                {
-                    var editor = new RemoteFileEditorWindow(_deviceName, item.FullPath);
-                    editor.Show();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[RemoteDirectoryBrowser] Помилка відкриття файлу: {ex.Message}");
-                    await this.ShowMessageAsync("Помилка", $"Не вдалося відкрити файл:\n\n{ex.Message}");
-                }
+                // Відкриття файлу стандартною програмою
+                await OpenRemoteFile(item.FullPath);
             }
+        }
+
+        private async Task OpenRemoteFile(string remotePath)
+        {
+            try
+            {
+                SetStatus("Завантаження файлу...");
+
+                // Перевірити чи файл вже відкритий
+                if (_openFiles.ContainsKey(remotePath))
+                {
+                    // Файл вже відкритий, просто показати повідомлення
+                    await this.ShowMessageAsync("Файл вже відкритий",
+                        $"Файл '{Path.GetFileName(remotePath)}' вже відкритий.\n\n" +
+                        $"Локальний шлях: {_openFiles[remotePath].LocalPath}");
+
+                    // Спробувати відкрити ще раз (якщо програма була закрита)
+                    try
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = _openFiles[remotePath].LocalPath,
+                            UseShellExecute = true
+                        });
+                    }
+                    catch { }
+
+                    SetStatus("Готово");
+                    return;
+                }
+
+                var fileName = Path.GetFileName(remotePath);
+
+                // Перевірка підтримки типу файлу
+                if (!IsTextFile(fileName))
+                {
+                    var result = await this.ShowMessageAsync("Бінарний файл",
+                        $"Файл '{fileName}' є бінарним (зображення, документ, відео тощо).\n\n" +
+                        $"Поточна версія підтримує тільки текстові файли для редагування.\n\n" +
+                        $"Продовжити відкриття як текстового файлу?",
+                        MessageDialogStyle.AffirmativeAndNegative,
+                        new MetroDialogSettings
+                        {
+                            AffirmativeButtonText = "Так, відкрити",
+                            NegativeButtonText = "Скасувати"
+                        });
+
+                    if (result != MessageDialogResult.Affirmative)
+                    {
+                        SetStatus("Відкриття скасовано");
+                        return;
+                    }
+                }
+
+                // Завантажити вміст файлу з віддаленого пристрою
+                var content = await _client.RemoteReadFileAsync(_deviceName, remotePath);
+
+                // Створити локальний файл у temp директорії
+                var localPath = Path.Combine(_tempDirectory, Guid.NewGuid().ToString(), fileName);
+                Directory.CreateDirectory(Path.GetDirectoryName(localPath));
+                await File.WriteAllTextAsync(localPath, content);
+
+                Console.WriteLine($"[RemoteDirectoryBrowser] Завантажено файл: {remotePath} -> {localPath}");
+
+                // Створити FileSystemWatcher для моніторингу змін
+                var watcher = new FileSystemWatcher(Path.GetDirectoryName(localPath))
+                {
+                    Filter = fileName,
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                    EnableRaisingEvents = true
+                };
+
+                var tracker = new OpenFileTracker
+                {
+                    RemotePath = remotePath,
+                    LocalPath = localPath,
+                    Watcher = watcher,
+                    IsModified = false,
+                    LastModified = File.GetLastWriteTime(localPath)
+                };
+
+                watcher.Changed += async (s, e) =>
+                {
+                    // Перевірити чи файл дійсно змінився
+                    try
+                    {
+                        var newModified = File.GetLastWriteTime(localPath);
+                        if (newModified > tracker.LastModified)
+                        {
+                            tracker.IsModified = true;
+                            tracker.LastModified = newModified;
+                            Console.WriteLine($"[RemoteDirectoryBrowser] Файл змінено: {localPath}");
+
+                            // Показати notification (у UI потоці)
+                            await Dispatcher.InvokeAsync(async () =>
+                            {
+                                var result = await this.ShowMessageAsync("Файл змінено",
+                                    $"Файл '{fileName}' був змінений.\n\nЗавантажити зміни назад на віддалений пристрій?",
+                                    MessageDialogStyle.AffirmativeAndNegative,
+                                    new MetroDialogSettings
+                                    {
+                                        AffirmativeButtonText = "Так, завантажити",
+                                        NegativeButtonText = "Ні, пізніше"
+                                    });
+
+                                if (result == MessageDialogResult.Affirmative)
+                                {
+                                    await UploadFileToRemote(tracker);
+                                }
+                            });
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[RemoteDirectoryBrowser] Помилка обробки зміни: {ex.Message}");
+                    }
+                };
+
+                _openFiles[remotePath] = tracker;
+
+                // Відкрити файл стандартною програмою
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = localPath,
+                    UseShellExecute = true
+                });
+
+                SetStatus($"Файл відкрито: {fileName}");
+                Console.WriteLine($"[RemoteDirectoryBrowser] Відкрито {_openFiles.Count} файлів");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RemoteDirectoryBrowser] Помилка відкриття файлу: {ex.Message}");
+                await this.ShowMessageAsync("Помилка", $"Не вдалося відкрити файл:\n\n{ex.Message}");
+                SetStatus("Помилка відкриття файлу");
+            }
+        }
+
+        private async Task UploadFileToRemote(OpenFileTracker tracker)
+        {
+            try
+            {
+                SetStatus($"Завантаження файлу на віддалений пристрій...");
+
+                // Прочитати локальний файл
+                var content = await File.ReadAllTextAsync(tracker.LocalPath);
+
+                // Завантажити на віддалений пристрій
+                await _client.RemoteWriteFileAsync(_deviceName, tracker.RemotePath, content);
+
+                tracker.IsModified = false;
+                tracker.LastModified = File.GetLastWriteTime(tracker.LocalPath);
+
+                SetStatus($"Файл завантажено: {Path.GetFileName(tracker.RemotePath)}");
+                Console.WriteLine($"[RemoteDirectoryBrowser] Файл завантажено на віддалений пристрій: {tracker.RemotePath}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[RemoteDirectoryBrowser] Помилка завантаження файлу: {ex.Message}");
+                await this.ShowMessageAsync("Помилка", $"Не вдалося завантажити файл на віддалений пристрій:\n\n{ex.Message}");
+                SetStatus("Помилка завантаження");
+            }
+        }
+
+        private bool IsTextFile(string fileName)
+        {
+            var extension = Path.GetExtension(fileName)?.ToLower();
+            return extension switch
+            {
+                ".txt" or ".log" or ".md" or ".xml" or ".json" or ".csv" or
+                ".cs" or ".js" or ".ts" or ".py" or ".java" or ".cpp" or ".h" or ".c" or
+                ".html" or ".css" or ".scss" or ".sql" or ".sh" or ".bat" or ".ps1" or
+                ".yaml" or ".yml" or ".config" or ".ini" or ".conf" => true,
+                _ => false
+            };
         }
 
         private void FileSystemGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -628,5 +856,36 @@ namespace DocControlUI.Windows
                 _ => "📄"
             };
         }
+    }
+
+    /// <summary>
+    /// Трекер для відстеження відкритих віддалених файлів
+    /// </summary>
+    public class OpenFileTracker
+    {
+        /// <summary>
+        /// Шлях до файлу на віддаленому пристрої
+        /// </summary>
+        public string RemotePath { get; set; }
+
+        /// <summary>
+        /// Локальний шлях (у temp директорії)
+        /// </summary>
+        public string LocalPath { get; set; }
+
+        /// <summary>
+        /// FileSystemWatcher для моніторингу змін
+        /// </summary>
+        public FileSystemWatcher Watcher { get; set; }
+
+        /// <summary>
+        /// Чи файл був змінений
+        /// </summary>
+        public bool IsModified { get; set; }
+
+        /// <summary>
+        /// Час останньої модифікації
+        /// </summary>
+        public DateTime LastModified { get; set; }
     }
 }
