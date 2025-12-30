@@ -2437,13 +2437,23 @@ namespace DocControlService
                         });
                 }
 
-                // Локальний запит
+                // Локальний запит - ЗБЕРЕЖЕННЯ НА ДИСК СЕРВЕРА (КОМП'ЮТЕР А)
+                var fileInfo = new FileInfo(request.FilePath);
+                var directory = fileInfo.Directory?.FullName ?? "?";
+
+                Console.WriteLine($"[Service] 💾 Збереження файлу на ЛОКАЛЬНИЙ диск сервера:");
+                Console.WriteLine($"[Service]    Шлях: {request.FilePath}");
+                Console.WriteLine($"[Service]    Розмір: {request.Content.Length:N0} байт");
+                Console.WriteLine($"[Service]    Директорія: {directory}");
+
                 await File.WriteAllBytesAsync(request.FilePath, request.Content);
+
+                Console.WriteLine($"[Service] ✅ Файл успішно збережено на сервері: {fileInfo.Name} ({request.Content.Length} байт)");
 
                 return new ServiceResponse
                 {
                     Success = true,
-                    Message = "Файл успішно збережено"
+                    Message = $"Файл успішно збережено на сервері ({request.Content.Length:N0} байт)"
                 };
             }
             catch (Exception ex)

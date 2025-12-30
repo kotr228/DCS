@@ -39,7 +39,7 @@ namespace DocControlUI.Windows
             Directory.CreateDirectory(_tempDirectory);
 
             DeviceNameText.Text = $"Пристрій: {_deviceName}";
-            Title = $"🌐 Віддалені директорії - {_deviceName}";
+            Title = $"🌐 Віддалені директорії - {_deviceName} (Сервер)";
 
             Loaded += RemoteDirectoryBrowserWindow_Loaded;
             Closing += RemoteDirectoryBrowserWindow_Closing;
@@ -454,17 +454,21 @@ namespace DocControlUI.Windows
                         {
                             if (tracker.IsModified)
                             {
-                                Console.WriteLine($"[RemoteDirectoryBrowser] Автозбереження: {fileName}");
+                                Console.WriteLine($"[RemoteDirectoryBrowser] 🔄 Автозбереження: {fileName} → {_deviceName}");
                                 await Dispatcher.InvokeAsync(async () =>
                                 {
                                     await UploadFileToRemote(tracker);
                                     tracker.LastSaved = DateTime.Now;
                                 });
                             }
+                            else
+                            {
+                                Console.WriteLine($"[RemoteDirectoryBrowser] ⏭️ Автозбереження пропущено: {fileName} (без змін)");
+                            }
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[RemoteDirectoryBrowser] Помилка автозбереження: {ex.Message}");
+                            Console.WriteLine($"[RemoteDirectoryBrowser] ❌ Помилка автозбереження: {ex.Message}");
                         }
                     };
                     tracker.AutoSaveTimer.Start();
@@ -531,26 +535,29 @@ namespace DocControlUI.Windows
         {
             try
             {
-                SetStatus($"Завантаження файлу на віддалений пристрій...");
+                var fileName = Path.GetFileName(tracker.RemotePath);
+                SetStatus($"💾 Збереження '{fileName}' на {_deviceName}...");
 
                 // Прочитати локальний файл (бінарний режим)
                 var content = await File.ReadAllBytesAsync(tracker.LocalPath);
 
-                // Завантажити на віддалений пристрій
+                Console.WriteLine($"[RemoteDirectoryBrowser] Відправка {content.Length} байт на {_deviceName}: {tracker.RemotePath}");
+
+                // Завантажити на віддалений пристрій (КОМП'ЮТЕР А)
                 await _client.RemoteWriteFileBinaryAsync(_deviceName, tracker.RemotePath, content);
 
                 tracker.IsModified = false;
                 tracker.LastModified = File.GetLastWriteTime(tracker.LocalPath);
 
-                SetStatus($"Файл завантажено: {Path.GetFileName(tracker.RemotePath)}");
-                Console.WriteLine($"[RemoteDirectoryBrowser] Файл завантажено на віддалений пристрій: {tracker.RemotePath}");
+                SetStatus($"✅ Збережено на {_deviceName}: {fileName} ({content.Length:N0} байт)");
+                Console.WriteLine($"[RemoteDirectoryBrowser] ✅ Файл збережено на {_deviceName}: {tracker.RemotePath} ({content.Length} байт)");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[RemoteDirectoryBrowser] Помилка завантаження файлу: {ex.Message}");
-                MessageBox.Show($"Не вдалося завантажити файл на віддалений пристрій:\n\n{ex.Message}",
-                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
-                SetStatus("Помилка завантаження");
+                Console.WriteLine($"[RemoteDirectoryBrowser] ❌ Помилка збереження на {_deviceName}: {ex.Message}");
+                MessageBox.Show($"Не вдалося зберегти файл на {_deviceName}:\n\n{ex.Message}",
+                    "Помилка збереження на сервері", MessageBoxButton.OK, MessageBoxImage.Error);
+                SetStatus($"❌ Помилка збереження на {_deviceName}");
             }
         }
 
