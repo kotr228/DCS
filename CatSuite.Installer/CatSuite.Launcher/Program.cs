@@ -1,7 +1,6 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Compression;
 using System.Net.Http;
 using System.Reflection;
 using System.Text;
@@ -9,13 +8,25 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Text;
 
 namespace CatSuite.Launcher
 {
     public class Program
     {
-        private const string MANIFEST_URL = "https://drive.google.com/uc?export=download&id=1TL-Oeyu7ntiiBPXy6lWpzWOb-TsXQ34D";
+        // ========== КОНФІГУРАЦІЯ ==========
+
+        // Пріоритет джерел (використовується перше доступне):
+        // 1. Локальний файл (для тестування без інтернету)
+        // 2. HTTP сервер (для локального тестування)
+        // 3. Production сервер (для release)
+
+        private const string LOCAL_MANIFEST_PATH = "manifest.json"; // Поруч з exe
+        private const string HTTP_SERVER_URL = "http://localhost:8080/manifest.json"; // Локальний сервер
+        private const string PRODUCTION_SERVER_URL = "https://your-server.com/catsuite/manifest.json"; // TODO: Замінити на реальний
+
+        // Google Drive (fallback для backward compatibility - буде видалено пізніше)
+        private const string GOOGLE_DRIVE_FALLBACK = "https://drive.google.com/uc?export=download&id=1TL-Oeyu7ntiiBPXy6lWpzWOb-TsXQ34D";
+
         private static readonly string AppDirectory = AppContext.BaseDirectory;
         private static readonly string InstallerDllPath = Path.Combine(AppDirectory, "CatSuite.Installer.dll");
         private static readonly string TempDirectory = Path.Combine(Path.GetTempPath(), "CatSuite_Update");
@@ -24,7 +35,6 @@ namespace CatSuite.Launcher
         public static int Main(string[] args)
         {
             Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-
             return MainAsync(args).GetAwaiter().GetResult();
         }
 
@@ -32,14 +42,19 @@ namespace CatSuite.Launcher
         {
             try
             {
-                Console.WriteLine("=== CatSuite Launcher v1.2.0 ===");
+                Console.WriteLine("=== CatSuite Launcher v2.0.0 ===");
                 Console.WriteLine($"📂 Робочий каталог: {AppDirectory}");
+                Console.WriteLine();
 
-                // Завантажуємо маніфест
-                var manifest = await LoadManifestAsync();
+                // Завантажуємо маніфест (спробуємо всі джерела)
+                var manifest = await LoadManifestFromBestSourceAsync();
                 if (manifest == null)
                 {
-                    ShowError("Не вдалося завантажити маніфест. Перевірте з'єднання з Інтернетом.");
+                    ShowError("Не вдалося завантажити маніфест з жодного джерела.\n\n" +
+                             "Перевірено:\n" +
+                             $"1. Локальний файл: {LOCAL_MANIFEST_PATH}\n" +
+                             $"2. HTTP сервер: {HTTP_SERVER_URL}\n" +
+                             $"3. Production: {PRODUCTION_SERVER_URL}");
                     return 1;
                 }
 
@@ -48,12 +63,13 @@ namespace CatSuite.Launcher
                 var remoteVersion = manifest.InstallerCore?.Version;
 
                 Console.WriteLine($"🔍 Локальна версія ядра: {localVersion ?? "не знайдено"}");
-                Console.WriteLine($"🌐 Версія ядра в хмарі: {remoteVersion ?? "не вказано"}");
+                Console.WriteLine($"🌐 Версія ядра в маніфесті: {remoteVersion ?? "не вказано"}");
 
                 // Чи потрібне оновлення?
                 if (NeedsUpdate(localVersion, remoteVersion))
                 {
                     Console.WriteLine("⚡ Потрібне самооновлення інсталятора!");
+                    Console.WriteLine();
 
                     bool success = await UpdateInstallerCoreAsync(manifest.InstallerCore);
 
@@ -63,14 +79,14 @@ namespace CatSuite.Launcher
                         return 1;
                     }
 
-                    // НЕ робити RestartLauncher тут.
-                    // UpdateInstallerCoreAsync уже запустив bat і завершив процес.
+                    // UpdateInstallerCoreAsync запускає батник і завершує процес
                     return 0;
-
                 }
 
-                // Версії збігаються - завантажуємо ядро
+                // Версії збігаються - запускаємо ядро
                 Console.WriteLine("✅ Ядро актуальне. Запускаємо основний інсталятор...");
+                Console.WriteLine();
+
                 LaunchInstallerCore(manifest);
 
                 return 0;
@@ -82,17 +98,90 @@ namespace CatSuite.Launcher
             }
         }
 
-        private static async Task<ManifestModel> LoadManifestAsync()
+        /// <summary>
+        /// Завантажити маніфест з найкращого доступного джерела
+        /// </summary>
+        private static async Task<ManifestModel> LoadManifestFromBestSourceAsync()
+        {
+            // 1. Спробувати локальний файл (найшвидший, для тестування)
+            Console.WriteLine("🔍 Перевірка локального файлу...");
+            var manifest = await TryLoadManifestFromFileAsync(LOCAL_MANIFEST_PATH);
+            if (manifest != null)
+            {
+                Console.WriteLine("✅ Маніфест завантажено з локального файлу");
+                Console.WriteLine();
+                return manifest;
+            }
+
+            // 2. Спробувати локальний HTTP сервер (для розробки/тестування)
+            Console.WriteLine("🔍 Перевірка локального HTTP сервера...");
+            manifest = await TryLoadManifestFromUrlAsync(HTTP_SERVER_URL);
+            if (manifest != null)
+            {
+                Console.WriteLine("✅ Маніфест завантажено з локального сервера");
+                Console.WriteLine();
+                return manifest;
+            }
+
+            // 3. Спробувати production сервер
+            Console.WriteLine("🔍 Підключення до production сервера...");
+            manifest = await TryLoadManifestFromUrlAsync(PRODUCTION_SERVER_URL);
+            if (manifest != null)
+            {
+                Console.WriteLine("✅ Маніфест завантажено з production сервера");
+                Console.WriteLine();
+                return manifest;
+            }
+
+            // 4. Fallback - Google Drive (для сумісності)
+            Console.WriteLine("🔍 Спроба завантаження з Google Drive (fallback)...");
+            manifest = await TryLoadManifestFromUrlAsync(GOOGLE_DRIVE_FALLBACK);
+            if (manifest != null)
+            {
+                Console.WriteLine("⚠️ Маніфест завантажено з Google Drive (застарілий метод)");
+                Console.WriteLine();
+                return manifest;
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Спробувати завантажити маніфест з локального файлу
+        /// </summary>
+        private static async Task<ManifestModel> TryLoadManifestFromFileAsync(string filePath)
         {
             try
             {
-                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-                var json = await client.GetStringAsync(MANIFEST_URL);
+                string fullPath = Path.IsPathRooted(filePath) ? filePath : Path.Combine(AppDirectory, filePath);
+
+                if (!File.Exists(fullPath))
+                    return null;
+
+                var json = await File.ReadAllTextAsync(fullPath);
                 return JsonSerializer.Deserialize<ManifestModel>(json);
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"❌ Помилка завантаження маніфесту: {ex.Message}");
+                Console.WriteLine($"   ⚠️ Помилка читання файлу: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Спробувати завантажити маніфест з URL
+        /// </summary>
+        private static async Task<ManifestModel> TryLoadManifestFromUrlAsync(string url)
+        {
+            try
+            {
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                var json = await client.GetStringAsync(url);
+                return JsonSerializer.Deserialize<ManifestModel>(json);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"   ⚠️ Помилка завантаження з {url}: {ex.Message}");
                 return null;
             }
         }
@@ -104,12 +193,7 @@ namespace CatSuite.Launcher
 
             try
             {
-                // Цей метод читає метадані версії з файлу, 
-                // НЕ завантажуючи і НЕ блокуючи саму DLL.
                 var versionInfo = FileVersionInfo.GetVersionInfo(InstallerDllPath);
-
-                // Використовуйте FileVersion або ProductVersion. 
-                // FileVersion зазвичай є правильним вибором.
                 return versionInfo.FileVersion;
             }
             catch (Exception ex)
@@ -139,6 +223,10 @@ namespace CatSuite.Launcher
             }
         }
 
+        /// <summary>
+        /// Оновити ядро інсталятора (НОВИЙ СПРОЩЕНИЙ АЛГОРИТМ)
+        /// Замість ZIP - прямі файли
+        /// </summary>
         private static async Task<bool> UpdateInstallerCoreAsync(InstallerCoreInfo coreInfo)
         {
             if (coreInfo == null || string.IsNullOrWhiteSpace(coreInfo.Url))
@@ -149,193 +237,85 @@ namespace CatSuite.Launcher
 
             try
             {
-                // ⬅ очистити/підготувати temp
+                // Очистити temp директорію
                 if (Directory.Exists(TempDirectory))
                     Directory.Delete(TempDirectory, true);
                 Directory.CreateDirectory(TempDirectory);
 
-                Console.WriteLine($"⬇️ Завантаження оновлення з {coreInfo.Url}...");
+                Console.WriteLine($"⬇️ Завантаження оновлення...");
+                Console.WriteLine($"   URL: {coreInfo.Url}");
+                Console.WriteLine();
 
-                var zipPath = Path.Combine(TempDirectory, "installer_core.zip");
+                // НОВИЙ ПІДХІД: Завантажуємо DLL напряму (без ZIP)
+                string tempDllPath = Path.Combine(TempDirectory, "CatSuite.Installer.dll");
 
-                // ===== Локальні хелпери без перейменування зовнішніх методів =====
-                static bool LooksLikeHtml(byte[] head)
+                bool success = await DownloadFileWithRetryAsync(coreInfo.Url, tempDllPath);
+                if (!success)
                 {
-                    if (head.Length == 0) return true;
-                    var s = System.Text.Encoding.UTF8.GetString(head);
-                    return s.IndexOf("<html", StringComparison.OrdinalIgnoreCase) >= 0
-                        || s.IndexOf("<!DOCTYPE html", StringComparison.OrdinalIgnoreCase) >= 0;
-                }
-                static bool LooksLikeZip(byte[] head)
-                    => head.Length >= 4 && head[0] == (byte)'P' && head[1] == (byte)'K';
-
-                static string Sha256HexOf(string file)
-                {
-                    using var fs = File.OpenRead(file);
-                    using var sha = System.Security.Cryptography.SHA256.Create();
-                    return Convert.ToHexString(sha.ComputeHash(fs));
-                }
-
-                async Task DownloadToFileAsync(HttpClient http, string url, string path, CancellationToken ct)
-                {
-                    using var resp = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-                    resp.EnsureSuccessStatusCode();
-
-                    await using var src = await resp.Content.ReadAsStreamAsync(ct);
-                    await using var dst = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 8192, useAsync: true);
-                    await src.CopyToAsync(dst, 8192, ct);
-                    await dst.FlushAsync(ct);
-                }
-
-                async Task<bool> TryDownloadDriveAsync(string url, string path, CancellationToken ct)
-                {
-                    using var handler = new HttpClientHandler
-                    {
-                        AllowAutoRedirect = true,
-                        AutomaticDecompression = System.Net.DecompressionMethods.All,
-                        UseCookies = true,
-                        CookieContainer = new System.Net.CookieContainer()
-                    };
-                    using var http = new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(10) };
-                    http.DefaultRequestHeaders.UserAgent.ParseAdd("CatSuiteLauncher/1.0");
-
-                    // 1) Перша спроба
-                    await DownloadToFileAsync(http, url, path, ct);
-
-                    // Перевіряємо, що не HTML і схоже на ZIP
-                    var head = await File.ReadAllBytesAsync(path, ct);
-                    var headSlice = head.AsSpan(0, Math.Min(1024, head.Length)).ToArray();
-
-                    if (!LooksLikeHtml(headSlice) && LooksLikeZip(headSlice))
-                        return true;
-
-                    // 2) Якщо це Google Drive HTML — дістати confirm і перезакачати
-                    var html = System.Text.Encoding.UTF8.GetString(head);
-                    var confirm = System.Text.RegularExpressions.Regex
-                        .Match(html, @"name=""confirm""\s+value=""(?<v>[^""]+)""", System.Text.RegularExpressions.RegexOptions.IgnoreCase)
-                        .Groups["v"].Value;
-
-                    if (string.IsNullOrEmpty(confirm))
-                    {
-                        // іноді confirm у URL
-                        var m2 = System.Text.RegularExpressions.Regex.Match(html, @"confirm=([0-9A-Za-z_]+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                        if (m2.Success) confirm = m2.Groups[1].Value;
-                    }
-
-                    var idMatch = System.Text.RegularExpressions.Regex.Match(url, @"[\?&]id=([^&]+)");
-                    var id = idMatch.Success ? idMatch.Groups[1].Value : null;
-                    if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(confirm))
-                        return false;
-
-                    var confirmedUrl = $"https://drive.google.com/uc?export=download&confirm={confirm}&id={id}";
-
-                    await DownloadToFileAsync(http, confirmedUrl, path, ct);
-
-                    var head2 = await File.ReadAllBytesAsync(path, ct);
-                    var head2Slice = head2.AsSpan(0, Math.Min(1024, head2.Length)).ToArray();
-                    return !LooksLikeHtml(head2Slice) && LooksLikeZip(head2Slice);
-                }
-                // ===== кінець локальних хелперів =====
-
-                // 3 ретраї на всяк випадок
-                var cts = new CancellationTokenSource(TimeSpan.FromMinutes(15));
-                var ok = false;
-                for (int attempt = 1; attempt <= 3 && !ok; attempt++)
-                {
-                    try
-                    {
-                        if (File.Exists(zipPath)) File.Delete(zipPath);
-                        ok = await TryDownloadDriveAsync(coreInfo.Url, zipPath, cts.Token);
-                        if (!ok) Console.WriteLine($"⚠️ Спроба {attempt}: отримано не ZIP (ймовірно HTML від Drive).");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"⚠️ Спроба {attempt} не вдалася: {ex.Message}");
-                        await Task.Delay(1000);
-                    }
-                }
-
-                if (!ok)
-                {
-                    Console.WriteLine("❌ Не вдалося отримати валідний ZIP з Google Drive.");
+                    Console.WriteLine("❌ Не вдалося завантажити файл оновлення.");
                     return false;
                 }
 
-                // Перевірка SHA-256 перед розпакуванням (якщо в маніфесті задано)
+                // Перевірка SHA256
                 if (!string.IsNullOrWhiteSpace(coreInfo.Sha256))
                 {
-                    var got = Sha256HexOf(zipPath);
-                    if (!got.Equals(coreInfo.Sha256, StringComparison.OrdinalIgnoreCase))
+                    Console.WriteLine("🔐 Перевірка контрольної суми...");
+                    if (!ValidateSha256(tempDllPath, coreInfo.Sha256))
                     {
-                        Console.WriteLine($"❌ Хеш не співпав. Очікував: {coreInfo.Sha256}, отримав: {got}");
+                        Console.WriteLine("❌ Контрольна сума не співпадає!");
                         return false;
                     }
                     Console.WriteLine("✅ Контрольна сума підтверджена.");
                 }
 
-                Console.WriteLine("📦 Розпакування...");
-                // Розпаковуємо у TempDirectory (staging)
-                System.IO.Compression.ZipFile.ExtractToDirectory(zipPath, TempDirectory, overwriteFiles: true);
-
-                // Підготуємо шляхи для батника (як у тебе було)
-                string tempDllPath = Path.Combine(TempDirectory, "CatSuite.Installer.dll");
+                // Створюємо батник для заміни файлу
                 string targetDllPath = InstallerDllPath;
-                string tempPdbPath = Path.Combine(TempDirectory, "CatSuite.Installer.pdb");
-                string targetPdbPath = Path.Combine(AppDirectory, "CatSuite.Installer.pdb");
                 string launcherExePath = Process.GetCurrentProcess().MainModule!.FileName;
                 string batPath = Path.Combine(TempDirectory, "update.bat");
 
-                string batContent = string.Format(
-        @"@echo off
+                string batContent = $@"@echo off
 echo.
-echo === CatSuite Updater ===
-echo Будь ласка, зачекайте, лаунчер оновлюється...
+echo === CatSuite Updater v2.0 ===
+echo Оновлення інсталятора...
 echo.
 
-timeout /t 3 /nobreak > nul
+timeout /t 2 /nobreak > nul
 
 setlocal
-set RETRY=5
+set RETRY=10
 :copy_loop
-copy /Y ""{0}"" ""{1}""
+copy /Y ""{tempDllPath}"" ""{targetDllPath}""
 if errorlevel 1 (
-    echo Помилка копіювання! Файл може бути заблокований.
     set /a RETRY-=1
     if %RETRY% equ 0 goto copy_fail
     timeout /t 1 /nobreak > nul
     goto copy_loop
 )
-echo Копіювання DLL успішне.
+echo Оновлення успішне!
 
-if exist ""{2}"" copy /Y ""{2}"" ""{3}""
-
-goto copy_success
-
-:copy_fail
-echo НЕ ВДАЛОСЯ оновити файл.
-goto start_launcher
+rem Очищаємо temp (асинхронно)
+start """" cmd /c ""timeout /t 2 /nobreak > nul && rd /s /q ""{TempDirectory}""""
 
 :copy_success
-echo Оновлення успішне.
-start """" cmd /c ""rd /s /q ""{4}"""" 
-
-:start_launcher
-start """" ""{5}""
+timeout /t 1 /nobreak > nul
+start """" ""{launcherExePath}""
 exit
-",
-                    tempDllPath,
-                    targetDllPath,
-                    tempPdbPath,
-                    targetPdbPath,
-                    TempDirectory,
-                    launcherExePath
-                );
 
-                // Запис батника OEM-866, як у тебе
+:copy_fail
+echo Не вдалося оновити файл. Файл може бути заблокований.
+pause
+start """" ""{launcherExePath}""
+exit
+";
+
+                // Запис батника в OEM-866
                 var oem866 = Encoding.GetEncoding(866);
                 await File.WriteAllTextAsync(batPath, batContent, oem866);
 
-                // Запускаємо оновлення і виходимо
+                Console.WriteLine("🚀 Запуск оновлення...");
+                Console.WriteLine("   (Лаунчер перезапуститься автоматично)");
+
+                // Запускаємо батник і виходимо
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = batPath,
@@ -345,7 +325,6 @@ exit
                 });
 
                 Environment.Exit(0);
-
                 return true;
             }
             catch (Exception ex)
@@ -355,20 +334,93 @@ exit
             }
         }
 
-
-        private static void RestartLauncher()
+        /// <summary>
+        /// Завантажити файл з ретраями
+        /// </summary>
+        private static async Task<bool> DownloadFileWithRetryAsync(string url, string targetPath, int maxRetries = 3)
         {
-            var exePath = Process.GetCurrentProcess().MainModule.FileName;
-            Process.Start(exePath);
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+
+                    Console.WriteLine($"   Спроба {attempt}/{maxRetries}...");
+
+                    using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                    response.EnsureSuccessStatusCode();
+
+                    long? totalBytes = response.Content.Headers.ContentLength;
+
+                    await using var contentStream = await response.Content.ReadAsStreamAsync();
+                    await using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+                    var buffer = new byte[8192];
+                    long totalRead = 0;
+                    int bytesRead;
+
+                    while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    {
+                        await fileStream.WriteAsync(buffer, 0, bytesRead);
+                        totalRead += bytesRead;
+
+                        if (totalBytes.HasValue && totalBytes.Value > 0)
+                        {
+                            var progress = (int)((totalRead * 100) / totalBytes.Value);
+                            Console.Write($"\r   Прогрес: {progress}% ({totalRead / 1024} KB / {totalBytes / 1024} KB)");
+                        }
+                    }
+
+                    Console.WriteLine();
+                    Console.WriteLine($"   ✅ Завантажено: {totalRead / 1024 / 1024:F2} MB");
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\r   ❌ Спроба {attempt} не вдалася: {ex.Message}");
+
+                    if (attempt < maxRetries)
+                    {
+                        Console.WriteLine($"   ⏳ Повтор через 2 секунди...");
+                        await Task.Delay(2000);
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Перевірка SHA256 хешу
+        /// </summary>
+        private static bool ValidateSha256(string filePath, string expectedHash)
+        {
+            if (string.IsNullOrEmpty(expectedHash))
+                return true;
+
+            try
+            {
+                using var sha256 = System.Security.Cryptography.SHA256.Create();
+                using var stream = File.OpenRead(filePath);
+
+                byte[] hash = sha256.ComputeHash(stream);
+                string actualHash = BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
+
+                return actualHash.Equals(expectedHash.ToLowerInvariant());
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static void LaunchInstallerCore(ManifestModel manifest)
         {
             try
             {
-                // ✅ ВИРІШЕННЯ: Читаємо файл в пам'ять і завантажуємо звідти
+                // Читаємо DLL в пам'ять і завантажуємо
                 byte[] assemblyBytes = File.ReadAllBytes(InstallerDllPath);
-                var assembly = Assembly.Load(assemblyBytes); // НЕ .LoadFrom()
+                var assembly = Assembly.Load(assemblyBytes);
 
                 var entryType = assembly.GetType("CatSuite.Installer.App");
 
@@ -381,7 +433,7 @@ exit
                 // Передаємо маніфест як JSON
                 string manifestJson = JsonSerializer.Serialize(manifest);
 
-                // Створюємо новий потік з [STAThread]
+                // Створюємо STA потік
                 var thread = new Thread(() =>
                 {
                     try
@@ -443,6 +495,7 @@ exit
         public string Sha256 { get; set; }
         public string[] DependsOn { get; set; }
         public bool IsVisible { get; set; } = true;
+        public string Category { get; set; }
     }
 
     #endregion

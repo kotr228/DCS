@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>CatSuite.TestServer</RootNamespace>
+    <AssemblyName>CatSuite.TestServer</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <ApplicationIcon>..\CatSuite.Installer\Assets\cat.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="www\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

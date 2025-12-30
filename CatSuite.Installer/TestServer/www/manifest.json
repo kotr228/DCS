@@ -1,0 +1,68 @@
+{
+  "InstallerCore": {
+    "Version": "1.0.0",
+    "Url": "http://localhost:8080/installer/CatSuite.Installer.dll",
+    "Sha256": ""
+  },
+  "Packages": [
+    {
+      "Id": "doccontrol.service",
+      "Name": "DocControl Windows Service",
+      "Version": "0.11.0",
+      "Description": "Основний Windows Service для управління документами, версіонування та мережевої комунікації",
+      "Url": "http://localhost:8080/packages/DocControlService.msi",
+      "Sha256": "",
+      "DependsOn": [],
+      "IsVisible": true,
+      "Category": "Core"
+    },
+    {
+      "Id": "doccontrol.ui",
+      "Name": "DocControl UI",
+      "Version": "0.11.0",
+      "Description": "Графічний інтерфейс користувача (WPF) для роботи з системою керування документами",
+      "Url": "http://localhost:8080/packages/DocControlUI.msi",
+      "Sha256": "",
+      "DependsOn": [
+        "doccontrol.service"
+      ],
+      "IsVisible": true,
+      "Category": "Core"
+    },
+    {
+      "Id": "dotnet.runtime.8",
+      "Name": ".NET 8.0 Runtime",
+      "Version": "8.0.0",
+      "Description": ".NET Runtime для запуску додатків. Обов'язковий компонент.",
+      "Url": "https://download.visualstudio.microsoft.com/download/pr/...dotnet-runtime-8.0-win-x64.exe",
+      "Sha256": "",
+      "DependsOn": [],
+      "IsVisible": true,
+      "Category": "Dependencies"
+    },
+    {
+      "Id": "git.windows",
+      "Name": "Git для Windows",
+      "Version": "2.43.0",
+      "Description": "Система контролю версій Git. Рекомендується для версіонування документів.",
+      "Url": "https://github.com/git-for-windows/git/releases/download/v2.43.0.windows.1/Git-2.43.0-64-bit.exe",
+      "Sha256": "",
+      "DependsOn": [],
+      "IsVisible": true,
+      "Category": "Optional"
+    },
+    {
+      "Id": "coffee.cat.samples",
+      "Name": "Coffee Cat - Приклади та шаблони",
+      "Version": "1.0.0",
+      "Description": "Набір прикладів конфігурацій, шаблонів документів та demo проектів",
+      "Url": "http://localhost:8080/packages/CoffeeCat.Samples.msi",
+      "Sha256": "",
+      "DependsOn": [
+        "doccontrol.ui"
+      ],
+      "IsVisible": true,
+      "Category": "Optional"
+    }
+  ]
+}
