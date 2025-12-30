@@ -7,7 +7,6 @@
     <AssemblyName>CatSuite.TestServer</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
-    <ApplicationIcon>..\CatSuite.Installer\Assets\cat.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
