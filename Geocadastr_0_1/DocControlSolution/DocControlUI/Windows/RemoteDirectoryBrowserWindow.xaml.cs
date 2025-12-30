@@ -47,8 +47,38 @@ namespace DocControlUI.Windows
 
         private void RemoteDirectoryBrowserWindow_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            // Перевірити незбережені файли
-            var unsavedFiles = _openFiles.Values.Where(f => f.IsModified).ToList();
+            // КРИТИЧНО: Перевірити ВСІ файли, навіть якщо IsModified = false
+            // Бо FileSystemWatcher може не спрацювати для Word/Excel
+            var unsavedFiles = new List<OpenFileTracker>();
+
+            foreach (var tracker in _openFiles.Values)
+            {
+                try
+                {
+                    if (File.Exists(tracker.LocalPath))
+                    {
+                        var currentSize = new FileInfo(tracker.LocalPath).Length;
+                        var currentModified = File.GetLastWriteTime(tracker.LocalPath);
+
+                        // Перевірка чи файл змінився з моменту останнього збереження
+                        if (currentSize != tracker.LastFileSize || currentModified > tracker.LastModified)
+                        {
+                            tracker.IsModified = true;
+                            Console.WriteLine($"[RemoteDirectoryBrowser] ⚠️ Виявлено незбережені зміни при закритті: {Path.GetFileName(tracker.RemotePath)}");
+                        }
+                    }
+
+                    if (tracker.IsModified)
+                    {
+                        unsavedFiles.Add(tracker);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[RemoteDirectoryBrowser] Помилка перевірки файлу: {ex.Message}");
+                }
+            }
+
             if (unsavedFiles.Any())
             {
                 var result = MessageBox.Show(
@@ -425,10 +455,11 @@ namespace DocControlUI.Windows
                 Console.WriteLine($"[RemoteDirectoryBrowser] Завантажено файл: {remotePath} -> {localPath}");
 
                 // КРОК 3: Створити FileSystemWatcher для моніторингу змін
+                // ВАЖЛИВО: Word/Excel не просто змінюють файл, вони створюють temp і перейменовують
                 var watcher = new FileSystemWatcher(Path.GetDirectoryName(localPath))
                 {
                     Filter = fileName,
-                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName | NotifyFilters.CreationTime,
                     EnableRaisingEvents = true
                 };
 
@@ -439,6 +470,7 @@ namespace DocControlUI.Windows
                     Watcher = watcher,
                     IsModified = false,
                     LastModified = File.GetLastWriteTime(localPath),
+                    LastFileSize = new FileInfo(localPath).Length,
                     LockInfo = lockInfo,
                     LastSaved = DateTime.Now
                 };
@@ -446,12 +478,27 @@ namespace DocControlUI.Windows
                 // КРОК 4: Налаштувати автозбереження (тільки якщо файл заблокований нами)
                 if (lockInfo != null && lockInfo.IsOwnedByCurrentDevice)
                 {
-                    // Таймер автозбереження (кожні 30 секунд)
-                    tracker.AutoSaveTimer = new System.Timers.Timer(30000); // 30 секунд
+                    // Таймер автозбереження (кожні 10 секунд для швидкого тестування)
+                    // TODO: Збільшити до 30 секунд в продакшені
+                    tracker.AutoSaveTimer = new System.Timers.Timer(10000); // 10 секунд
                     tracker.AutoSaveTimer.Elapsed += async (s, e) =>
                     {
                         try
                         {
+                            // КРИТИЧНО: Перевірити чи файл дійсно змінився порівняно з останнім збереженням
+                            if (File.Exists(tracker.LocalPath))
+                            {
+                                var currentSize = new FileInfo(tracker.LocalPath).Length;
+                                var currentModified = File.GetLastWriteTime(tracker.LocalPath);
+
+                                if (currentSize != tracker.LastFileSize || currentModified > tracker.LastModified)
+                                {
+                                    tracker.IsModified = true;
+                                    tracker.LastFileSize = currentSize;
+                                    tracker.LastModified = currentModified;
+                                }
+                            }
+
                             if (tracker.IsModified)
                             {
                                 Console.WriteLine($"[RemoteDirectoryBrowser] 🔄 Автозбереження: {fileName} → {_deviceName}");
@@ -463,7 +510,11 @@ namespace DocControlUI.Windows
                             }
                             else
                             {
-                                Console.WriteLine($"[RemoteDirectoryBrowser] ⏭️ Автозбереження пропущено: {fileName} (без змін)");
+                                // Логування тільки кожні 30 сек щоб не спамити
+                                if ((DateTime.Now - tracker.LastSaved).TotalSeconds > 30)
+                                {
+                                    Console.WriteLine($"[RemoteDirectoryBrowser] ⏭️ Автозбереження: {fileName} без змін");
+                                }
                             }
                         }
                         catch (Exception ex)
@@ -492,24 +543,43 @@ namespace DocControlUI.Windows
                     Console.WriteLine($"[RemoteDirectoryBrowser] Автозбереження активовано для: {fileName}");
                 }
 
-                watcher.Changed += async (s, e) =>
+                // Універсальний обробник для ВСІХ подій (Changed, Created, Renamed)
+                // Word/Excel створюють temp файли і перейменовують, тому потрібні всі події
+                FileSystemEventHandler fileChangeHandler = async (s, e) =>
                 {
-                    // Перевірити чи файл дійсно змінився
                     try
                     {
+                        // Невелика затримка щоб файл встиг закритися після збереження
+                        await Task.Delay(500);
+
+                        if (!File.Exists(localPath))
+                        {
+                            Console.WriteLine($"[RemoteDirectoryBrowser] Файл не існує після події: {localPath}");
+                            return;
+                        }
+
                         var newModified = File.GetLastWriteTime(localPath);
-                        if (newModified > tracker.LastModified)
+                        var newSize = new FileInfo(localPath).Length;
+
+                        // Перевірка чи дійсно змінився файл (час АБО розмір)
+                        if (newModified > tracker.LastModified || newSize != tracker.LastFileSize)
                         {
                             tracker.IsModified = true;
                             tracker.LastModified = newModified;
-                            Console.WriteLine($"[RemoteDirectoryBrowser] Файл змінено: {localPath}");
+                            tracker.LastFileSize = newSize;
+                            Console.WriteLine($"[RemoteDirectoryBrowser] 📝 Файл змінено: {fileName} (Event: {e.ChangeType}, Size: {newSize} байт)");
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[RemoteDirectoryBrowser] Помилка обробки зміни: {ex.Message}");
+                        Console.WriteLine($"[RemoteDirectoryBrowser] Помилка обробки події {e.ChangeType}: {ex.Message}");
                     }
                 };
+
+                // Підписка на ВСІ події для надійної детекції змін Word/Excel
+                watcher.Changed += fileChangeHandler;
+                watcher.Created += fileChangeHandler;
+                watcher.Renamed += (s, e) => fileChangeHandler(s, e);
 
                 _openFiles[remotePath] = tracker;
 
@@ -961,6 +1031,11 @@ namespace DocControlUI.Windows
         /// Час останньої модифікації
         /// </summary>
         public DateTime LastModified { get; set; }
+
+        /// <summary>
+        /// Розмір файлу при останній перевірці
+        /// </summary>
+        public long LastFileSize { get; set; }
 
         /// <summary>
         /// Інформація про блокування файлу
