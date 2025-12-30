@@ -203,6 +203,10 @@ namespace DocControlNetworkCore.Services
                     case NetworkCommandType.WriteFileContent:
                     case NetworkCommandType.ReadFileBinary:
                     case NetworkCommandType.WriteFileBinary:
+                    case NetworkCommandType.LockFile:
+                    case NetworkCommandType.UnlockFile:
+                    case NetworkCommandType.GetFileLockInfo:
+                    case NetworkCommandType.UpdateFileLockHeartbeat:
                         return await ForwardToLocalServiceAsync(command);
 
                     default:
@@ -697,6 +701,26 @@ namespace DocControlNetworkCore.Services
                 NetworkCommandType.WriteFileBinary => new ServiceCommand
                 {
                     Type = DocControlService.Shared.CommandType.WriteFileBinary,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.LockFile => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.LockFile,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.UnlockFile => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.UnlockFile,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.GetFileLockInfo => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.GetFileLockInfo,
+                    Data = networkCommand.Payload
+                },
+                NetworkCommandType.UpdateFileLockHeartbeat => new ServiceCommand
+                {
+                    Type = DocControlService.Shared.CommandType.UpdateFileLockHeartbeat,
                     Data = networkCommand.Payload
                 },
                 _ => null

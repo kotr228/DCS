@@ -435,7 +435,13 @@ namespace DocControlService.Shared
         ReadFileContent,
         WriteFileContent,
         ReadFileBinary,
-        WriteFileBinary
+        WriteFileBinary,
+
+        // File Locking (v0.10 - Multi-user support)
+        LockFile,
+        UnlockFile,
+        GetFileLockInfo,
+        UpdateFileLockHeartbeat
 
     }
 
@@ -609,6 +615,47 @@ namespace DocControlService.Shared
         public string DeviceName { get; set; } = string.Empty;
         public string FilePath { get; set; } = string.Empty;
         public byte[] Content { get; set; } = Array.Empty<byte>();
+    }
+
+    /// <summary>
+    /// Блокування віддаленого файлу
+    /// </summary>
+    [Serializable]
+    public class RemoteLockFileRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Розблокування віддаленого файлу
+    /// </summary>
+    [Serializable]
+    public class RemoteUnlockFileRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Отримання інформації про блокування віддаленого файлу
+    /// </summary>
+    [Serializable]
+    public class RemoteGetFileLockInfoRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Оновлення heartbeat блокування віддаленого файлу
+    /// </summary>
+    [Serializable]
+    public class RemoteUpdateFileLockHeartbeatRequest
+    {
+        public string DeviceName { get; set; } = string.Empty;
+        public string FilePath { get; set; } = string.Empty;
     }
 
     /// <summary>

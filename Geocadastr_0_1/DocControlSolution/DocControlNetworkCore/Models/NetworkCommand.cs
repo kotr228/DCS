@@ -109,6 +109,26 @@ namespace DocControlNetworkCore.Models
         WriteFileBinary,
 
         /// <summary>
+        /// Заблокувати файл для редагування
+        /// </summary>
+        LockFile,
+
+        /// <summary>
+        /// Розблокувати файл
+        /// </summary>
+        UnlockFile,
+
+        /// <summary>
+        /// Отримати інформацію про блокування файлу
+        /// </summary>
+        GetFileLockInfo,
+
+        /// <summary>
+        /// Оновити heartbeat для блокування
+        /// </summary>
+        UpdateFileLockHeartbeat,
+
+        /// <summary>
         /// Відповідь на команду
         /// </summary>
         Response
@@ -352,5 +372,38 @@ namespace DocControlNetworkCore.Models
     {
         public string FilePath { get; set; } = string.Empty;
         public byte[] Content { get; set; } = Array.Empty<byte>();
+    }
+
+    /// <summary>
+    /// Запит на блокування файлу
+    /// </summary>
+    public class RemoteLockFileRequest
+    {
+        public string FilePath { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Запит на розблокування файлу
+    /// </summary>
+    public class RemoteUnlockFileRequest
+    {
+        public string FilePath { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Запит інформації про блокування файлу
+    /// </summary>
+    public class RemoteGetFileLockInfoRequest
+    {
+        public string FilePath { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Оновлення heartbeat блокування
+    /// </summary>
+    public class RemoteUpdateFileLockHeartbeatRequest
+    {
+        public string FilePath { get; set; } = string.Empty;
     }
 }

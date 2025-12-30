@@ -32,6 +32,7 @@ namespace DocControlService
         private readonly DirectoryRepository _dirRepo;
         private readonly DeviceRepository _deviceRepo;
         private readonly NetworkAccessRepository _accessRepo;
+        private readonly FileLockRepository _fileLockRepo;
         private readonly NetworkShareService _shareService;
         private readonly DirectoryScanner _scanner;
         private readonly VersionControlFactory _versionFactory;
@@ -88,6 +89,7 @@ namespace DocControlService
             _dirRepo = new DirectoryRepository(_dbManager);
             _deviceRepo = new DeviceRepository(_dbManager);
             _accessRepo = new NetworkAccessRepository(_dbManager);
+            _fileLockRepo = new FileLockRepository(_dbManager);
             _shareService = new NetworkShareService();
             _scanner = new DirectoryScanner(_dbManager);
             _versionFactory = new VersionControlFactory(_dirRepo);
@@ -711,6 +713,18 @@ namespace DocControlService
 
                     case ServiceCommandType.WriteFileBinary:
                         return await HandleWriteFileBinary(command.Data);
+
+                    case ServiceCommandType.LockFile:
+                        return await HandleLockFile(command.Data);
+
+                    case ServiceCommandType.UnlockFile:
+                        return await HandleUnlockFile(command.Data);
+
+                    case ServiceCommandType.GetFileLockInfo:
+                        return await HandleGetFileLockInfo(command.Data);
+
+                    case ServiceCommandType.UpdateFileLockHeartbeat:
+                        return await HandleUpdateFileLockHeartbeat(command.Data);
 
                     default:
                         return new ServiceResponse
@@ -4142,6 +4156,195 @@ namespace DocControlService
             {
                 Log($"Помилка отримання AI статистики: {ex.Message}", EventLogEntryType.Error);
                 return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        #endregion
+
+        #region File Locking Handlers (Multi-user support v0.10)
+
+        /// <summary>
+        /// Заблокувати файл для редагування (підтримує віддалені запити)
+        /// </summary>
+        private async Task<ServiceResponse> HandleLockFile(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteLockFileRequest>(data);
+                Console.WriteLine($"[Service] LockFile: DeviceName={request.DeviceName}, Path={request.FilePath}, User={request.UserName}");
+
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.LockFile,
+                        new DocControlNetworkCore.Models.RemoteLockFileRequest
+                        {
+                            FilePath = request.FilePath,
+                            UserName = request.UserName
+                        });
+                }
+
+                // Локальний запит - спробувати заблокувати файл
+                var deviceName = Environment.MachineName;
+                var lockInfo = _fileLockRepo.TryLockFile(request.FilePath, deviceName, request.UserName);
+
+                // Серіалізувати FileLockModel в JSON
+                var lockJson = JsonSerializer.Serialize(lockInfo);
+
+                return new ServiceResponse
+                {
+                    Success = lockInfo.IsOwnedByCurrentDevice,
+                    Message = lockInfo.IsOwnedByCurrentDevice
+                        ? "Файл успішно заблокований"
+                        : $"Файл вже заблокований: {lockInfo.LockDescription}",
+                    Data = lockJson
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка LockFile: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Розблокувати файл (підтримує віддалені запити)
+        /// </summary>
+        private async Task<ServiceResponse> HandleUnlockFile(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteUnlockFileRequest>(data);
+                Console.WriteLine($"[Service] UnlockFile: DeviceName={request.DeviceName}, Path={request.FilePath}");
+
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.UnlockFile,
+                        new DocControlNetworkCore.Models.RemoteUnlockFileRequest
+                        {
+                            FilePath = request.FilePath
+                        });
+                }
+
+                // Локальний запит
+                var deviceName = Environment.MachineName;
+                var success = _fileLockRepo.UnlockFile(request.FilePath, deviceName);
+
+                return new ServiceResponse
+                {
+                    Success = success,
+                    Message = success ? "Файл успішно розблокований" : "Файл не був заблокований цим пристроєм"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка UnlockFile: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Отримати інформацію про блокування файлу (підтримує віддалені запити)
+        /// </summary>
+        private async Task<ServiceResponse> HandleGetFileLockInfo(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteGetFileLockInfoRequest>(data);
+                Console.WriteLine($"[Service] GetFileLockInfo: DeviceName={request.DeviceName}, Path={request.FilePath}");
+
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.GetFileLockInfo,
+                        new DocControlNetworkCore.Models.RemoteGetFileLockInfoRequest
+                        {
+                            FilePath = request.FilePath
+                        });
+                }
+
+                // Локальний запит
+                var lockInfo = _fileLockRepo.GetFileLock(request.FilePath);
+
+                if (lockInfo == null)
+                {
+                    return new ServiceResponse
+                    {
+                        Success = true,
+                        Message = "Файл не заблокований",
+                        Data = null
+                    };
+                }
+
+                // Перевірити чи належить поточному пристрою
+                var deviceName = Environment.MachineName;
+                lockInfo.IsOwnedByCurrentDevice = lockInfo.DeviceName == deviceName;
+
+                var lockJson = JsonSerializer.Serialize(lockInfo);
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Data = lockJson
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка GetFileLockInfo: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
+            }
+        }
+
+        /// <summary>
+        /// Оновити heartbeat блокування (підтримує віддалені запити)
+        /// </summary>
+        private async Task<ServiceResponse> HandleUpdateFileLockHeartbeat(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<RemoteUpdateFileLockHeartbeatRequest>(data);
+
+                // Віддалений запит?
+                if (!string.IsNullOrEmpty(request.DeviceName))
+                {
+                    return await ForwardRemoteCommand(request.DeviceName, NetworkCommandType.UpdateFileLockHeartbeat,
+                        new DocControlNetworkCore.Models.RemoteUpdateFileLockHeartbeatRequest
+                        {
+                            FilePath = request.FilePath
+                        });
+                }
+
+                // Локальний запит
+                var deviceName = Environment.MachineName;
+                var success = _fileLockRepo.UpdateLastModified(request.FilePath, deviceName);
+
+                return new ServiceResponse
+                {
+                    Success = success,
+                    Message = success ? "Heartbeat оновлено" : "Блокування не знайдено"
+                };
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Service] ❌ Помилка UpdateFileLockHeartbeat: {ex.Message}");
+                return new ServiceResponse
+                {
+                    Success = false,
+                    Message = ex.Message
+                };
             }
         }
 
