@@ -1970,6 +1970,106 @@ namespace DocControlService.Client
             return true;
         }
 
+        /// <summary>
+        /// Заблокувати віддалений файл для редагування
+        /// </summary>
+        public async Task<FileLockModel> RemoteLockFileAsync(string deviceName, string filePath, string userName = null)
+        {
+            var request = new RemoteLockFileRequest
+            {
+                DeviceName = deviceName,
+                FilePath = filePath,
+                UserName = userName ?? Environment.UserName
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.LockFile,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success && response.Data == null)
+            {
+                throw new Exception(response.Message ?? "Не вдалося заблокувати файл");
+            }
+
+            // Десеріалізувати FileLockModel з Data
+            var lockInfo = JsonSerializer.Deserialize<FileLockModel>(response.Data);
+            return lockInfo;
+        }
+
+        /// <summary>
+        /// Розблокувати віддалений файл
+        /// </summary>
+        public async Task<bool> RemoteUnlockFileAsync(string deviceName, string filePath)
+        {
+            var request = new RemoteUnlockFileRequest
+            {
+                DeviceName = deviceName,
+                FilePath = filePath
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.UnlockFile,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            return response.Success;
+        }
+
+        /// <summary>
+        /// Отримати інформацію про блокування віддаленого файлу
+        /// </summary>
+        public async Task<FileLockModel> RemoteGetFileLockInfoAsync(string deviceName, string filePath)
+        {
+            var request = new RemoteGetFileLockInfoRequest
+            {
+                DeviceName = deviceName,
+                FilePath = filePath
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.GetFileLockInfo,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            if (!response.Success)
+            {
+                throw new Exception(response.Message ?? "Не вдалося отримати інформацію про блокування");
+            }
+
+            // Якщо Data null - файл не заблокований
+            if (string.IsNullOrEmpty(response.Data))
+            {
+                return null;
+            }
+
+            var lockInfo = JsonSerializer.Deserialize<FileLockModel>(response.Data);
+            return lockInfo;
+        }
+
+        /// <summary>
+        /// Оновити heartbeat блокування віддаленого файлу
+        /// </summary>
+        public async Task<bool> RemoteUpdateFileLockHeartbeatAsync(string deviceName, string filePath)
+        {
+            var request = new RemoteUpdateFileLockHeartbeatRequest
+            {
+                DeviceName = deviceName,
+                FilePath = filePath
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.UpdateFileLockHeartbeat,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            return response.Success;
+        }
+
         #endregion
 
 

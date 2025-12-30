@@ -9,6 +9,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Timers;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -82,10 +83,30 @@ namespace DocControlUI.Windows
                 }
             }
 
-            // Очистити FileSystemWatcher'и
+            // Розблокувати всі файли і зупинити таймери
             foreach (var tracker in _openFiles.Values)
             {
-                tracker.Watcher?.Dispose();
+                // Зупинити таймери
+                tracker.AutoSaveTimer?.Stop();
+                tracker.HeartbeatTimer?.Stop();
+
+                // Розблокувати файл якщо він був заблокований
+                if (tracker.LockInfo != null && tracker.LockInfo.IsOwnedByCurrentDevice)
+                {
+                    try
+                    {
+                        var unlockTask = _client.RemoteUnlockFileAsync(_deviceName, tracker.RemotePath);
+                        unlockTask.Wait(); // Синхронне розблокування
+                        Console.WriteLine($"[RemoteDirectoryBrowser] Файл розблоковано: {tracker.RemotePath}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[RemoteDirectoryBrowser] Помилка розблокування: {ex.Message}");
+                    }
+                }
+
+                // Dispose resources
+                tracker.Dispose();
             }
             _openFiles.Clear();
 
@@ -359,7 +380,41 @@ namespace DocControlUI.Windows
 
                 var fileName = Path.GetFileName(remotePath);
 
-                // Завантажити вміст файлу з віддаленого пристрою (бінарний режим)
+                // КРОК 1: Спробувати заблокувати файл на віддаленому пристрої
+                FileLockModel lockInfo = null;
+                try
+                {
+                    lockInfo = await _client.RemoteLockFileAsync(_deviceName, remotePath);
+                    Console.WriteLine($"[RemoteDirectoryBrowser] Файл заблокований: {lockInfo.LockDescription}");
+                }
+                catch (Exception lockEx)
+                {
+                    Console.WriteLine($"[RemoteDirectoryBrowser] Не вдалося заблокувати файл: {lockEx.Message}");
+                }
+
+                // Перевірити чи файл заблокований іншим користувачем
+                if (lockInfo != null && lockInfo.IsLockedByOther)
+                {
+                    var result = await this.ShowMessageAsync("Файл зайнятий",
+                        $"Файл '{fileName}' зараз редагується:\n\n{lockInfo.LockDescription}\n\n" +
+                        $"Відкрити у режимі тільки для читання?",
+                        MessageDialogStyle.AffirmativeAndNegative,
+                        new MetroDialogSettings
+                        {
+                            AffirmativeButtonText = "Так, читання",
+                            NegativeButtonText = "Скасувати"
+                        });
+
+                    if (result != MessageDialogResult.Affirmative)
+                    {
+                        SetStatus("Відкриття скасовано");
+                        return;
+                    }
+                    // Продовжуємо, але без блокування
+                    lockInfo = null;
+                }
+
+                // КРОК 2: Завантажити вміст файлу з віддаленого пристрою (бінарний режим)
                 var content = await _client.RemoteReadFileBinaryAsync(_deviceName, remotePath);
 
                 // Створити локальний файл у temp директорії
@@ -369,7 +424,7 @@ namespace DocControlUI.Windows
 
                 Console.WriteLine($"[RemoteDirectoryBrowser] Завантажено файл: {remotePath} -> {localPath}");
 
-                // Створити FileSystemWatcher для моніторингу змін
+                // КРОК 3: Створити FileSystemWatcher для моніторингу змін
                 var watcher = new FileSystemWatcher(Path.GetDirectoryName(localPath))
                 {
                     Filter = fileName,
@@ -383,8 +438,55 @@ namespace DocControlUI.Windows
                     LocalPath = localPath,
                     Watcher = watcher,
                     IsModified = false,
-                    LastModified = File.GetLastWriteTime(localPath)
+                    LastModified = File.GetLastWriteTime(localPath),
+                    LockInfo = lockInfo,
+                    LastSaved = DateTime.Now
                 };
+
+                // КРОК 4: Налаштувати автозбереження (тільки якщо файл заблокований нами)
+                if (lockInfo != null && lockInfo.IsOwnedByCurrentDevice)
+                {
+                    // Таймер автозбереження (кожні 30 секунд)
+                    tracker.AutoSaveTimer = new System.Timers.Timer(30000); // 30 секунд
+                    tracker.AutoSaveTimer.Elapsed += async (s, e) =>
+                    {
+                        try
+                        {
+                            if (tracker.IsModified)
+                            {
+                                Console.WriteLine($"[RemoteDirectoryBrowser] Автозбереження: {fileName}");
+                                await Dispatcher.InvokeAsync(async () =>
+                                {
+                                    await UploadFileToRemote(tracker);
+                                    tracker.LastSaved = DateTime.Now;
+                                });
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[RemoteDirectoryBrowser] Помилка автозбереження: {ex.Message}");
+                        }
+                    };
+                    tracker.AutoSaveTimer.Start();
+
+                    // Таймер heartbeat (кожні 30 секунд)
+                    tracker.HeartbeatTimer = new System.Timers.Timer(30000); // 30 секунд
+                    tracker.HeartbeatTimer.Elapsed += async (s, e) =>
+                    {
+                        try
+                        {
+                            await _client.RemoteUpdateFileLockHeartbeatAsync(_deviceName, remotePath);
+                            Console.WriteLine($"[RemoteDirectoryBrowser] Heartbeat: {fileName}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[RemoteDirectoryBrowser] Помилка heartbeat: {ex.Message}");
+                        }
+                    };
+                    tracker.HeartbeatTimer.Start();
+
+                    Console.WriteLine($"[RemoteDirectoryBrowser] Автозбереження активовано для: {fileName}");
+                }
 
                 watcher.Changed += async (s, e) =>
                 {
@@ -397,24 +499,6 @@ namespace DocControlUI.Windows
                             tracker.IsModified = true;
                             tracker.LastModified = newModified;
                             Console.WriteLine($"[RemoteDirectoryBrowser] Файл змінено: {localPath}");
-
-                            // Показати notification (у UI потоці)
-                            await Dispatcher.InvokeAsync(async () =>
-                            {
-                                var result = await this.ShowMessageAsync("Файл змінено",
-                                    $"Файл '{fileName}' був змінений.\n\nЗавантажити зміни назад на віддалений пристрій?",
-                                    MessageDialogStyle.AffirmativeAndNegative,
-                                    new MetroDialogSettings
-                                    {
-                                        AffirmativeButtonText = "Так, завантажити",
-                                        NegativeButtonText = "Ні, пізніше"
-                                    });
-
-                                if (result == MessageDialogResult.Affirmative)
-                                {
-                                    await UploadFileToRemote(tracker);
-                                }
-                            });
                         }
                     }
                     catch (Exception ex)
@@ -844,7 +928,7 @@ namespace DocControlUI.Windows
     /// <summary>
     /// Трекер для відстеження відкритих віддалених файлів
     /// </summary>
-    public class OpenFileTracker
+    public class OpenFileTracker : IDisposable
     {
         /// <summary>
         /// Шлях до файлу на віддаленому пристрої
@@ -870,5 +954,32 @@ namespace DocControlUI.Windows
         /// Час останньої модифікації
         /// </summary>
         public DateTime LastModified { get; set; }
+
+        /// <summary>
+        /// Інформація про блокування файлу
+        /// </summary>
+        public FileLockModel LockInfo { get; set; }
+
+        /// <summary>
+        /// Таймер для автозбереження (кожні 30 секунд)
+        /// </summary>
+        public System.Timers.Timer AutoSaveTimer { get; set; }
+
+        /// <summary>
+        /// Таймер для heartbeat (кожні 30 секунд)
+        /// </summary>
+        public System.Timers.Timer HeartbeatTimer { get; set; }
+
+        /// <summary>
+        /// Час останнього збереження
+        /// </summary>
+        public DateTime LastSaved { get; set; }
+
+        public void Dispose()
+        {
+            Watcher?.Dispose();
+            AutoSaveTimer?.Dispose();
+            HeartbeatTimer?.Dispose();
+        }
     }
 }
