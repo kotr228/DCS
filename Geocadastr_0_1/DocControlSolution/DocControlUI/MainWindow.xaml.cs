@@ -1,5 +1,4 @@
-﻿using DocControlAI;
-using DocControlUI.Windows;
+﻿using DocControlUI.Windows;
 using DocControlService.Client;
 using DocControlService.Shared;
 using System;
@@ -58,9 +57,6 @@ namespace DocControlUI
 
             // Оновлюємо мережеві інтерфейси
             try { await RefreshNetworkInterfacesAsync(); } catch { }
-
-            // Оновлюємо статус AI
-            try { await RefreshAIStatusAsync(); } catch { }
 
             // Оновлюємо список мережевих вузлів
             try { await RefreshNetworkNodesAsync(); } catch { }
@@ -1317,33 +1313,6 @@ namespace DocControlUI
 
         #endregion
 
-        #region AI Integration
-
-        private void OpenAIAnalysis_Click(object sender, RoutedEventArgs e)
-        {
-            var selected = DirectoriesGrid.SelectedItem;
-            if (selected == null)
-            {
-                MessageBox.Show("Виберіть директорію для AI аналізу", "Увага",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            try
-            {
-                var dirId = (int)selected.GetType().GetProperty("Id").GetValue(selected);
-                var dirName = selected.GetType().GetProperty("Name").GetValue(selected).ToString();
-                var dirPath = selected.GetType().GetProperty("Browse").GetValue(selected).ToString();
-
-                var aiWindow = new AIAnalysisWindow(dirPath, dirId);
-                OpenWindowAndHide(aiWindow);
-            }
-            catch (Exception ex)
-            {
-                ShowError("Помилка відкриття AI модуля", ex.Message);
-            }
-        }
-
         private void OpenDirectoryManager_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -1357,193 +1326,11 @@ namespace DocControlUI
             }
         }
 
-        private async void GenerateAIRoadmap_Click(object sender, RoutedEventArgs e)
-        {
-            var selectedDir = RoadmapDirectoryCombo.SelectedItem as DirectoryWithAccessModel;
-            if (selectedDir == null)
-            {
-                MessageBox.Show("Виберіть директорію для генерації AI карти", "Увага",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var roadmapName = Microsoft.VisualBasic.Interaction.InputBox(
-                "Введіть назву хронологічної карти:",
-                "AI Генерація Roadmap",
-                $"AI Roadmap - {selectedDir.Name}");
-
-            if (string.IsNullOrWhiteSpace(roadmapName)) return;
-
-            var description = Microsoft.VisualBasic.Interaction.InputBox(
-                "Введіть опис (необов'язково):",
-                "Опис roadmap",
-                "AI-згенерована хронологічна карта проекту");
-
-            try
-            {
-                SetStatus("🤖 AI генерує хронологічну карту...");
-
-                var roadmap = await _client.GenerateAIChronologicalRoadmapAsync(
-                    selectedDir.Id, roadmapName, description);
-
-                TimelineView.ItemsSource = roadmap.Events;
-                TotalEventsText.Text = roadmap.Events.Count.ToString();
-
-                if (roadmap.Events.Count > 0)
-                {
-                    var minDate = roadmap.Events.Min(e => e.EventDate);
-                    var maxDate = roadmap.Events.Max(e => e.EventDate);
-                    DateRangeText.Text = $"{minDate:dd.MM.yyyy} - {maxDate:dd.MM.yyyy}";
-                }
-
-                SetStatus($"AI згенерував {roadmap.Events.Count} подій");
-
-                MessageBox.Show(
-                    $"✅ AI хронологічну карту згенеровано!\n\n" +
-                    $"📅 Подій: {roadmap.Events.Count}\n" +
-                    $"🤖 AI Insights:\n{roadmap.AIInsights.Substring(0, Math.Min(200, roadmap.AIInsights.Length))}...",
-                    "AI Генерація завершена",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                ShowError("Помилка AI генерації", ex.Message);
-            }
-        }
-
-        private async Task<bool> CheckAIAvailability()
-        {
-            try
-            {
-                var status = await _client.GetAIServiceStatusAsync();
-
-                if (!status.IsOllamaRunning)
-                {
-                    var result = MessageBox.Show(
-                        "❌ Ollama не запущений!\n\nAI функції потребують запущеного Ollama.\n\nВідкрити інструкції по встановленню?",
-                        "AI сервіс недоступний",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Warning);
-
-                    if (result == MessageBoxResult.Yes)
-                    {
-                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                        {
-                            FileName = "https://ollama.com/download",
-                            UseShellExecute = true
-                        });
-                    }
-
-                    return false;
-                }
-
-                if (!status.IsModelLoaded)
-                {
-                    var result = MessageBox.Show(
-                        "⚠️ Модель llama3 не завантажена!\n\nВиконайте в терміналі:\nollama pull llama3\n\nПродовжити без AI?",
-                        "Модель не знайдена",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Warning);
-
-                    return result == MessageBoxResult.Yes;
-                }
-
-                return true;
-            }
-            catch (Exception ex)
-            {
-                ShowError("Помилка перевірки AI", ex.Message);
-                return false;
-            }
-        }
-
-        private async void ShowAIStatistics_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                var stats = await _client.GetAIStatisticsAsync();
-                var status = await _client.GetAIServiceStatusAsync();
-
-                string message = "📊 AI Статистика\n\n" +
-                    $"🤖 Статус Ollama: {(status.IsOllamaRunning ? "✅ Працює" : "❌ Не запущений")}\n" +
-                    $"📦 Модель: {status.ModelName} {(status.IsModelLoaded ? "✅" : "❌")}\n\n" +
-                    $"📈 Всього аналізів: {stats.GetValueOrDefault("TotalAnalyses", 0)}\n" +
-                    $"⚠️ Нерозв'язаних порушень: {stats.GetValueOrDefault("UnresolvedViolations", 0)}\n" +
-                    $"💡 Очікуючих рекомендацій: {stats.GetValueOrDefault("PendingRecommendations", 0)}\n" +
-                    $"🗺️ Згенеровано roadmaps: {stats.GetValueOrDefault("TotalRoadmaps", 0)}";
-
-                MessageBox.Show(message, "AI Статистика", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                ShowError("Помилка отримання статистики", ex.Message);
-            }
-        }
-
-        #endregion
-
-        #region Фінальні методи (статус на головному вікні)
-
-        private async Task RefreshAIStatusAsync()
-        {
-            SetStatus("Оновлення AI статусу...");
-
-            var aiStatus = await _client.GetAIServiceStatusAsync();
-
-            AIStatusText.Text = aiStatus.IsOllamaRunning
-                ? $"✅ Ollama працює | Модель: {aiStatus.ModelName} {(aiStatus.IsModelLoaded ? "✅" : "❌")}"
-                : "❌ Ollama не запущений";
-
-            var stats = await _client.GetAIStatisticsAsync();
-
-            TotalAIAnalysesText.Text = stats.GetValueOrDefault("TotalAnalyses", 0).ToString();
-            UnresolvedViolationsText.Text = stats.GetValueOrDefault("UnresolvedViolations", 0).ToString();
-            PendingRecommendationsText.Text = stats.GetValueOrDefault("PendingRecommendations", 0).ToString();
-            TotalAIRoadmapsText.Text = stats.GetValueOrDefault("TotalRoadmaps", 0).ToString();
-
-            SetStatus("AI статистику оновлено");
-        }
-
-        private async void RefreshAIStatus_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                await RefreshAIStatusAsync();
-            }
-            catch (Exception ex)
-            {
-                ShowError("Помилка оновлення AI статусу", ex.Message);
-            }
-        }
-
         private void DirectoriesGrid_MouseRightButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             if (DirectoriesGrid.SelectedItem == null) return;
 
             var contextMenu = new System.Windows.Controls.ContextMenu();
-
-            var aiAnalysisItem = new System.Windows.Controls.MenuItem
-            {
-                Header = "🤖 AI Аналіз структури",
-                Icon = new System.Windows.Controls.TextBlock { Text = "🤖" }
-            };
-            aiAnalysisItem.Click += OpenAIAnalysis_Click;
-            contextMenu.Items.Add(aiAnalysisItem);
-
-            var aiRoadmapItem = new System.Windows.Controls.MenuItem
-            {
-                Header = "📅 Згенерувати AI Roadmap",
-                Icon = new System.Windows.Controls.TextBlock { Text = "📅" }
-            };
-            aiRoadmapItem.Click += (s, args) =>
-            {
-                RoadmapDirectoryCombo.SelectedItem = DirectoriesGrid.SelectedItem;
-                GenerateAIRoadmap_Click(s, args);
-            };
-            contextMenu.Items.Add(aiRoadmapItem);
-
-            contextMenu.Items.Add(new System.Windows.Controls.Separator());
 
             var scanItem = new System.Windows.Controls.MenuItem
             {
@@ -1555,8 +1342,6 @@ namespace DocControlUI
 
             contextMenu.IsOpen = true;
         }
-
-        #endregion
 
         #region Network Core Operations
 
