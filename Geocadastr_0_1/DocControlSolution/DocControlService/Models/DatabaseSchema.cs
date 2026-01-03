@@ -233,67 +233,8 @@
             @"CREATE INDEX IF NOT EXISTS idx_ipfilter_directory 
               ON IpFilterRules(directoryId);",
 
-            @"CREATE INDEX IF NOT EXISTS idx_ipfilter_georoadmap 
-              ON IpFilterRules(geoRoadmapId);",
-            // Додати нові таблиці для AI:
-
-@"CREATE TABLE IF NOT EXISTS AIAnalysisResults (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    directoryId INTEGER NOT NULL,
-    directoryPath TEXT NOT NULL,
-    analysisDate DATETIME DEFAULT CURRENT_TIMESTAMP,
-    analysisType TEXT NOT NULL,
-    summary TEXT,
-    rawAIResponse TEXT,
-    isProcessed INTEGER DEFAULT 0,
-    FOREIGN KEY(directoryId) REFERENCES directory(id)
-);",
-
-@"CREATE TABLE IF NOT EXISTS AIRecommendations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    analysisResultId INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    type TEXT NOT NULL,
-    actionJson TEXT,
-    priority TEXT,
-    isApplied INTEGER DEFAULT 0,
-    appliedAt DATETIME,
-    FOREIGN KEY(analysisResultId) REFERENCES AIAnalysisResults(id) ON DELETE CASCADE
-);",
-
-@"CREATE TABLE IF NOT EXISTS StructureViolations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    analysisResultId INTEGER NOT NULL,
-    filePath TEXT NOT NULL,
-    violationType TEXT NOT NULL,
-    description TEXT,
-    suggestedPath TEXT,
-    isResolved INTEGER DEFAULT 0,
-    FOREIGN KEY(analysisResultId) REFERENCES AIAnalysisResults(id) ON DELETE CASCADE
-);",
-
-@"CREATE TABLE IF NOT EXISTS AIChronologicalRoadmaps (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    directoryId INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT,
-    generatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    aiInsights TEXT,
-    FOREIGN KEY(directoryId) REFERENCES directory(id)
-);",
-
-@"CREATE TABLE IF NOT EXISTS ChronologicalEvents (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    roadmapId INTEGER NOT NULL,
-    eventDate DATETIME NOT NULL,
-    title TEXT NOT NULL,
-    description TEXT,
-    category TEXT,
-    relatedFiles TEXT,
-    aiGeneratedContext TEXT,
-    FOREIGN KEY(roadmapId) REFERENCES AIChronologicalRoadmaps(id) ON DELETE CASCADE
-);"
+            @"CREATE INDEX IF NOT EXISTS idx_ipfilter_georoadmap
+              ON IpFilterRules(geoRoadmapId);"
         };
 
         // Вбудовані шаблони геокарт
