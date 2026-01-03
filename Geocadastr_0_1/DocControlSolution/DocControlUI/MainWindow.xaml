@@ -716,8 +716,8 @@
             </TabItem>
         </TabControl>
 
-            <!-- ContentPresenter для навігації (показується поверх TabControl) -->
-            <ContentPresenter x:Name="NavigationContent" Visibility="Collapsed"/>
+            <!-- ContentControl для навігації (показується поверх TabControl) -->
+            <ContentControl x:Name="NavigationContent" Visibility="Collapsed"/>
         </Grid>
 
         <!-- Статус бар -->
