@@ -314,11 +314,9 @@
                         <!-- Швидкі дії -->
                         <GroupBox Header="⚡ Швидкі дії">
                             <StackPanel>
-                                <Button Content="🎯 Оптимізувати маршрут" 
+                                <Button Content="🎯 Оптимізувати маршрут"
                                         Click="OptimizeRoute_Click" Margin="0,5"/>
-                                <Button Content="📍 Додати віхи з файлів" 
-                                        Click="AddMilestonesFromFiles_Click" Margin="0,5"/>
-                                <Button Content="💾 Зберегти як шаблон" 
+                                <Button Content="💾 Зберегти як шаблон"
                                         Click="SaveAsTemplate_Click" Margin="0,5"/>
                             </StackPanel>
                         </GroupBox>
