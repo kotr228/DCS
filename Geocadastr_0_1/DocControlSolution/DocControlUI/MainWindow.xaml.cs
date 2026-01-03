@@ -55,6 +55,9 @@ namespace DocControlUI
         {
             await CheckServiceAndRefresh();
 
+            // Завантажуємо налаштування з БД
+            try { await LoadSettingsAsync(); } catch { }
+
             // Оновлюємо мережеві інтерфейси
             try { await RefreshNetworkInterfacesAsync(); } catch { }
 
@@ -737,6 +740,26 @@ namespace DocControlUI
             catch (Exception ex)
             {
                 ShowError("Помилка збереження налаштувань", ex.Message);
+            }
+        }
+
+        private async System.Threading.Tasks.Task LoadSettingsAsync()
+        {
+            try
+            {
+                var settings = await _client.GetSettingsAsync();
+
+                AutoShareOnAddCheckbox.IsChecked = settings.AutoShareOnAdd;
+                EnableUpdateNotificationsCheckbox.IsChecked = settings.EnableUpdateNotifications;
+                CommitIntervalTextBox.Text = settings.CommitIntervalMinutes.ToString();
+            }
+            catch (Exception ex)
+            {
+                // Якщо налаштування не знайдено, використовуємо значення за замовчуванням
+                AutoShareOnAddCheckbox.IsChecked = false;
+                EnableUpdateNotificationsCheckbox.IsChecked = true;
+                CommitIntervalTextBox.Text = "720";
+                System.Diagnostics.Debug.WriteLine($"Error loading settings: {ex.Message}");
             }
         }
 
