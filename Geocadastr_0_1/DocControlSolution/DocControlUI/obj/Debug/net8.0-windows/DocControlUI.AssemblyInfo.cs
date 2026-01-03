@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright © 2025 Coffee Cat")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fdb7781267db41a595e8f1790650dfe52bddd730")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e28566986097ae3ab5cd03366f2818ce66e9b636")]
 [assembly: System.Reflection.AssemblyProductAttribute("DocControl - Document Control System")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DocControlUI")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
