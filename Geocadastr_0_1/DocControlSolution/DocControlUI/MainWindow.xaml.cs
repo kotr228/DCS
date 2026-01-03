@@ -29,6 +29,9 @@ namespace DocControlUI
         // Таймер для автоматичного оновлення мережевих пристроїв
         private System.Windows.Threading.DispatcherTimer _networkRefreshTimer;
 
+        // Система навігації
+        private Helpers.NavigationService _navigationService;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -50,6 +53,10 @@ namespace DocControlUI
 
             // Підписка на закриття вікна
             Closing += (s, e) => _networkRefreshTimer?.Stop();
+
+            // Ініціалізація системи навігації
+            _navigationService = new Helpers.NavigationService(NavigationContent);
+            _navigationService.NavigationChanged += OnNavigationChanged;
         }
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -1337,7 +1344,7 @@ namespace DocControlUI
 
                 var aiWindow = new AIAnalysisWindow(dirPath, dirId);
                 var hostControl = new Helpers.WindowHostControl(aiWindow);
-                OpenInTab(hostControl, $"AI Аналіз - {dirName}", "🤖", isClosable: true);
+                NavigateTo(hostControl, $"AI Аналіз - {dirName}", "🤖");
             }
             catch (Exception ex)
             {
@@ -1351,7 +1358,7 @@ namespace DocControlUI
             {
                 var managerWindow = new DirectoryManagerWindow();
                 var hostControl = new Helpers.WindowHostControl(managerWindow);
-                OpenInTab(hostControl, "Менеджер Директорій", "📁", isClosable: true);
+                NavigateTo(hostControl, "Менеджер Директорій", "📁");
             }
             catch (Exception ex)
             {
@@ -2006,10 +2013,10 @@ namespace DocControlUI
                 {
                     Console.WriteLine($"[UI] Подвійний клік по пристрою: {device.Name}");
 
-                    // Відкриваємо вікно віддалених директорій у вкладці
+                    // Відкриваємо вікно віддалених директорій через навігацію
                     var remoteWindow = new Windows.RemoteDirectoryBrowserWindow(device.Name);
                     var hostControl = new Helpers.WindowHostControl(remoteWindow);
-                    OpenInTab(hostControl, $"Сервер: {device.Name}", "🌐", isClosable: true);
+                    NavigateTo(hostControl, $"Сервер: {device.Name}", "🌐");
                 }
                 catch (Exception ex)
                 {
@@ -2139,76 +2146,82 @@ namespace DocControlUI
 
         #endregion
 
-        #region Динамічні вкладки
+        #region Навігація
 
         /// <summary>
-        /// Відкрити UserControl у новій вкладці
+        /// Навігація до нової сторінки (замість відкриття вкладки)
         /// </summary>
-        public void OpenInTab(UserControl content, string tabHeader, string icon = "📄", bool isClosable = true)
+        public void NavigateTo(UserControl content, string title, string icon = "📄")
         {
-            // Перевірити чи вкладка вже відкрита
-            foreach (TabItem existingTab in MainTabControl.Items)
-            {
-                if (existingTab is Helpers.ClosableTabItem closableTab &&
-                    closableTab.Header?.ToString() == $"{icon} {tabHeader}")
-                {
-                    // Вкладка вже існує - активуємо її
-                    MainTabControl.SelectedItem = existingTab;
-                    return;
-                }
-            }
+            // Сховати TabControl, показати навігаційний контент
+            MainTabControl.Visibility = Visibility.Collapsed;
+            NavigationContent.Visibility = Visibility.Visible;
+            NavigationPanel.Visibility = Visibility.Visible;
 
-            // Створити нову вкладку
-            var newTab = new Helpers.ClosableTabItem
-            {
-                Content = content,
-                IsClosable = isClosable
-            };
-            newTab.SetHeaderWithIcon(icon, tabHeader);
-
-            // Підписатися на закриття
-            newTab.CloseRequested += (s, e) =>
-            {
-                MainTabControl.Items.Remove(newTab);
-
-                // Очистити ресурси content якщо це IDisposable
-                if (content is IDisposable disposable)
-                {
-                    try
-                    {
-                        disposable.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[MainWindow] Помилка при Dispose вкладки: {ex.Message}");
-                    }
-                }
-            };
-
-            // Додати вкладку та активувати
-            MainTabControl.Items.Add(newTab);
-            MainTabControl.SelectedItem = newTab;
+            // Виконати навігацію
+            _navigationService.NavigateTo(content, title, icon);
         }
 
         /// <summary>
-        /// Закрити всі динамічні вкладки (окрім основних)
+        /// Обробник зміни навігації
         /// </summary>
-        public void CloseAllDynamicTabs()
+        private void OnNavigationChanged(object sender, EventArgs e)
         {
-            var tabsToRemove = new List<TabItem>();
+            // Оновити стан кнопок
+            BackButton.IsEnabled = _navigationService.CanGoBack;
+            ForwardButton.IsEnabled = _navigationService.CanGoForward;
 
-            foreach (TabItem tab in MainTabControl.Items)
-            {
-                if (tab is Helpers.ClosableTabItem closableTab && closableTab.IsClosable)
-                {
-                    tabsToRemove.Add(tab);
-                }
-            }
+            // Оновити breadcrumbs
+            var breadcrumbs = _navigationService.GetBreadcrumbs();
+            BreadcrumbsText.Text = string.Join(" → ", breadcrumbs);
 
-            foreach (var tab in tabsToRemove)
+            // Якщо повернулися на початок - показати TabControl
+            if (!_navigationService.CanGoBack && _navigationService.CurrentPage == null)
             {
-                MainTabControl.Items.Remove(tab);
+                ShowMainContent();
             }
+        }
+
+        /// <summary>
+        /// Показати головний контент (TabControl)
+        /// </summary>
+        private void ShowMainContent()
+        {
+            MainTabControl.Visibility = Visibility.Visible;
+            NavigationContent.Visibility = Visibility.Collapsed;
+            NavigationPanel.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// Кнопка Назад
+        /// </summary>
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            _navigationService.GoBack();
+
+            // Якщо повернулися до початку - показати TabControl
+            if (!_navigationService.CanGoBack)
+            {
+                ShowMainContent();
+            }
+        }
+
+        /// <summary>
+        /// Кнопка Вперед
+        /// </summary>
+        private void ForwardButton_Click(object sender, RoutedEventArgs e)
+        {
+            _navigationService.GoForward();
+        }
+
+        /// <summary>
+        /// Кнопка Головна
+        /// </summary>
+        private void HomeButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Повернутися на головну сторінку
+            _navigationService.ClearHistory();
+            ShowMainContent();
         }
 
         #endregion
