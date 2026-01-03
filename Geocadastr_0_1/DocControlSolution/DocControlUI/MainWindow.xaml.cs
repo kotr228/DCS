@@ -1335,10 +1335,9 @@ namespace DocControlUI
                 var dirName = selected.GetType().GetProperty("Name").GetValue(selected).ToString();
                 var dirPath = selected.GetType().GetProperty("Browse").GetValue(selected).ToString();
 
-                var aiWindow = new AIAnalysisWindow(dirPath, dirId) { Owner = this, Title = $"AI Аналіз - {dirName}" };
-                aiWindow.ShowDialog();
-
-                RefreshAllData().Wait();
+                var aiWindow = new AIAnalysisWindow(dirPath, dirId);
+                var hostControl = new Helpers.WindowHostControl(aiWindow);
+                OpenInTab(hostControl, $"AI Аналіз - {dirName}", "🤖", isClosable: true);
             }
             catch (Exception ex)
             {
@@ -1350,11 +1349,9 @@ namespace DocControlUI
         {
             try
             {
-                var managerWindow = new DirectoryManagerWindow { Owner = this };
-                managerWindow.ShowDialog();
-
-                // Оновлюємо дані після закриття вікна
-                RefreshAllData().Wait();
+                var managerWindow = new DirectoryManagerWindow();
+                var hostControl = new Helpers.WindowHostControl(managerWindow);
+                OpenInTab(hostControl, "Менеджер Директорій", "📁", isClosable: true);
             }
             catch (Exception ex)
             {
@@ -2009,10 +2006,10 @@ namespace DocControlUI
                 {
                     Console.WriteLine($"[UI] Подвійний клік по пристрою: {device.Name}");
 
-                    // Відкриваємо вікно віддалених директорій
+                    // Відкриваємо вікно віддалених директорій у вкладці
                     var remoteWindow = new Windows.RemoteDirectoryBrowserWindow(device.Name);
-                    remoteWindow.Owner = this;
-                    remoteWindow.ShowDialog();
+                    var hostControl = new Helpers.WindowHostControl(remoteWindow);
+                    OpenInTab(hostControl, $"Сервер: {device.Name}", "🌐", isClosable: true);
                 }
                 catch (Exception ex)
                 {
@@ -2137,6 +2134,80 @@ namespace DocControlUI
             catch (Exception ex)
             {
                 ShowError("Помилка відкликання доступу", ex.Message);
+            }
+        }
+
+        #endregion
+
+        #region Динамічні вкладки
+
+        /// <summary>
+        /// Відкрити UserControl у новій вкладці
+        /// </summary>
+        public void OpenInTab(UserControl content, string tabHeader, string icon = "📄", bool isClosable = true)
+        {
+            // Перевірити чи вкладка вже відкрита
+            foreach (TabItem existingTab in MainTabControl.Items)
+            {
+                if (existingTab is Helpers.ClosableTabItem closableTab &&
+                    closableTab.Header?.ToString() == $"{icon} {tabHeader}")
+                {
+                    // Вкладка вже існує - активуємо її
+                    MainTabControl.SelectedItem = existingTab;
+                    return;
+                }
+            }
+
+            // Створити нову вкладку
+            var newTab = new Helpers.ClosableTabItem
+            {
+                Content = content,
+                IsClosable = isClosable
+            };
+            newTab.SetHeaderWithIcon(icon, tabHeader);
+
+            // Підписатися на закриття
+            newTab.CloseRequested += (s, e) =>
+            {
+                MainTabControl.Items.Remove(newTab);
+
+                // Очистити ресурси content якщо це IDisposable
+                if (content is IDisposable disposable)
+                {
+                    try
+                    {
+                        disposable.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[MainWindow] Помилка при Dispose вкладки: {ex.Message}");
+                    }
+                }
+            };
+
+            // Додати вкладку та активувати
+            MainTabControl.Items.Add(newTab);
+            MainTabControl.SelectedItem = newTab;
+        }
+
+        /// <summary>
+        /// Закрити всі динамічні вкладки (окрім основних)
+        /// </summary>
+        public void CloseAllDynamicTabs()
+        {
+            var tabsToRemove = new List<TabItem>();
+
+            foreach (TabItem tab in MainTabControl.Items)
+            {
+                if (tab is Helpers.ClosableTabItem closableTab && closableTab.IsClosable)
+                {
+                    tabsToRemove.Add(tab);
+                }
+            }
+
+            foreach (var tab in tabsToRemove)
+            {
+                MainTabControl.Items.Remove(tab);
             }
         }
 
