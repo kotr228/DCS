@@ -29,9 +29,6 @@ namespace DocControlUI
         // Таймер для автоматичного оновлення мережевих пристроїв
         private System.Windows.Threading.DispatcherTimer _networkRefreshTimer;
 
-        // Система навігації
-        private Helpers.NavigationService _navigationService;
-
         public MainWindow()
         {
             InitializeComponent();
@@ -53,10 +50,6 @@ namespace DocControlUI
 
             // Підписка на закриття вікна
             Closing += (s, e) => _networkRefreshTimer?.Stop();
-
-            // Ініціалізація системи навігації
-            _navigationService = new Helpers.NavigationService(NavigationContent);
-            _navigationService.NavigationChanged += OnNavigationChanged;
         }
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -1343,8 +1336,7 @@ namespace DocControlUI
                 var dirPath = selected.GetType().GetProperty("Browse").GetValue(selected).ToString();
 
                 var aiWindow = new AIAnalysisWindow(dirPath, dirId);
-                var hostControl = new Helpers.WindowHostControl(aiWindow);
-                NavigateTo(hostControl, $"AI Аналіз - {dirName}", "🤖");
+                OpenWindowAndHide(aiWindow);
             }
             catch (Exception ex)
             {
@@ -1357,8 +1349,7 @@ namespace DocControlUI
             try
             {
                 var managerWindow = new DirectoryManagerWindow();
-                var hostControl = new Helpers.WindowHostControl(managerWindow);
-                NavigateTo(hostControl, "Менеджер Директорій", "📁");
+                OpenWindowAndHide(managerWindow);
             }
             catch (Exception ex)
             {
@@ -2013,10 +2004,9 @@ namespace DocControlUI
                 {
                     Console.WriteLine($"[UI] Подвійний клік по пристрою: {device.Name}");
 
-                    // Відкриваємо вікно віддалених директорій через навігацію
+                    // Відкриваємо вікно віддалених директорій
                     var remoteWindow = new Windows.RemoteDirectoryBrowserWindow(device.Name);
-                    var hostControl = new Helpers.WindowHostControl(remoteWindow);
-                    NavigateTo(hostControl, $"Сервер: {device.Name}", "🌐");
+                    OpenWindowAndHide(remoteWindow);
                 }
                 catch (Exception ex)
                 {
@@ -2146,82 +2136,33 @@ namespace DocControlUI
 
         #endregion
 
-        #region Навігація
+        #region Відкриття вікон
 
         /// <summary>
-        /// Навігація до нової сторінки (замість відкриття вкладки)
+        /// Відкрити вікно та сховати головне (замість модальності)
+        /// При закритті вікна - головне з'явиться назад
         /// </summary>
-        public void NavigateTo(UserControl content, string title, string icon = "📄")
+        private void OpenWindowAndHide(Window window)
         {
-            // Сховати TabControl, показати навігаційний контент
-            MainTabControl.Visibility = Visibility.Collapsed;
-            NavigationContent.Visibility = Visibility.Visible;
-            NavigationPanel.Visibility = Visibility.Visible;
+            // Встановити owner для центрування
+            window.Owner = this;
 
-            // Виконати навігацію
-            _navigationService.NavigateTo(content, title, icon);
-        }
-
-        /// <summary>
-        /// Обробник зміни навігації
-        /// </summary>
-        private void OnNavigationChanged(object sender, EventArgs e)
-        {
-            // Оновити стан кнопок
-            BackButton.IsEnabled = _navigationService.CanGoBack;
-            ForwardButton.IsEnabled = _navigationService.CanGoForward;
-
-            // Оновити breadcrumbs
-            var breadcrumbs = _navigationService.GetBreadcrumbs();
-            BreadcrumbsText.Text = string.Join(" → ", breadcrumbs);
-
-            // Якщо повернулися на початок - показати TabControl
-            if (!_navigationService.CanGoBack && _navigationService.CurrentPage == null)
+            // Підписатися на закриття вікна
+            window.Closed += (s, e) =>
             {
-                ShowMainContent();
-            }
-        }
+                // Показати головне вікно назад
+                this.Show();
+                this.Activate();
 
-        /// <summary>
-        /// Показати головний контент (TabControl)
-        /// </summary>
-        private void ShowMainContent()
-        {
-            MainTabControl.Visibility = Visibility.Visible;
-            NavigationContent.Visibility = Visibility.Collapsed;
-            NavigationPanel.Visibility = Visibility.Collapsed;
-        }
+                // Оновити дані якщо потрібно
+                RefreshAllData().Wait();
+            };
 
-        /// <summary>
-        /// Кнопка Назад
-        /// </summary>
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            _navigationService.GoBack();
+            // Сховати головне вікно
+            this.Hide();
 
-            // Якщо повернулися до початку - показати TabControl
-            if (!_navigationService.CanGoBack)
-            {
-                ShowMainContent();
-            }
-        }
-
-        /// <summary>
-        /// Кнопка Вперед
-        /// </summary>
-        private void ForwardButton_Click(object sender, RoutedEventArgs e)
-        {
-            _navigationService.GoForward();
-        }
-
-        /// <summary>
-        /// Кнопка Головна
-        /// </summary>
-        private void HomeButton_Click(object sender, RoutedEventArgs e)
-        {
-            // Повернутися на головну сторінку
-            _navigationService.ClearHistory();
-            ShowMainContent();
+            // Показати нове вікно (не модально!)
+            window.Show();
         }
 
         #endregion

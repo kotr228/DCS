@@ -37,7 +37,6 @@
     <Grid Background="{StaticResource BackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -66,39 +65,8 @@
             </Grid>
         </Border>
 
-        <!-- Панель навігації -->
-        <Border Grid.Row="1" Padding="10,5" Background="{StaticResource PrimaryLightBrush}"
-                x:Name="NavigationPanel" Visibility="Collapsed">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Кнопки навігації -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Button x:Name="BackButton" Content="← Назад" Click="BackButton_Click"
-                            Width="100" IsEnabled="False"
-                            ToolTip="Повернутися до попередньої сторінки"/>
-                    <Button x:Name="ForwardButton" Content="Вперед →" Click="ForwardButton_Click"
-                            Width="100" Margin="5,0,0,0" IsEnabled="False"
-                            ToolTip="Перейти до наступної сторінки"/>
-                    <Button x:Name="HomeButton" Content="🏠 Головна" Click="HomeButton_Click"
-                            Width="120" Margin="5,0,0,0"
-                            ToolTip="Повернутися на головну сторінку"/>
-                </StackPanel>
-
-                <!-- Хлібні крихти (breadcrumbs) -->
-                <TextBlock x:Name="BreadcrumbsText" Grid.Column="1"
-                           VerticalAlignment="Center" HorizontalAlignment="Right"
-                           FontStyle="Italic" Margin="10,0,0,0"/>
-            </Grid>
-        </Border>
-
-        <!-- Контейнер для контенту -->
-        <Grid Grid.Row="2" Margin="10">
-            <!-- Головний TabControl (показується за замовчуванням) -->
-            <TabControl x:Name="MainTabControl" Visibility="Visible">
+        <!-- Головний контент -->
+        <TabControl Grid.Row="1" Margin="10" x:Name="MainTabControl">
 
             <!-- Вкладка Директорії -->
             <TabItem Header="📁 Директорії">
@@ -716,12 +684,8 @@
             </TabItem>
         </TabControl>
 
-            <!-- ContentControl для навігації (показується поверх TabControl) -->
-            <ContentControl x:Name="NavigationContent" Visibility="Collapsed"/>
-        </Grid>
-
         <!-- Статус бар -->
-        <StatusBar Grid.Row="3">
+        <StatusBar Grid.Row="2">
             <StatusBarItem>
                 <TextBlock x:Name="StatusBarText" Text="Готово"/>
             </StatusBarItem>
