@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DocControl.Maps.Core")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f81df67128d6390c09102028ba115a13b07f7508")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9ef389f8905e310c1db6ecd11564f8b947cd7a84")]
 [assembly: System.Reflection.AssemblyProductAttribute("DocControl.Maps.Core")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DocControl.Maps.Core")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

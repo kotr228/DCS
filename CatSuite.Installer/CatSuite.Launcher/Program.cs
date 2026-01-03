@@ -21,7 +21,7 @@ namespace CatSuite.Launcher
         // 3. Production сервер (для release)
 
         private const string LOCAL_MANIFEST_PATH = "manifest.json"; // Поруч з exe
-        private const string HTTP_SERVER_URL = "http://localhost:8080/manifest.json"; // Локальний сервер
+        private const string HTTP_SERVER_URL = "http://localhost:8080/"; // Локальний сервер
         private const string PRODUCTION_SERVER_URL = "https://your-server.com/catsuite/manifest.json"; // TODO: Замінити на реальний
 
         // Google Drive (fallback для backward compatibility - буде видалено пізніше)

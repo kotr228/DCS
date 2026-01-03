@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CatSuite.Installer")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.2.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.2.0+da1a3d5e1506e55f01c2d3bd04f3392cc8867693")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.2.0+9ef389f8905e310c1db6ecd11564f8b947cd7a84")]
 [assembly: System.Reflection.AssemblyProductAttribute("CatSuite.Installer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CatSuite.Installer")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.2.0.0")]
