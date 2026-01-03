@@ -7,6 +7,12 @@
     <Nullable>enable</Nullable>
     <DockerDefaultTargetOS>Windows</DockerDefaultTargetOS>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Company>Coffee Cat</Company>
+    <Product>DocControl Service - Windows Service Backend</Product>
+    <Copyright>Copyright © 2025 Coffee Cat</Copyright>
   </PropertyGroup>
 
   <ItemGroup>
