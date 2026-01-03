@@ -2148,14 +2148,24 @@ namespace DocControlUI
             window.Owner = this;
 
             // Підписатися на закриття вікна
-            window.Closed += (s, e) =>
+            window.Closed += async (s, e) =>
             {
                 // Показати головне вікно назад
                 this.Show();
                 this.Activate();
 
-                // Оновити дані якщо потрібно
-                RefreshAllData().Wait();
+                // Явно показати TabControl (на випадок якщо він був схований)
+                MainTabControl.Visibility = Visibility.Visible;
+
+                // Оновити дані якщо потрібно (асинхронно, не блокуємо UI)
+                try
+                {
+                    await RefreshAllData();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[MainWindow] Помилка оновлення даних: {ex.Message}");
+                }
             };
 
             // Сховати головне вікно
