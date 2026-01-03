@@ -57,13 +57,6 @@ namespace DocControlService
         private GeoMappingService _geoMappingService;
         private IpFilterService _ipFilterService;
 
-        // AI компоненти v0.4.1
-        private AIAnalysisRepository _aiAnalysisRepo;
-        private OllamaClient _ollamaClient;
-        private DirectoryStructureAnalyzer _structureAnalyzer;
-        private ChronologicalRoadmapGenerator _chronoGenerator;
-        private FileReorganizationService _fileReorganizer;
-
         // Координатор файлових систем (локальна + мережева)
         private FileSystemCoordinator _fileSystemCoordinator;
 
@@ -120,13 +113,6 @@ namespace DocControlService
             _roadmapService = new RoadmapService();
             _networkService = new NetworkDiscoveryService();
             _externalServiceRepo = new ExternalServiceRepository(_dbManager);
-
-            // AI компоненти v0.4.1
-            _aiAnalysisRepo = new AIAnalysisRepository(_dbManager);
-            _ollamaClient = new OllamaClient("Models/meta-llama-3-8b-instruct.Q4_K_M.gguf", "llama3");
-            _structureAnalyzer = new DirectoryStructureAnalyzer(_ollamaClient);
-            _chronoGenerator = new ChronologicalRoadmapGenerator(_ollamaClient);
-            _fileReorganizer = new FileReorganizationService();
 
             // Координатор файлових систем
             _fileSystemCoordinator = new FileSystemCoordinator(_dbManager);
