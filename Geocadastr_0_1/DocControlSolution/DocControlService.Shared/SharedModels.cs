@@ -295,8 +295,6 @@ namespace DocControlService.Shared
         // Access control
         GrantAccess,
         RevokeAccess,
-        OpenAllShares,
-        CloseAllShares,
         GetNetworkAccess,
 
         // Service status

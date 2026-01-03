@@ -88,9 +88,6 @@
                         <Button Content="📁 Менеджер Директорій" Click="OpenDirectoryManager_Click"
                                 Background="#FF9800" Foreground="White"
                                 ToolTip="Розширений пошук та редагування директорій"/>
-                        <Separator Width="20" Background="Transparent"/>
-                        <Button Content="🔓 Відкрити всі" Click="OpenAllShares_Click" Background="#4CAF50"/>
-                        <Button Content="🔒 Закрити всі" Click="CloseAllShares_Click" Background="#F44336"/>
                     </StackPanel>
 
                     <!-- Список директорій -->

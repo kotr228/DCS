@@ -366,46 +366,6 @@ namespace DocControlUI
             }
         }
 
-        private async void OpenAllShares_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                SetStatus("Відкриття всіх шарів...");
-                await _client.OpenAllSharesAsync();
-                await RefreshDirectories();
-                SetStatus("Всі шари відкрито");
-                MessageBox.Show("Всі мережеві шари відкрито!", "Успіх",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                ShowError("Помилка відкриття шарів", ex.Message);
-            }
-        }
-
-        private async void CloseAllShares_Click(object sender, RoutedEventArgs e)
-        {
-            var result = MessageBox.Show(
-                "Ви впевнені що хочете закрити всі мережеві шари?",
-                "Підтвердження",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                try
-                {
-                    SetStatus("Закриття всіх шарів...");
-                    await _client.CloseAllSharesAsync();
-                    await RefreshDirectories();
-                    SetStatus("Всі шари закрито");
-                }
-                catch (Exception ex)
-                {
-                    ShowError("Помилка закриття шарів", ex.Message);
-                }
-            }
-        }
 
         #endregion
 

@@ -30,14 +30,11 @@ namespace DocControlService
         private readonly DeviceRepository _deviceRepo;
         private readonly NetworkAccessRepository _accessRepo;
         private readonly FileLockRepository _fileLockRepo;
-        private readonly NetworkShareService _shareService;
         private readonly DirectoryScanner _scanner;
         private readonly VersionControlFactory _versionFactory;
-        private readonly AccessService _accessService;
 
         private CancellationTokenSource _cancellationTokenSource;
         private Task _pipeServerTask;
-        private Task _monitoringTask;
         private Task _versionControlTask;
         private readonly bool _debugMode;
         private DateTime _startTime;
@@ -80,7 +77,6 @@ namespace DocControlService
             _deviceRepo = new DeviceRepository(_dbManager);
             _accessRepo = new NetworkAccessRepository(_dbManager);
             _fileLockRepo = new FileLockRepository(_dbManager);
-            _shareService = new NetworkShareService();
             _scanner = new DirectoryScanner(_dbManager);
             _versionFactory = new VersionControlFactory(_dirRepo);
 
@@ -102,8 +98,6 @@ namespace DocControlService
                     }
                 };
             }
-
-            _accessService = new AccessService(_dbManager);
 
             _commitLogRepo = new CommitLogRepository(_dbManager);
             _errorLogRepo = new ErrorLogRepository(_dbManager);
@@ -133,9 +127,6 @@ namespace DocControlService
 
             try
             {
-                // Синхронізуємо таблицю доступу
-                _accessService.SyncAccessTable();
-
                 // ВИМКНЕНО: NetworkCore запускається як окремий процес DocControlNetworkCore.exe
                 // Він передає знайдені пристрої через Named Pipes
                 // var sharedDir = GetSharedDirectory();
@@ -147,9 +138,6 @@ namespace DocControlService
 
                 // Запускаємо Named Pipe сервер для комунікації з UI
                 _pipeServerTask = Task.Run(() => RunPipeServer(_cancellationTokenSource.Token));
-
-                // Запускаємо моніторинг доступу
-                _monitoringTask = Task.Run(() => MonitorAccessStatus(_cancellationTokenSource.Token));
 
                 // Запускаємо автоматичне версіонування
                 _versionControlTask = Task.Run(() => AutoCommitLoop(_cancellationTokenSource.Token));
@@ -175,7 +163,7 @@ namespace DocControlService
                 _fileSystemCoordinator?.StopNetworkCore();
 
                 // Чекаємо завершення задач
-                Task.WaitAll(new[] { _pipeServerTask, _monitoringTask, _versionControlTask }
+                Task.WaitAll(new[] { _pipeServerTask, _versionControlTask }
                     .Where(t => t != null).ToArray(),
                     TimeSpan.FromSeconds(10));
 
@@ -190,86 +178,7 @@ namespace DocControlService
             }
         }
 
-        #region Network Share Management
-
-        private void RestoreNetworkShares()
-        {
-            Log("Restoring network shares...");
-
-            var directories = _dirRepo.GetAllDirectories();
-            foreach (var dir in directories)
-            {
-                if (_accessRepo.IsDirectoryShared(dir.Id))
-                {
-                    string shareName = $"DocShare_{dir.Id}";
-                    if (_shareService.OpenShare(shareName, dir.Browse))
-                    {
-                        Log($"Restored share: {shareName} -> {dir.Browse}");
-                    }
-                    else
-                    {
-                        Log($"Failed to restore share: {shareName}", EventLogEntryType.Warning);
-                    }
-                }
-            }
-        }
-
-        private void CloseAllNetworkShares()
-        {
-            Log("Closing all network shares...");
-
-            var directories = _dirRepo.GetAllDirectories();
-            foreach (var dir in directories)
-            {
-                string shareName = $"DocShare_{dir.Id}";
-                _shareService.CloseShare(shareName);
-            }
-        }
-
-        #endregion
-
-        #region Monitoring and Version Control
-
-        private async Task MonitorAccessStatus(CancellationToken cancellationToken)
-        {
-            Log("Starting access monitoring...");
-
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    await Task.Delay(TimeSpan.FromMinutes(5), cancellationToken);
-
-                    // Перевіряємо статус доступу для кожної директорії
-                    var directories = _dirRepo.GetAllDirectories();
-                    foreach (var dir in directories)
-                    {
-                        bool shouldBeShared = _accessRepo.IsDirectoryShared(dir.Id);
-                        string shareName = $"DocShare_{dir.Id}";
-                        bool isShared = _shareService.ShareExists(shareName);
-
-                        if (shouldBeShared && !isShared)
-                        {
-                            Log($"Share {shareName} should exist but doesn't. Restoring...");
-                            _shareService.OpenShare(shareName, dir.Browse);
-                        }
-                        else if (!shouldBeShared && isShared)
-                        {
-                            Log($"Share {shareName} exists but shouldn't. Removing...");
-                            _shareService.CloseShare(shareName);
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    Log($"Error in access monitoring: {ex.Message}", EventLogEntryType.Warning);
-                }
-            }
-        }
+        #region Version Control
 
         private async Task AutoCommitLoop(CancellationToken cancellationToken)
         {
@@ -461,12 +370,6 @@ namespace DocControlService
 
                     case ServiceCommandType.GetNetworkAccess:
                         return HandleGetNetworkAccess(command.Data);
-
-                    case ServiceCommandType.OpenAllShares:
-                        return HandleOpenAllShares();
-
-                    case ServiceCommandType.CloseAllShares:
-                        return HandleCloseAllShares();
 
                     case ServiceCommandType.GetStatus:
                         return HandleGetStatus();
@@ -801,13 +704,6 @@ namespace DocControlService
                     Success = false,
                     Message = "Directory not found"
                 };
-            }
-
-            // Закриваємо шар якщо він відкритий
-            string shareName = $"DocShare_{dirId}";
-            if (_shareService.ShareExists(shareName))
-            {
-                _shareService.CloseShare(shareName);
             }
 
             // Видаляємо всі записи доступу
@@ -1244,30 +1140,6 @@ namespace DocControlService
                     Message = $"Failed to get network access: {ex.Message}"
                 };
             }
-        }
-
-        private ServiceResponse HandleOpenAllShares()
-        {
-            _accessService.OpenAll();
-            Log("Opened all network shares");
-
-            return new ServiceResponse
-            {
-                Success = true,
-                Message = "All shares opened successfully"
-            };
-        }
-
-        private ServiceResponse HandleCloseAllShares()
-        {
-            _accessService.CloseAll();
-            Log("Closed all network shares");
-
-            return new ServiceResponse
-            {
-                Success = true,
-                Message = "All shares closed successfully"
-            };
         }
 
         private ServiceResponse HandleGetStatus()

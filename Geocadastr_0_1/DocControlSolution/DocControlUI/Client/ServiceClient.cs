@@ -451,36 +451,6 @@ namespace DocControlService.Client
             return true;
         }
 
-        public async Task<bool> OpenAllSharesAsync()
-        {
-            var response = await SendCommandAsync(new ServiceCommand
-            {
-                Type = ServiceCommandType.OpenAllShares
-            });
-
-            if (!response.Success)
-            {
-                throw new Exception(response.Message);
-            }
-
-            return true;
-        }
-
-        public async Task<bool> CloseAllSharesAsync()
-        {
-            var response = await SendCommandAsync(new ServiceCommand
-            {
-                Type = ServiceCommandType.CloseAllShares
-            });
-
-            if (!response.Success)
-            {
-                throw new Exception(response.Message);
-            }
-
-            return true;
-        }
-
         #endregion
 
         #region Service Status and Control
