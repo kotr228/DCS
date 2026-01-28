@@ -101,11 +101,25 @@ public partial class MainWindow : Window
 
             AddLog("✅ Брандмауер запущено");
         }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Адреса вже використовується"))
+        {
+            // Помилка Raw Socket - показати детальну інформацію
+            AddLog($"⚠️ {ex.Message}");
+            MessageBox.Show(ex.Message,
+                "Попередження", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            AddLog("💡 Перевірте файл check_network_processes.md для вирішення проблеми");
+            AddLog("📊 Програма працює в тестовому режимі");
+        }
         catch (Exception ex)
         {
-            AddLog($"❌ Помилка запуску: {ex.Message}");
-            MessageBox.Show($"Помилка запуску: {ex.Message}\n\nПереконайтеся, що програма запущена з правами адміністратора.",
-                "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            AddLog($"❌ Критична помилка запуску: {ex.Message}");
+            MessageBox.Show($"Критична помилка запуску: {ex.Message}\n\nБрандмауер не може бути запущено.",
+                "Критична помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+
+            // Очистити coordinator при критичній помилці
+            _coordinator?.Dispose();
+            _coordinator = null;
         }
     }
 

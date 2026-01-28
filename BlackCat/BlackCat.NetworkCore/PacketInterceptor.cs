@@ -30,6 +30,18 @@ public class PacketInterceptor
 
         try
         {
+            // Закрити попередній сокет якщо він існує
+            if (_rawSocket != null)
+            {
+                try
+                {
+                    _rawSocket.Close();
+                    _rawSocket.Dispose();
+                }
+                catch { }
+                _rawSocket = null;
+            }
+
             // Створити raw socket для прослуховування IP пакетів
             // ПРИМІТКА: Вимагає прав адміністратора
             _rawSocket = new Socket(
@@ -38,16 +50,26 @@ public class PacketInterceptor
                 System.Net.Sockets.ProtocolType.IP
             );
 
-            // Прив'язати до локального інтерфейсу
-            var localEndPoint = new IPEndPoint(GetLocalIPAddress(), 0);
-            _rawSocket.Bind(localEndPoint);
+            // Встановити опції перед bind
+            // ReuseAddress дозволяє повторне використання адреси
+            _rawSocket.SetSocketOption(
+                SocketOptionLevel.Socket,
+                SocketOptionName.ReuseAddress,
+                true
+            );
 
-            // Встановити IOControl для отримання всіх пакетів
             _rawSocket.SetSocketOption(
                 SocketOptionLevel.IP,
                 SocketOptionName.HeaderIncluded,
                 true
             );
+
+            // Прив'язати до локального інтерфейсу
+            // ВАЖЛИВО: Використовувати конкретну IP адресу, НЕ IPAddress.Any
+            var localIP = GetLocalIPAddress();
+            var localEndPoint = new IPEndPoint(localIP, 0);
+
+            _rawSocket.Bind(localEndPoint);
 
             byte[] byteTrue = new byte[4] { 1, 0, 0, 0 };
             byte[] byteOut = new byte[4];
@@ -64,9 +86,30 @@ public class PacketInterceptor
             // Початок прийому пакетів
             BeginReceive();
         }
+        catch (SocketException ex) when (ex.ErrorCode == 10048)
+        {
+            // Address already in use
+            var errorMsg = "Адреса вже використовується. Можливі причини:\n" +
+                         "- Інша копія програми вже запущена\n" +
+                         "- Wireshark, tcpdump або інший network sniffer активний\n" +
+                         "- Інший процес використовує Raw Socket на цьому інтерфейсі\n" +
+                         "Закрийте інші програми та спробуйте знову.";
+            InterceptorError?.Invoke(this, errorMsg);
+            CleanupSocket();
+            throw new InvalidOperationException(errorMsg, ex);
+        }
+        catch (SocketException ex) when (ex.ErrorCode == 10013)
+        {
+            // Permission denied
+            var errorMsg = "Відмовлено в доступі. Запустіть програму від імені адміністратора.";
+            InterceptorError?.Invoke(this, errorMsg);
+            CleanupSocket();
+            throw new InvalidOperationException(errorMsg, ex);
+        }
         catch (Exception ex)
         {
             InterceptorError?.Invoke(this, $"Помилка запуску: {ex.Message}");
+            CleanupSocket();
             throw;
         }
     }
@@ -77,8 +120,36 @@ public class PacketInterceptor
     public void Stop()
     {
         _isRunning = false;
-        _rawSocket?.Close();
-        _rawSocket = null;
+        CleanupSocket();
+    }
+
+    /// <summary>
+    /// Правильно закрити та очистити сокет
+    /// </summary>
+    private void CleanupSocket()
+    {
+        if (_rawSocket != null)
+        {
+            try
+            {
+                _rawSocket.Shutdown(SocketShutdown.Both);
+            }
+            catch { }
+
+            try
+            {
+                _rawSocket.Close();
+            }
+            catch { }
+
+            try
+            {
+                _rawSocket.Dispose();
+            }
+            catch { }
+
+            _rawSocket = null;
+        }
     }
 
     /// <summary>
@@ -214,19 +285,43 @@ public class PacketInterceptor
     }
 
     /// <summary>
-    /// Отримати локальну IP адресу
+    /// Отримати локальну IP адресу (не loopback)
     /// </summary>
     private IPAddress GetLocalIPAddress()
     {
-        var host = Dns.GetHostEntry(Dns.GetHostName());
-        foreach (var ip in host.AddressList)
+        try
         {
-            if (ip.AddressFamily == AddressFamily.InterNetwork)
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
             {
-                return ip;
+                if (ip.AddressFamily == AddressFamily.InterNetwork &&
+                    !IPAddress.IsLoopback(ip))
+                {
+                    return ip;
+                }
             }
         }
+        catch
+        {
+            // Якщо не вдалось отримати IP через DNS
+        }
 
-        return IPAddress.Loopback;
+        // Альтернативний метод - спробувати підключитись до Google DNS
+        try
+        {
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, System.Net.Sockets.ProtocolType.Udp);
+            socket.Connect("8.8.8.8", 65530);
+            var endPoint = socket.LocalEndPoint as IPEndPoint;
+            if (endPoint != null)
+            {
+                return endPoint.Address;
+            }
+        }
+        catch
+        {
+            // Якщо не вдалось
+        }
+
+        throw new InvalidOperationException("Не вдалось визначити локальну IP адресу. Переконайтесь що мережевий адаптер активний.");
     }
 }

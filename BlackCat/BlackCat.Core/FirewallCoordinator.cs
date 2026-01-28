@@ -71,44 +71,69 @@ public class FirewallCoordinator : IDisposable
         if (_isRunning)
             throw new InvalidOperationException("Брандмауер вже запущено");
 
+        Log("Запуск брандмауера BlackCat...");
+
+        // Запустити тунель
         try
         {
-            Log("Запуск брандмауера BlackCat...");
-
-            // Запустити тунель
             await _tunnelService.StartAsync(cancellationToken);
-            Log($"Тунель запущено на порту {9999}");
-
-            // Запустити перехоплення пакетів
-            // ПРИМІТКА: Вимагає прав адміністратора
-            try
-            {
-                _interceptor.Start();
-                _packetInterceptorActive = true;
-                Log("✅ Перехоплення пакетів активовано");
-            }
-            catch (Exception ex)
-            {
-                _packetInterceptorActive = false;
-                Log($"⚠️ Не вдалося запустити перехоплення пакетів: {ex.Message}");
-                Log("⚠️ Переконайтеся, що програма запущена з правами адміністратора");
-                Log("📊 Працюємо в тестовому режимі з симульованими пакетами");
-
-                // Запустити генератор тестових пакетів
-                _ = Task.Run(() => TestPacketGeneratorAsync(cancellationToken), cancellationToken);
-            }
-
-            _isRunning = true;
-            Log("✅ Брандмауер BlackCat запущено успішно");
-
-            // Запустити моніторинг статистики
-            _ = Task.Run(() => StatisticsMonitorAsync(cancellationToken), cancellationToken);
+            Log($"✅ Тунель запущено на порту {9999}");
         }
         catch (Exception ex)
         {
-            Log($"❌ Помилка запуску: {ex.Message}");
-            throw;
+            Log($"❌ Помилка запуску тунелю: {ex.Message}");
+            throw new InvalidOperationException($"Не вдалося запустити тунель: {ex.Message}", ex);
         }
+
+        // Запустити перехоплення пакетів
+        // ПРИМІТКА: Вимагає прав адміністратора або буде працювати в тестовому режимі
+        try
+        {
+            _interceptor.Start();
+            _packetInterceptorActive = true;
+            Log("✅ Перехоплення пакетів активовано (реальний трафік)");
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Адреса вже використовується"))
+        {
+            // Специфічна помилка - адреса зайнята іншим процесом
+            _packetInterceptorActive = false;
+            Log("⚠️━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⚠️");
+            Log($"⚠️ {ex.Message}");
+            Log("⚠️ Закрийте інші мережеві інструменти (Wireshark, VPN, тощо)");
+            Log("⚠️ Або перезавантажте комп'ютер для звільнення сокетів");
+            Log("⚠️━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━⚠️");
+            Log("📊 Перемикання в ТЕСТОВИЙ РЕЖИМ з симульованими пакетами");
+
+            // Запустити генератор тестових пакетів
+            _ = Task.Run(() => TestPacketGeneratorAsync(cancellationToken), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _packetInterceptorActive = false;
+            Log($"⚠️ Не вдалося запустити перехоплення пакетів: {ex.Message}");
+            Log("⚠️ Можливі причини:");
+            Log("   - Відсутні права адміністратора");
+            Log("   - Інший процес використовує Raw Socket");
+            Log("   - Проблеми з мережевим адаптером");
+            Log("📊 Перемикання в ТЕСТОВИЙ РЕЖИМ з симульованими пакетами");
+
+            // Запустити генератор тестових пакетів
+            _ = Task.Run(() => TestPacketGeneratorAsync(cancellationToken), cancellationToken);
+        }
+
+        _isRunning = true;
+
+        if (_packetInterceptorActive)
+        {
+            Log("✅ Брандмауер BlackCat запущено у ПОВНОМУ РЕЖИМІ");
+        }
+        else
+        {
+            Log("⚠️ Брандмауер BlackCat запущено у ТЕСТОВОМУ РЕЖИМІ");
+        }
+
+        // Запустити моніторинг статистики
+        _ = Task.Run(() => StatisticsMonitorAsync(cancellationToken), cancellationToken);
     }
 
     /// <summary>
