@@ -99,10 +99,25 @@ public class FilterEngine
                         continue;
                 }
 
-                // Перевірка порту
-                if (rule.Port != 0)
+                // Перевірка порту (з підтримкою PortRange)
+                bool portMatches = rule.MatchesPort(packet.SourcePort) ||
+                                  rule.MatchesPort(packet.DestinationPort);
+
+                if (!portMatches)
+                    continue;
+
+                // Перевірка Application Control (якщо вказано)
+                if (!string.IsNullOrWhiteSpace(rule.ProcessName) && !string.IsNullOrWhiteSpace(packet.ProcessName))
                 {
-                    if (packet.SourcePort != rule.Port && packet.DestinationPort != rule.Port)
+                    // Case-insensitive порівняння назви процесу
+                    if (!string.Equals(rule.ProcessName, packet.ProcessName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(rule.ApplicationPath) && !string.IsNullOrWhiteSpace(packet.ApplicationPath))
+                {
+                    // Case-insensitive порівняння шляху застосунку
+                    if (!string.Equals(rule.ApplicationPath, packet.ApplicationPath, StringComparison.OrdinalIgnoreCase))
                         continue;
                 }
 

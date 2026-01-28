@@ -51,4 +51,19 @@ public class PacketInfo
     /// Чи є це пакет тунелю
     /// </summary>
     public bool IsTunnelPacket { get; set; }
+
+    /// <summary>
+    /// ID процесу, що створив пакет (якщо відомий)
+    /// </summary>
+    public int? ProcessId { get; set; }
+
+    /// <summary>
+    /// Назва процесу, що створив пакет (якщо відома)
+    /// </summary>
+    public string? ProcessName { get; set; }
+
+    /// <summary>
+    /// Шлях до застосунку, що створив пакет (якщо відомий)
+    /// </summary>
+    public string? ApplicationPath { get; set; }
 }

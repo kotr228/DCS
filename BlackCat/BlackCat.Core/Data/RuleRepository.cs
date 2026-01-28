@@ -38,15 +38,57 @@ public class RuleRepository : IDisposable
                 Direction INTEGER NOT NULL,
                 IsEnabled INTEGER DEFAULT 1,
                 Priority INTEGER DEFAULT 100,
-                CreatedAt TEXT NOT NULL
+                CreatedAt TEXT NOT NULL,
+                PortRange TEXT,
+                ApplicationPath TEXT,
+                ProcessName TEXT,
+                Description TEXT,
+                Tags TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_priority ON FilterRules(Priority);
             CREATE INDEX IF NOT EXISTS idx_enabled ON FilterRules(IsEnabled);
+            CREATE INDEX IF NOT EXISTS idx_process ON FilterRules(ProcessName);
         ";
 
         using var command = new SqliteCommand(createTableSql, connection);
         command.ExecuteNonQuery();
+
+        // Додати нові колонки до існуючих таблиць (міграція)
+        try
+        {
+            using var alterCmd1 = new SqliteCommand("ALTER TABLE FilterRules ADD COLUMN PortRange TEXT", connection);
+            alterCmd1.ExecuteNonQuery();
+        }
+        catch { /* Колонка вже існує */ }
+
+        try
+        {
+            using var alterCmd2 = new SqliteCommand("ALTER TABLE FilterRules ADD COLUMN ApplicationPath TEXT", connection);
+            alterCmd2.ExecuteNonQuery();
+        }
+        catch { /* Колонка вже існує */ }
+
+        try
+        {
+            using var alterCmd3 = new SqliteCommand("ALTER TABLE FilterRules ADD COLUMN ProcessName TEXT", connection);
+            alterCmd3.ExecuteNonQuery();
+        }
+        catch { /* Колонка вже існує */ }
+
+        try
+        {
+            using var alterCmd4 = new SqliteCommand("ALTER TABLE FilterRules ADD COLUMN Description TEXT", connection);
+            alterCmd4.ExecuteNonQuery();
+        }
+        catch { /* Колонка вже існує */ }
+
+        try
+        {
+            using var alterCmd5 = new SqliteCommand("ALTER TABLE FilterRules ADD COLUMN Tags TEXT", connection);
+            alterCmd5.ExecuteNonQuery();
+        }
+        catch { /* Колонка вже існує */ }
     }
 
     /// <summary>
@@ -119,8 +161,10 @@ public class RuleRepository : IDisposable
         connection.Open();
 
         string sql = @"
-            INSERT INTO FilterRules (Name, IPAddress, Port, Protocol, Action, Direction, IsEnabled, Priority, CreatedAt)
-            VALUES (@Name, @IPAddress, @Port, @Protocol, @Action, @Direction, @IsEnabled, @Priority, @CreatedAt);
+            INSERT INTO FilterRules (Name, IPAddress, Port, Protocol, Action, Direction, IsEnabled, Priority, CreatedAt,
+                                    PortRange, ApplicationPath, ProcessName, Description, Tags)
+            VALUES (@Name, @IPAddress, @Port, @Protocol, @Action, @Direction, @IsEnabled, @Priority, @CreatedAt,
+                    @PortRange, @ApplicationPath, @ProcessName, @Description, @Tags);
             SELECT last_insert_rowid();
         ";
 
@@ -134,6 +178,11 @@ public class RuleRepository : IDisposable
         command.Parameters.AddWithValue("@IsEnabled", rule.IsEnabled ? 1 : 0);
         command.Parameters.AddWithValue("@Priority", rule.Priority);
         command.Parameters.AddWithValue("@CreatedAt", rule.CreatedAt.ToString("O"));
+        command.Parameters.AddWithValue("@PortRange", rule.PortRange ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@ApplicationPath", rule.ApplicationPath ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@ProcessName", rule.ProcessName ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@Description", rule.Description ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@Tags", rule.Tags ?? (object)DBNull.Value);
 
         return Convert.ToInt32(command.ExecuteScalar());
     }
@@ -155,7 +204,12 @@ public class RuleRepository : IDisposable
                 Action = @Action,
                 Direction = @Direction,
                 IsEnabled = @IsEnabled,
-                Priority = @Priority
+                Priority = @Priority,
+                PortRange = @PortRange,
+                ApplicationPath = @ApplicationPath,
+                ProcessName = @ProcessName,
+                Description = @Description,
+                Tags = @Tags
             WHERE Id = @Id
         ";
 
@@ -165,6 +219,11 @@ public class RuleRepository : IDisposable
         command.Parameters.AddWithValue("@IPAddress", rule.IPAddress ?? string.Empty);
         command.Parameters.AddWithValue("@Port", rule.Port);
         command.Parameters.AddWithValue("@Protocol", (int)rule.Protocol);
+        command.Parameters.AddWithValue("@PortRange", rule.PortRange ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@ApplicationPath", rule.ApplicationPath ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@ProcessName", rule.ProcessName ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@Description", rule.Description ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@Tags", rule.Tags ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("@Action", (int)rule.Action);
         command.Parameters.AddWithValue("@Direction", (int)rule.Direction);
         command.Parameters.AddWithValue("@IsEnabled", rule.IsEnabled ? 1 : 0);
@@ -257,17 +316,41 @@ public class RuleRepository : IDisposable
     {
         return new FilterRule
         {
-            Id = reader.GetInt32(0),
-            Name = reader.GetString(1),
-            IPAddress = reader.GetString(2),
-            Port = reader.GetInt32(3),
-            Protocol = (NetworkProtocol)reader.GetInt32(4),
-            Action = (FilterAction)reader.GetInt32(5),
-            Direction = (TrafficDirection)reader.GetInt32(6),
-            IsEnabled = reader.GetInt32(7) == 1,
-            Priority = reader.GetInt32(8),
-            CreatedAt = DateTime.Parse(reader.GetString(9))
+            Id = reader.GetInt32(reader.GetOrdinal("Id")),
+            Name = reader.GetString(reader.GetOrdinal("Name")),
+            IPAddress = reader.GetString(reader.GetOrdinal("IPAddress")),
+            Port = reader.GetInt32(reader.GetOrdinal("Port")),
+            Protocol = (NetworkProtocol)reader.GetInt32(reader.GetOrdinal("Protocol")),
+            Action = (FilterAction)reader.GetInt32(reader.GetOrdinal("Action")),
+            Direction = (TrafficDirection)reader.GetInt32(reader.GetOrdinal("Direction")),
+            IsEnabled = reader.GetInt32(reader.GetOrdinal("IsEnabled")) == 1,
+            Priority = reader.GetInt32(reader.GetOrdinal("Priority")),
+            CreatedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("CreatedAt"))),
+            PortRange = GetNullableString(reader, "PortRange"),
+            ApplicationPath = GetNullableString(reader, "ApplicationPath"),
+            ProcessName = GetNullableString(reader, "ProcessName"),
+            Description = GetNullableString(reader, "Description"),
+            Tags = GetNullableString(reader, "Tags")
         };
+    }
+
+    /// <summary>
+    /// Helper для читання nullable string
+    /// </summary>
+    private static string? GetNullableString(SqliteDataReader reader, string columnName)
+    {
+        try
+        {
+            int ordinal = reader.GetOrdinal(columnName);
+            if (reader.IsDBNull(ordinal))
+                return null;
+            return reader.GetString(ordinal);
+        }
+        catch
+        {
+            // Колонка не існує (стара версія БД)
+            return null;
+        }
     }
 
     public void Dispose()
