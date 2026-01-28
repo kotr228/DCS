@@ -1,4 +1,5 @@
 using BlackCat.Core.Data;
+using BlackCat.Core.Services;
 using BlackCat.NetworkCore;
 using BlackCat.Shared.Models;
 using BlackCat.Shared.Enums;
@@ -9,16 +10,30 @@ namespace BlackCat.Core;
 
 /// <summary>
 /// Головний координатор брандмауера
-/// Об'єднує всі компоненти: перехоплення, фільтрацію, тунель, статистику
+/// Об'єднує всі компоненти: перехоплення, фільтрацію, тунель, статистику, Black-ID
 /// </summary>
 public class FirewallCoordinator : IDisposable
 {
+    // Мережеві компоненти
     private readonly PacketInterceptor _interceptor;
     private readonly FilterEngine _filterEngine;
     private readonly SecureTunnelService _tunnelService;
-    private readonly RuleRepository _ruleRepository;
-    private readonly FirewallStatistics _statistics;
 
+    // Репозиторії
+    private readonly RuleRepository _ruleRepository;
+    private readonly BlackCatDatabase _database;
+    private readonly BlackIDRepository _blackIDRepository;
+    private readonly PeerNodeRepository _peerNodeRepository;
+    private readonly ConnectionEventRepository _connectionEventRepository;
+
+    // Сервіси
+    private readonly BlackIDService _blackIDService;
+    private readonly HandshakeService _handshakeService;
+    private readonly ProcessLookupService _processLookupService;
+
+    // Статистика та стан
+    private readonly FirewallStatistics _statistics;
+    private BlackID? _currentBlackID;
     private bool _isRunning;
     private bool _packetInterceptorActive;
 
@@ -27,13 +42,27 @@ public class FirewallCoordinator : IDisposable
 
     public FirewallStatistics Statistics => _statistics;
     public FilterEngine FilterEngine => _filterEngine;
+    public BlackID? CurrentBlackID => _currentBlackID;
 
     public FirewallCoordinator(string masterSecret, string databasePath = "blackcat.db", int tunnelPort = 9999)
     {
+        // Ініціалізація БД
+        _database = new BlackCatDatabase(databasePath);
+        _blackIDRepository = new BlackIDRepository(_database);
+        _peerNodeRepository = new PeerNodeRepository(_database);
+        _connectionEventRepository = new ConnectionEventRepository(_database);
+        _ruleRepository = new RuleRepository(databasePath);
+
+        // Ініціалізація сервісів
+        _blackIDService = new BlackIDService();
+        _handshakeService = new HandshakeService(_blackIDService, _peerNodeRepository, _connectionEventRepository);
+        _processLookupService = new ProcessLookupService();
+
+        // Ініціалізація мережевих компонентів
         _interceptor = new PacketInterceptor();
         _filterEngine = new FilterEngine();
         _tunnelService = new SecureTunnelService(masterSecret, tunnelPort);
-        _ruleRepository = new RuleRepository(databasePath);
+
         _statistics = new FirewallStatistics
         {
             ServiceStartTime = DateTime.UtcNow
@@ -48,9 +77,61 @@ public class FirewallCoordinator : IDisposable
         _tunnelService.PacketReceived += OnTunnelPacketReceived;
         _tunnelService.TunnelError += OnTunnelError;
         _tunnelService.StatusChanged += OnTunnelStatusChanged;
+        _tunnelService.AuthenticationFailed += OnAuthenticationFailed;
+
+        // Завантажити Black-ID
+        LoadOrCreateBlackID();
 
         // Завантажити правила з БД
         LoadRules();
+    }
+
+    /// <summary>
+    /// Завантажити або створити Black-ID
+    /// </summary>
+    private void LoadOrCreateBlackID()
+    {
+        _currentBlackID = _blackIDRepository.GetActiveBlackID();
+
+        if (_currentBlackID != null)
+        {
+            Log($"📝 Black-ID: {_currentBlackID.FullID}");
+
+            // Налаштувати тунель для використання Black-ID
+            _tunnelService.ConfigureBlackID(
+                _currentBlackID,
+                (hello, remoteIP) => _handshakeService.HandleHello(hello, _currentBlackID, remoteIP),
+                (response, remoteIP) => _handshakeService.HandleResponse(response, remoteIP)
+            );
+
+            // Увімкнути Stealth Mode за замовчуванням
+            _tunnelService.StealthMode = true;
+        }
+        else
+        {
+            Log("⚠️ Black-ID не налаштовано. Використовуйте ConfigureBlackID() для створення.");
+        }
+    }
+
+    /// <summary>
+    /// Створити та налаштувати новий Black-ID
+    /// </summary>
+    public BlackID ConfigureBlackID(string role, string city, string name)
+    {
+        var blackID = _blackIDService.GenerateID(role, city, name);
+        _blackIDRepository.SaveBlackID(blackID);
+        _currentBlackID = blackID;
+
+        Log($"✅ Створено новий Black-ID: {blackID.FullID}");
+
+        // Налаштувати тунель
+        _tunnelService.ConfigureBlackID(
+            blackID,
+            (hello, remoteIP) => _handshakeService.HandleHello(hello, blackID, remoteIP),
+            (response, remoteIP) => _handshakeService.HandleResponse(response, remoteIP)
+        );
+
+        return blackID;
     }
 
     /// <summary>
@@ -259,6 +340,17 @@ public class FirewallCoordinator : IDisposable
     }
 
     /// <summary>
+    /// Невдала автентифікація (Stealth Mode logging)
+    /// </summary>
+    private void OnAuthenticationFailed(object? sender, string message)
+    {
+        Log($"🔒 Authentication Failed: {message}");
+
+        // Можна додати блокування IP після N невдалих спроб
+        // _statistics.FailedAuthenticationAttempts++;
+    }
+
+    /// <summary>
     /// Визначити напрямок трафіку
     /// </summary>
     private TrafficDirection DetermineDirection(PacketInfo packet)
@@ -357,5 +449,9 @@ public class FirewallCoordinator : IDisposable
         _interceptor?.Stop();
         _tunnelService?.Dispose();
         _ruleRepository?.Dispose();
+        _database?.Dispose();
+
+        // Очистити pending handshakes
+        _handshakeService?.CleanupExpiredHandshakes();
     }
 }
