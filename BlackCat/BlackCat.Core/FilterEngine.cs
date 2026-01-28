@@ -73,7 +73,7 @@ public class FilterEngine
                     continue;
 
                 // Перевірка протоколу
-                if (rule.Protocol != BlackCat.Shared.Models.ProtocolType.Any &&
+                if (rule.Protocol != ProtocolType.Any &&
                     rule.Protocol != packet.Protocol)
                     continue;
 

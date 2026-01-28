@@ -200,7 +200,7 @@ public class PacketInterceptor
                 DestinationIP = destIPString,
                 SourcePort = sourcePort,
                 DestinationPort = destPort,
-                Protocol = (BlackCat.Shared.Models.ProtocolType)protocol,
+                Protocol = (ProtocolType)protocol,
                 Payload = payload,
                 Timestamp = DateTime.UtcNow
             };

@@ -198,7 +198,7 @@ public class RuleRepository : IDisposable
             Name = reader.GetString(1),
             IPAddress = reader.GetString(2),
             Port = reader.GetInt32(3),
-            Protocol = (BlackCat.Shared.Models.ProtocolType)reader.GetInt32(4),
+            Protocol = (ProtocolType)reader.GetInt32(4),
             Action = (FilterAction)reader.GetInt32(5),
             Direction = (TrafficDirection)reader.GetInt32(6),
             IsEnabled = reader.GetInt32(7) == 1,

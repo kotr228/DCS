@@ -144,7 +144,7 @@ public partial class MainWindow : Window
             Name = "Тестове правило",
             IPAddress = "192.168.1.0/24",
             Port = 0,
-            Protocol = BlackCat.Shared.Models.ProtocolType.Any,
+            Protocol = ProtocolType.Any,
             Action = FilterAction.Allow,
             Direction = TrafficDirection.Both,
             IsEnabled = true,
