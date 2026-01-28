@@ -1,4 +1,4 @@
-namespace BlackCat.Shared.Models;
+namespace BlackCat.Shared.Enums;
 
 /// <summary>
 /// Дія фільтрації

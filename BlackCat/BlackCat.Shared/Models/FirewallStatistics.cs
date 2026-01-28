@@ -1,3 +1,5 @@
+using BlackCat.Shared.Enums;
+
 namespace BlackCat.Shared.Models;
 
 /// <summary>
