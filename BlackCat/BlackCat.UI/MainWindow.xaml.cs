@@ -7,6 +7,7 @@ using BlackCat.Shared.Models;
 using BlackCat.Shared.Enums;
 using LiveCharts;
 using LiveCharts.Wpf;
+using NetworkProtocol = BlackCat.Shared.Enums.ProtocolType;
 
 namespace BlackCat.UI;
 
@@ -144,7 +145,7 @@ public partial class MainWindow : Window
             Name = "Тестове правило",
             IPAddress = "192.168.1.0/24",
             Port = 0,
-            Protocol = ProtocolType.Any,
+            Protocol = NetworkProtocol.Any,
             Action = FilterAction.Allow,
             Direction = TrafficDirection.Both,
             IsEnabled = true,

@@ -2,6 +2,7 @@ using BlackCat.Core.Data;
 using BlackCat.NetworkCore;
 using BlackCat.Shared.Models;
 using BlackCat.Shared.Enums;
+using NetworkProtocol = BlackCat.Shared.Enums.ProtocolType;
 using Serilog;
 
 namespace BlackCat.Core;
@@ -19,6 +20,7 @@ public class FirewallCoordinator : IDisposable
     private readonly FirewallStatistics _statistics;
 
     private bool _isRunning;
+    private bool _packetInterceptorActive;
 
     public event EventHandler<FirewallStatistics>? StatisticsUpdated;
     public event EventHandler<string>? LogMessage;
@@ -82,12 +84,18 @@ public class FirewallCoordinator : IDisposable
             try
             {
                 _interceptor.Start();
-                Log("Перехоплення пакетів активовано");
+                _packetInterceptorActive = true;
+                Log("✅ Перехоплення пакетів активовано");
             }
             catch (Exception ex)
             {
+                _packetInterceptorActive = false;
                 Log($"⚠️ Не вдалося запустити перехоплення пакетів: {ex.Message}");
                 Log("⚠️ Переконайтеся, що програма запущена з правами адміністратора");
+                Log("📊 Працюємо в тестовому режимі з симульованими пакетами");
+
+                // Запустити генератор тестових пакетів
+                _ = Task.Run(() => TestPacketGeneratorAsync(cancellationToken), cancellationToken);
             }
 
             _isRunning = true;
@@ -265,6 +273,46 @@ public class FirewallCoordinator : IDisposable
 
             // Викликати подію оновлення
             StatisticsUpdated?.Invoke(this, _statistics);
+        }
+    }
+
+    /// <summary>
+    /// Генератор тестових пакетів (коли PacketInterceptor не працює)
+    /// </summary>
+    private async Task TestPacketGeneratorAsync(CancellationToken cancellationToken)
+    {
+        var random = new Random();
+        string[] testIPs = { "192.168.0.1", "10.0.0.1", "8.8.8.8", "1.1.1.1", "192.168.1.100" };
+
+        while (_isRunning && !cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(random.Next(500, 2000), cancellationToken);
+
+                // Згенерувати фейковий пакет
+                var packet = new PacketInfo
+                {
+                    SourceIP = testIPs[random.Next(testIPs.Length)],
+                    DestinationIP = testIPs[random.Next(testIPs.Length)],
+                    SourcePort = random.Next(1024, 65535),
+                    DestinationPort = random.Next(1, 1024),
+                    Protocol = (NetworkProtocol)random.Next(0, 3),
+                    Payload = new byte[random.Next(64, 1500)],
+                    Timestamp = DateTime.UtcNow
+                };
+
+                // Симулювати обробку пакету
+                OnPacketCaptured(this, packet);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                Log($"Помилка тестового генератора: {ex.Message}");
+            }
         }
     }
 

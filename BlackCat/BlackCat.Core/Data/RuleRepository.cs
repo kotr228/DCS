@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using BlackCat.Shared.Models;
 using BlackCat.Shared.Enums;
+using NetworkProtocol = BlackCat.Shared.Enums.ProtocolType;
 
 namespace BlackCat.Core.Data;
 
@@ -15,6 +16,7 @@ public class RuleRepository : IDisposable
     {
         _connectionString = $"Data Source={databasePath}";
         InitializeDatabase();
+        InitializeDefaultRules();
     }
 
     /// <summary>
@@ -45,6 +47,67 @@ public class RuleRepository : IDisposable
 
         using var command = new SqliteCommand(createTableSql, connection);
         command.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Ініціалізація дефолтних правил (якщо БД порожня)
+    /// </summary>
+    private void InitializeDefaultRules()
+    {
+        var existingRules = GetAllRules();
+        if (existingRules.Count > 0) return; // Вже є правила
+
+        // Дефолтне правило 1: Дозволити localhost
+        AddRule(new FilterRule
+        {
+            Name = "Дозволити localhost",
+            IPAddress = "127.0.0.1",
+            Port = 0,
+            Protocol = NetworkProtocol.Any,
+            Action = FilterAction.Allow,
+            Direction = TrafficDirection.Both,
+            IsEnabled = true,
+            Priority = 1
+        });
+
+        // Дефолтне правило 2: Дозволити локальну мережу 192.168.x.x
+        AddRule(new FilterRule
+        {
+            Name = "Дозволити локальну мережу 192.168.x.x",
+            IPAddress = "192.168.0.0/16",
+            Port = 0,
+            Protocol = NetworkProtocol.Any,
+            Action = FilterAction.Allow,
+            Direction = TrafficDirection.Both,
+            IsEnabled = true,
+            Priority = 10
+        });
+
+        // Дефолтне правило 3: Дозволити локальну мережу 10.x.x.x
+        AddRule(new FilterRule
+        {
+            Name = "Дозволити локальну мережу 10.x.x.x",
+            IPAddress = "10.0.0.0/8",
+            Port = 0,
+            Protocol = NetworkProtocol.Any,
+            Action = FilterAction.Allow,
+            Direction = TrafficDirection.Both,
+            IsEnabled = true,
+            Priority = 10
+        });
+
+        // Дефолтне правило 4: Заблокувати підозрілі порти
+        AddRule(new FilterRule
+        {
+            Name = "Блокувати підозрілі порти (telnet)",
+            IPAddress = "",
+            Port = 23,
+            Protocol = NetworkProtocol.TCP,
+            Action = FilterAction.Block,
+            Direction = TrafficDirection.Inbound,
+            IsEnabled = true,
+            Priority = 5
+        });
     }
 
     /// <summary>
