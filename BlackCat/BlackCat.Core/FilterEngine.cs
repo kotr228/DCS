@@ -1,4 +1,5 @@
 using BlackCat.Shared.Models;
+using BlackCat.Shared.Enums;
 using System.Net;
 
 namespace BlackCat.Core;

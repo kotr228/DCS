@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using BlackCat.Shared.Models;
+using BlackCat.Shared.Enums;
 
 namespace BlackCat.Core.Data;
 

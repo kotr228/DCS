@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using BlackCat.Core;
 using BlackCat.Core.Data;
 using BlackCat.Shared.Models;
+using BlackCat.Shared.Enums;
 using LiveCharts;
 using LiveCharts.Wpf;
 

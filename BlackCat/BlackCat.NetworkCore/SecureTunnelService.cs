@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using BlackCat.Crypto;
 using BlackCat.Shared.Models;
+using BlackCat.Shared.Enums;
 
 namespace BlackCat.NetworkCore;
 

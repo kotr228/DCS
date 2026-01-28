@@ -1,6 +1,7 @@
 using BlackCat.Core.Data;
 using BlackCat.NetworkCore;
 using BlackCat.Shared.Models;
+using BlackCat.Shared.Enums;
 using Serilog;
 
 namespace BlackCat.Core;
