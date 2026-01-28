@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using BlackCat.Shared.Models;
 using BlackCat.Shared.Enums;
+using NetworkProtocol = BlackCat.Shared.Enums.ProtocolType;
 
 namespace BlackCat.NetworkCore;
 
@@ -200,7 +201,7 @@ public class PacketInterceptor
                 DestinationIP = destIPString,
                 SourcePort = sourcePort,
                 DestinationPort = destPort,
-                Protocol = (ProtocolType)protocol,
+                Protocol = (NetworkProtocol)protocol,
                 Payload = payload,
                 Timestamp = DateTime.UtcNow
             };
