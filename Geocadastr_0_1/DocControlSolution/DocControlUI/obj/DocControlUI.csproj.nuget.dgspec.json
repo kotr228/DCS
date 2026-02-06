@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj": {}
+    "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj": {}
   },
   "projects": {
-    "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj": {
+    "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj",
+        "projectUniqueName": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj",
         "projectName": "DocControlNetworkCore",
-        "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj",
-        "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\obj\\",
+        "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj",
+        "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
+        "outputPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -33,8 +33,8 @@
           "net8.0-windows7.0": {
             "targetAlias": "net8.0-windows",
             "projectReferences": {
-              "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
-                "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj"
+              "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
+                "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj"
               }
             }
           }
@@ -80,24 +80,24 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.306/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.308/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
+    "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
+        "projectUniqueName": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
         "projectName": "DocControlService.Shared",
-        "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
-        "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\obj\\",
+        "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj",
+        "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
+        "outputPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -146,24 +146,24 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.306/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.308/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj": {
+    "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+        "projectUniqueName": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
         "projectName": "DocControlUI",
-        "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
-        "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\obj\\",
+        "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj",
+        "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
+        "outputPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -179,11 +179,11 @@
           "net8.0-windows7.0": {
             "targetAlias": "net8.0-windows",
             "projectReferences": {
-              "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj": {
-                "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj"
+              "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj": {
+                "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj"
               },
-              "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
-                "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj"
+              "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj": {
+                "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService.Shared\\DocControlService.Shared.csproj"
               }
             }
           }
@@ -244,7 +244,7 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.306/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.308/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

@@ -1,48 +1,18 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\trock\\Desktop\\DCS\\CatSuite\\",
+  "WorkspaceRootPath": "G:\\DCS\\CatSuite\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\windows\\startupwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+      "AbsoluteMoniker": "D:0:0:{8C969B6C-22FB-537A-2C74-D6003CAFA91C}|..\\BlackCat\\BlackCat.NetworkCore\\BlackCat.NetworkCore.csproj|g:\\dcs\\blackcat\\blackcat.networkcore\\packetinterceptor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\windows\\remotefileeditorwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{95EF4B75-2050-61E2-48D3-D8ECFD0C219F}|..\\BlackCat\\BlackCat.Core\\BlackCat.Core.csproj|g:\\dcs\\blackcat\\blackcat.core\\firewallcoordinator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\windows\\remotedirectorybrowserwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+      "AbsoluteMoniker": "D:0:0:{95EF4B75-2050-61E2-48D3-D8ECFD0C219F}|..\\BlackCat\\BlackCat.Core\\BlackCat.Core.csproj|g:\\dcs\\blackcat\\blackcat.core\\data\\rulerepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{B9CE9E0F-0A52-6469-9B50-D1B61E4B43AD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\doccontrolwindowsservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{3DB2544F-847E-7347-1E1E-C7D8BAAA88B2}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolnetworkcore\\services\\commandlayerservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{3DB2544F-847E-7347-1E1E-C7D8BAAA88B2}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolnetworkcore\\models\\networkcommand.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{B9CE9E0F-0A52-6469-9B50-D1B61E4B43AD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\models\\databaseschema.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{B9CE9E0F-0A52-6469-9B50-D1B61E4B43AD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\models\\databasevalidator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{B1080DDF-1155-F142-F323-EB755C8AB4CE}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\DocControlUI.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolui\\client\\serviceclient.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{B9CE9E0F-0A52-6469-9B50-D1B61E4B43AD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\services\\filesystemcoordinator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{B9CE9E0F-0A52-6469-9B50-D1B61E4B43AD}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlService.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolservice\\services\\localfilesystemservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{3DB2544F-847E-7347-1E1E-C7D8BAAA88B2}|..\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\DocControlNetworkCore.csproj|c:\\users\\trock\\desktop\\dcs\\geocadastr_0_1\\doccontrolsolution\\doccontrolnetworkcore\\networkcoreservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{4979C555-CE78-678C-A340-3FC7B79122EC}|..\\BlackCat\\BlackCat.Service\\BlackCat.Service.csproj|g:\\dcs\\blackcat\\blackcat.service\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -52,7 +22,7 @@
       "DocumentGroups": [
         {
           "DockedHeight": 200,
-          "SelectedChildIndex": 1,
+          "SelectedChildIndex": 3,
           "Children": [
             {
               "$type": "Bookmark",
@@ -60,169 +30,52 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "StartupWindow.xaml",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\StartupWindow.xaml",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\StartupWindow.xaml",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\StartupWindow.xaml",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\StartupWindow.xaml",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-12-30T08:45:48.816Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
               "DocumentIndex": 1,
-              "Title": "RemoteFileEditorWindow.xaml.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\RemoteFileEditorWindow.xaml.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\RemoteFileEditorWindow.xaml.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\RemoteFileEditorWindow.xaml.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\RemoteFileEditorWindow.xaml.cs",
-              "ViewState": "AgIAAAYAAAAAAAAAAAAAAAUAAAAdAAAAAAAAAA==",
+              "Title": "FirewallCoordinator.cs",
+              "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.Core\\FirewallCoordinator.cs",
+              "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.Core\\FirewallCoordinator.cs",
+              "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.Core\\FirewallCoordinator.cs",
+              "RelativeToolTip": "..\\BlackCat\\BlackCat.Core\\FirewallCoordinator.cs",
+              "ViewState": "AgIAALwAAAAAAAAAAAAwwNAAAAAqAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-27T04:46:54.668Z"
+              "WhenOpened": "2026-01-28T03:58:56.887Z"
             },
             {
               "$type": "Document",
               "DocumentIndex": 2,
-              "Title": "RemoteDirectoryBrowserWindow.xaml",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\RemoteDirectoryBrowserWindow.xaml",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\RemoteDirectoryBrowserWindow.xaml",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\RemoteDirectoryBrowserWindow.xaml",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Windows\\RemoteDirectoryBrowserWindow.xaml",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-12-26T03:42:46.953Z"
+              "Title": "RuleRepository.cs",
+              "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.Core\\Data\\RuleRepository.cs",
+              "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.Core\\Data\\RuleRepository.cs",
+              "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.Core\\Data\\RuleRepository.cs",
+              "RelativeToolTip": "..\\BlackCat\\BlackCat.Core\\Data\\RuleRepository.cs",
+              "ViewState": "AgIAALUAAAAAAAAAAAAIwMgAAAA4AAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-28T03:54:48.908Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "CommandLayerService.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\Services\\CommandLayerService.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\Services\\CommandLayerService.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\Services\\CommandLayerService.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\Services\\CommandLayerService.cs",
-              "ViewState": "AgIAAEwAAAAAAAAAAAAkwAAAAAAAAAAAAAAAAA==",
+              "DocumentIndex": 0,
+              "Title": "PacketInterceptor.cs",
+              "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.NetworkCore\\PacketInterceptor.cs",
+              "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.NetworkCore\\PacketInterceptor.cs",
+              "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.NetworkCore\\PacketInterceptor.cs",
+              "RelativeToolTip": "..\\BlackCat\\BlackCat.NetworkCore\\PacketInterceptor.cs",
+              "ViewState": "AgIAALgAAAAAAAAAAAAIwNEAAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-25T11:36:36.528Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 7,
-              "Title": "NetworkCommand.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\Models\\NetworkCommand.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\Models\\NetworkCommand.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\Models\\NetworkCommand.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\Models\\NetworkCommand.cs",
-              "ViewState": "AgIAAJ8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-25T11:36:30.343Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 9,
-              "Title": "DatabaseValidator.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseValidator.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseValidator.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseValidator.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseValidator.cs",
-              "ViewState": "AgIAABoAAAAAAAAAAAAgwAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-24T12:41:08.237Z"
+              "WhenOpened": "2026-01-28T03:54:44.714Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
               "DocumentIndex": 3,
-              "Title": "DocControlWindowsService.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\DocControlWindowsService.cs",
-              "ViewState": "AgIAALMCAAAAAAAAAAApwNgCAAAAAAAAAAAAAA==",
+              "Title": "Program.cs",
+              "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.Service\\Program.cs",
+              "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.Service\\Program.cs",
+              "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.Service\\Program.cs",
+              "RelativeToolTip": "..\\BlackCat\\BlackCat.Service\\Program.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABAAAABGAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-24T06:15:20.869Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 8,
-              "Title": "DatabaseSchema.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Models\\DatabaseSchema.cs",
-              "ViewState": "AgIAADUAAAAAAAAAAAAAAEYAAAAiAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-24T04:50:58.379Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 10,
-              "Title": "ServiceClient.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Client\\ServiceClient.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Client\\ServiceClient.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Client\\ServiceClient.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\Client\\ServiceClient.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAJgAAAA4AAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-21T09:27:19.799Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 4,
-              "Title": "MainWindow.xaml.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAfAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-21T02:28:38.814Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 12,
-              "Title": "LocalFileSystemService.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\LocalFileSystemService.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\LocalFileSystemService.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\LocalFileSystemService.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\LocalFileSystemService.cs",
-              "ViewState": "AgIAAAsAAAAAAAAAAAApwBcAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-20T21:51:29.658Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 11,
-              "Title": "FileSystemCoordinator.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\FileSystemCoordinator.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\FileSystemCoordinator.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\FileSystemCoordinator.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlService\\Services\\FileSystemCoordinator.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAJ4AAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-20T21:39:59.19Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 13,
-              "Title": "NetworkCoreService.cs",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\NetworkCoreService.cs",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\NetworkCoreService.cs",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\NetworkCoreService.cs",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlNetworkCore\\NetworkCoreService.cs",
-              "ViewState": "AgIAAMkAAAAAAAAAAAApwNUAAABHAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-20T08:44:18.635Z"
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "MainWindow.xaml",
-              "DocumentMoniker": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
-              "RelativeDocumentMoniker": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
-              "ToolTip": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
-              "RelativeToolTip": "..\\Geocadastr_0_1\\DocControlSolution\\DocControlUI\\MainWindow.xaml",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-12-09T04:02:20.759Z"
+              "WhenOpened": "2026-01-28T03:25:12.614Z"
             }
           ]
         }

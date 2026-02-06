@@ -15,3 +15,12 @@ C:\Users\trock\Desktop\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\De
 C:\Users\trock\Desktop\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\refint\DocControlAI.dll
 C:\Users\trock\Desktop\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\DocControlAI.pdb
 C:\Users\trock\Desktop\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\ref\DocControlAI.dll
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\DocControlAI.csproj.AssemblyReference.cache
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\DocControlAI.GeneratedMSBuildEditorConfig.editorconfig
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\DocControlAI.AssemblyInfoInputs.cache
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\DocControlAI.AssemblyInfo.cs
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\DocControlAI.csproj.CoreCompileInputs.cache
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\DocControlAI.sourcelink.json
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\DocControlAI.dll
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\refint\DocControlAI.dll
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlAI\obj\Debug\net8.0\DocControlAI.pdb

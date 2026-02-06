@@ -28,5 +28,18 @@
         "Action": "Start"
       }
     ]
+  },
+  {
+    "Name": "BlackCat",
+    "Projects": [
+      {
+        "Path": "..\\BlackCat\\BlackCat.Service\\BlackCat.Service.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "..\\BlackCat\\BlackCat.UI\\BlackCat.UI.csproj",
+        "Action": "Start"
+      }
+    ]
   }
 ]
