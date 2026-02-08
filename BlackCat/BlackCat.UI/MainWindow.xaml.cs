@@ -21,6 +21,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _updateTimer;
     private readonly RuleRepository _ruleRepository;
     private readonly ProcessLookupService _processLookupService;
+    private readonly BlackIDRepository _blackIDRepository;
+    private readonly BlackCatDatabase _database;
 
     // Графіки - швидкість (стовпчаста)
     private readonly ChartValues<double> _speedValues = new();
@@ -61,6 +63,10 @@ public partial class MainWindow : Window
 
         _ruleRepository = new RuleRepository();
         _processLookupService = new ProcessLookupService();
+
+        // Ініціалізувати database та repository для Black-ID
+        _database = new BlackCatDatabase("blackcat.db");
+        _blackIDRepository = new BlackIDRepository(_database);
 
         // Налаштування графіків
         InitializeCharts();
@@ -492,14 +498,30 @@ public partial class MainWindow : Window
     {
         _tunnelNodes.Clear();
 
-        // Відобразити поточний Black-ID
-        if (_coordinator?.CurrentBlackID != null)
+        // Відобразити поточний Black-ID - спочатку з БД, потім з coordinator
+        try
         {
-            CurrentBlackIDLabel.Text = _coordinator.CurrentBlackID.FullID;
+            var savedBlackID = _blackIDRepository.GetActiveBlackID();
+            if (savedBlackID != null)
+            {
+                CurrentBlackIDLabel.Text = savedBlackID.FullID;
+                System.Diagnostics.Debug.WriteLine($"Loaded Black-ID from database: {savedBlackID.FullID}");
+            }
+            else if (_coordinator?.CurrentBlackID != null)
+            {
+                CurrentBlackIDLabel.Text = _coordinator.CurrentBlackID.FullID;
+                System.Diagnostics.Debug.WriteLine($"Loaded Black-ID from coordinator: {_coordinator.CurrentBlackID.FullID}");
+            }
+            else
+            {
+                CurrentBlackIDLabel.Text = "Не налаштовано (створіть в Налаштуваннях)";
+                System.Diagnostics.Debug.WriteLine("No Black-ID found");
+            }
         }
-        else
+        catch (Exception ex)
         {
-            CurrentBlackIDLabel.Text = "Не налаштовано (створіть в Налаштуваннях)";
+            System.Diagnostics.Debug.WriteLine($"Error loading Black-ID: {ex.Message}");
+            CurrentBlackIDLabel.Text = "Помилка завантаження";
         }
 
         // Завантажити збережені вузли з БД

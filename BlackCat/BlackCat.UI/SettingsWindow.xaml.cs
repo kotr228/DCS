@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using BlackCat.Core;
+using BlackCat.Core.Data;
 using BlackCat.Core.Services;
 using BlackCat.Shared.Models;
 using MahApps.Metro.Controls;
@@ -13,6 +14,8 @@ public partial class SettingsWindow : MetroWindow
     private readonly FirewallCoordinator? _coordinator;
     private readonly BlackIDService _blackIDService;
     private readonly HardwareFingerprintService _hardwareService;
+    private readonly BlackIDRepository _blackIDRepository;
+    private readonly BlackCatDatabase _database;
 
     public SettingsWindow(FirewallCoordinator? coordinator = null)
     {
@@ -21,19 +24,38 @@ public partial class SettingsWindow : MetroWindow
         _blackIDService = new BlackIDService();
         _hardwareService = new HardwareFingerprintService();
 
+        // Ініціалізувати database та repository для збереження Black-ID
+        _database = new BlackCatDatabase("blackcat.db");
+        _blackIDRepository = new BlackIDRepository(_database);
+
         LoadSettings();
     }
 
     private void LoadSettings()
     {
-        // Завантажити Black-ID
-        if (_coordinator?.CurrentBlackID != null)
+        // Завантажити Black-ID з бази даних
+        try
         {
-            CurrentBlackIDTextBox.Text = _coordinator.CurrentBlackID.FullID;
+            var savedBlackID = _blackIDRepository.GetActiveBlackID();
+            if (savedBlackID != null)
+            {
+                CurrentBlackIDTextBox.Text = savedBlackID.FullID;
+                System.Diagnostics.Debug.WriteLine($"Loaded saved Black-ID: {savedBlackID.FullID}");
+            }
+            else if (_coordinator?.CurrentBlackID != null)
+            {
+                // Fallback: якщо в БД немає, але в coordinator є
+                CurrentBlackIDTextBox.Text = _coordinator.CurrentBlackID.FullID;
+            }
+            else
+            {
+                CurrentBlackIDTextBox.Text = "Не налаштовано";
+            }
         }
-        else
+        catch (Exception ex)
         {
-            CurrentBlackIDTextBox.Text = "Не налаштовано";
+            System.Diagnostics.Debug.WriteLine($"Error loading Black-ID: {ex.Message}");
+            CurrentBlackIDTextBox.Text = "Помилка завантаження";
         }
 
         // Завантажити hardware info
@@ -81,38 +103,56 @@ public partial class SettingsWindow : MetroWindow
             {
                 System.Diagnostics.Debug.WriteLine("Dialog returned true with valid Black-ID");
 
-                if (_coordinator != null)
+                try
                 {
-                    System.Diagnostics.Debug.WriteLine("Configuring Black-ID in coordinator...");
+                    // ВАЖЛИВО: Зберегти Black-ID в базу даних незалежно від стану coordinator
+                    System.Diagnostics.Debug.WriteLine($"Saving Black-ID to database: {dialog.CreatedBlackID.FullID}");
+                    _blackIDRepository.SaveBlackID(dialog.CreatedBlackID);
+                    System.Diagnostics.Debug.WriteLine("Black-ID saved successfully to database");
 
-                    _coordinator.ConfigureBlackID(
-                        dialog.CreatedBlackID.Role,
-                        dialog.CreatedBlackID.City,
-                        dialog.CreatedBlackID.Name
-                    );
-
+                    // Оновити UI
                     CurrentBlackIDTextBox.Text = dialog.CreatedBlackID.FullID;
 
-                    MessageBox.Show(
-                        $"Створено новий Black-ID:\n{dialog.CreatedBlackID.FullID}\n\n" +
-                        "Збережіть цей код - він потрібен для з'єднання з іншими вузлами!",
-                        "Успіх",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
+                    // Також налаштувати coordinator якщо він запущений
+                    if (_coordinator != null)
+                    {
+                        System.Diagnostics.Debug.WriteLine("Configuring Black-ID in coordinator...");
+
+                        _coordinator.ConfigureBlackID(
+                            dialog.CreatedBlackID.Role,
+                            dialog.CreatedBlackID.City,
+                            dialog.CreatedBlackID.Name
+                        );
+
+                        MessageBox.Show(
+                            $"Створено новий Black-ID:\n{dialog.CreatedBlackID.FullID}\n\n" +
+                            "✅ Збережено в базу даних\n" +
+                            "✅ Налаштовано брандмауер\n\n" +
+                            "Збережіть цей код - він потрібен для з'єднання з іншими вузлами!",
+                            "Успіх",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Coordinator is null - saved to database only");
+
+                        MessageBox.Show(
+                            $"Створено новий Black-ID:\n{dialog.CreatedBlackID.FullID}\n\n" +
+                            "✅ Збережено в базу даних\n\n" +
+                            "Збережіть цей код - він потрібен для з'єднання з іншими вузлами!\n" +
+                            "ID буде автоматично завантажено при запуску брандмауера.",
+                            "Успіх",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
                 }
-                else
+                catch (Exception saveEx)
                 {
-                    System.Diagnostics.Debug.WriteLine("Warning: _coordinator is null");
-
-                    CurrentBlackIDTextBox.Text = dialog.CreatedBlackID.FullID;
-
-                    MessageBox.Show(
-                        $"Створено новий Black-ID:\n{dialog.CreatedBlackID.FullID}\n\n" +
-                        "Збережіть цей код - він потрібен для з'єднання з іншими вузлами!\n\n" +
-                        "Увага: Брандмауер не запущено. Запустіть його для збереження ID.",
-                        "Успіх",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Information);
+                    var saveErrorMessage = $"Помилка збереження Black-ID:\n\n{saveEx.Message}\n\nStack Trace:\n{saveEx.StackTrace}";
+                    System.Diagnostics.Debug.WriteLine(saveErrorMessage);
+                    MessageBox.Show(saveErrorMessage, "Критична помилка збереження",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             else
