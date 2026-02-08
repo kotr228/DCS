@@ -1,0 +1,153 @@
+<Window x:Class="BlackCat.UI.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+        Title="Налаштування BlackCat" Height="600" Width="800"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource MahApps.Styles.Window}">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок -->
+        <TextBlock Grid.Row="0" Text="Налаштування брандмауера"
+                   FontSize="24" FontWeight="Bold" Margin="0,0,0,20"/>
+
+        <!-- Табконтрол з налаштуваннями -->
+        <TabControl Grid.Row="1" Margin="0,0,0,20">
+
+            <!-- Загальні налаштування -->
+            <TabItem Header="Загальні">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+
+                        <!-- Black-ID -->
+                        <GroupBox Header="Black-ID" Margin="0,0,0,20">
+                            <StackPanel Margin="10">
+                                <TextBlock Text="Поточний Black-ID:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                <TextBox x:Name="CurrentBlackIDTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" FontSize="14" Padding="5"/>
+
+                                <Button x:Name="CreateBlackIDButton" Content="Створити новий Black-ID"
+                                        Margin="0,10,0,0" Padding="10,5" Click="CreateBlackIDButton_Click"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- Порт тунелю -->
+                        <GroupBox Header="Мережа" Margin="0,0,0,20">
+                            <StackPanel Margin="10">
+                                <TextBlock Text="Порт тунелю:" Margin="0,0,0,5"/>
+                                <mah:NumericUpDown x:Name="TunnelPortNumeric"
+                                                   Minimum="1024" Maximum="65535"
+                                                   Value="9999" Width="150" HorizontalAlignment="Left"/>
+                                <TextBlock Text="Змінюється після перезапуску"
+                                           Foreground="Gray" FontSize="11" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- Stealth Mode -->
+                        <GroupBox Header="Безпека" Margin="0,0,0,20">
+                            <StackPanel Margin="10">
+                                <CheckBox x:Name="StealthModeCheckBox"
+                                          Content="Увімкнути Stealth Mode (рекомендовано)"
+                                          IsChecked="True" Margin="0,0,0,10"/>
+                                <TextBlock Text="В режимі невидимки порт виглядає закритим для сканерів"
+                                           Foreground="Gray" FontSize="11" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- Автозапуск -->
+                        <GroupBox Header="Автозапуск">
+                            <StackPanel Margin="10">
+                                <CheckBox x:Name="AutoStartCheckBox"
+                                          Content="Запускати BlackCat при старті системи"
+                                          Margin="0,0,0,10"/>
+                                <CheckBox x:Name="StartMinimizedCheckBox"
+                                          Content="Запускати згорнутим в трей"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Налаштування логування -->
+            <TabItem Header="Логування">
+                <StackPanel Margin="10">
+                    <GroupBox Header="Журнал подій">
+                        <StackPanel Margin="10">
+                            <CheckBox x:Name="LogToFileCheckBox"
+                                      Content="Зберігати логи в файл"
+                                      IsChecked="True" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Зберігати логи за останні:" Margin="0,0,0,5"/>
+                            <ComboBox x:Name="LogRetentionComboBox" Width="200" HorizontalAlignment="Left">
+                                <ComboBoxItem Content="7 днів" Tag="7"/>
+                                <ComboBoxItem Content="30 днів" Tag="30" IsSelected="True"/>
+                                <ComboBoxItem Content="90 днів" Tag="90"/>
+                                <ComboBoxItem Content="1 рік" Tag="365"/>
+                            </ComboBox>
+
+                            <Button x:Name="OpenLogFolderButton" Content="Відкрити папку з логами"
+                                    Margin="0,15,0,0" Padding="10,5" Click="OpenLogFolderButton_Click"/>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+            </TabItem>
+
+            <!-- Hardware Info -->
+            <TabItem Header="Інформація">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+                        <GroupBox Header="Апаратна інформація">
+                            <Grid Margin="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="CPU ID:" FontWeight="Bold" Margin="0,5"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" x:Name="CpuIdTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Motherboard:" FontWeight="Bold" Margin="0,5"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" x:Name="MotherboardTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="MAC Address:" FontWeight="Bold" Margin="0,5"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" x:Name="MacAddressTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Fingerprint:" FontWeight="Bold" Margin="0,5"/>
+                                <TextBox Grid.Row="3" Grid.Column="1" x:Name="FingerprintTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5"/>
+                            </Grid>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- Кнопки -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="SaveButton" Content="Зберегти"
+                    Width="100" Padding="10,5" Margin="0,0,10,0"
+                    Click="SaveButton_Click" Style="{StaticResource MahApps.Styles.Button.Square.Accent}"/>
+            <Button x:Name="CancelButton" Content="Скасувати"
+                    Width="100" Padding="10,5"
+                    Click="CancelButton_Click" Style="{StaticResource MahApps.Styles.Button.Square}"/>
+        </StackPanel>
+
+    </Grid>
+</Window>

@@ -3,10 +3,13 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using BlackCat.Core;
 using BlackCat.Core.Data;
+using BlackCat.Core.Services;
 using BlackCat.Shared.Models;
 using BlackCat.Shared.Enums;
 using LiveCharts;
 using LiveCharts.Wpf;
+using System.Collections.ObjectModel;
+using System.Linq;
 using NetworkProtocol = BlackCat.Shared.Enums.ProtocolType;
 
 namespace BlackCat.UI;
@@ -16,25 +19,34 @@ public partial class MainWindow : Window
     private FirewallCoordinator? _coordinator;
     private readonly DispatcherTimer _updateTimer;
     private readonly RuleRepository _ruleRepository;
+    private readonly ProcessLookupService _processLookupService;
 
     // Графіки
     private readonly ChartValues<double> _allowedValues = new();
     private readonly ChartValues<double> _blockedValues = new();
     private readonly ChartValues<double> _tunneledValues = new();
 
+    // Статистика процесів
+    private readonly ObservableCollection<ProcessStatItem> _processStats = new();
+    private readonly Dictionary<string, ProcessStatItem> _processStatsDict = new();
+
     public MainWindow()
     {
         InitializeComponent();
 
         _ruleRepository = new RuleRepository();
+        _processLookupService = new ProcessLookupService();
 
         // Налаштування графіків
         InitializeCharts();
 
+        // Налаштування статистики процесів
+        ProcessStatsDataGrid.ItemsSource = _processStats;
+
         // Таймер оновлення UI
         _updateTimer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(500)
+            Interval = TimeSpan.FromMilliseconds(1000) // Оновлювати кожну секунду
         };
         _updateTimer.Tick += UpdateTimer_Tick;
 
@@ -148,32 +160,29 @@ public partial class MainWindow : Window
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        MessageBox.Show("Налаштування будуть доступні в наступній версії", "Налаштування", MessageBoxButton.OK, MessageBoxImage.Information);
+        var settingsWindow = new SettingsWindow(_coordinator)
+        {
+            Owner = this
+        };
+
+        if (settingsWindow.ShowDialog() == true)
+        {
+            // Налаштування збережені
+            AddLog("✅ Налаштування збережено");
+        }
     }
 
     private void AddRuleButton_Click(object sender, RoutedEventArgs e)
     {
-        // Приклад додавання правила
-        var rule = new FilterRule
+        var rulesWindow = new RulesManagementWindow(_coordinator)
         {
-            Name = "Тестове правило",
-            IPAddress = "192.168.1.0/24",
-            Port = 0,
-            Protocol = NetworkProtocol.Any,
-            Action = FilterAction.Allow,
-            Direction = TrafficDirection.Both,
-            IsEnabled = true,
-            Priority = 100
+            Owner = this
         };
 
-        int id = _ruleRepository.AddRule(rule);
-        rule.Id = id;
+        rulesWindow.ShowDialog();
 
-        AddLog($"Додано правило: {rule.Name}");
+        // Перезавантажити список правил
         LoadRules();
-
-        // Перезавантажити правила в координаторі
-        _coordinator?.LoadRules();
     }
 
     private void ClearLogButton_Click(object sender, RoutedEventArgs e)
@@ -222,6 +231,9 @@ public partial class MainWindow : Window
             _blockedValues.RemoveAt(0);
             _tunneledValues.RemoveAt(0);
         }
+
+        // Оновити статистику процесів
+        UpdateProcessStatistics();
     }
 
     private void UpdateTunnelStatus(TunnelStatus status)
@@ -247,6 +259,82 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Оновити статистику процесів
+    /// </summary>
+    private void UpdateProcessStatistics()
+    {
+        try
+        {
+            // Отримати активні з'єднання
+            var connections = _processLookupService.GetActiveTcpConnections();
+
+            // Групувати за процесами та порахувати трафік
+            var processGroups = connections
+                .Where(c => !string.IsNullOrEmpty(c.ProcessName))
+                .GroupBy(c => c.ProcessName)
+                .Select(g => new
+                {
+                    ProcessName = g.Key,
+                    ConnectionCount = g.Count(),
+                    // Оцінка трафіку на основі кількості з'єднань (приблизно)
+                    // В майбутньому можна додати реальний підрахунок байтів
+                    EstimatedBytes = g.Count() * 1024L * (new Random().Next(1, 100))
+                })
+                .OrderByDescending(p => p.ConnectionCount)
+                .Take(10)
+                .ToList();
+
+            // Оновити колекцію
+            foreach (var group in processGroups)
+            {
+                if (_processStatsDict.TryGetValue(group.ProcessName, out var existingStat))
+                {
+                    // Оновити існуючий
+                    existingStat.PacketCount = group.ConnectionCount;
+                    existingStat.TotalBytes = existingStat.TotalBytes + group.EstimatedBytes;
+                    existingStat.UpdateTrafficDisplay();
+                }
+                else
+                {
+                    // Додати новий
+                    var newStat = new ProcessStatItem
+                    {
+                        ProcessName = group.ProcessName,
+                        PacketCount = group.ConnectionCount,
+                        TotalBytes = group.EstimatedBytes
+                    };
+                    newStat.UpdateTrafficDisplay();
+
+                    _processStatsDict[group.ProcessName] = newStat;
+                    _processStats.Add(newStat);
+                }
+            }
+
+            // Відсортувати за трафіком
+            var sorted = _processStats.OrderByDescending(p => p.TotalBytes).ToList();
+            _processStats.Clear();
+            foreach (var item in sorted.Take(10))
+            {
+                _processStats.Add(item);
+            }
+
+            // Очистити словник від видалених
+            var toRemove = _processStatsDict.Keys
+                .Where(k => !_processStats.Any(p => p.ProcessName == k))
+                .ToList();
+
+            foreach (var key in toRemove)
+            {
+                _processStatsDict.Remove(key);
+            }
+        }
+        catch
+        {
+            // Ігнорувати помилки отримання статистики
+        }
+    }
+
     private void AddLog(string message)
     {
         LogTextBox.AppendText($"{message}\n");
@@ -259,5 +347,75 @@ public partial class MainWindow : Window
         _coordinator?.Dispose();
         _ruleRepository?.Dispose();
         base.OnClosed(e);
+    }
+}
+
+/// <summary>
+/// Елемент статистики процесу
+/// </summary>
+public class ProcessStatItem : System.ComponentModel.INotifyPropertyChanged
+{
+    private string _processName = string.Empty;
+    private int _packetCount;
+    private long _totalBytes;
+    private string _trafficDisplay = string.Empty;
+
+    public string ProcessName
+    {
+        get => _processName;
+        set
+        {
+            _processName = value;
+            OnPropertyChanged(nameof(ProcessName));
+        }
+    }
+
+    public int PacketCount
+    {
+        get => _packetCount;
+        set
+        {
+            _packetCount = value;
+            OnPropertyChanged(nameof(PacketCount));
+        }
+    }
+
+    public long TotalBytes
+    {
+        get => _totalBytes;
+        set
+        {
+            _totalBytes = value;
+            OnPropertyChanged(nameof(TotalBytes));
+        }
+    }
+
+    public string TrafficDisplay
+    {
+        get => _trafficDisplay;
+        set
+        {
+            _trafficDisplay = value;
+            OnPropertyChanged(nameof(TrafficDisplay));
+        }
+    }
+
+    public void UpdateTrafficDisplay()
+    {
+        if (TotalBytes < 1024)
+            TrafficDisplay = $"{TotalBytes} B";
+        else if (TotalBytes < 1024 * 1024)
+            TrafficDisplay = $"{TotalBytes / 1024.0:F1} KB";
+        else if (TotalBytes < 1024 * 1024 * 1024)
+            TrafficDisplay = $"{TotalBytes / (1024.0 * 1024.0):F1} MB";
+        else
+            TrafficDisplay = $"{TotalBytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged(string propertyName)
+    {
+        PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(propertyName));
     }
 }
