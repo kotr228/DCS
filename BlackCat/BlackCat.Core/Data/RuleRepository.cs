@@ -67,17 +67,16 @@ public class RuleRepository : IDisposable
     /// </summary>
     private void MigrateAddColumnIfNotExists(SqliteConnection connection, string tableName, string columnName, string columnType)
     {
-        // Перевірити чи існує колонка
-        string checkSql = $"SELECT COUNT(*) FROM pragma_table_info('{tableName}') WHERE name='{columnName}'";
-        using var checkCmd = new SqliteCommand(checkSql, connection);
-        long count = (long)checkCmd.ExecuteScalar()!;
-
-        if (count == 0)
+        try
         {
-            // Колонка не існує - додати
+            // Спробувати додати колонку
             string alterSql = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnType}";
             using var alterCmd = new SqliteCommand(alterSql, connection);
             alterCmd.ExecuteNonQuery();
+        }
+        catch (SqliteException ex) when (ex.Message.Contains("duplicate column name"))
+        {
+            // Колонка вже існує - це нормально, ігнорувати
         }
     }
 
