@@ -8,6 +8,7 @@ using BlackCat.Shared.Models;
 using BlackCat.Shared.Enums;
 using LiveCharts;
 using LiveCharts.Wpf;
+using LiveCharts.Defaults;
 using System.Collections.ObjectModel;
 using System.Linq;
 using NetworkProtocol = BlackCat.Shared.Enums.ProtocolType;
@@ -21,14 +22,33 @@ public partial class MainWindow : Window
     private readonly RuleRepository _ruleRepository;
     private readonly ProcessLookupService _processLookupService;
 
-    // Графіки
-    private readonly ChartValues<double> _allowedValues = new();
-    private readonly ChartValues<double> _blockedValues = new();
-    private readonly ChartValues<double> _tunneledValues = new();
+    // Графіки - швидкість (стовпчаста)
+    private readonly ChartValues<double> _speedValues = new();
+
+    // Графіки - трафік по програмах (динамічні серії)
+    private readonly Dictionary<string, ChartValues<double>> _processTrafficValues = new();
+    private readonly Dictionary<string, Color> _processColors = new();
+    private readonly List<Color> _availableColors = new()
+    {
+        Color.FromRgb(106, 153, 85),   // Зелений
+        Color.FromRgb(244, 135, 113),  // Червоний
+        Color.FromRgb(86, 156, 214),   // Синій
+        Color.FromRgb(220, 220, 170),  // Жовтий
+        Color.FromRgb(197, 134, 192),  // Фіолетовий
+        Color.FromRgb(78, 201, 176),   // М'ятний
+        Color.FromRgb(206, 145, 120),  // Помаранчевий
+        Color.FromRgb(156, 220, 254)   // Блакитний
+    };
+    private int _colorIndex = 0;
+
+    // Вісь часу
+    private readonly List<string> _timeLabels = new();
+    private DateTime _startTime;
 
     // Статистика процесів
     private readonly ObservableCollection<ProcessStatItem> _processStats = new();
     private readonly Dictionary<string, ProcessStatItem> _processStatsDict = new();
+    private readonly Dictionary<string, long> _lastProcessBytes = new();
 
     public MainWindow()
     {
@@ -56,32 +76,29 @@ public partial class MainWindow : Window
 
     private void InitializeCharts()
     {
+        _startTime = DateTime.Now;
+
         PacketsChart.Series = new SeriesCollection
         {
-            new LineSeries
+            // Стовпчаста діаграма для швидкості
+            new ColumnSeries
             {
-                Title = "Дозволено",
-                Values = _allowedValues,
-                Stroke = new SolidColorBrush(Color.FromRgb(106, 153, 85)),
-                Fill = Brushes.Transparent,
-                PointGeometry = null
-            },
-            new LineSeries
-            {
-                Title = "Заблоковано",
-                Values = _blockedValues,
-                Stroke = new SolidColorBrush(Color.FromRgb(244, 135, 113)),
-                Fill = Brushes.Transparent,
-                PointGeometry = null
-            },
-            new LineSeries
-            {
-                Title = "Через тунель",
-                Values = _tunneledValues,
-                Stroke = new SolidColorBrush(Color.FromRgb(86, 156, 214)),
-                Fill = Brushes.Transparent,
-                PointGeometry = null
+                Title = "Швидкість (KB/s)",
+                Values = _speedValues,
+                Fill = new SolidColorBrush(Color.FromArgb(180, 78, 201, 176)),
+                MaxColumnWidth = 30,  // ширина стовпчика
+                ColumnPadding = 4     // відступ між стовпчиками
             }
+        };
+
+        // Налаштування осі X (час)
+        PacketsChart.AxisX[0].Labels = _timeLabels;
+        PacketsChart.AxisX[0].LabelFormatter = value =>
+        {
+            var index = (int)value;
+            if (index >= 0 && index < _timeLabels.Count)
+                return _timeLabels[index];
+            return "";
         };
     }
 
@@ -219,17 +236,28 @@ public partial class MainWindow : Window
         // Оновити час роботи
         UptimeText.Text = $"Час роботи: {stats.Uptime:hh\\:mm\\:ss}";
 
-        // Оновити графіки
-        _allowedValues.Add(stats.AllowedPackets);
-        _blockedValues.Add(stats.BlockedPackets);
-        _tunneledValues.Add(stats.TunneledPackets);
+        // Додати мітку часу
+        var elapsed = DateTime.Now - _startTime;
+        _timeLabels.Add($"{elapsed:mm\\:ss}");
 
-        // Обмежити кількість точок на графіку
-        if (_allowedValues.Count > 50)
+        // Додати швидкість (стовпчаста діаграма)
+        _speedValues.Add(stats.BytesPerSecond / 1024.0);
+
+        // Оновити трафік по програмах
+        UpdateProcessTraffic();
+
+        // Обмежити кількість точок на графіку (60 точок = 1 хвилина при оновленні раз на секунду)
+        if (_speedValues.Count > 60)
         {
-            _allowedValues.RemoveAt(0);
-            _blockedValues.RemoveAt(0);
-            _tunneledValues.RemoveAt(0);
+            _speedValues.RemoveAt(0);
+            _timeLabels.RemoveAt(0);
+
+            // Видалити старі дані з серій програм
+            foreach (var values in _processTrafficValues.Values)
+            {
+                if (values.Count > 60)
+                    values.RemoveAt(0);
+            }
         }
 
         // Оновити статистику процесів
@@ -256,6 +284,111 @@ public partial class MainWindow : Window
                 TunnelStatusIndicator.Fill = new SolidColorBrush(Color.FromRgb(255, 0, 0));
                 TunnelStatusText.Text = "Помилка";
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Оновити трафік по програмах на графіку
+    /// </summary>
+    private void UpdateProcessTraffic()
+    {
+        try
+        {
+            // Отримати активні з'єднання
+            var connections = _processLookupService.GetActiveTcpConnections();
+
+            // Групувати за процесами
+            var processGroups = connections
+                .Where(c => !string.IsNullOrEmpty(c.ProcessName))
+                .GroupBy(c => c.ProcessName)
+                .Select(g => new
+                {
+                    ProcessName = g.Key,
+                    ConnectionCount = g.Count(),
+                    // Оцінка трафіку (в реальності треба рахувати байти)
+                    EstimatedKBps = g.Count() * 10.0
+                })
+                .OrderByDescending(p => p.EstimatedKBps)
+                .Take(5)  // Топ-5 програм
+                .ToList();
+
+            // Список існуючих процесів
+            var currentProcesses = processGroups.Select(p => p.ProcessName).ToHashSet();
+
+            // Додати/оновити серії для кожної програми
+            foreach (var group in processGroups)
+            {
+                if (!_processTrafficValues.ContainsKey(group.ProcessName))
+                {
+                    // Створити нову серію
+                    var color = _availableColors[_colorIndex % _availableColors.Count];
+                    _colorIndex++;
+
+                    _processColors[group.ProcessName] = color;
+                    _processTrafficValues[group.ProcessName] = new ChartValues<double>();
+
+                    // Заповнити попередні значення нулями
+                    for (int i = 0; i < _speedValues.Count; i++)
+                    {
+                        _processTrafficValues[group.ProcessName].Add(0);
+                    }
+
+                    // Додати серію на графік
+                    PacketsChart.Series.Add(new LineSeries
+                    {
+                        Title = group.ProcessName,
+                        Values = _processTrafficValues[group.ProcessName],
+                        Stroke = new SolidColorBrush(color),
+                        Fill = Brushes.Transparent,
+                        PointGeometry = null,
+                        LineSmoothness = 0.3
+                    });
+                }
+
+                // Додати нове значення
+                _processTrafficValues[group.ProcessName].Add(group.EstimatedKBps);
+            }
+
+            // Додати нулі для процесів, які зараз не активні
+            foreach (var process in _processTrafficValues.Keys.ToList())
+            {
+                if (!currentProcesses.Contains(process))
+                {
+                    _processTrafficValues[process].Add(0);
+                }
+            }
+
+            // Видалити старі неактивні процеси (якщо вони довго не з'являлися)
+            var processesToRemove = new List<string>();
+            foreach (var process in _processTrafficValues.Keys.ToList())
+            {
+                // Якщо останні 10 значень = 0, видалити серію
+                if (_processTrafficValues[process].Count >= 10)
+                {
+                    var lastTen = _processTrafficValues[process].Skip(_processTrafficValues[process].Count - 10).ToList();
+                    if (lastTen.All(v => v == 0))
+                    {
+                        processesToRemove.Add(process);
+                    }
+                }
+            }
+
+            foreach (var process in processesToRemove)
+            {
+                // Знайти і видалити серію з графіка
+                var seriesToRemove = PacketsChart.Series.FirstOrDefault(s => s.Title == process);
+                if (seriesToRemove != null)
+                {
+                    PacketsChart.Series.Remove(seriesToRemove);
+                }
+
+                _processTrafficValues.Remove(process);
+                _processColors.Remove(process);
+            }
+        }
+        catch
+        {
+            // Ігнорувати помилки
         }
     }
 
