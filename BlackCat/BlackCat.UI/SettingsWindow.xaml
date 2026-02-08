@@ -142,10 +142,10 @@
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="SaveButton" Content="Зберегти"
                     Width="100" Padding="10,5" Margin="0,0,10,0"
-                    Click="SaveButton_Click" Style="{StaticResource MahApps.Styles.Button.Square.Accent}"/>
+                    Click="SaveButton_Click"/>
             <Button x:Name="CancelButton" Content="Скасувати"
                     Width="100" Padding="10,5"
-                    Click="CancelButton_Click" Style="{StaticResource MahApps.Styles.Button.Square}"/>
+                    Click="CancelButton_Click"/>
         </StackPanel>
 
     </Grid>

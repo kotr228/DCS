@@ -66,12 +66,10 @@
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
             <Button x:Name="CreateButton" Content="Створити"
                     Width="100" Padding="10,5" Margin="0,0,10,0"
-                    Click="CreateButton_Click" IsDefault="True"
-                    Style="{StaticResource MahApps.Styles.Button.Square.Accent}"/>
+                    Click="CreateButton_Click" IsDefault="True"/>
             <Button x:Name="CancelButton" Content="Скасувати"
                     Width="100" Padding="10,5"
-                    Click="CancelButton_Click" IsCancel="True"
-                    Style="{StaticResource MahApps.Styles.Button.Square}"/>
+                    Click="CancelButton_Click" IsCancel="True"/>
         </StackPanel>
     </Grid>
 </mah:MetroWindow>

@@ -130,8 +130,7 @@
         <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Margin="0,20,0,0">
             <Button x:Name="AddButton" Content="+ Додати"
                     Width="100" Padding="10,5" Margin="0,0,10,0"
-                    Click="AddButton_Click"
-                    Style="{StaticResource MahApps.Styles.Button.Square.Accent}"/>
+                    Click="AddButton_Click"/>
             <Button x:Name="SaveButton" Content="💾 Зберегти"
                     Width="100" Padding="10,5" Margin="0,0,10,0"
                     Click="SaveButton_Click"
@@ -139,8 +138,7 @@
             <Button x:Name="DeleteButton" Content="🗑 Видалити"
                     Width="100" Padding="10,5" Margin="0,0,10,0"
                     Click="DeleteButton_Click"
-                    IsEnabled="False"
-                    Style="{StaticResource MahApps.Styles.Button.Square.Highlight}"/>
+                    IsEnabled="False"/>
         </StackPanel>
 
         <!-- Кнопка закриття -->
