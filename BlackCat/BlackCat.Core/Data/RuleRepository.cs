@@ -27,6 +27,7 @@ public class RuleRepository : IDisposable
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
+        // Спочатку створити таблицю з мінімальними колонками
         string createTableSql = @"
             CREATE TABLE IF NOT EXISTS FilterRules (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,28 +39,29 @@ public class RuleRepository : IDisposable
                 Direction INTEGER NOT NULL,
                 IsEnabled INTEGER DEFAULT 1,
                 Priority INTEGER DEFAULT 100,
-                CreatedAt TEXT NOT NULL,
-                PortRange TEXT,
-                ApplicationPath TEXT,
-                ProcessName TEXT,
-                Description TEXT,
-                Tags TEXT
+                CreatedAt TEXT NOT NULL
             );
-
-            CREATE INDEX IF NOT EXISTS idx_priority ON FilterRules(Priority);
-            CREATE INDEX IF NOT EXISTS idx_enabled ON FilterRules(IsEnabled);
-            CREATE INDEX IF NOT EXISTS idx_process ON FilterRules(ProcessName);
         ";
 
         using var command = new SqliteCommand(createTableSql, connection);
         command.ExecuteNonQuery();
 
-        // Міграція: додати нові колонки якщо їх немає
+        // Потім виконати міграцію - додати нові колонки якщо їх немає
         MigrateAddColumnIfNotExists(connection, "FilterRules", "PortRange", "TEXT");
         MigrateAddColumnIfNotExists(connection, "FilterRules", "ApplicationPath", "TEXT");
         MigrateAddColumnIfNotExists(connection, "FilterRules", "ProcessName", "TEXT");
         MigrateAddColumnIfNotExists(connection, "FilterRules", "Description", "TEXT");
         MigrateAddColumnIfNotExists(connection, "FilterRules", "Tags", "TEXT");
+
+        // І тільки тепер створити індекси (після того як всі колонки існують)
+        string createIndexesSql = @"
+            CREATE INDEX IF NOT EXISTS idx_priority ON FilterRules(Priority);
+            CREATE INDEX IF NOT EXISTS idx_enabled ON FilterRules(IsEnabled);
+            CREATE INDEX IF NOT EXISTS idx_process ON FilterRules(ProcessName);
+        ";
+
+        using var indexCommand = new SqliteCommand(createIndexesSql, connection);
+        indexCommand.ExecuteNonQuery();
     }
 
     /// <summary>
