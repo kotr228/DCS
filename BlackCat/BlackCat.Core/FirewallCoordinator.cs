@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using BlackCat.Core.Data;
 using BlackCat.Core.Services;
 using BlackCat.NetworkCore;
@@ -159,6 +160,16 @@ public class FirewallCoordinator : IDisposable
         {
             await _tunnelService.StartAsync(cancellationToken);
             Log($"✅ Тунель запущено на порту {9999}");
+        }
+        catch (SocketException ex) when (ex.Message.Contains("normally permitted"))
+        {
+            Log($"❌ Порт 9999 вже зайнятий!");
+            Log("💡 Можливі рішення:");
+            Log("   1. Закрийте інші копії BlackCat");
+            Log("   2. Перезавантажте комп'ютер");
+            Log("   3. Змініть порт в налаштуваннях");
+            throw new InvalidOperationException(
+                "Порт 9999 вже використовується іншою програмою. Закрийте всі копії BlackCat і спробуйте знову.", ex);
         }
         catch (Exception ex)
         {

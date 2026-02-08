@@ -72,7 +72,22 @@ public class SecureTunnelService : IDisposable
 
         try
         {
+            // Зупинити попередній listener якщо є
+            if (_listener != null)
+            {
+                try
+                {
+                    _listener.Stop();
+                }
+                catch { }
+                _listener = null;
+            }
+
             _listener = new TcpListener(IPAddress.Any, _listenPort);
+
+            // Дозволити повторне використання адреси (для швидкого перезапуску)
+            _listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+
             _listener.Start();
             _isRunning = true;
 
