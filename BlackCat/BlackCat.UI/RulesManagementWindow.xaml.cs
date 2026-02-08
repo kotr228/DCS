@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using MahApps.Metro.Controls;
-using MahApps.Metro.Controls.Dialogs;
 using BlackCat.Core;
 using BlackCat.Shared.Models;
 using BlackCat.Shared.Enums;
@@ -152,7 +151,7 @@ public partial class RulesManagementWindow : MetroWindow
     /// <summary>
     /// Зберегти правило
     /// </summary>
-    private async void SaveButton_Click(object sender, RoutedEventArgs e)
+    private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
         if (_coordinator?.RuleRepository == null)
             return;
@@ -160,7 +159,7 @@ public partial class RulesManagementWindow : MetroWindow
         // Валідація
         if (string.IsNullOrWhiteSpace(RuleNameTextBox.Text))
         {
-            await this.ShowMessageAsync("Помилка", "Введіть назву правила");
+            MessageBox.Show("Введіть назву правила", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -221,12 +220,12 @@ public partial class RulesManagementWindow : MetroWindow
             if (_isNewRule || _selectedRule == null)
             {
                 _coordinator.RuleRepository.AddRule(rule);
-                await this.ShowMessageAsync("Успіх", $"Правило '{rule.Name}' додано");
+                MessageBox.Show($"Правило '{rule.Name}' додано", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             else
             {
                 _coordinator.RuleRepository.UpdateRule(rule);
-                await this.ShowMessageAsync("Успіх", $"Правило '{rule.Name}' оновлено");
+                MessageBox.Show($"Правило '{rule.Name}' оновлено", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
             }
 
             // Оновити список та застосувати правила
@@ -237,29 +236,30 @@ public partial class RulesManagementWindow : MetroWindow
         }
         catch (Exception ex)
         {
-            await this.ShowMessageAsync("Помилка", $"Не вдалося зберегти правило:\n{ex.Message}");
+            MessageBox.Show($"Не вдалося зберегти правило:\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     /// <summary>
     /// Видалити правило
     /// </summary>
-    private async void DeleteButton_Click(object sender, RoutedEventArgs e)
+    private void DeleteButton_Click(object sender, RoutedEventArgs e)
     {
         if (_selectedRule == null || _coordinator?.RuleRepository == null)
             return;
 
-        var result = await this.ShowMessageAsync(
-            "Підтвердження",
+        var result = MessageBox.Show(
             $"Видалити правило '{_selectedRule.Name}'?",
-            MessageDialogStyle.AffirmativeAndNegative);
+            "Підтвердження",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
 
-        if (result == MessageDialogResult.Affirmative)
+        if (result == MessageBoxResult.Yes)
         {
             try
             {
                 _coordinator.RuleRepository.DeleteRule(_selectedRule.Id);
-                await this.ShowMessageAsync("Успіх", $"Правило '{_selectedRule.Name}' видалено");
+                MessageBox.Show($"Правило '{_selectedRule.Name}' видалено", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
 
                 LoadRules();
                 _coordinator.LoadRules();
@@ -269,7 +269,7 @@ public partial class RulesManagementWindow : MetroWindow
             }
             catch (Exception ex)
             {
-                await this.ShowMessageAsync("Помилка", $"Не вдалося видалити правило:\n{ex.Message}");
+                MessageBox.Show($"Не вдалося видалити правило:\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
@@ -277,7 +277,7 @@ public partial class RulesManagementWindow : MetroWindow
     /// <summary>
     /// Вибрати порт з активних з'єднань
     /// </summary>
-    private async void SelectActivePortButton_Click(object sender, RoutedEventArgs e)
+    private void SelectActivePortButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -285,7 +285,7 @@ public partial class RulesManagementWindow : MetroWindow
 
             if (!connections.Any())
             {
-                await this.ShowMessageAsync("Інформація", "Активні з'єднання не знайдено");
+                MessageBox.Show("Активні з'єднання не знайдено", "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -315,14 +315,14 @@ public partial class RulesManagementWindow : MetroWindow
         }
         catch (Exception ex)
         {
-            await this.ShowMessageAsync("Помилка", $"Не вдалося отримати список активних портів:\n{ex.Message}");
+            MessageBox.Show($"Не вдалося отримати список активних портів:\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     /// <summary>
     /// Вибрати процес з запущених
     /// </summary>
-    private async void SelectRunningProcessButton_Click(object sender, RoutedEventArgs e)
+    private void SelectRunningProcessButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
@@ -343,7 +343,7 @@ public partial class RulesManagementWindow : MetroWindow
 
             if (!processes.Any())
             {
-                await this.ShowMessageAsync("Інформація", "Процеси з активними з'єднаннями не знайдено");
+                MessageBox.Show("Процеси з активними з'єднаннями не знайдено", "Інформація", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -358,7 +358,7 @@ public partial class RulesManagementWindow : MetroWindow
         }
         catch (Exception ex)
         {
-            await this.ShowMessageAsync("Помилка", $"Не вдалося отримати список процесів:\n{ex.Message}");
+            MessageBox.Show($"Не вдалося отримати список процесів:\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

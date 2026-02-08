@@ -5,7 +5,6 @@ using BlackCat.Core;
 using BlackCat.Core.Services;
 using BlackCat.Shared.Models;
 using MahApps.Metro.Controls;
-using MahApps.Metro.Controls.Dialogs;
 
 namespace BlackCat.UI;
 
@@ -54,7 +53,7 @@ public partial class SettingsWindow : MetroWindow
         // TODO: Завантажити інші налаштування з конфігу
     }
 
-    private async void CreateBlackIDButton_Click(object sender, RoutedEventArgs e)
+    private void CreateBlackIDButton_Click(object sender, RoutedEventArgs e)
     {
         // Показати діалог вибору ролі, міста, назви
         var dialog = new BlackIDCreationDialog(_blackIDService);
@@ -72,10 +71,12 @@ public partial class SettingsWindow : MetroWindow
 
                 CurrentBlackIDTextBox.Text = dialog.CreatedBlackID.FullID;
 
-                await this.ShowMessageAsync("Успіх",
+                MessageBox.Show(
                     $"Створено новий Black-ID:\n{dialog.CreatedBlackID.FullID}\n\n" +
                     "Збережіть цей код - він потрібен для з'єднання з іншими вузлами!",
-                    MessageDialogStyle.Affirmative);
+                    "Успіх",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
         }
     }
