@@ -54,41 +54,31 @@ public class RuleRepository : IDisposable
         using var command = new SqliteCommand(createTableSql, connection);
         command.ExecuteNonQuery();
 
-        // Додати нові колонки до існуючих таблиць (міграція)
-        try
-        {
-            using var alterCmd1 = new SqliteCommand("ALTER TABLE FilterRules ADD COLUMN PortRange TEXT", connection);
-            alterCmd1.ExecuteNonQuery();
-        }
-        catch { /* Колонка вже існує */ }
+        // Міграція: додати нові колонки якщо їх немає
+        MigrateAddColumnIfNotExists(connection, "FilterRules", "PortRange", "TEXT");
+        MigrateAddColumnIfNotExists(connection, "FilterRules", "ApplicationPath", "TEXT");
+        MigrateAddColumnIfNotExists(connection, "FilterRules", "ProcessName", "TEXT");
+        MigrateAddColumnIfNotExists(connection, "FilterRules", "Description", "TEXT");
+        MigrateAddColumnIfNotExists(connection, "FilterRules", "Tags", "TEXT");
+    }
 
-        try
-        {
-            using var alterCmd2 = new SqliteCommand("ALTER TABLE FilterRules ADD COLUMN ApplicationPath TEXT", connection);
-            alterCmd2.ExecuteNonQuery();
-        }
-        catch { /* Колонка вже існує */ }
+    /// <summary>
+    /// Додати колонку якщо вона не існує
+    /// </summary>
+    private void MigrateAddColumnIfNotExists(SqliteConnection connection, string tableName, string columnName, string columnType)
+    {
+        // Перевірити чи існує колонка
+        string checkSql = $"SELECT COUNT(*) FROM pragma_table_info('{tableName}') WHERE name='{columnName}'";
+        using var checkCmd = new SqliteCommand(checkSql, connection);
+        long count = (long)checkCmd.ExecuteScalar()!;
 
-        try
+        if (count == 0)
         {
-            using var alterCmd3 = new SqliteCommand("ALTER TABLE FilterRules ADD COLUMN ProcessName TEXT", connection);
-            alterCmd3.ExecuteNonQuery();
+            // Колонка не існує - додати
+            string alterSql = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnType}";
+            using var alterCmd = new SqliteCommand(alterSql, connection);
+            alterCmd.ExecuteNonQuery();
         }
-        catch { /* Колонка вже існує */ }
-
-        try
-        {
-            using var alterCmd4 = new SqliteCommand("ALTER TABLE FilterRules ADD COLUMN Description TEXT", connection);
-            alterCmd4.ExecuteNonQuery();
-        }
-        catch { /* Колонка вже існує */ }
-
-        try
-        {
-            using var alterCmd5 = new SqliteCommand("ALTER TABLE FilterRules ADD COLUMN Tags TEXT", connection);
-            alterCmd5.ExecuteNonQuery();
-        }
-        catch { /* Колонка вже існує */ }
     }
 
     /// <summary>
