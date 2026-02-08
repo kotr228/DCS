@@ -44,6 +44,7 @@ public class FirewallCoordinator : IDisposable
     public FirewallStatistics Statistics => _statistics;
     public FilterEngine FilterEngine => _filterEngine;
     public BlackID? CurrentBlackID => _currentBlackID;
+    public RuleRepository RuleRepository => _ruleRepository;
 
     public FirewallCoordinator(string masterSecret, string databasePath = "blackcat.db", int tunnelPort = 9999)
     {

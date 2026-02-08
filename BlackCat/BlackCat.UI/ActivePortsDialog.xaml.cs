@@ -3,10 +3,11 @@ using System.Windows.Controls;
 using BlackCat.Core.Services;
 using System.Collections.Generic;
 using System.Linq;
+using MahApps.Metro.Controls;
 
 namespace BlackCat.UI;
 
-public partial class ActivePortsDialog : Window
+public partial class ActivePortsDialog : MetroWindow
 {
     public int SelectedPort { get; private set; }
     public string? SelectedProcessName { get; private set; }

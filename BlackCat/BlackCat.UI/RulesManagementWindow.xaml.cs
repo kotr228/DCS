@@ -102,9 +102,9 @@ public partial class RulesManagementWindow : MetroWindow
         // Напрямок
         RuleDirectionComboBox.SelectedIndex = rule.Direction switch
         {
-            FilterDirection.Both => 0,
-            FilterDirection.Inbound => 1,
-            FilterDirection.Outbound => 2,
+            TrafficDirection.Both => 0,
+            TrafficDirection.Inbound => 1,
+            TrafficDirection.Outbound => 2,
             _ => 0
         };
 
@@ -207,9 +207,9 @@ public partial class RulesManagementWindow : MetroWindow
             // Напрямок
             rule.Direction = (RuleDirectionComboBox.SelectedItem as ComboBoxItem)?.Tag switch
             {
-                "1" => FilterDirection.Inbound,
-                "2" => FilterDirection.Outbound,
-                _ => FilterDirection.Both
+                "1" => TrafficDirection.Inbound,
+                "2" => TrafficDirection.Outbound,
+                _ => TrafficDirection.Both
             };
 
             rule.ProcessName = string.IsNullOrWhiteSpace(RuleProcessNameTextBox.Text) ? null : RuleProcessNameTextBox.Text.Trim();
@@ -231,7 +231,7 @@ public partial class RulesManagementWindow : MetroWindow
 
             // Оновити список та застосувати правила
             LoadRules();
-            _coordinator.ApplyFilterRules();
+            _coordinator.LoadRules();
 
             _isNewRule = false;
         }
@@ -262,7 +262,7 @@ public partial class RulesManagementWindow : MetroWindow
                 await this.ShowMessageAsync("Успіх", $"Правило '{_selectedRule.Name}' видалено");
 
                 LoadRules();
-                _coordinator.ApplyFilterRules();
+                _coordinator.LoadRules();
                 ClearForm();
                 SaveButton.IsEnabled = false;
                 DeleteButton.IsEnabled = false;
