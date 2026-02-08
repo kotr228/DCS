@@ -27,24 +27,35 @@ public partial class BlackIDCreationDialog : MetroWindow
 
     private void UpdatePreview(object? sender, EventArgs? e)
     {
-        var role = (RoleComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "MAIN";
-        var city = (CityComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "KYIV";
-        var name = NameTextBox.Text.ToUpperInvariant();
-
-        if (string.IsNullOrWhiteSpace(name))
+        try
         {
-            name = "SERVER";
+            // Перевірка, чи елементи вже ініціалізовані
+            if (RoleComboBox == null || CityComboBox == null || NameTextBox == null || PreviewTextBlock == null)
+                return;
+
+            var role = (RoleComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "MAIN";
+            var city = (CityComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "KYIV";
+            var name = NameTextBox.Text.ToUpperInvariant();
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = "SERVER";
+            }
+
+            // Видалити недозволені символи
+            name = Regex.Replace(name, @"[^A-Z0-9]", "");
+
+            if (name.Length > 20)
+            {
+                name = name.Substring(0, 20);
+            }
+
+            PreviewTextBlock.Text = $"{role}-{city}-{name}-XXXX";
         }
-
-        // Видалити недозволені символи
-        name = Regex.Replace(name, @"[^A-Z0-9]", "");
-
-        if (name.Length > 20)
+        catch
         {
-            name = name.Substring(0, 20);
+            // Ігнорувати помилки під час ініціалізації
         }
-
-        PreviewTextBlock.Text = $"{role}-{city}-{name}-XXXX";
     }
 
     private void CreateButton_Click(object sender, RoutedEventArgs e)
@@ -53,11 +64,12 @@ public partial class BlackIDCreationDialog : MetroWindow
         {
             var role = (RoleComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "MAIN";
             var city = (CityComboBox.SelectedItem as ComboBoxItem)?.Tag as string ?? "KYIV";
-            var name = NameTextBox.Text.ToUpperInvariant().Trim();
+            var name = NameTextBox.Text?.ToUpperInvariant().Trim() ?? string.Empty;
 
             if (string.IsNullOrWhiteSpace(name))
             {
                 MessageBox.Show("Введіть назву!", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                NameTextBox.Focus();
                 return;
             }
 
@@ -68,18 +80,40 @@ public partial class BlackIDCreationDialog : MetroWindow
             {
                 MessageBox.Show("Назва занадто коротка (мінімум 2 символи)!", "Помилка",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
+                NameTextBox.Focus();
                 return;
             }
 
+            // Відладкова інформація
+            System.Diagnostics.Debug.WriteLine($"Creating Black-ID: Role={role}, City={city}, Name={name}");
+
             // Створити Black-ID
+            if (_blackIDService == null)
+            {
+                MessageBox.Show("BlackIDService не ініціалізовано!", "Критична помилка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
             CreatedBlackID = _blackIDService.GenerateID(role, city, name);
+
+            if (CreatedBlackID == null)
+            {
+                MessageBox.Show("Не вдалося створити Black-ID (результат null)!", "Помилка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"Created Black-ID: {CreatedBlackID.FullID}");
 
             DialogResult = true;
             Close();
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Помилка створення Black-ID: {ex.Message}", "Помилка",
+            var errorMessage = $"Помилка створення Black-ID:\n\n{ex.Message}\n\nStack Trace:\n{ex.StackTrace}";
+            System.Diagnostics.Debug.WriteLine(errorMessage);
+            MessageBox.Show(errorMessage, "Критична помилка",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

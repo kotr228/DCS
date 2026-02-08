@@ -55,29 +55,77 @@ public partial class SettingsWindow : MetroWindow
 
     private void CreateBlackIDButton_Click(object sender, RoutedEventArgs e)
     {
-        // Показати діалог вибору ролі, міста, назви
-        var dialog = new BlackIDCreationDialog(_blackIDService);
-        dialog.Owner = this;
-
-        if (dialog.ShowDialog() == true && dialog.CreatedBlackID != null)
+        try
         {
-            if (_coordinator != null)
+            System.Diagnostics.Debug.WriteLine("CreateBlackIDButton_Click - Started");
+
+            if (_blackIDService == null)
             {
-                _coordinator.ConfigureBlackID(
-                    dialog.CreatedBlackID.Role,
-                    dialog.CreatedBlackID.City,
-                    dialog.CreatedBlackID.Name
-                );
-
-                CurrentBlackIDTextBox.Text = dialog.CreatedBlackID.FullID;
-
-                MessageBox.Show(
-                    $"Створено новий Black-ID:\n{dialog.CreatedBlackID.FullID}\n\n" +
-                    "Збережіть цей код - він потрібен для з'єднання з іншими вузлами!",
-                    "Успіх",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                MessageBox.Show("BlackIDService не ініціалізовано!", "Помилка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
             }
+
+            System.Diagnostics.Debug.WriteLine("Opening BlackIDCreationDialog...");
+
+            // Показати діалог вибору ролі, міста, назви
+            var dialog = new BlackIDCreationDialog(_blackIDService);
+            dialog.Owner = this;
+
+            System.Diagnostics.Debug.WriteLine("Calling ShowDialog...");
+            var result = dialog.ShowDialog();
+
+            System.Diagnostics.Debug.WriteLine($"Dialog result: {result}, CreatedBlackID: {dialog.CreatedBlackID?.FullID ?? "null"}");
+
+            if (result == true && dialog.CreatedBlackID != null)
+            {
+                System.Diagnostics.Debug.WriteLine("Dialog returned true with valid Black-ID");
+
+                if (_coordinator != null)
+                {
+                    System.Diagnostics.Debug.WriteLine("Configuring Black-ID in coordinator...");
+
+                    _coordinator.ConfigureBlackID(
+                        dialog.CreatedBlackID.Role,
+                        dialog.CreatedBlackID.City,
+                        dialog.CreatedBlackID.Name
+                    );
+
+                    CurrentBlackIDTextBox.Text = dialog.CreatedBlackID.FullID;
+
+                    MessageBox.Show(
+                        $"Створено новий Black-ID:\n{dialog.CreatedBlackID.FullID}\n\n" +
+                        "Збережіть цей код - він потрібен для з'єднання з іншими вузлами!",
+                        "Успіх",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("Warning: _coordinator is null");
+
+                    CurrentBlackIDTextBox.Text = dialog.CreatedBlackID.FullID;
+
+                    MessageBox.Show(
+                        $"Створено новий Black-ID:\n{dialog.CreatedBlackID.FullID}\n\n" +
+                        "Збережіть цей код - він потрібен для з'єднання з іншими вузлами!\n\n" +
+                        "Увага: Брандмауер не запущено. Запустіть його для збереження ID.",
+                        "Успіх",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Dialog was cancelled or returned no Black-ID");
+            }
+        }
+        catch (Exception ex)
+        {
+            var errorMessage = $"Помилка відкриття діалогу:\n\n{ex.Message}\n\nStack Trace:\n{ex.StackTrace}";
+            System.Diagnostics.Debug.WriteLine(errorMessage);
+            MessageBox.Show(errorMessage, "Критична помилка",
+                MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
