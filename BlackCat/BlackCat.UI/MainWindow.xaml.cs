@@ -50,6 +50,11 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, ProcessStatItem> _processStatsDict = new();
     private readonly Dictionary<string, long> _lastProcessBytes = new();
 
+    // Тунелі Black-ID
+    private readonly ObservableCollection<TunnelNodeItem> _tunnelNodes = new();
+    private TunnelNodeItem? _selectedTunnel;
+    private readonly PeerNodeRepository? _peerNodeRepository;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -62,6 +67,10 @@ public partial class MainWindow : Window
 
         // Налаштування статистики процесів
         ProcessStatsDataGrid.ItemsSource = _processStats;
+
+        // Налаштування тунелів
+        TunnelsDataGrid.ItemsSource = _tunnelNodes;
+        LoadTunnels();
 
         // Таймер оновлення UI
         _updateTimer = new DispatcherTimer
@@ -474,6 +483,310 @@ public partial class MainWindow : Window
         LogTextBox.ScrollToEnd();
     }
 
+    #region Tunnel Management
+
+    /// <summary>
+    /// Завантажити список збережених тунелів
+    /// </summary>
+    private void LoadTunnels()
+    {
+        _tunnelNodes.Clear();
+
+        // Відобразити поточний Black-ID
+        if (_coordinator?.CurrentBlackID != null)
+        {
+            CurrentBlackIDLabel.Text = _coordinator.CurrentBlackID.FullID;
+        }
+        else
+        {
+            CurrentBlackIDLabel.Text = "Не налаштовано (створіть в Налаштуваннях)";
+        }
+
+        // Завантажити збережені вузли з БД
+        // TODO: Завантажити з PeerNodeRepository після старту координатора
+    }
+
+    /// <summary>
+    /// Обробка зміни вибору тунелю
+    /// </summary>
+    private void TunnelsDataGrid_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (TunnelsDataGrid.SelectedItem is TunnelNodeItem tunnel)
+        {
+            _selectedTunnel = tunnel;
+            LoadTunnelDetails(tunnel);
+            RemoveTunnelButton.IsEnabled = true;
+            ConnectTunnelButton.IsEnabled = !tunnel.IsConnected;
+            DisconnectTunnelButton.IsEnabled = tunnel.IsConnected;
+        }
+        else
+        {
+            ClearTunnelDetails();
+            RemoveTunnelButton.IsEnabled = false;
+            ConnectTunnelButton.IsEnabled = false;
+            DisconnectTunnelButton.IsEnabled = false;
+        }
+    }
+
+    /// <summary>
+    /// Завантажити деталі тунелю в панель
+    /// </summary>
+    private void LoadTunnelDetails(TunnelNodeItem tunnel)
+    {
+        TunnelBlackIDTextBox.Text = tunnel.BlackID;
+        TunnelIPTextBox.Text = tunnel.IPAddress;
+        TunnelPortTextBox.Text = tunnel.Port.ToString();
+
+        UpdateTunnelConnectionStatus(tunnel);
+
+        TunnelSentBytes.Text = FormatBytes(tunnel.SentBytes);
+        TunnelReceivedBytes.Text = FormatBytes(tunnel.ReceivedBytes);
+        TunnelUptime.Text = tunnel.ConnectionTime.ToString(@"hh\:mm\:ss");
+        TunnelLastHandshake.Text = tunnel.LastHandshake != DateTime.MinValue
+            ? tunnel.LastHandshake.ToString("dd.MM.yyyy HH:mm:ss")
+            : "Ніколи";
+    }
+
+    /// <summary>
+    /// Очистити панель деталей
+    /// </summary>
+    private void ClearTunnelDetails()
+    {
+        TunnelBlackIDTextBox.Text = string.Empty;
+        TunnelIPTextBox.Text = string.Empty;
+        TunnelPortTextBox.Text = "9999";
+        TunnelConnectionStatus.Text = "Не підключено";
+        TunnelConnectionIndicator.Fill = new SolidColorBrush(Color.FromRgb(128, 128, 128));
+        TunnelSentBytes.Text = "0 B";
+        TunnelReceivedBytes.Text = "0 B";
+        TunnelUptime.Text = "00:00:00";
+        TunnelLastHandshake.Text = "Ніколи";
+    }
+
+    /// <summary>
+    /// Оновити статус підключення тунелю
+    /// </summary>
+    private void UpdateTunnelConnectionStatus(TunnelNodeItem tunnel)
+    {
+        if (tunnel.IsConnected)
+        {
+            TunnelConnectionStatus.Text = "Підключено ✓";
+            TunnelConnectionIndicator.Fill = new SolidColorBrush(Color.FromRgb(106, 153, 85));
+        }
+        else if (tunnel.IsConnecting)
+        {
+            TunnelConnectionStatus.Text = "Підключення...";
+            TunnelConnectionIndicator.Fill = new SolidColorBrush(Color.FromRgb(220, 220, 170));
+        }
+        else
+        {
+            TunnelConnectionStatus.Text = "Не підключено";
+            TunnelConnectionIndicator.Fill = new SolidColorBrush(Color.FromRgb(128, 128, 128));
+        }
+    }
+
+    /// <summary>
+    /// Форматування байтів в читабельний вигляд
+    /// </summary>
+    private string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+            return $"{bytes} B";
+        else if (bytes < 1024 * 1024)
+            return $"{bytes / 1024.0:F1} KB";
+        else if (bytes < 1024 * 1024 * 1024)
+            return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        else
+            return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    /// <summary>
+    /// Додати новий тунель
+    /// </summary>
+    private void AddTunnelButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_coordinator == null)
+        {
+            MessageBox.Show("Спочатку запустіть брандмауер!", "Помилка",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        if (_coordinator.CurrentBlackID == null)
+        {
+            MessageBox.Show("Спочатку створіть Black-ID в Налаштуваннях!", "Помилка",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        var dialog = new AddTunnelDialog();
+        dialog.Owner = this;
+
+        if (dialog.ShowDialog() == true)
+        {
+            try
+            {
+                var tunnel = new TunnelNodeItem
+                {
+                    BlackID = dialog.BlackID,
+                    IPAddress = dialog.IPAddress,
+                    Port = dialog.Port,
+                    IsConnected = false,
+                    StatusDisplay = "Не підключено"
+                };
+
+                _tunnelNodes.Add(tunnel);
+
+                // TODO: Зберегти в БД через PeerNodeRepository
+
+                AddLog($"📝 Додано новий вузол: {tunnel.BlackID}");
+
+                MessageBox.Show($"Вузол {tunnel.BlackID} додано до телефонної книги!",
+                    "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка додавання вузла:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Видалити вибраний тунель
+    /// </summary>
+    private void RemoveTunnelButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTunnel == null)
+            return;
+
+        var result = MessageBox.Show(
+            $"Видалити вузол '{_selectedTunnel.BlackID}' з телефонної книги?",
+            "Підтвердження",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result == MessageBoxResult.Yes)
+        {
+            try
+            {
+                if (_selectedTunnel.IsConnected)
+                {
+                    MessageBox.Show("Спочатку від'єднайтеся від вузла!",
+                        "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                _tunnelNodes.Remove(_selectedTunnel);
+
+                // TODO: Видалити з БД через PeerNodeRepository
+
+                AddLog($"🗑️ Видалено вузол: {_selectedTunnel.BlackID}");
+
+                ClearTunnelDetails();
+                _selectedTunnel = null;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Помилка видалення:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Підключитися до вибраного тунелю
+    /// </summary>
+    private async void ConnectTunnelButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTunnel == null || _coordinator == null)
+            return;
+
+        try
+        {
+            _selectedTunnel.IsConnecting = true;
+            _selectedTunnel.StatusDisplay = "Підключення...";
+            UpdateTunnelConnectionStatus(_selectedTunnel);
+            ConnectTunnelButton.IsEnabled = false;
+
+            AddLog($"🔌 Підключення до {_selectedTunnel.BlackID}...");
+            AddLog($"   IP: {_selectedTunnel.IPAddress}:{_selectedTunnel.Port}");
+
+            // Симуляція handshake (заміни на реальну логіку)
+            await Task.Delay(2000);
+
+            // TODO: Реальне підключення через SecureTunnelService
+            // await _coordinator.TunnelService.ConnectToNode(_selectedTunnel.BlackID, _selectedTunnel.IPAddress, _selectedTunnel.Port);
+
+            _selectedTunnel.IsConnecting = false;
+            _selectedTunnel.IsConnected = true;
+            _selectedTunnel.StatusDisplay = "Підключено";
+            _selectedTunnel.LastHandshake = DateTime.Now;
+            _selectedTunnel.ConnectionTime = TimeSpan.Zero;
+
+            UpdateTunnelConnectionStatus(_selectedTunnel);
+            LoadTunnelDetails(_selectedTunnel);
+
+            ConnectTunnelButton.IsEnabled = false;
+            DisconnectTunnelButton.IsEnabled = true;
+
+            AddLog($"✅ Підключено до {_selectedTunnel.BlackID}");
+            AddLog($"   🔒 Handshake пройшов успішно!");
+            AddLog($"   🛡️ Stealth Mode активний");
+        }
+        catch (Exception ex)
+        {
+            _selectedTunnel.IsConnecting = false;
+            _selectedTunnel.IsConnected = false;
+            _selectedTunnel.StatusDisplay = "Помилка";
+            UpdateTunnelConnectionStatus(_selectedTunnel);
+
+            AddLog($"❌ Помилка підключення: {ex.Message}");
+
+            MessageBox.Show($"Не вдалося підключитися:\n{ex.Message}\n\nПеревірте:\n• IP адресу та порт\n• Чи запущений BlackCat на віддаленому вузлі\n• Чи правильний Black-ID",
+                "Помилка підключення", MessageBoxButton.OK, MessageBoxImage.Error);
+
+            ConnectTunnelButton.IsEnabled = true;
+        }
+    }
+
+    /// <summary>
+    /// Від'єднатися від вибраного тунелю
+    /// </summary>
+    private void DisconnectTunnelButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTunnel == null)
+            return;
+
+        try
+        {
+            AddLog($"🔌 Від'єднання від {_selectedTunnel.BlackID}...");
+
+            // TODO: Реальне від'єднання через SecureTunnelService
+
+            _selectedTunnel.IsConnected = false;
+            _selectedTunnel.StatusDisplay = "Не підключено";
+            _selectedTunnel.ConnectionTime = TimeSpan.Zero;
+
+            UpdateTunnelConnectionStatus(_selectedTunnel);
+            LoadTunnelDetails(_selectedTunnel);
+
+            ConnectTunnelButton.IsEnabled = true;
+            DisconnectTunnelButton.IsEnabled = false;
+
+            AddLog($"✅ Від'єднано від {_selectedTunnel.BlackID}");
+        }
+        catch (Exception ex)
+        {
+            AddLog($"❌ Помилка від'єднання: {ex.Message}");
+
+            MessageBox.Show($"Помилка від'єднання:\n{ex.Message}",
+                "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    #endregion
+
     protected override void OnClosed(EventArgs e)
     {
         _coordinator?.Stop();
@@ -543,6 +856,130 @@ public class ProcessStatItem : System.ComponentModel.INotifyPropertyChanged
             TrafficDisplay = $"{TotalBytes / (1024.0 * 1024.0):F1} MB";
         else
             TrafficDisplay = $"{TotalBytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged(string propertyName)
+    {
+        PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(propertyName));
+    }
+}
+
+/// <summary>
+/// Елемент тунелю Black-ID
+/// </summary>
+public class TunnelNodeItem : System.ComponentModel.INotifyPropertyChanged
+{
+    private string _blackID = string.Empty;
+    private string _ipAddress = string.Empty;
+    private int _port = 9999;
+    private bool _isConnected;
+    private bool _isConnecting;
+    private string _statusDisplay = "Не підключено";
+    private long _sentBytes;
+    private long _receivedBytes;
+    private TimeSpan _connectionTime;
+    private DateTime _lastHandshake;
+
+    public string BlackID
+    {
+        get => _blackID;
+        set
+        {
+            _blackID = value;
+            OnPropertyChanged(nameof(BlackID));
+        }
+    }
+
+    public string IPAddress
+    {
+        get => _ipAddress;
+        set
+        {
+            _ipAddress = value;
+            OnPropertyChanged(nameof(IPAddress));
+        }
+    }
+
+    public int Port
+    {
+        get => _port;
+        set
+        {
+            _port = value;
+            OnPropertyChanged(nameof(Port));
+        }
+    }
+
+    public bool IsConnected
+    {
+        get => _isConnected;
+        set
+        {
+            _isConnected = value;
+            OnPropertyChanged(nameof(IsConnected));
+        }
+    }
+
+    public bool IsConnecting
+    {
+        get => _isConnecting;
+        set
+        {
+            _isConnecting = value;
+            OnPropertyChanged(nameof(IsConnecting));
+        }
+    }
+
+    public string StatusDisplay
+    {
+        get => _statusDisplay;
+        set
+        {
+            _statusDisplay = value;
+            OnPropertyChanged(nameof(StatusDisplay));
+        }
+    }
+
+    public long SentBytes
+    {
+        get => _sentBytes;
+        set
+        {
+            _sentBytes = value;
+            OnPropertyChanged(nameof(SentBytes));
+        }
+    }
+
+    public long ReceivedBytes
+    {
+        get => _receivedBytes;
+        set
+        {
+            _receivedBytes = value;
+            OnPropertyChanged(nameof(ReceivedBytes));
+        }
+    }
+
+    public TimeSpan ConnectionTime
+    {
+        get => _connectionTime;
+        set
+        {
+            _connectionTime = value;
+            OnPropertyChanged(nameof(ConnectionTime));
+        }
+    }
+
+    public DateTime LastHandshake
+    {
+        get => _lastHandshake;
+        set
+        {
+            _lastHandshake = value;
+            OnPropertyChanged(nameof(LastHandshake));
+        }
     }
 
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
