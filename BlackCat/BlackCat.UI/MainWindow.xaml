@@ -270,12 +270,13 @@
 
                     <!-- Панель деталей і керування -->
                     <Border Grid.Column="2" Background="#2D2D30" CornerRadius="5" Padding="15" Margin="5,0,0,0">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
                             <!-- Деталі вибраного тунелю -->
                             <StackPanel Grid.Row="0">
@@ -376,13 +377,14 @@
                             </Border>
 
                             <!-- Кнопки дій -->
-                            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
                                 <Button x:Name="ConnectTunnelButton" Content="🔌 Підключити" Width="120"
                                         Margin="0,0,10,0" Click="ConnectTunnelButton_Click" IsEnabled="False"/>
                                 <Button x:Name="DisconnectTunnelButton" Content="🔌 Від'єднати" Width="120"
                                         Click="DisconnectTunnelButton_Click" IsEnabled="False"/>
                             </StackPanel>
-                        </Grid>
+                            </Grid>
+                        </ScrollViewer>
                     </Border>
                 </Grid>
             </TabItem>
