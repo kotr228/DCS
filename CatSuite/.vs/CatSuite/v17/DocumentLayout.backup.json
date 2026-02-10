@@ -3,13 +3,28 @@
   "WorkspaceRootPath": "G:\\DCS\\CatSuite\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{8C969B6C-22FB-537A-2C74-D6003CAFA91C}|..\\BlackCat\\BlackCat.NetworkCore\\BlackCat.NetworkCore.csproj|g:\\dcs\\blackcat\\blackcat.networkcore\\packetinterceptor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{9E1AF533-F545-1A24-E459-4DF62BB2E234}|..\\BlackCat\\BlackCat.UI\\BlackCat.UI.csproj|g:\\dcs\\blackcat\\blackcat.ui\\rulesmanagementwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{9E1AF533-F545-1A24-E459-4DF62BB2E234}|..\\BlackCat\\BlackCat.UI\\BlackCat.UI.csproj|g:\\dcs\\blackcat\\blackcat.ui\\runningprocessesdialog.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{9E1AF533-F545-1A24-E459-4DF62BB2E234}|..\\BlackCat\\BlackCat.UI\\BlackCat.UI.csproj|g:\\dcs\\blackcat\\blackcat.ui\\activeportsdialog.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{9E1AF533-F545-1A24-E459-4DF62BB2E234}|..\\BlackCat\\BlackCat.UI\\BlackCat.UI.csproj|g:\\dcs\\blackcat\\blackcat.ui\\settingswindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{9E1AF533-F545-1A24-E459-4DF62BB2E234}|..\\BlackCat\\BlackCat.UI\\BlackCat.UI.csproj|g:\\dcs\\blackcat\\blackcat.ui\\blackidcreationdialog.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{95EF4B75-2050-61E2-48D3-D8ECFD0C219F}|..\\BlackCat\\BlackCat.Core\\BlackCat.Core.csproj|g:\\dcs\\blackcat\\blackcat.core\\data\\rulerepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{95EF4B75-2050-61E2-48D3-D8ECFD0C219F}|..\\BlackCat\\BlackCat.Core\\BlackCat.Core.csproj|g:\\dcs\\blackcat\\blackcat.core\\firewallcoordinator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{95EF4B75-2050-61E2-48D3-D8ECFD0C219F}|..\\BlackCat\\BlackCat.Core\\BlackCat.Core.csproj|g:\\dcs\\blackcat\\blackcat.core\\data\\rulerepository.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{8C969B6C-22FB-537A-2C74-D6003CAFA91C}|..\\BlackCat\\BlackCat.NetworkCore\\BlackCat.NetworkCore.csproj|g:\\dcs\\blackcat\\blackcat.networkcore\\packetinterceptor.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4979C555-CE78-678C-A340-3FC7B79122EC}|..\\BlackCat\\BlackCat.Service\\BlackCat.Service.csproj|g:\\dcs\\blackcat\\blackcat.service\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
@@ -22,7 +37,7 @@
       "DocumentGroups": [
         {
           "DockedHeight": 200,
-          "SelectedChildIndex": 3,
+          "SelectedChildIndex": 4,
           "Children": [
             {
               "$type": "Bookmark",
@@ -31,30 +46,91 @@
             {
               "$type": "Document",
               "DocumentIndex": 1,
+              "Title": "RunningProcessesDialog.xaml.cs",
+              "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.UI\\RunningProcessesDialog.xaml.cs",
+              "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.UI\\RunningProcessesDialog.xaml.cs",
+              "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.UI\\RunningProcessesDialog.xaml.cs",
+              "RelativeToolTip": "..\\BlackCat\\BlackCat.UI\\RunningProcessesDialog.xaml.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-08T03:00:45.049Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "ActivePortsDialog.xaml.cs",
+              "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.UI\\ActivePortsDialog.xaml.cs",
+              "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.UI\\ActivePortsDialog.xaml.cs",
+              "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.UI\\ActivePortsDialog.xaml.cs",
+              "RelativeToolTip": "..\\BlackCat\\BlackCat.UI\\ActivePortsDialog.xaml.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAqwAkAAAAVAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-08T03:00:25.944Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "SettingsWindow.xaml.cs",
+              "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.UI\\SettingsWindow.xaml.cs",
+              "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.UI\\SettingsWindow.xaml.cs",
+              "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.UI\\SettingsWindow.xaml.cs",
+              "RelativeToolTip": "..\\BlackCat\\BlackCat.UI\\SettingsWindow.xaml.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAsAAAAVAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-08T02:54:50.768Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "RulesManagementWindow.xaml.cs",
+              "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.UI\\RulesManagementWindow.xaml.cs",
+              "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.UI\\RulesManagementWindow.xaml.cs",
+              "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.UI\\RulesManagementWindow.xaml.cs",
+              "RelativeToolTip": "..\\BlackCat\\BlackCat.UI\\RulesManagementWindow.xaml.cs",
+              "ViewState": "AgIAAO0AAAAAAAAAAAAewPwAAAAcAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-08T02:54:47.833Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "BlackIDCreationDialog.xaml.cs",
+              "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.UI\\BlackIDCreationDialog.xaml.cs",
+              "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.UI\\BlackIDCreationDialog.xaml.cs",
+              "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.UI\\BlackIDCreationDialog.xaml.cs",
+              "RelativeToolTip": "..\\BlackCat\\BlackCat.UI\\BlackIDCreationDialog.xaml.cs",
+              "ViewState": "AgIAAEYAAAAAAAAAAAAwwFkAAAAIAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-08T02:54:33.771Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
               "Title": "FirewallCoordinator.cs",
               "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.Core\\FirewallCoordinator.cs",
               "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.Core\\FirewallCoordinator.cs",
               "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.Core\\FirewallCoordinator.cs",
               "RelativeToolTip": "..\\BlackCat\\BlackCat.Core\\FirewallCoordinator.cs",
-              "ViewState": "AgIAALwAAAAAAAAAAAAwwNAAAAAqAAAAAAAAAA==",
+              "ViewState": "AgIAAMgAAAAAAAAAAAAwwNwAAAAqAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-01-28T03:58:56.887Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 5,
               "Title": "RuleRepository.cs",
               "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.Core\\Data\\RuleRepository.cs",
               "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.Core\\Data\\RuleRepository.cs",
               "ToolTip": "G:\\DCS\\BlackCat\\BlackCat.Core\\Data\\RuleRepository.cs",
               "RelativeToolTip": "..\\BlackCat\\BlackCat.Core\\Data\\RuleRepository.cs",
-              "ViewState": "AgIAALUAAAAAAAAAAAAIwMgAAAA4AAAAAAAAAA==",
+              "ViewState": "AgIAACQAAAAAAAAAAAAiwDgAAAAkAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2026-01-28T03:54:48.908Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 7,
               "Title": "PacketInterceptor.cs",
               "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.NetworkCore\\PacketInterceptor.cs",
               "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.NetworkCore\\PacketInterceptor.cs",
@@ -62,12 +138,11 @@
               "RelativeToolTip": "..\\BlackCat\\BlackCat.NetworkCore\\PacketInterceptor.cs",
               "ViewState": "AgIAALgAAAAAAAAAAAAIwNEAAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-01-28T03:54:44.714Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-01-28T03:54:44.714Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 8,
               "Title": "Program.cs",
               "DocumentMoniker": "G:\\DCS\\BlackCat\\BlackCat.Service\\Program.cs",
               "RelativeDocumentMoniker": "..\\BlackCat\\BlackCat.Service\\Program.cs",

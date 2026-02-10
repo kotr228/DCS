@@ -94,11 +94,11 @@ C:\Users\trock\Desktop\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\obj\De
 G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\runtimes\win-x86\native\WebView2Loader.dll
 G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\runtimes\win-x64\native\WebView2Loader.dll
 G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\runtimes\win-arm64\native\WebView2Loader.dll
-G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\Maps\leaflet-providers.js
-G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\Maps\styles.css
 G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\DocControlNetworkCore.deps.json
 G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\DocControlNetworkCore.runtimeconfig.json
 G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\DocControlNetworkCore.exe
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\Maps\leaflet-providers.js
+G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\Maps\styles.css
 G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\DocControlUI.exe
 G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\Maps\map.html
 G:\DCS\Geocadastr_0_1\DocControlSolution\DocControlUI\bin\Debug\net8.0-windows\DocControlUI.deps.json
