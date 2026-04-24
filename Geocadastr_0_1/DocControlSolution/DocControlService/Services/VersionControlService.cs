@@ -136,6 +136,67 @@ namespace DocControlService.Services
             return result;
         }
 
+        /// <summary>
+        /// Повертає детальну історію комітів разом зі списком змінених файлів у кожному коміті.
+        /// Для кожного коміту виконується diff з батьківським, щоб визначити Added/Modified/Deleted/Renamed.
+        /// </summary>
+        /// <param name="limit">Максимальна кількість комітів</param>
+        public List<(string Hash, string Message, string Author, DateTime Date, List<(string Path, string ChangeType)> Files)> GetDetailedCommitHistory(int limit = 100)
+        {
+            var result = new List<(string, string, string, DateTime, List<(string, string)>)>();
+
+            if (_repo == null)
+            {
+                Console.WriteLine("❌ Репозиторій не готовий.");
+                return result;
+            }
+
+            try
+            {
+                foreach (var commit in _repo.Commits.Take(limit))
+                {
+                    var files = new List<(string Path, string ChangeType)>();
+
+                    try
+                    {
+                        // Порівнюємо дерево коміту з батьківським (або з порожнім для початкового коміту)
+                        var parentTree = commit.Parents.Any() ? commit.Parents.First().Tree : null;
+                        var diff = _repo.Diff.Compare<TreeChanges>(parentTree, commit.Tree);
+
+                        foreach (var change in diff.Added)
+                            files.Add((change.Path, "Додано"));
+
+                        foreach (var change in diff.Modified)
+                            files.Add((change.Path, "Змінено"));
+
+                        foreach (var change in diff.Deleted)
+                            files.Add((change.Path, "Видалено"));
+
+                        foreach (var change in diff.Renamed)
+                            files.Add((change.Path, "Перейменовано"));
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"⚠ Не вдалося отримати diff для коміту {commit.Sha.Substring(0, 7)}: {ex.Message}");
+                    }
+
+                    result.Add((
+                        commit.Sha,
+                        commit.MessageShort,
+                        commit.Author.Name,
+                        commit.Author.When.DateTime,
+                        files
+                    ));
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Помилка отримання детальної історії: {ex.Message}");
+            }
+
+            return result;
+        }
+
         public bool RevertToCommit(string commitHash)
         {
             if (_repo == null)

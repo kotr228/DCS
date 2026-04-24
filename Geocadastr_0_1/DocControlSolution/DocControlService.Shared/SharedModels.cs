@@ -809,6 +809,19 @@ namespace DocControlService.Shared
         public bool IsResolved { get; set; }
     }
 
+    /// <summary>
+    /// Модель для одного зміненого файлу в коміті
+    /// </summary>
+    [Serializable]
+    public class GitFileChangeModel
+    {
+        /// <summary>Відносний шлях до файлу у репозиторії</summary>
+        public string FilePath { get; set; }
+
+        /// <summary>Тип зміни: Додано, Змінено, Видалено, Перейменовано</summary>
+        public string ChangeType { get; set; }
+    }
+
     [Serializable]
     public class GitCommitHistoryModel
     {
@@ -816,6 +829,9 @@ namespace DocControlService.Shared
         public string Message { get; set; }
         public string Author { get; set; }
         public DateTime Date { get; set; }
+
+        /// <summary>Список файлів, змінених у цьому коміті</summary>
+        public List<GitFileChangeModel> ChangedFiles { get; set; } = new List<GitFileChangeModel>();
     }
 
     [Serializable]

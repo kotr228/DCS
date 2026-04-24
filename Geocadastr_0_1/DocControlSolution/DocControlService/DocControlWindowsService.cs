@@ -2527,13 +2527,19 @@ namespace DocControlService
                 if (vcs == null)
                     return new ServiceResponse { Success = false, Message = "Git репозиторій не знайдено" };
 
-                var history = vcs.GetCommitHistory(maxCount);
+                // Отримуємо детальну історію з переліком змінених файлів
+                var history = vcs.GetDetailedCommitHistory(maxCount);
                 var models = history.Select(h => new GitCommitHistoryModel
                 {
                     Hash = h.Hash,
                     Message = h.Message,
                     Author = h.Author,
-                    Date = h.Date
+                    Date = h.Date,
+                    ChangedFiles = h.Files.Select(f => new GitFileChangeModel
+                    {
+                        FilePath = f.Path,
+                        ChangeType = f.ChangeType
+                    }).ToList()
                 }).ToList();
 
                 return new ServiceResponse
