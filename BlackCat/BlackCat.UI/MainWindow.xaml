@@ -180,6 +180,16 @@
                                           RowBackground="#252526"
                                           AlternatingRowBackground="#2D2D30"
                                           FontSize="11">
+                                    <DataGrid.ColumnHeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader">
+                                            <Setter Property="Background" Value="#2D2D30"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                            <Setter Property="BorderBrush" Value="#4EC9B0"/>
+                                            <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                                            <Setter Property="Padding" Value="8,5"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                        </Style>
+                                    </DataGrid.ColumnHeaderStyle>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Процес" Binding="{Binding ProcessName}" Width="*"/>
                                         <DataGridTextColumn Header="Пакетів" Binding="{Binding PacketCount}" Width="60"/>
@@ -207,6 +217,16 @@
                               Background="Transparent" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
                               GridLinesVisibility="All" HorizontalGridLinesBrush="#4EC9B0" VerticalGridLinesBrush="#4EC9B0"
                               RowBackground="#252526" AlternatingRowBackground="#2D2D30">
+                        <DataGrid.ColumnHeaderStyle>
+                            <Style TargetType="DataGridColumnHeader">
+                                <Setter Property="Background" Value="#2D2D30"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="BorderBrush" Value="#4EC9B0"/>
+                                <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                                <Setter Property="Padding" Value="8,5"/>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Style>
+                        </DataGrid.ColumnHeaderStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Назва" Binding="{Binding Name}" Width="*"/>
                             <DataGridTextColumn Header="IP адреса" Binding="{Binding IPAddress}" Width="150"/>
@@ -254,6 +274,16 @@
                                       GridLinesVisibility="All" HorizontalGridLinesBrush="#4EC9B0" VerticalGridLinesBrush="#4EC9B0"
                                       RowBackground="#252526" AlternatingRowBackground="#2D2D30"
                                       SelectionChanged="TunnelsDataGrid_SelectionChanged">
+                                <DataGrid.ColumnHeaderStyle>
+                                    <Style TargetType="DataGridColumnHeader">
+                                        <Setter Property="Background" Value="#2D2D30"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                        <Setter Property="BorderBrush" Value="#4EC9B0"/>
+                                        <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                                        <Setter Property="Padding" Value="8,5"/>
+                                        <Setter Property="FontWeight" Value="Bold"/>
+                                    </Style>
+                                </DataGrid.ColumnHeaderStyle>
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Black-ID" Binding="{Binding BlackID}" Width="*"/>
                                     <DataGridTextColumn Header="Статус" Binding="{Binding StatusDisplay}" Width="80"/>
