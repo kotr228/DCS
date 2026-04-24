@@ -26,6 +26,7 @@
                   CanUserDeleteRows="False"
                   IsReadOnly="True"
                   SelectionMode="Single"
+                  Background="Black" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
                   SelectionChanged="ProcessesDataGrid_SelectionChanged">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Назва процесу" Binding="{Binding ProcessName}" Width="200"/>

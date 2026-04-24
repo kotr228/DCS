@@ -29,6 +29,7 @@
                   CanUserDeleteRows="False"
                   IsReadOnly="True"
                   SelectionMode="Single"
+                  Background="Black" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
                   SelectionChanged="RulesDataGrid_SelectionChanged"
                   Margin="0,0,10,0">
             <DataGrid.Columns>

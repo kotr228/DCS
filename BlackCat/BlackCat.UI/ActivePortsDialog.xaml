@@ -26,6 +26,7 @@
                   CanUserDeleteRows="False"
                   IsReadOnly="True"
                   SelectionMode="Extended"
+                  Background="Black" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
                   SelectionChanged="ConnectionsDataGrid_SelectionChanged">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Процес" Binding="{Binding ProcessName}" Width="150"/>
