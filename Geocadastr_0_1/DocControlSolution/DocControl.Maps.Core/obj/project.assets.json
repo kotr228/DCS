@@ -332,23 +332,23 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\коте\\.nuget\\packages\\": {},
+    "C:\\Users\\trock\\.nuget\\packages\\": {},
     "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
+      "projectUniqueName": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
       "projectName": "DocControl.Maps.Core",
-      "projectPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
-      "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
-      "outputPath": "G:\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\obj\\",
+      "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\DocControl.Maps.Core.csproj",
+      "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\trock\\Desktop\\DCS\\Geocadastr_0_1\\DocControlSolution\\DocControl.Maps.Core\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -403,7 +403,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.308/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.306/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

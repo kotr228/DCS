@@ -15,7 +15,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright © 2025 Coffee Cat")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+78a71e7121a8c1c35ae5d43965feb73c2fe26181")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2465246c1e8f929a98c51d860bedcd7ffd365271")]
 [assembly: System.Reflection.AssemblyProductAttribute("DocControl NetworkCore - Network Communication Layer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DocControlNetworkCore")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
