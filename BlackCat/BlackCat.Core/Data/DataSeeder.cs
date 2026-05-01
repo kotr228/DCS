@@ -9,9 +9,9 @@ public class DataSeeder
 {
     private readonly string _connectionString;
 
-    public DataSeeder(BlackCatDatabase database)
+    public DataSeeder(string connectionString)
     {
-        _connectionString = database.ConnectionString;
+        _connectionString = connectionString;
     }
 
     /// <summary>

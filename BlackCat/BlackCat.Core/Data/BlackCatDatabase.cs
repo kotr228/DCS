@@ -31,7 +31,7 @@ public class BlackCatDatabase : IDisposable
             Console.WriteLine("🆕 База даних не знайдена. Створення нової...");
             CreateFreshDatabase();
 
-            var seeder = new DataSeeder(this);
+            var seeder = new DataSeeder(_connectionString);
             seeder.SeedAll();
 
             Console.WriteLine("✅ Нова база даних створена успішно.");
@@ -53,7 +53,7 @@ public class BlackCatDatabase : IDisposable
             validator.DropDatabase();
             CreateFreshDatabase();
 
-            var seeder = new DataSeeder(this);
+            var seeder = new DataSeeder(_connectionString);
             seeder.SeedAll();
 
             Console.WriteLine("✅ База даних перестворена успішно.");

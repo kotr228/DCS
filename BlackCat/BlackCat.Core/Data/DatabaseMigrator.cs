@@ -116,7 +116,7 @@ public class DatabaseMigrator
         try
         {
             // Додаємо дефолтні значення довідників
-            var seeder = new DataSeeder(new BlackCatDatabase(_dbPath));
+            var seeder = new DataSeeder(_connectionString);
             seeder.SeedAll();
 
             // Записуємо версію
