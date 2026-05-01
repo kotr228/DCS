@@ -13,12 +13,22 @@ public class BlackID
     public string FullID { get; set; } = string.Empty;
 
     /// <summary>
-    /// Роль вузла (SKLAD, OFFICE, MAIN, BACKUP)
+    /// ID ролі (FK → Roles)
+    /// </summary>
+    public int RoleId { get; set; }
+
+    /// <summary>
+    /// ID міста (FK → Cities)
+    /// </summary>
+    public int CityId { get; set; }
+
+    /// <summary>
+    /// Роль вузла (SKLAD, OFFICE, MAIN, BACKUP) - для backward compatibility
     /// </summary>
     public string Role { get; set; } = string.Empty;
 
     /// <summary>
-    /// Місто (KYIV, ODESA, LVIV, KHARKIV, тощо)
+    /// Місто (KYIV, ODESA, LVIV, KHARKIV, тощо) - для backward compatibility
     /// </summary>
     public string City { get; set; } = string.Empty;
 
@@ -48,9 +58,18 @@ public class BlackID
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// Дата створення підпису
+    /// </summary>
+    public DateTime SignatureCreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
     /// Чи активний цей ID
     /// </summary>
     public bool IsActive { get; set; } = true;
+
+    // Navigation properties
+    public Role? RoleNavigation { get; set; }
+    public City? CityNavigation { get; set; }
 
     /// <summary>
     /// Парсити Black-ID з рядка

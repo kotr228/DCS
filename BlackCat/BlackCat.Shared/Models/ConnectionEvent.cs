@@ -26,7 +26,22 @@ public class ConnectionEvent
     public int RemotePort { get; set; }
 
     /// <summary>
-    /// Тип події
+    /// Black-ID ініціатора з'єднання
+    /// </summary>
+    public string? InitiatorBlackID { get; set; }
+
+    /// <summary>
+    /// Black-ID цільового вузла
+    /// </summary>
+    public string? TargetBlackID { get; set; }
+
+    /// <summary>
+    /// Тип події (FK → EventTypes)
+    /// </summary>
+    public int EventTypeId { get; set; }
+
+    /// <summary>
+    /// Тип події (enum) - для backward compatibility
     /// </summary>
     public ConnectionEventType EventType { get; set; }
 
@@ -69,6 +84,9 @@ public class ConnectionEvent
     /// Отримано байт
     /// </summary>
     public long BytesReceived { get; set; }
+
+    // Navigation properties
+    public EventType? EventTypeNavigation { get; set; }
 }
 
 /// <summary>

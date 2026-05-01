@@ -56,6 +56,11 @@ public class PeerNode
     public bool IsActive { get; set; } = true;
 
     /// <summary>
+    /// Статус з'єднання (FK → ConnectionStatuses)
+    /// </summary>
+    public int? StatusId { get; set; }
+
+    /// <summary>
     /// Кількість успішних з'єднань
     /// </summary>
     public int SuccessfulConnections { get; set; }
@@ -74,4 +79,7 @@ public class PeerNode
     /// Теги для категоризації (наприклад: "склад", "офіс", "критичний")
     /// </summary>
     public string? Tags { get; set; }
+
+    // Navigation properties
+    public ConnectionStatus? Status { get; set; }
 }
