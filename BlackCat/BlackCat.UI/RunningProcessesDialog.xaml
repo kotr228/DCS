@@ -26,7 +26,20 @@
                   CanUserDeleteRows="False"
                   IsReadOnly="True"
                   SelectionMode="Single"
+                  Background="Transparent" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
+                  GridLinesVisibility="All" HorizontalGridLinesBrush="#4EC9B0" VerticalGridLinesBrush="#4EC9B0"
+                  RowBackground="#252526" AlternatingRowBackground="#2D2D30"
                   SelectionChanged="ProcessesDataGrid_SelectionChanged">
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="#2D2D30"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="BorderBrush" Value="#4EC9B0"/>
+                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+                    <Setter Property="Padding" Value="8,5"/>
+                    <Setter Property="FontWeight" Value="Bold"/>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Назва процесу" Binding="{Binding ProcessName}" Width="200"/>
                 <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="80"/>
