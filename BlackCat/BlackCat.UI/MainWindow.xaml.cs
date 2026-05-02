@@ -911,6 +911,8 @@ public class TunnelNodeItem : System.ComponentModel.INotifyPropertyChanged
     private string _blackID = string.Empty;
     private string _ipAddress = string.Empty;
     private int _port = 9999;
+    private string _displayName = string.Empty;
+    private bool _isTrusted;
     private bool _isConnected;
     private bool _isConnecting;
     private string _statusDisplay = "Не підключено";
@@ -946,6 +948,26 @@ public class TunnelNodeItem : System.ComponentModel.INotifyPropertyChanged
         {
             _port = value;
             OnPropertyChanged(nameof(Port));
+        }
+    }
+
+    public string DisplayName
+    {
+        get => _displayName;
+        set
+        {
+            _displayName = value;
+            OnPropertyChanged(nameof(DisplayName));
+        }
+    }
+
+    public bool IsTrusted
+    {
+        get => _isTrusted;
+        set
+        {
+            _isTrusted = value;
+            OnPropertyChanged(nameof(IsTrusted));
         }
     }
 
