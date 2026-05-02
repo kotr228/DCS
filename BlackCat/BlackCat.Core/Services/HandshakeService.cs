@@ -203,6 +203,28 @@ public class HandshakeService
             };
         }
 
+        // Перевірити чи змінилась IP адреса вузла
+        if (peerNode.Address != remoteIP)
+        {
+            var oldIP = peerNode.Address;
+            peerNode.Address = remoteIP;
+            _peerNodeRepository.UpdatePeerNode(peerNode);
+
+            _eventRepository.LogEvent(new ConnectionEvent
+            {
+                RemoteBlackID = response.BlackID,
+                RemoteIP = remoteIP,
+                RemotePort = 0,
+                EventType = ConnectionEventType.Connected,
+                Direction = ConnectionDirection.Inbound,
+                Message = $"🔄 IP адресу автоматично оновлено: {oldIP} → {remoteIP}",
+                IsAuthenticated = true,
+                Timestamp = DateTime.UtcNow
+            });
+
+            Console.WriteLine($"🔄 Вузол {response.BlackID}: IP змінено з {oldIP} на {remoteIP}");
+        }
+
         // Оновити статистику вузла
         _peerNodeRepository.RecordSuccessfulConnection(peerNode.Id);
 
