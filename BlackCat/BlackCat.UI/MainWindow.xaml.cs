@@ -76,8 +76,8 @@ public partial class MainWindow : Window
         _eventRepository = new ConnectionEventRepository(_database);
 
         // Ініціалізувати сервіси для з'єднань
-        _blackIDService = new BlackIDService(_blackIDRepository);
-        _handshakeService = new HandshakeService(_peerNodeRepository, _eventRepository);
+        _blackIDService = new BlackIDService();
+        _handshakeService = new HandshakeService(_blackIDService, _peerNodeRepository, _eventRepository);
         _connectionMonitor = new ConnectionMonitorService(_peerNodeRepository, _eventRepository);
 
         // Налаштування графіків
