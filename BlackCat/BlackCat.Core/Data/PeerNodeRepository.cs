@@ -25,9 +25,9 @@ public class PeerNodeRepository
 
         string sql = @"
             INSERT INTO PeerNodes (BlackID, Address, Port, DisplayName, Description, IsTrusted,
-                                   CreatedAt, IsActive, PublicKey, Tags)
+                                   CreatedAt, IsActive, StatusId, PublicKey, Tags)
             VALUES (@BlackID, @Address, @Port, @DisplayName, @Description, @IsTrusted,
-                    @CreatedAt, @IsActive, @PublicKey, @Tags);
+                    @CreatedAt, @IsActive, @StatusId, @PublicKey, @Tags);
             SELECT last_insert_rowid();
         ";
 
@@ -40,6 +40,7 @@ public class PeerNodeRepository
         command.Parameters.AddWithValue("@IsTrusted", node.IsTrusted ? 1 : 0);
         command.Parameters.AddWithValue("@CreatedAt", node.CreatedAt.ToString("O"));
         command.Parameters.AddWithValue("@IsActive", node.IsActive ? 1 : 0);
+        command.Parameters.AddWithValue("@StatusId", node.StatusId ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("@PublicKey", node.PublicKey ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("@Tags", node.Tags ?? (object)DBNull.Value);
 
@@ -63,6 +64,7 @@ public class PeerNodeRepository
                 Description = @Description,
                 IsTrusted = @IsTrusted,
                 IsActive = @IsActive,
+                StatusId = @StatusId,
                 PublicKey = @PublicKey,
                 Tags = @Tags,
                 LastConnectedAt = @LastConnectedAt,
@@ -80,6 +82,7 @@ public class PeerNodeRepository
         command.Parameters.AddWithValue("@Description", node.Description ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("@IsTrusted", node.IsTrusted ? 1 : 0);
         command.Parameters.AddWithValue("@IsActive", node.IsActive ? 1 : 0);
+        command.Parameters.AddWithValue("@StatusId", node.StatusId ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("@PublicKey", node.PublicKey ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("@Tags", node.Tags ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("@LastConnectedAt",
@@ -257,6 +260,13 @@ public class PeerNodeRepository
     /// </summary>
     private PeerNode MapToPeerNode(SqliteDataReader reader)
     {
+        int? statusId = null;
+        var statusIdOrdinal = reader.GetOrdinal("StatusId");
+        if (!reader.IsDBNull(statusIdOrdinal))
+        {
+            statusId = reader.GetInt32(statusIdOrdinal);
+        }
+
         return new PeerNode
         {
             Id = reader.GetInt32(reader.GetOrdinal("Id")),
@@ -273,6 +283,7 @@ public class PeerNodeRepository
                 : DateTime.Parse(reader.GetString(reader.GetOrdinal("LastConnectedAt"))),
             CreatedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("CreatedAt"))),
             IsActive = reader.GetInt32(reader.GetOrdinal("IsActive")) == 1,
+            StatusId = statusId,
             SuccessfulConnections = reader.GetInt32(reader.GetOrdinal("SuccessfulConnections")),
             FailedConnections = reader.GetInt32(reader.GetOrdinal("FailedConnections")),
             PublicKey = reader.IsDBNull(reader.GetOrdinal("PublicKey"))

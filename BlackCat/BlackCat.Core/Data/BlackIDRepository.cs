@@ -30,14 +30,44 @@ public class BlackIDRepository
             deactivateCmd.ExecuteNonQuery();
         }
 
-        // Вставити новий ID
+        // Знайти RoleId за назвою ролі
+        int roleId = 1;
+        string getRoleIdSql = "SELECT Id FROM Roles WHERE Name = @RoleName LIMIT 1";
+        using (var getRoleCmd = new SqliteCommand(getRoleIdSql, connection))
+        {
+            getRoleCmd.Parameters.AddWithValue("@RoleName", blackID.Role);
+            var result = getRoleCmd.ExecuteScalar();
+            if (result != null)
+            {
+                roleId = Convert.ToInt32(result);
+            }
+        }
+
+        // Знайти CityId за назвою міста
+        int cityId = 1;
+        string getCityIdSql = "SELECT Id FROM Cities WHERE Name = @CityName LIMIT 1";
+        using (var getCityCmd = new SqliteCommand(getCityIdSql, connection))
+        {
+            getCityCmd.Parameters.AddWithValue("@CityName", blackID.City);
+            var result = getCityCmd.ExecuteScalar();
+            if (result != null)
+            {
+                cityId = Convert.ToInt32(result);
+            }
+        }
+
+        // Вставити новий ID з FK та текстовими полями
         string insertSql = @"
-            INSERT INTO LocalBlackID (FullID, Role, City, Name, Code, HardwareFingerprint, Signature, CreatedAt, IsActive)
-            VALUES (@FullID, @Role, @City, @Name, @Code, @HardwareFingerprint, @Signature, @CreatedAt, @IsActive)
+            INSERT INTO LocalBlackID (FullID, RoleId, CityId, Role, City, Name, Code,
+                                     HardwareFingerprint, Signature, CreatedAt, SignatureCreatedAt, IsActive)
+            VALUES (@FullID, @RoleId, @CityId, @Role, @City, @Name, @Code,
+                    @HardwareFingerprint, @Signature, @CreatedAt, @SignatureCreatedAt, @IsActive)
         ";
 
         using var command = new SqliteCommand(insertSql, connection);
         command.Parameters.AddWithValue("@FullID", blackID.FullID);
+        command.Parameters.AddWithValue("@RoleId", roleId);
+        command.Parameters.AddWithValue("@CityId", cityId);
         command.Parameters.AddWithValue("@Role", blackID.Role);
         command.Parameters.AddWithValue("@City", blackID.City);
         command.Parameters.AddWithValue("@Name", blackID.Name);
@@ -45,6 +75,8 @@ public class BlackIDRepository
         command.Parameters.AddWithValue("@HardwareFingerprint", blackID.HardwareFingerprint);
         command.Parameters.AddWithValue("@Signature", blackID.Signature);
         command.Parameters.AddWithValue("@CreatedAt", blackID.CreatedAt.ToString("O"));
+        command.Parameters.AddWithValue("@SignatureCreatedAt",
+            (blackID.SignatureCreatedAt != default ? blackID.SignatureCreatedAt : blackID.CreatedAt).ToString("O"));
         command.Parameters.AddWithValue("@IsActive", blackID.IsActive ? 1 : 0);
 
         command.ExecuteNonQuery();
@@ -111,9 +143,32 @@ public class BlackIDRepository
     /// </summary>
     private BlackID MapToBlackID(SqliteDataReader reader)
     {
+        DateTime signatureCreatedAt = DateTime.UtcNow;
+        var signatureCreatedAtOrdinal = reader.GetOrdinal("SignatureCreatedAt");
+        if (!reader.IsDBNull(signatureCreatedAtOrdinal))
+        {
+            signatureCreatedAt = DateTime.Parse(reader.GetString(signatureCreatedAtOrdinal));
+        }
+
+        int roleId = 1;
+        var roleIdOrdinal = reader.GetOrdinal("RoleId");
+        if (!reader.IsDBNull(roleIdOrdinal))
+        {
+            roleId = reader.GetInt32(roleIdOrdinal);
+        }
+
+        int cityId = 1;
+        var cityIdOrdinal = reader.GetOrdinal("CityId");
+        if (!reader.IsDBNull(cityIdOrdinal))
+        {
+            cityId = reader.GetInt32(cityIdOrdinal);
+        }
+
         return new BlackID
         {
             FullID = reader.GetString(reader.GetOrdinal("FullID")),
+            RoleId = roleId,
+            CityId = cityId,
             Role = reader.GetString(reader.GetOrdinal("Role")),
             City = reader.GetString(reader.GetOrdinal("City")),
             Name = reader.GetString(reader.GetOrdinal("Name")),
@@ -121,6 +176,7 @@ public class BlackIDRepository
             HardwareFingerprint = reader.GetString(reader.GetOrdinal("HardwareFingerprint")),
             Signature = reader.GetString(reader.GetOrdinal("Signature")),
             CreatedAt = DateTime.Parse(reader.GetString(reader.GetOrdinal("CreatedAt"))),
+            SignatureCreatedAt = signatureCreatedAt,
             IsActive = reader.GetInt32(reader.GetOrdinal("IsActive")) == 1
         };
     }

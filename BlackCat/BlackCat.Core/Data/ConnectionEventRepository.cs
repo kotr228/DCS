@@ -23,11 +23,28 @@ public class ConnectionEventRepository
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
 
+        // Мапимо EventType enum на EventTypeId через назву події
+        int eventTypeId = (int)ev.EventType; // fallback
+        string eventTypeName = ev.EventType.ToString();
+
+        string getEventTypeIdSql = "SELECT Id FROM EventTypes WHERE Name = @EventTypeName LIMIT 1";
+        using (var getEventTypeCmd = new SqliteCommand(getEventTypeIdSql, connection))
+        {
+            getEventTypeCmd.Parameters.AddWithValue("@EventTypeName", eventTypeName);
+            var result = getEventTypeCmd.ExecuteScalar();
+            if (result != null)
+            {
+                eventTypeId = Convert.ToInt32(result);
+            }
+        }
+
         string sql = @"
-            INSERT INTO ConnectionEvents (RemoteBlackID, RemoteIP, RemotePort, EventType, Direction,
+            INSERT INTO ConnectionEvents (RemoteBlackID, RemoteIP, RemotePort, InitiatorBlackID,
+                                         TargetBlackID, EventTypeId, EventType, Direction,
                                          Message, ErrorDetails, IsAuthenticated, Timestamp,
                                          DurationSeconds, BytesSent, BytesReceived)
-            VALUES (@RemoteBlackID, @RemoteIP, @RemotePort, @EventType, @Direction,
+            VALUES (@RemoteBlackID, @RemoteIP, @RemotePort, @InitiatorBlackID,
+                    @TargetBlackID, @EventTypeId, @EventType, @Direction,
                     @Message, @ErrorDetails, @IsAuthenticated, @Timestamp,
                     @DurationSeconds, @BytesSent, @BytesReceived)
         ";
@@ -36,6 +53,9 @@ public class ConnectionEventRepository
         command.Parameters.AddWithValue("@RemoteBlackID", ev.RemoteBlackID ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("@RemoteIP", ev.RemoteIP);
         command.Parameters.AddWithValue("@RemotePort", ev.RemotePort);
+        command.Parameters.AddWithValue("@InitiatorBlackID", ev.InitiatorBlackID ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@TargetBlackID", ev.TargetBlackID ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@EventTypeId", eventTypeId);
         command.Parameters.AddWithValue("@EventType", (int)ev.EventType);
         command.Parameters.AddWithValue("@Direction", (int)ev.Direction);
         command.Parameters.AddWithValue("@Message", ev.Message);
@@ -263,6 +283,27 @@ public class ConnectionEventRepository
             duration = TimeSpan.FromSeconds(reader.GetDouble(reader.GetOrdinal("DurationSeconds")));
         }
 
+        int eventTypeId = 1;
+        var eventTypeIdOrdinal = reader.GetOrdinal("EventTypeId");
+        if (!reader.IsDBNull(eventTypeIdOrdinal))
+        {
+            eventTypeId = reader.GetInt32(eventTypeIdOrdinal);
+        }
+
+        string? initiatorBlackID = null;
+        var initiatorOrdinal = reader.GetOrdinal("InitiatorBlackID");
+        if (!reader.IsDBNull(initiatorOrdinal))
+        {
+            initiatorBlackID = reader.GetString(initiatorOrdinal);
+        }
+
+        string? targetBlackID = null;
+        var targetOrdinal = reader.GetOrdinal("TargetBlackID");
+        if (!reader.IsDBNull(targetOrdinal))
+        {
+            targetBlackID = reader.GetString(targetOrdinal);
+        }
+
         return new ConnectionEvent
         {
             Id = reader.GetInt32(reader.GetOrdinal("Id")),
@@ -271,6 +312,9 @@ public class ConnectionEventRepository
                 : reader.GetString(reader.GetOrdinal("RemoteBlackID")),
             RemoteIP = reader.GetString(reader.GetOrdinal("RemoteIP")),
             RemotePort = reader.GetInt32(reader.GetOrdinal("RemotePort")),
+            InitiatorBlackID = initiatorBlackID,
+            TargetBlackID = targetBlackID,
+            EventTypeId = eventTypeId,
             EventType = (ConnectionEventType)reader.GetInt32(reader.GetOrdinal("EventType")),
             Direction = (ConnectionDirection)reader.GetInt32(reader.GetOrdinal("Direction")),
             Message = reader.GetString(reader.GetOrdinal("Message")),
