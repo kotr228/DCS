@@ -55,7 +55,7 @@ public partial class MainWindow : Window
     // Тунелі Black-ID
     private readonly ObservableCollection<TunnelNodeItem> _tunnelNodes = new();
     private TunnelNodeItem? _selectedTunnel;
-    private readonly PeerNodeRepository? _peerNodeRepository;
+    private readonly PeerNodeRepository _peerNodeRepository;
 
     public MainWindow()
     {
@@ -67,6 +67,7 @@ public partial class MainWindow : Window
         // Ініціалізувати database та repository для Black-ID
         _database = new BlackCatDatabase("blackcat.db");
         _blackIDRepository = new BlackIDRepository(_database);
+        _peerNodeRepository = new PeerNodeRepository(_database);
 
         // Налаштування графіків
         InitializeCharts();
@@ -525,7 +526,32 @@ public partial class MainWindow : Window
         }
 
         // Завантажити збережені вузли з БД
-        // TODO: Завантажити з PeerNodeRepository після старту координатора
+        try
+        {
+            var peerNodes = _peerNodeRepository.GetAllPeerNodes();
+
+            foreach (var peer in peerNodes.Where(p => p.IsActive))
+            {
+                var tunnelItem = new TunnelNodeItem
+                {
+                    BlackID = peer.BlackID,
+                    IPAddress = peer.Address,
+                    Port = peer.Port,
+                    DisplayName = peer.DisplayName,
+                    IsTrusted = peer.IsTrusted,
+                    IsConnected = false,
+                    StatusDisplay = "Відключено"
+                };
+
+                _tunnelNodes.Add(tunnelItem);
+            }
+
+            System.Diagnostics.Debug.WriteLine($"Loaded {_tunnelNodes.Count} peer nodes from database");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error loading peer nodes: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -803,6 +829,87 @@ public partial class MainWindow : Window
             AddLog($"❌ Помилка від'єднання: {ex.Message}");
 
             MessageBox.Show($"Помилка від'єднання:\n{ex.Message}",
+                "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// Додати новий вузол
+    /// </summary>
+    private void AddTunnelButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var dialog = new AddPeerNodeDialog(_peerNodeRepository)
+            {
+                Owner = this
+            };
+
+            if (dialog.ShowDialog() == true && dialog.CreatedPeerNode != null)
+            {
+                // Перезавантажити список
+                LoadTunnels();
+
+                AddLog($"✅ Додано вузол: {dialog.CreatedPeerNode.BlackID} ({dialog.CreatedPeerNode.DisplayName})");
+            }
+        }
+        catch (Exception ex)
+        {
+            AddLog($"❌ Помилка додавання вузла: {ex.Message}");
+
+            MessageBox.Show($"Помилка додавання вузла:\n{ex.Message}",
+                "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// Видалити вибраний вузол
+    /// </summary>
+    private void RemoveTunnelButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedTunnel == null)
+            return;
+
+        try
+        {
+            var result = MessageBox.Show(
+                $"Видалити вузол з телефонної книги?\n\n" +
+                $"Black-ID: {_selectedTunnel.BlackID}\n" +
+                $"Назва: {_selectedTunnel.DisplayName}\n" +
+                $"Адреса: {_selectedTunnel.IPAddress}:{_selectedTunnel.Port}\n\n" +
+                $"Цю дію НЕ можна скасувати!",
+                "Підтвердження видалення",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                // Знайти вузол в БД за Black-ID
+                var peerNode = _peerNodeRepository.GetPeerNodeByBlackID(_selectedTunnel.BlackID);
+                if (peerNode != null)
+                {
+                    _peerNodeRepository.DeletePeerNode(peerNode.Id);
+
+                    AddLog($"🗑️ Видалено вузол: {_selectedTunnel.BlackID}");
+
+                    // Перезавантажити список
+                    LoadTunnels();
+
+                    MessageBox.Show($"✅ Вузол видалено з телефонної книги.",
+                        "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show($"⚠️ Вузол не знайдено в базі даних.",
+                        "Попередження", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AddLog($"❌ Помилка видалення вузла: {ex.Message}");
+
+            MessageBox.Show($"Помилка видалення вузла:\n{ex.Message}",
                 "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
