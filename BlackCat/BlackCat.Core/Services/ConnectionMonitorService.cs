@@ -100,8 +100,8 @@ public class ConnectionMonitorService : IDisposable
                     RemoteBlackID = peer.BlackID,
                     RemoteIP = currentIP,
                     RemotePort = peer.Port,
-                    EventType = Shared.Enums.ConnectionEventType.Connected,
-                    Direction = Shared.Enums.ConnectionDirection.Inbound,
+                    EventType = ConnectionEventType.Connected,
+                    Direction = ConnectionDirection.Inbound,
                     Message = $"IP адресу оновлено: {previousAddress} → {currentIP}",
                     IsAuthenticated = true,
                     Timestamp = DateTime.UtcNow
@@ -194,8 +194,8 @@ public class ConnectionMonitorService : IDisposable
                             RemoteBlackID = peer.BlackID,
                             RemoteIP = peer.Address,
                             RemotePort = peer.Port,
-                            EventType = Shared.Enums.ConnectionEventType.Disconnected,
-                            Direction = Shared.Enums.ConnectionDirection.Outbound,
+                            EventType = ConnectionEventType.Disconnected,
+                            Direction = ConnectionDirection.Outbound,
                             Message = "Keep-alive timeout - з'єднання втрачено",
                             Timestamp = DateTime.UtcNow
                         });
@@ -222,8 +222,8 @@ public class ConnectionMonitorService : IDisposable
                             RemoteBlackID = peer.BlackID,
                             RemoteIP = peer.Address,
                             RemotePort = peer.Port,
-                            EventType = Shared.Enums.ConnectionEventType.ConnectionAttempt,
-                            Direction = Shared.Enums.ConnectionDirection.Outbound,
+                            EventType = ConnectionEventType.ConnectionAttempt,
+                            Direction = ConnectionDirection.Outbound,
                             Message = $"Спроба автоматичного перепідключення #{state.ReconnectAttempts + 1}/{_maxReconnectAttempts}",
                             Timestamp = DateTime.UtcNow
                         });
