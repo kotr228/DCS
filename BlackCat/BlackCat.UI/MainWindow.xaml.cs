@@ -653,50 +653,27 @@ public partial class MainWindow : Window
     /// </summary>
     private void AddTunnelButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_coordinator == null)
+        try
         {
-            MessageBox.Show("Спочатку запустіть брандмауер!", "Помилка",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        if (_coordinator.CurrentBlackID == null)
-        {
-            MessageBox.Show("Спочатку створіть Black-ID в Налаштуваннях!", "Помилка",
-                MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-
-        var dialog = new AddTunnelDialog();
-        dialog.Owner = this;
-
-        if (dialog.ShowDialog() == true)
-        {
-            try
+            var dialog = new AddPeerNodeDialog(_peerNodeRepository)
             {
-                var tunnel = new TunnelNodeItem
-                {
-                    BlackID = dialog.BlackID,
-                    IPAddress = dialog.IPAddress,
-                    Port = dialog.Port,
-                    IsConnected = false,
-                    StatusDisplay = "Не підключено"
-                };
+                Owner = this
+            };
 
-                _tunnelNodes.Add(tunnel);
-
-                // TODO: Зберегти в БД через PeerNodeRepository
-
-                AddLog($"📝 Додано новий вузол: {tunnel.BlackID}");
-
-                MessageBox.Show($"Вузол {tunnel.BlackID} додано до телефонної книги!",
-                    "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
+            if (dialog.ShowDialog() == true && dialog.CreatedPeerNode != null)
             {
-                MessageBox.Show($"Помилка додавання вузла:\n{ex.Message}",
-                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+                // Перезавантажити список з БД
+                LoadTunnels();
+
+                AddLog($"✅ Додано вузол: {dialog.CreatedPeerNode.BlackID} ({dialog.CreatedPeerNode.DisplayName})");
             }
+        }
+        catch (Exception ex)
+        {
+            AddLog($"❌ Помилка додавання вузла: {ex.Message}");
+
+            MessageBox.Show($"Помилка додавання вузла:\n{ex.Message}",
+                "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -708,37 +685,50 @@ public partial class MainWindow : Window
         if (_selectedTunnel == null)
             return;
 
-        var result = MessageBox.Show(
-            $"Видалити вузол '{_selectedTunnel.BlackID}' з телефонної книги?",
-            "Підтвердження",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question);
-
-        if (result == MessageBoxResult.Yes)
+        try
         {
-            try
+            var result = MessageBox.Show(
+                $"Видалити вузол з телефонної книги?\n\n" +
+                $"Black-ID: {_selectedTunnel.BlackID}\n" +
+                $"Назва: {_selectedTunnel.DisplayName}\n" +
+                $"Адреса: {_selectedTunnel.IPAddress}:{_selectedTunnel.Port}\n\n" +
+                $"Цю дію НЕ можна скасувати!",
+                "Підтвердження видалення",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+
+            if (result == MessageBoxResult.Yes)
             {
-                if (_selectedTunnel.IsConnected)
+                // Знайти вузол в БД за Black-ID
+                var peerNode = _peerNodeRepository.GetPeerNodeByBlackID(_selectedTunnel.BlackID);
+                if (peerNode != null)
                 {
-                    MessageBox.Show("Спочатку від'єднайтеся від вузла!",
-                        "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
+                    _peerNodeRepository.DeletePeerNode(peerNode.Id);
+
+                    AddLog($"🗑️ Видалено вузол: {_selectedTunnel.BlackID}");
+
+                    // Перезавантажити список з БД
+                    LoadTunnels();
+
+                    ClearTunnelDetails();
+                    _selectedTunnel = null;
+
+                    MessageBox.Show($"✅ Вузол видалено з телефонної книги.",
+                        "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
-
-                _tunnelNodes.Remove(_selectedTunnel);
-
-                // TODO: Видалити з БД через PeerNodeRepository
-
-                AddLog($"🗑️ Видалено вузол: {_selectedTunnel.BlackID}");
-
-                ClearTunnelDetails();
-                _selectedTunnel = null;
+                else
+                {
+                    MessageBox.Show($"⚠️ Вузол не знайдено в базі даних.",
+                        "Попередження", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Помилка видалення:\n{ex.Message}",
-                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+        }
+        catch (Exception ex)
+        {
+            AddLog($"❌ Помилка видалення вузла: {ex.Message}");
+
+            MessageBox.Show($"Помилка видалення вузла:\n{ex.Message}",
+                "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -832,88 +822,6 @@ public partial class MainWindow : Window
                 "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
-
-    /// <summary>
-    /// Додати новий вузол
-    /// </summary>
-    private void AddTunnelButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var dialog = new AddPeerNodeDialog(_peerNodeRepository)
-            {
-                Owner = this
-            };
-
-            if (dialog.ShowDialog() == true && dialog.CreatedPeerNode != null)
-            {
-                // Перезавантажити список
-                LoadTunnels();
-
-                AddLog($"✅ Додано вузол: {dialog.CreatedPeerNode.BlackID} ({dialog.CreatedPeerNode.DisplayName})");
-            }
-        }
-        catch (Exception ex)
-        {
-            AddLog($"❌ Помилка додавання вузла: {ex.Message}");
-
-            MessageBox.Show($"Помилка додавання вузла:\n{ex.Message}",
-                "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    /// <summary>
-    /// Видалити вибраний вузол
-    /// </summary>
-    private void RemoveTunnelButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (_selectedTunnel == null)
-            return;
-
-        try
-        {
-            var result = MessageBox.Show(
-                $"Видалити вузол з телефонної книги?\n\n" +
-                $"Black-ID: {_selectedTunnel.BlackID}\n" +
-                $"Назва: {_selectedTunnel.DisplayName}\n" +
-                $"Адреса: {_selectedTunnel.IPAddress}:{_selectedTunnel.Port}\n\n" +
-                $"Цю дію НЕ можна скасувати!",
-                "Підтвердження видалення",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                // Знайти вузол в БД за Black-ID
-                var peerNode = _peerNodeRepository.GetPeerNodeByBlackID(_selectedTunnel.BlackID);
-                if (peerNode != null)
-                {
-                    _peerNodeRepository.DeletePeerNode(peerNode.Id);
-
-                    AddLog($"🗑️ Видалено вузол: {_selectedTunnel.BlackID}");
-
-                    // Перезавантажити список
-                    LoadTunnels();
-
-                    MessageBox.Show($"✅ Вузол видалено з телефонної книги.",
-                        "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
-                {
-                    MessageBox.Show($"⚠️ Вузол не знайдено в базі даних.",
-                        "Попередження", MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            AddLog($"❌ Помилка видалення вузла: {ex.Message}");
-
-            MessageBox.Show($"Помилка видалення вузла:\n{ex.Message}",
-                "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
     #endregion
 
     protected override void OnClosed(EventArgs e)
