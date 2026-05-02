@@ -29,6 +29,7 @@ public partial class SettingsWindow : MetroWindow
         _blackIDRepository = new BlackIDRepository(_database);
 
         LoadSettings();
+        LoadConnectionInfo();
     }
 
     private void LoadSettings()
@@ -210,6 +211,190 @@ public partial class SettingsWindow : MetroWindow
         catch (Exception ex)
         {
             MessageBox.Show($"Не вдалося відкрити папку: {ex.Message}", "Помилка",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    // ============================================
+    // ІНФОРМАЦІЯ ДЛЯ З'ЄДНАННЯ
+    // ============================================
+
+    private async void LoadConnectionInfo()
+    {
+        try
+        {
+            var networkService = new NetworkInfoService();
+
+            // Завантажити Black-ID
+            var savedBlackID = _blackIDRepository.GetActiveBlackID();
+            if (savedBlackID != null)
+            {
+                ConnectionBlackIDTextBox.Text = savedBlackID.FullID;
+                ConnectionFingerprintTextBox.Text = savedBlackID.HardwareFingerprint;
+            }
+            else
+            {
+                ConnectionBlackIDTextBox.Text = "Не налаштовано (створіть Black-ID)";
+                ConnectionFingerprintTextBox.Text = "N/A";
+            }
+
+            // Завантажити мережеву інформацію
+            var networkInfo = await networkService.GetNetworkInfoAsync();
+
+            LocalIPTextBox.Text = networkInfo.LocalIPAddress;
+            ExternalIPTextBox.Text = networkInfo.ExternalIPAddress;
+            HostNameTextBox.Text = networkInfo.HostName;
+
+            // Порт
+            int port = (int)(TunnelPortNumeric?.Value ?? 9999);
+            ConnectionPortTextBox.Text = port.ToString();
+
+            // Перевірити статус порту
+            bool isPortOpen = networkService.IsPortOpen(port);
+            PortStatusTextBox.Text = isPortOpen ? "✅ Доступний" : "⚠️ Можливо зайнятий";
+            PortStatusTextBox.Foreground = isPortOpen ? System.Windows.Media.Brushes.LightGreen : System.Windows.Media.Brushes.Orange;
+
+            // Повна адреса (локальна)
+            FullAddressTextBox.Text = $"{networkInfo.LocalIPAddress}:{port}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Помилка завантаження мережевої інформації:\n{ex.Message}",
+                "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private async void RefreshConnectionInfo_Click(object sender, RoutedEventArgs e)
+    {
+        var button = sender as System.Windows.Controls.Button;
+        if (button != null)
+        {
+            button.IsEnabled = false;
+            button.Content = "🔄 Оновлення...";
+        }
+
+        await Task.Run(async () => await Task.Delay(500)); // Короткий delay для UI feedback
+        LoadConnectionInfo();
+
+        if (button != null)
+        {
+            await Task.Delay(500);
+            button.Content = "🔄 Оновити дані";
+            button.IsEnabled = true;
+        }
+
+        MessageBox.Show("✅ Інформацію оновлено!", "Успіх",
+            MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    private void CopyBlackID_Click(object sender, RoutedEventArgs e)
+    {
+        CopyToClipboard(ConnectionBlackIDTextBox.Text, "Black-ID");
+    }
+
+    private void CopyLocalIP_Click(object sender, RoutedEventArgs e)
+    {
+        CopyToClipboard(LocalIPTextBox.Text, "Локальну IP");
+    }
+
+    private void CopyExternalIP_Click(object sender, RoutedEventArgs e)
+    {
+        CopyToClipboard(ExternalIPTextBox.Text, "Зовнішню IP");
+    }
+
+    private void CopyPort_Click(object sender, RoutedEventArgs e)
+    {
+        CopyToClipboard(ConnectionPortTextBox.Text, "Порт");
+    }
+
+    private void CopyFingerprint_Click(object sender, RoutedEventArgs e)
+    {
+        CopyToClipboard(ConnectionFingerprintTextBox.Text, "HW Fingerprint");
+    }
+
+    private void CopyFullAddress_Click(object sender, RoutedEventArgs e)
+    {
+        CopyToClipboard(FullAddressTextBox.Text, "Повну адресу");
+    }
+
+    private void CopyAllConnectionInfo_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var info = $@"═══════════════════════════════════════════
+   BLACKCAT FIREWALL - ІНФОРМАЦІЯ ДЛЯ З'ЄДНАННЯ
+═══════════════════════════════════════════
+
+🆔 Black-ID:
+   {ConnectionBlackIDTextBox.Text}
+
+🏠 Локальна IP адреса (для локальної мережі):
+   {LocalIPTextBox.Text}:{ConnectionPortTextBox.Text}
+
+🌐 Зовнішня IP адреса (для Інтернет з'єднання):
+   {ExternalIPTextBox.Text}:{ConnectionPortTextBox.Text}
+
+🔌 Порт:
+   {ConnectionPortTextBox.Text}
+
+🔑 Hardware Fingerprint:
+   {ConnectionFingerprintTextBox.Text}
+
+🖥️ Ім'я хоста:
+   {HostNameTextBox.Text}
+
+═══════════════════════════════════════════
+   ІНСТРУКЦІЇ
+═══════════════════════════════════════════
+
+Для з'єднання в ЛОКАЛЬНІЙ МЕРЕЖІ:
+1. Додайте вузол з адресою: {LocalIPTextBox.Text}:{ConnectionPortTextBox.Text}
+2. Вкажіть Black-ID: {ConnectionBlackIDTextBox.Text}
+3. Позначте 'IsTrusted = true'
+
+Для з'єднання через ІНТЕРНЕТ:
+1. Налаштуйте Port Forwarding на роутері: {ConnectionPortTextBox.Text} → {LocalIPTextBox.Text}:{ConnectionPortTextBox.Text}
+2. Додайте вузол з адресою: {ExternalIPTextBox.Text}:{ConnectionPortTextBox.Text}
+3. Вкажіть Black-ID: {ConnectionBlackIDTextBox.Text}
+4. Позначте 'IsTrusted = true'
+
+═══════════════════════════════════════════
+Згенеровано: {DateTime.Now:dd.MM.yyyy HH:mm:ss}
+BlackCat Firewall - MQE Quantum-Resistant Encryption
+═══════════════════════════════════════════";
+
+            System.Windows.Clipboard.SetText(info);
+
+            MessageBox.Show("✅ Вся інформація скопійована в буфер обміну!\n\n" +
+                          "Тепер ви можете надіслати її іншому користувачу через захищений канал.",
+                "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Помилка копіювання: {ex.Message}", "Помилка",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void CopyToClipboard(string text, string itemName)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(text) || text.Contains("Невідомо") || text.Contains("Не налаштовано"))
+            {
+                MessageBox.Show($"⚠️ {itemName} недоступна для копіювання.\n\n" +
+                              "Спочатку створіть Black-ID або оновіть інформацію.",
+                    "Попередження", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            System.Windows.Clipboard.SetText(text);
+            MessageBox.Show($"✅ {itemName} скопійовано в буфер обміну!", "Успіх",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Помилка копіювання: {ex.Message}", "Помилка",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
