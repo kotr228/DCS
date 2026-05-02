@@ -18,11 +18,16 @@ namespace BlackCat.UI;
 public partial class MainWindow : Window
 {
     private FirewallCoordinator? _coordinator;
+    private TunnelManager? _tunnelManager;
     private readonly DispatcherTimer _updateTimer;
     private readonly RuleRepository _ruleRepository;
     private readonly ProcessLookupService _processLookupService;
     private readonly BlackIDRepository _blackIDRepository;
     private readonly BlackCatDatabase _database;
+    private readonly HandshakeService _handshakeService;
+    private readonly ConnectionMonitorService _connectionMonitor;
+    private readonly ConnectionEventRepository _eventRepository;
+    private readonly BlackIDService _blackIDService;
 
     // Графіки - швидкість (стовпчаста)
     private readonly ChartValues<double> _speedValues = new();
@@ -68,6 +73,12 @@ public partial class MainWindow : Window
         _database = new BlackCatDatabase("blackcat.db");
         _blackIDRepository = new BlackIDRepository(_database);
         _peerNodeRepository = new PeerNodeRepository(_database);
+        _eventRepository = new ConnectionEventRepository(_database);
+
+        // Ініціалізувати сервіси для з'єднань
+        _blackIDService = new BlackIDService(_blackIDRepository);
+        _handshakeService = new HandshakeService(_peerNodeRepository, _eventRepository);
+        _connectionMonitor = new ConnectionMonitorService(_peerNodeRepository, _eventRepository);
 
         // Налаштування графіків
         InitializeCharts();
@@ -139,6 +150,35 @@ public partial class MainWindow : Window
 
             await _coordinator.StartAsync();
 
+            // Ініціалізувати TunnelManager
+            var ourBlackID = _blackIDRepository.GetActiveBlackID();
+            if (ourBlackID != null)
+            {
+                _tunnelManager = new TunnelManager(
+                    _blackIDService,
+                    _handshakeService,
+                    _connectionMonitor,
+                    _eventRepository,
+                    masterSecret,
+                    listenPort: 9999
+                );
+
+                // Підписатись на події
+                _tunnelManager.ConnectionEstablished += OnTunnelConnectionEstablished;
+                _tunnelManager.ConnectionLost += OnTunnelConnectionLost;
+                _tunnelManager.ConnectionFailed += OnTunnelConnectionFailed;
+                _tunnelManager.DataReceived += OnTunnelDataReceived;
+
+                // Запустити сервер для прийому вхідних з'єднань
+                await _tunnelManager.StartServerAsync(ourBlackID);
+
+                AddLog($"✅ TunnelManager запущено (порт 9999)");
+            }
+            else
+            {
+                AddLog("⚠️ Black-ID не налаштовано - тунелі недоступні");
+            }
+
             StartButton.IsEnabled = false;
             StopButton.IsEnabled = true;
 
@@ -173,6 +213,11 @@ public partial class MainWindow : Window
         try
         {
             AddLog("Зупинка брандмауера...");
+
+            _tunnelManager?.Dispose();
+            _tunnelManager = null;
+
+            _connectionMonitor?.Stop();
 
             _coordinator?.Stop();
             _coordinator?.Dispose();
@@ -737,8 +782,12 @@ public partial class MainWindow : Window
     /// </summary>
     private async void ConnectTunnelButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedTunnel == null || _coordinator == null)
+        if (_selectedTunnel == null || _tunnelManager == null)
+        {
+            MessageBox.Show("TunnelManager не ініціалізовано.\n\nПереконайтесь що:\n• Брандмауер запущено\n• Black-ID налаштовано в Налаштуваннях",
+                "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
+        }
 
         try
         {
@@ -750,27 +799,29 @@ public partial class MainWindow : Window
             AddLog($"🔌 Підключення до {_selectedTunnel.BlackID}...");
             AddLog($"   IP: {_selectedTunnel.IPAddress}:{_selectedTunnel.Port}");
 
-            // Симуляція handshake (заміни на реальну логіку)
-            await Task.Delay(2000);
+            // Отримати наш Black-ID
+            var ourBlackID = _blackIDRepository.GetActiveBlackID();
+            if (ourBlackID == null)
+            {
+                throw new InvalidOperationException("Black-ID не налаштовано");
+            }
 
-            // TODO: Реальне підключення через SecureTunnelService
-            // await _coordinator.TunnelService.ConnectToNode(_selectedTunnel.BlackID, _selectedTunnel.IPAddress, _selectedTunnel.Port);
+            // Знайти PeerNode в БД
+            var peerNode = _peerNodeRepository.GetPeerNodeByBlackID(_selectedTunnel.BlackID);
+            if (peerNode == null)
+            {
+                throw new InvalidOperationException($"Вузол {_selectedTunnel.BlackID} не знайдено в базі даних");
+            }
 
-            _selectedTunnel.IsConnecting = false;
-            _selectedTunnel.IsConnected = true;
-            _selectedTunnel.StatusDisplay = "Підключено";
-            _selectedTunnel.LastHandshake = DateTime.Now;
-            _selectedTunnel.ConnectionTime = TimeSpan.Zero;
+            // Реальне підключення через TunnelManager
+            bool success = await _tunnelManager.ConnectToNodeAsync(peerNode, ourBlackID);
 
-            UpdateTunnelConnectionStatus(_selectedTunnel);
-            LoadTunnelDetails(_selectedTunnel);
+            if (!success)
+            {
+                throw new InvalidOperationException("Не вдалося встановити з'єднання");
+            }
 
-            ConnectTunnelButton.IsEnabled = false;
-            DisconnectTunnelButton.IsEnabled = true;
-
-            AddLog($"✅ Підключено до {_selectedTunnel.BlackID}");
-            AddLog($"   🔒 Handshake пройшов успішно!");
-            AddLog($"   🛡️ Stealth Mode активний");
+            // Успішне підключення обробляється в події OnTunnelConnectionEstablished
         }
         catch (Exception ex)
         {
@@ -793,26 +844,17 @@ public partial class MainWindow : Window
     /// </summary>
     private void DisconnectTunnelButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_selectedTunnel == null)
+        if (_selectedTunnel == null || _tunnelManager == null)
             return;
 
         try
         {
             AddLog($"🔌 Від'єднання від {_selectedTunnel.BlackID}...");
 
-            // TODO: Реальне від'єднання через SecureTunnelService
+            // Реальне від'єднання через TunnelManager
+            _tunnelManager.DisconnectFromNode(_selectedTunnel.BlackID);
 
-            _selectedTunnel.IsConnected = false;
-            _selectedTunnel.StatusDisplay = "Не підключено";
-            _selectedTunnel.ConnectionTime = TimeSpan.Zero;
-
-            UpdateTunnelConnectionStatus(_selectedTunnel);
-            LoadTunnelDetails(_selectedTunnel);
-
-            ConnectTunnelButton.IsEnabled = true;
-            DisconnectTunnelButton.IsEnabled = false;
-
-            AddLog($"✅ Від'єднано від {_selectedTunnel.BlackID}");
+            // Оновлення UI буде в події OnTunnelConnectionLost
         }
         catch (Exception ex)
         {
@@ -822,10 +864,110 @@ public partial class MainWindow : Window
                 "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
+
+    /// <summary>
+    /// Обробка події успішного підключення
+    /// </summary>
+    private void OnTunnelConnectionEstablished(object? sender, TunnelConnectionEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            var tunnel = _tunnelNodes.FirstOrDefault(t => t.BlackID == e.PeerBlackID);
+            if (tunnel != null)
+            {
+                tunnel.IsConnecting = false;
+                tunnel.IsConnected = true;
+                tunnel.StatusDisplay = "Підключено";
+                tunnel.LastHandshake = DateTime.Now;
+                tunnel.ConnectionTime = TimeSpan.Zero;
+
+                if (tunnel == _selectedTunnel)
+                {
+                    UpdateTunnelConnectionStatus(tunnel);
+                    LoadTunnelDetails(tunnel);
+                    ConnectTunnelButton.IsEnabled = false;
+                    DisconnectTunnelButton.IsEnabled = true;
+                }
+
+                AddLog($"✅ Підключено до {e.PeerBlackID}");
+                AddLog($"   🔒 Handshake пройшов успішно!");
+                AddLog($"   Session ID: {e.SessionId}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Обробка події втрати з'єднання
+    /// </summary>
+    private void OnTunnelConnectionLost(object? sender, TunnelConnectionEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            var tunnel = _tunnelNodes.FirstOrDefault(t => t.BlackID == e.PeerBlackID);
+            if (tunnel != null)
+            {
+                tunnel.IsConnected = false;
+                tunnel.IsConnecting = false;
+                tunnel.StatusDisplay = "Відключено";
+                tunnel.ConnectionTime = TimeSpan.Zero;
+
+                if (tunnel == _selectedTunnel)
+                {
+                    UpdateTunnelConnectionStatus(tunnel);
+                    LoadTunnelDetails(tunnel);
+                    ConnectTunnelButton.IsEnabled = true;
+                    DisconnectTunnelButton.IsEnabled = false;
+                }
+
+                AddLog($"⚠️ З'єднання втрачено: {e.PeerBlackID}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Обробка події невдалого підключення
+    /// </summary>
+    private void OnTunnelConnectionFailed(object? sender, TunnelConnectionEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            var tunnel = _tunnelNodes.FirstOrDefault(t => t.BlackID == e.PeerBlackID);
+            if (tunnel != null)
+            {
+                tunnel.IsConnecting = false;
+                tunnel.IsConnected = false;
+                tunnel.StatusDisplay = "Помилка";
+
+                if (tunnel == _selectedTunnel)
+                {
+                    UpdateTunnelConnectionStatus(tunnel);
+                    ConnectTunnelButton.IsEnabled = true;
+                }
+
+                AddLog($"❌ Помилка підключення до {e.PeerBlackID}: {e.Error}");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Обробка отримання даних через тунель
+    /// </summary>
+    private void OnTunnelDataReceived(object? sender, TunnelDataEventArgs e)
+    {
+        // TODO: Обробка отриманих даних
+        // Наразі просто логуємо
+        Dispatcher.Invoke(() =>
+        {
+            AddLog($"📨 Отримано дані: {e.Data.Length} байт від {e.SourceIP}");
+        });
+    }
+
     #endregion
 
     protected override void OnClosed(EventArgs e)
     {
+        _tunnelManager?.Dispose();
+        _connectionMonitor?.Dispose();
         _coordinator?.Stop();
         _coordinator?.Dispose();
         _ruleRepository?.Dispose();
