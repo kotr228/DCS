@@ -312,7 +312,7 @@ public class TunnelManager : IDisposable
         return _activeTunnels.ContainsKey(peerBlackID);
     }
 
-    private void OnPacketReceived(object? sender, NetworkCore.TunnelPacket packet)
+    private void OnPacketReceived(object? sender, TunnelPacket packet)
     {
         DataReceived?.Invoke(this, new TunnelDataEventArgs
         {
