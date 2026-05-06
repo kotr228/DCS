@@ -169,6 +169,7 @@ public partial class MainWindow : Window
                 _tunnelManager.ConnectionFailed += OnTunnelConnectionFailed;
                 _tunnelManager.DataReceived += OnTunnelDataReceived;
                 _tunnelManager.IncomingConnectionRequest += OnIncomingConnectionRequest;
+                _tunnelManager.UPnPStatusChanged += OnUPnPStatusChanged;
 
                 // Запустити сервер для прийому вхідних з'єднань
                 await _tunnelManager.StartServerAsync(ourBlackID);
@@ -988,6 +989,18 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             AddLog($"📨 Отримано дані: {e.Data.Length} байт від {e.SourceIP}");
+        });
+    }
+
+    private void OnUPnPStatusChanged(object? sender, bool success)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (success)
+                AddLog($"✅ UPnP: порт відкрито — інші можуть підключатися до вас через інтернет");
+            else
+                AddLog($"⚠️ UPnP не спрацював. Якщо хочете приймати з'єднання через інтернет — " +
+                       $"вручну відкрийте порт 9999 (TCP) на роутері або підключайтесь самі до інших.");
         });
     }
 

@@ -25,7 +25,7 @@ public class SecureTunnelService : IDisposable
     private Func<HelloMessage, string, ChallengeMessage>? _handleHello;
     private Func<ResponseMessage, string, HandshakeMessage>? _handleResponse;
     private bool _stealthMode = true; // За замовчуванням увімкнено
-    private readonly TimeSpan _handshakeTimeout = TimeSpan.FromSeconds(10);
+    private readonly TimeSpan _handshakeTimeout = TimeSpan.FromSeconds(45); // 30с на popup + 15с буфер
 
     public event EventHandler<TunnelPacket>? PacketReceived;
     public event EventHandler<string>? TunnelError;
@@ -358,7 +358,8 @@ public class SecureTunnelService : IDisposable
             return false;
         }
 
-        // 1b. Запитати у користувача дозвіл на підключення (30 секунд таймаут)
+        // 1b. Показати popup прийняти/відхилити якщо є підписник на подію.
+        //     Якщо підписника немає (UI не підключений) — дозволяємо автоматично.
         if (IncomingConnectionRequest != null)
         {
             var approvalSource = new TaskCompletionSource<bool>();
@@ -369,6 +370,7 @@ public class SecureTunnelService : IDisposable
                 ApprovalSource = approvalSource
             };
 
+            // Спочатку показуємо popup, потім запускаємо таймаут 30 секунд
             IncomingConnectionRequest.Invoke(this, args);
 
             using var approvalCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -376,7 +378,10 @@ public class SecureTunnelService : IDisposable
 
             bool approved = await approvalSource.Task;
             if (!approved)
+            {
+                Console.WriteLine($"❌ З'єднання від {hello.BlackID} ({remoteIP}) відхилено користувачем");
                 return false;
+            }
         }
 
         // 2. Відправити Challenge

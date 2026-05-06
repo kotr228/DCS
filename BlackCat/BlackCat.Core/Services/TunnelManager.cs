@@ -34,6 +34,11 @@ public class TunnelManager : IDisposable
     public event EventHandler<BlackCat.NetworkCore.IncomingConnectionRequestEventArgs>? IncomingConnectionRequest;
 
     /// <summary>
+    /// true = UPnP відкрив порт, false = UPnP не спрацював
+    /// </summary>
+    public event EventHandler<bool>? UPnPStatusChanged;
+
+    /// <summary>
     /// Реальна зовнішня IP адреса (отримана через ipify.org, не через UPnP)
     /// </summary>
     public string? ExternalIP { get; private set; }
@@ -85,7 +90,15 @@ public class TunnelManager : IDisposable
         {
             bool upnpSuccess = await _natManager.TryOpenPortAsync();
             if (upnpSuccess)
-                Console.WriteLine($"✅ UPnP: порт {_listenPort} відкрито через роутер");
+            {
+                Console.WriteLine($"✅ UPnP: порт {_listenPort} відкрито — вхідні інтернет-з'єднання дозволено");
+                UPnPStatusChanged?.Invoke(this, true);
+            }
+            else
+            {
+                Console.WriteLine($"⚠️ UPnP не спрацював — роутер не підтримує або вже є правило");
+                UPnPStatusChanged?.Invoke(this, false);
+            }
         });
 
         _serverTunnel = new SecureTunnelService(_masterSecret, _listenPort);
