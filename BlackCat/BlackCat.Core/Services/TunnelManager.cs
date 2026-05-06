@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net.Sockets;
 using BlackCat.Core.Data;
 using BlackCat.NetworkCore;
@@ -65,6 +66,9 @@ public class TunnelManager : IDisposable
     {
         if (_serverTunnel != null)
             return;
+
+        // Відкрити порт у Windows Firewall (потрібно щоб вхідні з'єднання проходили)
+        EnsureFirewallRule(_listenPort);
 
         // Реальна зовнішня IP через ipify.org — незалежно від UPnP
         _ = Task.Run(async () =>
@@ -370,6 +374,54 @@ public class TunnelManager : IDisposable
     private void OnTunnelError(object? sender, string error)
     {
         Console.WriteLine($"❌ Tunnel Error: {error}");
+    }
+
+    /// <summary>
+    /// Додає правило у Windows Firewall щоб дозволити вхідні TCP-з'єднання на вказаний порт.
+    /// Без цього правила Windows автоматично блокує вхідний трафік.
+    /// </summary>
+    private static void EnsureFirewallRule(int port)
+    {
+        try
+        {
+            const string ruleName = "BlackCat Secure Tunnel";
+
+            // Видалити старе правило (якщо є) і додати нове — гарантовано актуальне
+            RunNetsh($"advfirewall firewall delete rule name=\"{ruleName}\"");
+            bool added = RunNetsh(
+                $"advfirewall firewall add rule name=\"{ruleName}\" " +
+                $"dir=in action=allow protocol=TCP localport={port} " +
+                $"description=\"BlackCat encrypted tunnel port\"");
+
+            Console.WriteLine(added
+                ? $"✅ Windows Firewall: дозволено вхідний TCP порт {port}"
+                : $"⚠️ Windows Firewall: не вдалося додати правило (запустіть як Адміністратор)");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Windows Firewall: {ex.Message}");
+        }
+    }
+
+    private static bool RunNetsh(string args)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("netsh", args)
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+            using var p = Process.Start(psi);
+            p?.WaitForExit(5000);
+            return p?.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     public void Dispose()
