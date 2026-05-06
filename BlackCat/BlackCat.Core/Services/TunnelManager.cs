@@ -33,9 +33,9 @@ public class TunnelManager : IDisposable
     public event EventHandler<BlackCat.NetworkCore.IncomingConnectionRequestEventArgs>? IncomingConnectionRequest;
 
     /// <summary>
-    /// Зовнішня IP адреса (якщо UPnP успішно налаштовано)
+    /// Реальна зовнішня IP адреса (отримана через ipify.org, не через UPnP)
     /// </summary>
-    public string? ExternalIP => _natManager?.ExternalIP;
+    public string? ExternalIP { get; private set; }
 
     /// <summary>
     /// Чи активне автоматичне переадресування порту
@@ -66,13 +66,22 @@ public class TunnelManager : IDisposable
         if (_serverTunnel != null)
             return;
 
-        // UPnP запускається у фоні і не блокує старт сервера
+        // Реальна зовнішня IP через ipify.org — незалежно від UPnP
+        _ = Task.Run(async () =>
+        {
+            var netInfo = new NetworkInfoService();
+            var realIP = await netInfo.GetExternalIPAddressAsync();
+            if (realIP != "Недоступно")
+                ExternalIP = realIP;
+        });
+
+        // UPnP запускається у фоні (тільки для маппінгу порту, не для визначення IP)
         _natManager = new NatManager(_listenPort);
         _ = Task.Run(async () =>
         {
             bool upnpSuccess = await _natManager.TryOpenPortAsync();
             if (upnpSuccess)
-                Console.WriteLine($"✅ UPnP: порт {_listenPort} відкрито, зовнішня IP: {_natManager.ExternalIP}");
+                Console.WriteLine($"✅ UPnP: порт {_listenPort} відкрито через роутер");
         });
 
         _serverTunnel = new SecureTunnelService(_masterSecret, _listenPort);

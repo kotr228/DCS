@@ -176,15 +176,15 @@ public partial class MainWindow : Window
                 AddLog($"✅ TunnelManager запущено (порт 9999)");
                 AddLog($"💡 Поділіться своєю IP-адресою з іншим користувачем для підключення");
 
-                // Показати IP — спочатку локальну, зовнішня з'явиться коли UPnP завершить роботу у фоні
+                // Показати IP — спочатку локальну, потім реальну публічну через ipify.org
                 _ = Task.Run(async () =>
                 {
                     var netInfo = new NetworkInfoService();
                     var localIP = netInfo.GetLocalIPAddress();
-                    Dispatcher.Invoke(() => MyIPLabel.Text = localIP);
+                    Dispatcher.Invoke(() => MyIPLabel.Text = $"{localIP} (локальна)");
 
-                    // Чекаємо до 10 секунд поки UPnP не дасть зовнішню IP
-                    for (int i = 0; i < 10; i++)
+                    // Чекаємо до 15 секунд поки ipify.org поверне справжню публічну IP
+                    for (int i = 0; i < 15; i++)
                     {
                         await Task.Delay(1000);
                         var extIP = _tunnelManager?.ExternalIP;
@@ -192,8 +192,8 @@ public partial class MainWindow : Window
                         {
                             Dispatcher.Invoke(() =>
                             {
-                                MyIPLabel.Text = extIP;
-                                AddLog($"🌐 Ваша публічна IP: {extIP}  (поділіться нею для підключення через інтернет)");
+                                MyIPLabel.Text = $"{extIP} (інтернет)";
+                                AddLog($"🌐 Ваша публічна IP: {extIP}  ← поділіться для підключення через інтернет");
                             });
                             break;
                         }
