@@ -188,6 +188,16 @@ public class SecureTunnelService : IDisposable
             {
                 break;
             }
+            catch (ObjectDisposedException)
+            {
+                // Listener закрито — нормальна зупинка
+                break;
+            }
+            catch (Exception ex) when (!_isRunning || ex.Message.Contains("aborted") || ex.Message.Contains("WSACancelBlockingCall"))
+            {
+                // Помилка через зупинку сервера — не логувати
+                break;
+            }
             catch (Exception ex)
             {
                 TunnelError?.Invoke(this, $"Помилка прийому з'єднання: {ex.Message}");
