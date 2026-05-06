@@ -258,17 +258,25 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <!-- Поточний Black-ID -->
-                            <TextBlock Grid.Row="0" Text="Мій Black-ID:" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <Border Grid.Row="1" Background="#1E1E1E" BorderBrush="#4EC9B0" BorderThickness="2"
-                                    CornerRadius="3" Padding="10" Margin="0,0,0,15">
-                                <TextBlock x:Name="CurrentBlackIDLabel" Text="Не налаштовано"
-                                           FontFamily="Consolas" FontSize="14" Foreground="#4EC9B0" TextWrapping="Wrap"/>
-                            </Border>
+                            <!-- Мій Black-ID та IP для підключення -->
+                            <StackPanel Grid.Row="0" Margin="0,0,0,5">
+                                <TextBlock Text="Мій Black-ID:" FontWeight="Bold" Margin="0,0,0,3"/>
+                                <Border Background="#1E1E1E" BorderBrush="#4EC9B0" BorderThickness="2"
+                                        CornerRadius="3" Padding="8" Margin="0,0,0,8">
+                                    <TextBlock x:Name="CurrentBlackIDLabel" Text="Не налаштовано"
+                                               FontFamily="Consolas" FontSize="13" Foreground="#4EC9B0" TextWrapping="Wrap"/>
+                                </Border>
+                                <TextBlock Text="Моя IP (поділіться з іншими для підключення):" FontWeight="Bold" Margin="0,0,0,3"/>
+                                <Border Background="#1E1E1E" BorderBrush="#6A9955" BorderThickness="2"
+                                        CornerRadius="3" Padding="8" Margin="0,0,0,5">
+                                    <TextBlock x:Name="MyIPLabel" Text="..."
+                                               FontFamily="Consolas" FontSize="13" Foreground="#6A9955"/>
+                                </Border>
+                            </StackPanel>
 
                             <!-- Список вузлів (Телефонна книга) -->
-                            <TextBlock Grid.Row="2" Text="Телефонна книга:" FontWeight="Bold" Margin="0,0,0,5" VerticalAlignment="Top"/>
-                            <DataGrid Grid.Row="2" x:Name="TunnelsDataGrid" Margin="0,25,0,0"
+                            <TextBlock Grid.Row="1" Text="Телефонна книга:" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <DataGrid Grid.Row="2" x:Name="TunnelsDataGrid" Margin="0,0,0,0"
                                       AutoGenerateColumns="False" CanUserAddRows="False"
                                       Background="Transparent" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
                                       GridLinesVisibility="All" HorizontalGridLinesBrush="#4EC9B0" VerticalGridLinesBrush="#4EC9B0"

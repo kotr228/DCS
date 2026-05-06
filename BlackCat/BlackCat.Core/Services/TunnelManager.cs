@@ -28,6 +28,11 @@ public class TunnelManager : IDisposable
     public event EventHandler<TunnelDataEventArgs>? DataReceived;
 
     /// <summary>
+    /// Подія вхідного запиту підключення — підпишіться щоб показати діалог прийняти/відхилити
+    /// </summary>
+    public event EventHandler<BlackCat.NetworkCore.IncomingConnectionRequestEventArgs>? IncomingConnectionRequest;
+
+    /// <summary>
     /// Зовнішня IP адреса (якщо UPnP успішно налаштовано)
     /// </summary>
     public string? ExternalIP => _natManager?.ExternalIP;
@@ -61,23 +66,14 @@ public class TunnelManager : IDisposable
         if (_serverTunnel != null)
             return;
 
-        // Спробувати автоматично відкрити порт через UPnP
-        Console.WriteLine("🔧 Автоматичне налаштування мережі...");
+        // UPnP запускається у фоні і не блокує старт сервера
         _natManager = new NatManager(_listenPort);
-
-        bool upnpSuccess = await _natManager.TryOpenPortAsync();
-
-        if (upnpSuccess)
+        _ = Task.Run(async () =>
         {
-            Console.WriteLine($"✅ Порт {_listenPort} автоматично відкрито через UPnP!");
-            Console.WriteLine($"🌐 Зовнішня IP: {_natManager.ExternalIP}");
-            Console.WriteLine($"💡 Інші вузли можуть підключатися до вас напряму!");
-        }
-        else
-        {
-            Console.WriteLine($"⚠️ UPnP недоступний - може знадобитися ручне налаштування роутера");
-            Console.WriteLine($"💡 Локальні з'єднання (в одній мережі) працюватимуть без проблем");
-        }
+            bool upnpSuccess = await _natManager.TryOpenPortAsync();
+            if (upnpSuccess)
+                Console.WriteLine($"✅ UPnP: порт {_listenPort} відкрито, зовнішня IP: {_natManager.ExternalIP}");
+        });
 
         _serverTunnel = new SecureTunnelService(_masterSecret, _listenPort);
 
@@ -91,6 +87,7 @@ public class TunnelManager : IDisposable
         // Підписатись на події
         _serverTunnel.PacketReceived += OnPacketReceived;
         _serverTunnel.TunnelError += OnTunnelError;
+        _serverTunnel.IncomingConnectionRequest += (s, e) => IncomingConnectionRequest?.Invoke(this, e);
 
         await _serverTunnel.StartAsync();
 
@@ -113,9 +110,19 @@ public class TunnelManager : IDisposable
                 return true;
             }
 
-            // Створити TCP клієнт
+            // Створити TCP клієнт з таймаутом 5 секунд
             var tcpClient = new TcpClient();
-            await tcpClient.ConnectAsync(peer.Address, peer.Port);
+            using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await tcpClient.ConnectAsync(peer.Address, peer.Port, connectCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                tcpClient.Dispose();
+                throw new InvalidOperationException(
+                    $"Час очікування вичерпано. Переконайтесь, що BlackCat запущено на {peer.Address}:{peer.Port} і він доступний у мережі.");
+            }
 
             var stream = tcpClient.GetStream();
 

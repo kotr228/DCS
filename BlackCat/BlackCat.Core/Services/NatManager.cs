@@ -36,18 +36,15 @@ public class NatManager : IDisposable
     {
         try
         {
-            Console.WriteLine("🔍 Пошук UPnP пристроїв (роутер)...");
-
             // 1. Знайти роутер через SSDP
             var deviceUrl = await DiscoverRouterAsync(cancellationToken);
             if (deviceUrl == null)
             {
-                Console.WriteLine("⚠️ UPnP роутер не знайдено");
                 StatusChanged?.Invoke(this, new NatStatusEventArgs
                 {
                     IsSuccess = false,
                     Method = "UPnP",
-                    Message = "UPnP роутер не знайдено"
+                    Message = "UPnP не підтримується роутером"
                 });
                 return false;
             }
@@ -126,9 +123,9 @@ public class NatManager : IDisposable
             byte[] searchBytes = Encoding.ASCII.GetBytes(searchMessage);
             await client.SendAsync(searchBytes, searchBytes.Length, multicastEndpoint);
 
-            // Чекати відповідь
+            // Чекати відповідь (2 секунди — щоб не блокувати запуск)
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(5));
+            cts.CancelAfter(TimeSpan.FromSeconds(2));
 
             try
             {

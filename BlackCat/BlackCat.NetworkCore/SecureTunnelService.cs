@@ -30,7 +30,13 @@ public class SecureTunnelService : IDisposable
     public event EventHandler<TunnelPacket>? PacketReceived;
     public event EventHandler<string>? TunnelError;
     public event EventHandler<TunnelStatusEventArgs>? StatusChanged;
-    public event EventHandler<string>? AuthenticationFailed; // Нова подія для невдалих спроб
+    public event EventHandler<string>? AuthenticationFailed;
+
+    /// <summary>
+    /// Спрацьовує коли хтось намагається підключитися.
+    /// Встановіть ApprovalSource.SetResult(true) щоб прийняти або (false) щоб відхилити.
+    /// </summary>
+    public event EventHandler<IncomingConnectionRequestEventArgs>? IncomingConnectionRequest;
 
     public TunnelStatus CurrentStatus { get; private set; } = TunnelStatus.Disconnected;
 
@@ -342,6 +348,27 @@ public class SecureTunnelService : IDisposable
             return false;
         }
 
+        // 1b. Запитати у користувача дозвіл на підключення (30 секунд таймаут)
+        if (IncomingConnectionRequest != null)
+        {
+            var approvalSource = new TaskCompletionSource<bool>();
+            var args = new IncomingConnectionRequestEventArgs
+            {
+                PeerBlackID = hello.BlackID,
+                PeerIP = remoteIP,
+                ApprovalSource = approvalSource
+            };
+
+            IncomingConnectionRequest.Invoke(this, args);
+
+            using var approvalCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            approvalCts.Token.Register(() => approvalSource.TrySetResult(false));
+
+            bool approved = await approvalSource.Task;
+            if (!approved)
+                return false;
+        }
+
         // 2. Відправити Challenge
         var challenge = _handleHello!(hello, remoteIP);
         await SendHandshakeMessageAsync(stream, challenge, cancellationToken);
@@ -434,4 +461,15 @@ public class TunnelStatusEventArgs : EventArgs
     {
         Status = status;
     }
+}
+
+/// <summary>
+/// Аргументи події вхідного запиту підключення.
+/// Встановіть ApprovalSource.SetResult(true) для прийняття або (false) для відхилення.
+/// </summary>
+public class IncomingConnectionRequestEventArgs : EventArgs
+{
+    public string PeerBlackID { get; set; } = string.Empty;
+    public string PeerIP { get; set; } = string.Empty;
+    public TaskCompletionSource<bool> ApprovalSource { get; set; } = new();
 }

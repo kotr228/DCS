@@ -168,23 +168,37 @@ public partial class MainWindow : Window
                 _tunnelManager.ConnectionLost += OnTunnelConnectionLost;
                 _tunnelManager.ConnectionFailed += OnTunnelConnectionFailed;
                 _tunnelManager.DataReceived += OnTunnelDataReceived;
+                _tunnelManager.IncomingConnectionRequest += OnIncomingConnectionRequest;
 
                 // Запустити сервер для прийому вхідних з'єднань
                 await _tunnelManager.StartServerAsync(ourBlackID);
 
                 AddLog($"✅ TunnelManager запущено (порт 9999)");
+                AddLog($"💡 Поділіться своєю IP-адресою з іншим користувачем для підключення");
 
-                // Показати статус UPnP
-                if (_tunnelManager.IsPortForwardingActive)
+                // Показати IP — спочатку локальну, зовнішня з'явиться коли UPnP завершить роботу у фоні
+                _ = Task.Run(async () =>
                 {
-                    AddLog($"🌐 UPnP активний! Зовнішня IP: {_tunnelManager.ExternalIP}");
-                    AddLog($"💡 Інші користувачі можуть підключатися до вас БЕЗ налаштування роутера!");
-                }
-                else
-                {
-                    AddLog($"⚠️ UPnP недоступний - локальні з'єднання працюють");
-                    AddLog($"💡 Для Інтернет-з'єднань може знадобитися налаштування роутера");
-                }
+                    var netInfo = new NetworkInfoService();
+                    var localIP = netInfo.GetLocalIPAddress();
+                    Dispatcher.Invoke(() => MyIPLabel.Text = localIP);
+
+                    // Чекаємо до 10 секунд поки UPnP не дасть зовнішню IP
+                    for (int i = 0; i < 10; i++)
+                    {
+                        await Task.Delay(1000);
+                        var extIP = _tunnelManager?.ExternalIP;
+                        if (!string.IsNullOrEmpty(extIP))
+                        {
+                            Dispatcher.Invoke(() =>
+                            {
+                                MyIPLabel.Text = extIP;
+                                AddLog($"🌐 Ваша публічна IP: {extIP}  (поділіться нею для підключення через інтернет)");
+                            });
+                            break;
+                        }
+                    }
+                });
             }
             else
             {
@@ -844,7 +858,12 @@ public partial class MainWindow : Window
 
             AddLog($"❌ Помилка підключення: {ex.Message}");
 
-            MessageBox.Show($"Не вдалося підключитися:\n{ex.Message}\n\nПеревірте:\n• IP адресу та порт\n• Чи запущений BlackCat на віддаленому вузлі\n• Чи правильний Black-ID",
+            MessageBox.Show(
+                $"Не вдалося підключитися:\n{ex.Message}\n\n" +
+                $"Переконайтесь що:\n" +
+                $"• IP адреса правильна\n" +
+                $"• BlackCat запущено на пристрої {_selectedTunnel?.IPAddress}\n" +
+                $"• Black-ID правильний",
                 "Помилка підключення", MessageBoxButton.OK, MessageBoxImage.Error);
 
             ConnectTunnelButton.IsEnabled = true;
@@ -966,11 +985,23 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnTunnelDataReceived(object? sender, TunnelDataEventArgs e)
     {
-        // TODO: Обробка отриманих даних
-        // Наразі просто логуємо
         Dispatcher.Invoke(() =>
         {
             AddLog($"📨 Отримано дані: {e.Data.Length} байт від {e.SourceIP}");
+        });
+    }
+
+    /// <summary>
+    /// Показати toast-повідомлення з кнопками Прийняти / Відхилити при вхідному підключенні
+    /// </summary>
+    private void OnIncomingConnectionRequest(object? sender, BlackCat.NetworkCore.IncomingConnectionRequestEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            AddLog($"🔔 Вхідний запит від {e.PeerBlackID} ({e.PeerIP})");
+
+            var toast = new IncomingConnectionWindow(e);
+            toast.Show();
         });
     }
 
