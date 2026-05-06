@@ -173,6 +173,18 @@ public partial class MainWindow : Window
                 await _tunnelManager.StartServerAsync(ourBlackID);
 
                 AddLog($"✅ TunnelManager запущено (порт 9999)");
+
+                // Показати статус UPnP
+                if (_tunnelManager.IsPortForwardingActive)
+                {
+                    AddLog($"🌐 UPnP активний! Зовнішня IP: {_tunnelManager.ExternalIP}");
+                    AddLog($"💡 Інші користувачі можуть підключатися до вас БЕЗ налаштування роутера!");
+                }
+                else
+                {
+                    AddLog($"⚠️ UPnP недоступний - локальні з'єднання працюють");
+                    AddLog($"💡 Для Інтернет-з'єднань може знадобитися налаштування роутера");
+                }
             }
             else
             {

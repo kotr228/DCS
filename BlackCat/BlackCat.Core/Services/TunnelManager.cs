@@ -19,12 +19,23 @@ public class TunnelManager : IDisposable
     private readonly int _listenPort;
 
     private SecureTunnelService? _serverTunnel; // Для прослуховування вхідних з'єднань
+    private NatManager? _natManager; // Для автоматичного відкриття портів
     private readonly ConcurrentDictionary<string, PeerTunnelConnection> _activeTunnels = new();
 
     public event EventHandler<TunnelConnectionEventArgs>? ConnectionEstablished;
     public event EventHandler<TunnelConnectionEventArgs>? ConnectionLost;
     public event EventHandler<TunnelConnectionEventArgs>? ConnectionFailed;
     public event EventHandler<TunnelDataEventArgs>? DataReceived;
+
+    /// <summary>
+    /// Зовнішня IP адреса (якщо UPnP успішно налаштовано)
+    /// </summary>
+    public string? ExternalIP => _natManager?.ExternalIP;
+
+    /// <summary>
+    /// Чи активне автоматичне переадресування порту
+    /// </summary>
+    public bool IsPortForwardingActive => _natManager?.IsPortForwardingActive ?? false;
 
     public TunnelManager(
         BlackIDService blackIDService,
@@ -49,6 +60,24 @@ public class TunnelManager : IDisposable
     {
         if (_serverTunnel != null)
             return;
+
+        // Спробувати автоматично відкрити порт через UPnP
+        Console.WriteLine("🔧 Автоматичне налаштування мережі...");
+        _natManager = new NatManager(_listenPort);
+
+        bool upnpSuccess = await _natManager.TryOpenPortAsync();
+
+        if (upnpSuccess)
+        {
+            Console.WriteLine($"✅ Порт {_listenPort} автоматично відкрито через UPnP!");
+            Console.WriteLine($"🌐 Зовнішня IP: {_natManager.ExternalIP}");
+            Console.WriteLine($"💡 Інші вузли можуть підключатися до вас напряму!");
+        }
+        else
+        {
+            Console.WriteLine($"⚠️ UPnP недоступний - може знадобитися ручне налаштування роутера");
+            Console.WriteLine($"💡 Локальні з'єднання (в одній мережі) працюватимуть без проблем");
+        }
 
         _serverTunnel = new SecureTunnelService(_masterSecret, _listenPort);
 
@@ -337,6 +366,9 @@ public class TunnelManager : IDisposable
 
         _serverTunnel?.Stop();
         _serverTunnel?.Dispose();
+
+        // Закрити UPnP порт
+        _natManager?.Dispose();
     }
 }
 
