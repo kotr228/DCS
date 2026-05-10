@@ -881,19 +881,26 @@ public partial class MainWindow : Window
             // Спробувати relay якщо підключений
             if (_tunnelManager.IsRelayConfigured)
             {
-                AddLog($"🔀 Спроба підключення через relay...");
+                AddLog($"🔀 Підключення через relay...");
                 success = await _tunnelManager.ConnectViaRelayAsync(peerNode, ourBlackID);
                 if (!success)
-                    AddLog($"⚠️ Relay не вдалося — пробую пряме підключення...");
+                    AddLog($"⚠️ Relay не відповів — пробую пряме підключення...");
+            }
+            else
+            {
+                AddLog($"ℹ️ Relay не налаштовано — пряме підключення");
             }
 
-            // Пряме підключення якщо relay не спрацював
+            // Пряме підключення якщо relay не спрацював або не налаштований
             if (!success)
                 success = await _tunnelManager.ConnectToNodeAsync(peerNode, ourBlackID);
 
             if (!success)
             {
-                throw new InvalidOperationException("Не вдалося встановити з'єднання ні через relay, ні напряму");
+                var hint = _tunnelManager.IsRelayConfigured
+                    ? "Relay не відповів, і пряме підключення не вдалося.\n\nПереконайтесь, що relay-сервер запущено і доступний."
+                    : "Пряме підключення не вдалося.\n\nДля з'єднання без відкритих портів:\n• На ОДНІЙ з машин увімкніть Relay-сервер в Налаштуваннях\n• Введіть адресу relay на ІНШІЙ машині";
+                throw new InvalidOperationException(hint);
             }
 
             // Успішне підключення обробляється в події OnTunnelConnectionEstablished
@@ -907,13 +914,7 @@ public partial class MainWindow : Window
 
             AddLog($"❌ Помилка підключення: {ex.Message}");
 
-            MessageBox.Show(
-                $"Не вдалося підключитися:\n{ex.Message}\n\n" +
-                $"Переконайтесь що:\n" +
-                $"• IP адреса правильна\n" +
-                $"• BlackCat запущено на пристрої {_selectedTunnel?.IPAddress}\n" +
-                $"• Black-ID правильний",
-                "Помилка підключення", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(ex.Message, "Помилка підключення", MessageBoxButton.OK, MessageBoxImage.Error);
 
             ConnectTunnelButton.IsEnabled = true;
         }
@@ -1096,7 +1097,24 @@ public partial class MainWindow : Window
 
             Dispatcher.Invoke(() => AddLog($"📡 Запуск relay-сервера на порту {serverPort}..."));
 
-            // Спробувати UPnP для відкриття порту relay
+            // Запустити сервер у фоні (не блокуємо — реєстрація клієнта має йти після Start)
+            _ = Task.Run(() => _embeddedRelayServer.StartAsync());
+
+            // Почекати поки сервер підніметься
+            await Task.Delay(500);
+
+            // Зареєструвати ЦЮ машину у власному relay через localhost
+            // Без цього інші клієнти не знайдуть нас у relay за нашим Black-ID
+            if (_tunnelManager != null)
+            {
+                _tunnelManager.SetRelayServer("127.0.0.1", serverPort);
+                bool selfRegistered = await _tunnelManager.StartRelayAsync(ourBlackID);
+                Dispatcher.Invoke(() => AddLog(selfRegistered
+                    ? $"✅ Цю машину зареєстровано у власному relay як {ourBlackID.FullID}"
+                    : $"⚠️ Не вдалося зареєструватися у власному relay"));
+            }
+
+            // Спробувати UPnP для відкриття порту relay назовні
             string? publicIP = null;
             try
             {
@@ -1104,28 +1122,25 @@ public partial class MainWindow : Window
                 bool upnpOk = await natMgr.TryOpenPortAsync();
                 publicIP = natMgr.ExternalIP ?? _tunnelManager?.ExternalIP;
                 if (upnpOk)
-                    Dispatcher.Invoke(() => AddLog($"✅ UPnP: порт {serverPort} відкрито для relay-сервера"));
+                    Dispatcher.Invoke(() => AddLog($"✅ UPnP: порт {serverPort} відкрито автоматично"));
                 else
-                    Dispatcher.Invoke(() => AddLog($"⚠️ UPnP для relay не спрацював. Відкрийте порт {serverPort} вручну на роутері."));
+                    Dispatcher.Invoke(() => AddLog($"⚠️ UPnP не спрацював — відкрийте порт {serverPort} вручну на роутері, або спробуйте запустити relay на ІНШІЙ машині (MAIN)."));
             }
             catch (Exception upnpEx)
             {
-                Dispatcher.Invoke(() => AddLog($"⚠️ UPnP для relay: {upnpEx.Message}"));
+                Dispatcher.Invoke(() => AddLog($"⚠️ UPnP: {upnpEx.Message}"));
             }
 
-            // Показати адресу для передачі
             if (string.IsNullOrEmpty(publicIP))
                 publicIP = _tunnelManager?.ExternalIP ?? "?.?.?.?";
 
             var relayAddress = $"{publicIP}:{serverPort}";
             Dispatcher.Invoke(() =>
             {
-                AddLog($"📡 Relay-сервер готовий. Передайте адресу іншому: {relayAddress}");
-                AddLog($"   Інший користувач вводить у Налаштуваннях → Relay → Адреса relay-сервера: {relayAddress}");
+                AddLog($"📡 Relay-сервер активний. Адреса для передачі: {relayAddress}");
+                AddLog($"   ⚠️ Адреса доступна лише якщо порт {serverPort} відкрито (UPnP або вручну)");
+                AddLog($"   Інший користувач: Налаштування → Relay → введіть '{relayAddress}' → Зберегти → Перезапустити");
             });
-
-            // Запустити сервер (блокуюче, до зупинки)
-            await _embeddedRelayServer.StartAsync();
         }
         catch (Exception ex)
         {
