@@ -4,9 +4,11 @@ namespace BlackCat.Core.Configuration;
 
 public class RelayConfig
 {
-    public string Host    { get; set; } = string.Empty;
-    public int    Port    { get; set; } = 9997;
-    public bool   Enabled { get; set; } = false;
+    public string Host         { get; set; } = string.Empty;
+    public int    Port         { get; set; } = 9997;
+    public bool   Enabled      { get; set; } = false;
+    public bool   RunAsServer  { get; set; } = false;
+    public int    ServerPort   { get; set; } = 9997;
 
     private static readonly string _path = Path.Combine(
         AppDomain.CurrentDomain.BaseDirectory, "relay_config.json");

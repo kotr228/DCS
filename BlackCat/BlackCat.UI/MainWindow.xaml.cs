@@ -20,6 +20,7 @@ public partial class MainWindow : Window
 {
     private FirewallCoordinator? _coordinator;
     private TunnelManager? _tunnelManager;
+    private RelayServerService? _embeddedRelayServer;
     private readonly DispatcherTimer _updateTimer;
     private readonly RuleRepository _ruleRepository;
     private readonly ProcessLookupService _processLookupService;
@@ -181,8 +182,18 @@ public partial class MainWindow : Window
                 AddLog($"✅ TunnelManager запущено (порт 9999)");
                 AddLog($"💡 Поділіться своєю IP-адресою з іншим користувачем для підключення");
 
-                // Запустити relay якщо налаштовано
                 var relayCfg = RelayConfig.Load();
+
+                // Запустити relay-сервер на цій машині якщо налаштовано
+                if (relayCfg.RunAsServer)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await StartEmbeddedRelayServerAsync(relayCfg.ServerPort, ourBlackID);
+                    });
+                }
+
+                // Підключитися до relay-сервера якщо налаштовано
                 if (relayCfg.Enabled && !string.IsNullOrWhiteSpace(relayCfg.Host))
                 {
                     _tunnelManager.SetRelayServer(relayCfg.Host, relayCfg.Port);
@@ -191,12 +202,12 @@ public partial class MainWindow : Window
                     {
                         bool ok = await _tunnelManager.StartRelayAsync(ourBlackID);
                         if (!ok)
-                            Dispatcher.Invoke(() => AddLog("⚠️ Relay: не вдалося підключитися. Тунелі через relay недоступні."));
+                            Dispatcher.Invoke(() => AddLog("⚠️ Relay: не вдалося підключитися."));
                     });
                 }
-                else
+                else if (!relayCfg.RunAsServer)
                 {
-                    AddLog("ℹ️ Relay не налаштовано. Для роботи без відкритих портів налаштуйте Relay в Налаштуваннях.");
+                    AddLog("ℹ️ Relay не налаштовано. Відкрийте Налаштування → Relay для підключення без портів.");
                 }
 
                 // Показати IP — спочатку локальну, потім реальну публічну через ipify.org
@@ -262,6 +273,9 @@ public partial class MainWindow : Window
         try
         {
             AddLog("Зупинка брандмауера...");
+
+            _embeddedRelayServer?.Dispose();
+            _embeddedRelayServer = null;
 
             _tunnelManager?.Dispose();
             _tunnelManager = null;
@@ -1073,8 +1087,55 @@ public partial class MainWindow : Window
 
     #endregion
 
+    private async Task StartEmbeddedRelayServerAsync(int serverPort, BlackCat.Shared.Models.BlackID ourBlackID)
+    {
+        try
+        {
+            _embeddedRelayServer = new RelayServerService(serverPort);
+            _embeddedRelayServer.Log += (_, msg) => Dispatcher.Invoke(() => AddLog($"[Relay] {msg}"));
+
+            Dispatcher.Invoke(() => AddLog($"📡 Запуск relay-сервера на порту {serverPort}..."));
+
+            // Спробувати UPnP для відкриття порту relay
+            string? publicIP = null;
+            try
+            {
+                using var natMgr = new NatManager(serverPort, "BlackCat Relay Server");
+                bool upnpOk = await natMgr.TryOpenPortAsync();
+                publicIP = natMgr.ExternalIP ?? _tunnelManager?.ExternalIP;
+                if (upnpOk)
+                    Dispatcher.Invoke(() => AddLog($"✅ UPnP: порт {serverPort} відкрито для relay-сервера"));
+                else
+                    Dispatcher.Invoke(() => AddLog($"⚠️ UPnP для relay не спрацював. Відкрийте порт {serverPort} вручну на роутері."));
+            }
+            catch (Exception upnpEx)
+            {
+                Dispatcher.Invoke(() => AddLog($"⚠️ UPnP для relay: {upnpEx.Message}"));
+            }
+
+            // Показати адресу для передачі
+            if (string.IsNullOrEmpty(publicIP))
+                publicIP = _tunnelManager?.ExternalIP ?? "?.?.?.?";
+
+            var relayAddress = $"{publicIP}:{serverPort}";
+            Dispatcher.Invoke(() =>
+            {
+                AddLog($"📡 Relay-сервер готовий. Передайте адресу іншому: {relayAddress}");
+                AddLog($"   Інший користувач вводить у Налаштуваннях → Relay → Адреса relay-сервера: {relayAddress}");
+            });
+
+            // Запустити сервер (блокуюче, до зупинки)
+            await _embeddedRelayServer.StartAsync();
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.Invoke(() => AddLog($"❌ Relay-сервер: {ex.Message}"));
+        }
+    }
+
     protected override void OnClosed(EventArgs e)
     {
+        _embeddedRelayServer?.Dispose();
         _tunnelManager?.Dispose();
         _connectionMonitor?.Dispose();
         _coordinator?.Stop();

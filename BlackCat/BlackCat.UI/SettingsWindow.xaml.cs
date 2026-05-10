@@ -81,6 +81,8 @@ public partial class SettingsWindow : MetroWindow
             RelayHostTextBox.Text = cfg.Host;
             RelayPortNumeric.Value = cfg.Port;
             RelayEnabledCheckBox.IsChecked = cfg.Enabled;
+            RunAsRelayServerCheckBox.IsChecked = cfg.RunAsServer;
+            RelayServerPortNumeric.Value = cfg.ServerPort;
         }
         catch { }
     }
@@ -179,15 +181,22 @@ public partial class SettingsWindow : MetroWindow
         }
     }
 
+    private void CopyMyRelayAddress_Click(object sender, RoutedEventArgs e)
+    {
+        CopyToClipboard(MyRelayAddressTextBox.Text, "Адресу relay-сервера");
+    }
+
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
         try
         {
             var cfg = new RelayConfig
             {
-                Host    = RelayHostTextBox.Text.Trim(),
-                Port    = (int)(RelayPortNumeric.Value ?? 9997),
-                Enabled = RelayEnabledCheckBox.IsChecked == true
+                Host        = RelayHostTextBox.Text.Trim(),
+                Port        = (int)(RelayPortNumeric.Value ?? 9997),
+                Enabled     = RelayEnabledCheckBox.IsChecked == true,
+                RunAsServer = RunAsRelayServerCheckBox.IsChecked == true,
+                ServerPort  = (int)(RelayServerPortNumeric.Value ?? 9997)
             };
             cfg.Save();
 
