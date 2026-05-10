@@ -25,7 +25,7 @@ public class SecureTunnelService : IDisposable
     private Func<HelloMessage, string, ChallengeMessage>? _handleHello;
     private Func<ResponseMessage, string, HandshakeMessage>? _handleResponse;
     private bool _stealthMode = true; // За замовчуванням увімкнено
-    private readonly TimeSpan _handshakeTimeout = TimeSpan.FromSeconds(45); // 30с на popup + 15с буфер
+    private readonly TimeSpan _handshakeTimeout = TimeSpan.FromSeconds(90); // 60с на popup + 30с буфер
 
     public event EventHandler<TunnelPacket>? PacketReceived;
     public event EventHandler<string>? TunnelError;
@@ -370,10 +370,9 @@ public class SecureTunnelService : IDisposable
                 ApprovalSource = approvalSource
             };
 
-            // Спочатку показуємо popup, потім запускаємо таймаут 30 секунд
             IncomingConnectionRequest.Invoke(this, args);
 
-            using var approvalCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var approvalCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             approvalCts.Token.Register(() => approvalSource.TrySetResult(false));
 
             bool approved = await approvalSource.Task;

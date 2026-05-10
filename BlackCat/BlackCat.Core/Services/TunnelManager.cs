@@ -158,18 +158,17 @@ public class TunnelManager : IDisposable
                 return true;
             }
 
-            // Створити TCP клієнт з таймаутом 5 секунд
+            // Створити TCP клієнт (OS-default connect timeout — без штучного обмеження)
             var tcpClient = new TcpClient();
-            using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             try
             {
-                await tcpClient.ConnectAsync(peer.Address, peer.Port, connectCts.Token);
+                await tcpClient.ConnectAsync(peer.Address, peer.Port);
             }
-            catch (OperationCanceledException)
+            catch (Exception ex)
             {
                 tcpClient.Dispose();
                 throw new InvalidOperationException(
-                    $"Час очікування вичерпано. Переконайтесь, що BlackCat запущено на {peer.Address}:{peer.Port} і він доступний у мережі.");
+                    $"Не вдалося підключитися до {peer.Address}:{peer.Port}: {ex.Message}");
             }
 
             var stream = tcpClient.GetStream();

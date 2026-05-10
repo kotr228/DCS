@@ -11,7 +11,7 @@ public partial class IncomingConnectionWindow : Window
 {
     private readonly IncomingConnectionRequestEventArgs _request;
     private readonly DispatcherTimer _countdownTimer;
-    private int _secondsLeft = 30;
+    private int _secondsLeft = 60;
     private bool _answered;
 
     public IncomingConnectionWindow(IncomingConnectionRequestEventArgs request)
