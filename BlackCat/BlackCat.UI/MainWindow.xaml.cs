@@ -169,7 +169,9 @@ public partial class MainWindow : Window
                 _tunnelManager.ConnectionFailed += OnTunnelConnectionFailed;
                 _tunnelManager.DataReceived += OnTunnelDataReceived;
                 _tunnelManager.IncomingConnectionRequest += OnIncomingConnectionRequest;
-                _tunnelManager.UPnPStatusChanged += OnUPnPStatusChanged;
+                _tunnelManager.UPnPStatusChanged        += OnUPnPStatusChanged;
+                _tunnelManager.FirewallStatusChanged    += (_, msg) => Dispatcher.Invoke(() => AddLog(msg));
+                _tunnelManager.NatDiagnosticReady       += OnNatDiagnosticReady;
 
                 // Запустити сервер для прийому вхідних з'єднань
                 await _tunnelManager.StartServerAsync(ourBlackID);
@@ -997,10 +999,29 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             if (success)
-                AddLog($"✅ UPnP: порт відкрито — інші можуть підключатися до вас через інтернет");
+                AddLog("✅ UPnP: порт відкрито — ви доступні для вхідних інтернет-підключень");
+            // Якщо не спрацював — детальне повідомлення дасть OnNatDiagnosticReady
+        });
+    }
+
+    private void OnNatDiagnosticReady(object? sender, BlackCat.Core.Services.NatDiagnosticEventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (!e.BehindNat)
+            {
+                // Пряме підключення до інтернету — Windows Firewall достатньо
+                AddLog($"✅ Пряме з'єднання з інтернетом ({e.PublicIP}) — вхідні підключення доступні");
+            }
             else
-                AddLog($"⚠️ UPnP не спрацював. Якщо хочете приймати з'єднання через інтернет — " +
-                       $"вручну відкрийте порт 9999 (TCP) на роутері або підключайтесь самі до інших.");
+            {
+                // Машина за NAT
+                AddLog($"ℹ️ Мережа: локальна IP {e.LocalIP}, публічна {e.PublicIP}");
+                AddLog($"⚠️ Ви за NAT-роутером. Для ПРИЙОМУ підключень потрібно одне з:");
+                AddLog($"   1. Роутер з підтримкою UPnP (автоматично, якщо UPnP увімкнено)");
+                AddLog($"   2. Port Forwarding: {e.PublicIP}:{e.ListenPort} → {e.LocalIP}:{e.ListenPort}");
+                AddLog($"   ✔ Для ВИХІДНИХ підключень (підключатись до інших) — роутер не потрібен");
+            }
         });
     }
 

@@ -33,10 +33,14 @@ public class TunnelManager : IDisposable
     /// </summary>
     public event EventHandler<BlackCat.NetworkCore.IncomingConnectionRequestEventArgs>? IncomingConnectionRequest;
 
-    /// <summary>
-    /// true = UPnP відкрив порт, false = UPnP не спрацював
-    /// </summary>
+    /// <summary>true = UPnP відкрив порт, false = UPnP не спрацював</summary>
     public event EventHandler<bool>? UPnPStatusChanged;
+
+    /// <summary>Повідомлення про стан правила Windows Firewall</summary>
+    public event EventHandler<string>? FirewallStatusChanged;
+
+    /// <summary>Результат NAT-діагностики після старту</summary>
+    public event EventHandler<NatDiagnosticEventArgs>? NatDiagnosticReady;
 
     /// <summary>
     /// Реальна зовнішня IP адреса (отримана через ipify.org, не через UPnP)
@@ -72,33 +76,37 @@ public class TunnelManager : IDisposable
         if (_serverTunnel != null)
             return;
 
-        // Відкрити порт у Windows Firewall (потрібно щоб вхідні з'єднання проходили)
-        EnsureFirewallRule(_listenPort);
+        // Відкрити порт у Windows Firewall
+        string firewallMsg = EnsureFirewallRule(_listenPort);
+        FirewallStatusChanged?.Invoke(this, firewallMsg);
 
-        // Реальна зовнішня IP через ipify.org — незалежно від UPnP
+        // Реальна зовнішня IP через ipify.org + NAT-діагностика
         _ = Task.Run(async () =>
         {
             var netInfo = new NetworkInfoService();
-            var realIP = await netInfo.GetExternalIPAddressAsync();
-            if (realIP != "Недоступно")
-                ExternalIP = realIP;
+            var localIP  = netInfo.GetLocalIPAddress();
+            var publicIP = await netInfo.GetExternalIPAddressAsync();
+
+            if (publicIP != "Недоступно")
+                ExternalIP = publicIP;
+
+            // Перевірка: чи машина за NAT?
+            bool behindNat = publicIP != "Недоступно" && localIP != publicIP;
+            NatDiagnosticReady?.Invoke(this, new NatDiagnosticEventArgs
+            {
+                LocalIP    = localIP,
+                PublicIP   = publicIP,
+                BehindNat  = behindNat,
+                ListenPort = _listenPort
+            });
         });
 
-        // UPnP запускається у фоні (тільки для маппінгу порту, не для визначення IP)
+        // UPnP у фоні (маппінг порту на роутері)
         _natManager = new NatManager(_listenPort);
         _ = Task.Run(async () =>
         {
             bool upnpSuccess = await _natManager.TryOpenPortAsync();
-            if (upnpSuccess)
-            {
-                Console.WriteLine($"✅ UPnP: порт {_listenPort} відкрито — вхідні інтернет-з'єднання дозволено");
-                UPnPStatusChanged?.Invoke(this, true);
-            }
-            else
-            {
-                Console.WriteLine($"⚠️ UPnP не спрацював — роутер не підтримує або вже є правило");
-                UPnPStatusChanged?.Invoke(this, false);
-            }
+            UPnPStatusChanged?.Invoke(this, upnpSuccess);
         });
 
         _serverTunnel = new SecureTunnelService(_masterSecret, _listenPort);
@@ -391,28 +399,26 @@ public class TunnelManager : IDisposable
 
     /// <summary>
     /// Додає правило у Windows Firewall щоб дозволити вхідні TCP-з'єднання на вказаний порт.
-    /// Без цього правила Windows автоматично блокує вхідний трафік.
+    /// Повертає повідомлення для відображення в UI.
     /// </summary>
-    private static void EnsureFirewallRule(int port)
+    private static string EnsureFirewallRule(int port)
     {
         try
         {
             const string ruleName = "BlackCat Secure Tunnel";
-
-            // Видалити старе правило (якщо є) і додати нове — гарантовано актуальне
             RunNetsh($"advfirewall firewall delete rule name=\"{ruleName}\"");
             bool added = RunNetsh(
                 $"advfirewall firewall add rule name=\"{ruleName}\" " +
                 $"dir=in action=allow protocol=TCP localport={port} " +
                 $"description=\"BlackCat encrypted tunnel port\"");
 
-            Console.WriteLine(added
+            return added
                 ? $"✅ Windows Firewall: дозволено вхідний TCP порт {port}"
-                : $"⚠️ Windows Firewall: не вдалося додати правило (запустіть як Адміністратор)");
+                : $"⚠️ Windows Firewall: не вдалося додати правило — запустіть як Адміністратор";
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"⚠️ Windows Firewall: {ex.Message}");
+            return $"⚠️ Windows Firewall: {ex.Message}";
         }
     }
 
@@ -489,4 +495,15 @@ public class TunnelDataEventArgs : EventArgs
     public string SourceIP { get; set; } = string.Empty;
     public string DestinationIP { get; set; } = string.Empty;
     public byte[] Data { get; set; } = Array.Empty<byte>();
+}
+
+/// <summary>
+/// Результат NAT-діагностики при старті
+/// </summary>
+public class NatDiagnosticEventArgs : EventArgs
+{
+    public string LocalIP { get; set; } = string.Empty;
+    public string PublicIP { get; set; } = string.Empty;
+    public bool BehindNat { get; set; }
+    public int ListenPort { get; set; }
 }
