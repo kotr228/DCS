@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using BlackCat.Core;
+using BlackCat.Core.Configuration;
 using BlackCat.Core.Data;
 using BlackCat.Core.Services;
 using BlackCat.Shared.Models;
@@ -73,7 +74,15 @@ public partial class SettingsWindow : MetroWindow
             CpuIdTextBox.Text = $"Помилка: {ex.Message}";
         }
 
-        // TODO: Завантажити інші налаштування з конфігу
+        // Relay налаштування
+        try
+        {
+            var cfg = RelayConfig.Load();
+            RelayHostTextBox.Text = cfg.Host;
+            RelayPortNumeric.Value = cfg.Port;
+            RelayEnabledCheckBox.IsChecked = cfg.Enabled;
+        }
+        catch { }
     }
 
     private void CreateBlackIDButton_Click(object sender, RoutedEventArgs e)
@@ -172,10 +181,16 @@ public partial class SettingsWindow : MetroWindow
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        // TODO: Зберегти налаштування в конфіг файл
         try
         {
-            // Тут буде збереження в JSON конфіг
+            var cfg = new RelayConfig
+            {
+                Host    = RelayHostTextBox.Text.Trim(),
+                Port    = (int)(RelayPortNumeric.Value ?? 9997),
+                Enabled = RelayEnabledCheckBox.IsChecked == true
+            };
+            cfg.Save();
+
             DialogResult = true;
             Close();
         }

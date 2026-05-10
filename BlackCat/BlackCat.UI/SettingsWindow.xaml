@@ -50,6 +50,35 @@
                             </StackPanel>
                         </GroupBox>
 
+                        <!-- Relay Server -->
+                        <GroupBox Header="🔀 Relay-сервер (тунель без портів)" Margin="0,0,0,20">
+                            <StackPanel Margin="10">
+                                <TextBlock TextWrapping="Wrap" Foreground="#808080" FontSize="11" Margin="0,0,0,10"
+                                           Text="Relay дозволяє підключатися без відкритих портів на роутері. Обидва пристрої підключаються до relay назовні."/>
+                                <TextBlock Text="Адреса relay-сервера (IP або hostname):" Margin="0,0,0,5"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="80"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0" x:Name="RelayHostTextBox"
+                                             Background="#1E1E1E" Foreground="White" BorderBrush="#4EC9B0"
+                                             Padding="5" FontFamily="Consolas"
+                                             ToolTip="IP або домен relay-сервера, наприклад: 81.162.255.205"/>
+                                    <mah:NumericUpDown Grid.Column="2" x:Name="RelayPortNumeric"
+                                                       Minimum="1" Maximum="65535" Value="9997"/>
+                                </Grid>
+                                <TextBlock Text="Порт relay за замовчуванням: 9997"
+                                           Foreground="Gray" FontSize="11" Margin="0,5,0,0"/>
+                                <CheckBox x:Name="RelayEnabledCheckBox"
+                                          Content="Використовувати relay для з'єднань"
+                                          Margin="0,10,0,0" IsChecked="False"/>
+                                <TextBlock Text="Якщо увімкнено — підключення спочатку пробує relay, потім пряме з'єднання"
+                                           Foreground="Gray" FontSize="11" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
+
                         <!-- Stealth Mode -->
                         <GroupBox Header="Безпека" Margin="0,0,0,20">
                             <StackPanel Margin="10">

@@ -19,9 +19,13 @@ public class TunnelManager : IDisposable
     private readonly string _masterSecret;
     private readonly int _listenPort;
 
-    private SecureTunnelService? _serverTunnel; // Для прослуховування вхідних з'єднань
-    private NatManager? _natManager; // Для автоматичного відкриття портів
+    private SecureTunnelService? _serverTunnel;
+    private NatManager? _natManager;
+    private RelayTunnelClient? _relayClient;
+    private string? _relayHost;
+    private int _relayPort = 9997;
     private readonly ConcurrentDictionary<string, PeerTunnelConnection> _activeTunnels = new();
+    private readonly ConcurrentDictionary<string, RelayVirtualConnection> _relayConnections = new();
 
     public event EventHandler<TunnelConnectionEventArgs>? ConnectionEstablished;
     public event EventHandler<TunnelConnectionEventArgs>? ConnectionLost;
@@ -51,6 +55,16 @@ public class TunnelManager : IDisposable
     /// Чи активне автоматичне переадресування порту
     /// </summary>
     public bool IsPortForwardingActive => _natManager?.IsPortForwardingActive ?? false;
+
+    /// <summary>Налаштувати relay-сервер (host:port). Якщо задано — використовується для з'єднань</summary>
+    public void SetRelayServer(string host, int port = 9997)
+    {
+        _relayHost = host;
+        _relayPort = port;
+    }
+
+    public bool IsRelayConfigured => !string.IsNullOrWhiteSpace(_relayHost);
+    public bool IsRelayConnected  => _relayClient?.IsConnected == true;
 
     public TunnelManager(
         BlackIDService blackIDService,
@@ -397,6 +411,142 @@ public class TunnelManager : IDisposable
         Console.WriteLine($"❌ Tunnel Error: {error}");
     }
 
+    // ─── RELAY ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Підключитися до relay-сервера і зареєструватись там.
+    /// Викликати після StartServerAsync коли relay налаштовано.
+    /// </summary>
+    public async Task<bool> StartRelayAsync(BlackID ourBlackID)
+    {
+        if (string.IsNullOrWhiteSpace(_relayHost)) return false;
+
+        _relayClient?.Dispose();
+        _relayClient = new RelayTunnelClient(_relayHost, _relayPort, ourBlackID.FullID);
+
+        _relayClient.Log         += (_, msg) => Console.WriteLine($"[Relay] {msg}");
+        _relayClient.DataReceived += OnRelayDataReceived;
+        _relayClient.Disconnected += (_, msg) => RelayStatusChanged?.Invoke(this, $"⚠️ Relay: {msg}");
+        _relayClient.IncomingRequest += OnRelayIncomingRequest;
+
+        bool ok = await _relayClient.ConnectAsync();
+        RelayStatusChanged?.Invoke(this, ok
+            ? $"✅ Relay: підключено до {_relayHost}:{_relayPort}"
+            : $"❌ Relay: не вдалося підключитися до {_relayHost}:{_relayPort}");
+        return ok;
+    }
+
+    /// <summary>
+    /// Підключитися до вузла через relay (без портів на обох сторонах)
+    /// </summary>
+    public async Task<bool> ConnectViaRelayAsync(PeerNode peer, BlackID ourBlackID)
+    {
+        if (_relayClient == null || !_relayClient.IsConnected)
+        {
+            RelayStatusChanged?.Invoke(this, "❌ Relay не підключений. Налаштуйте Relay-сервер у налаштуваннях.");
+            return false;
+        }
+
+        Console.WriteLine($"🔌 Relay: підключення до {peer.BlackID}...");
+
+        bool accepted = await _relayClient.RequestConnectionAsync(peer.BlackID);
+        if (!accepted)
+        {
+            ConnectionFailed?.Invoke(this, new TunnelConnectionEventArgs
+            {
+                PeerBlackID = peer.BlackID,
+                Address = peer.Address,
+                Port = peer.Port,
+                Error = "Relay: відхилено або вузол недоступний"
+            });
+            return false;
+        }
+
+        // Реєструємо віртуальне з'єднання
+        var conn = new RelayVirtualConnection
+        {
+            PeerBlackID = peer.BlackID,
+            ConnectedAt = DateTime.UtcNow
+        };
+        _relayConnections[peer.BlackID] = conn;
+
+        ConnectionEstablished?.Invoke(this, new TunnelConnectionEventArgs
+        {
+            PeerBlackID = peer.BlackID,
+            Address = $"relay://{_relayHost}",
+            Port = _relayPort,
+            SessionId = Guid.NewGuid().ToString("N")[..8]
+        });
+
+        Console.WriteLine($"✅ Relay: з'єднано з {peer.BlackID}");
+        return true;
+    }
+
+    /// <summary>
+    /// Надіслати дані через relay (якщо є relay-з'єднання) або через прямий тунель
+    /// </summary>
+    public async Task<bool> SendDataViaRelayAsync(string peerBlackID, byte[] data)
+    {
+        if (_relayClient != null && _relayConnections.ContainsKey(peerBlackID))
+            return await _relayClient.SendDataAsync(data);
+        return await SendDataAsync(peerBlackID, data);
+    }
+
+    private void OnRelayDataReceived(object? sender, RelayDataEventArgs e)
+    {
+        DataReceived?.Invoke(this, new TunnelDataEventArgs
+        {
+            SourceIP = $"relay://{_relayHost}",
+            DestinationIP = "local",
+            Data = e.Data
+        });
+    }
+
+    private void OnRelayIncomingRequest(object? sender, RelayIncomingMsg e)
+    {
+        // Показати той самий toast що і для прямих з'єднань
+        var approvalSource = new TaskCompletionSource<bool>();
+        var args = new BlackCat.NetworkCore.IncomingConnectionRequestEventArgs
+        {
+            PeerBlackID   = e.From,
+            PeerIP        = $"{e.FromIP} (via relay)",
+            ApprovalSource = approvalSource
+        };
+
+        IncomingConnectionRequest?.Invoke(this, args);
+
+        // Чекати відповідь користувача і переслати relay-серверу
+        _ = Task.Run(async () =>
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            cts.Token.Register(() => approvalSource.TrySetResult(false));
+            bool approved = await approvalSource.Task;
+
+            await _relayClient!.RespondToIncomingAsync(approved,
+                approved ? "" : "Відхилено користувачем");
+
+            if (approved)
+            {
+                var conn = new RelayVirtualConnection
+                {
+                    PeerBlackID = e.From,
+                    ConnectedAt = DateTime.UtcNow
+                };
+                _relayConnections[e.From] = conn;
+
+                ConnectionEstablished?.Invoke(this, new TunnelConnectionEventArgs
+                {
+                    PeerBlackID = e.From,
+                    Address     = $"relay://{_relayHost}",
+                    Port        = _relayPort,
+                    SessionId   = Guid.NewGuid().ToString("N")[..8]
+                });
+            }
+        });
+    }
+
+    public event EventHandler<string>? RelayStatusChanged;
+
     /// <summary>
     /// Додає правило у Windows Firewall щоб дозволити вхідні TCP-з'єднання на вказаний порт.
     /// Повертає повідомлення для відображення в UI.
@@ -445,17 +595,13 @@ public class TunnelManager : IDisposable
 
     public void Dispose()
     {
-        // Від'єднати всі активні тунелі
         foreach (var blackID in _activeTunnels.Keys.ToList())
-        {
             DisconnectFromNode(blackID);
-        }
 
         _serverTunnel?.Stop();
         _serverTunnel?.Dispose();
-
-        // Закрити UPnP порт
         _natManager?.Dispose();
+        _relayClient?.Dispose();
     }
 }
 
@@ -495,6 +641,15 @@ public class TunnelDataEventArgs : EventArgs
     public string SourceIP { get; set; } = string.Empty;
     public string DestinationIP { get; set; } = string.Empty;
     public byte[] Data { get; set; } = Array.Empty<byte>();
+}
+
+/// <summary>
+/// Віртуальне з'єднання через relay (без прямого TCP)
+/// </summary>
+public class RelayVirtualConnection
+{
+    public string PeerBlackID { get; set; } = string.Empty;
+    public DateTime ConnectedAt { get; set; }
 }
 
 /// <summary>

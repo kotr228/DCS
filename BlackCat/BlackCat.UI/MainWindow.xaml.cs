@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
 using BlackCat.Core;
+using BlackCat.Core.Configuration;
 using BlackCat.Core.Data;
 using BlackCat.Core.Services;
 using BlackCat.Shared.Models;
@@ -172,12 +173,31 @@ public partial class MainWindow : Window
                 _tunnelManager.UPnPStatusChanged        += OnUPnPStatusChanged;
                 _tunnelManager.FirewallStatusChanged    += (_, msg) => Dispatcher.Invoke(() => AddLog(msg));
                 _tunnelManager.NatDiagnosticReady       += OnNatDiagnosticReady;
+                _tunnelManager.RelayStatusChanged       += (_, msg) => Dispatcher.Invoke(() => AddLog(msg));
 
                 // Запустити сервер для прийому вхідних з'єднань
                 await _tunnelManager.StartServerAsync(ourBlackID);
 
                 AddLog($"✅ TunnelManager запущено (порт 9999)");
                 AddLog($"💡 Поділіться своєю IP-адресою з іншим користувачем для підключення");
+
+                // Запустити relay якщо налаштовано
+                var relayCfg = RelayConfig.Load();
+                if (relayCfg.Enabled && !string.IsNullOrWhiteSpace(relayCfg.Host))
+                {
+                    _tunnelManager.SetRelayServer(relayCfg.Host, relayCfg.Port);
+                    AddLog($"🔀 Підключення до relay-сервера {relayCfg.Host}:{relayCfg.Port}...");
+                    _ = Task.Run(async () =>
+                    {
+                        bool ok = await _tunnelManager.StartRelayAsync(ourBlackID);
+                        if (!ok)
+                            Dispatcher.Invoke(() => AddLog("⚠️ Relay: не вдалося підключитися. Тунелі через relay недоступні."));
+                    });
+                }
+                else
+                {
+                    AddLog("ℹ️ Relay не налаштовано. Для роботи без відкритих портів налаштуйте Relay в Налаштуваннях.");
+                }
 
                 // Показати IP — спочатку локальну, потім реальну публічну через ipify.org
                 _ = Task.Run(async () =>
@@ -842,12 +862,24 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException($"Вузол {_selectedTunnel.BlackID} не знайдено в базі даних");
             }
 
-            // Реальне підключення через TunnelManager
-            bool success = await _tunnelManager.ConnectToNodeAsync(peerNode, ourBlackID);
+            bool success = false;
+
+            // Спробувати relay якщо підключений
+            if (_tunnelManager.IsRelayConfigured)
+            {
+                AddLog($"🔀 Спроба підключення через relay...");
+                success = await _tunnelManager.ConnectViaRelayAsync(peerNode, ourBlackID);
+                if (!success)
+                    AddLog($"⚠️ Relay не вдалося — пробую пряме підключення...");
+            }
+
+            // Пряме підключення якщо relay не спрацював
+            if (!success)
+                success = await _tunnelManager.ConnectToNodeAsync(peerNode, ourBlackID);
 
             if (!success)
             {
-                throw new InvalidOperationException("Не вдалося встановити з'єднання");
+                throw new InvalidOperationException("Не вдалося встановити з'єднання ні через relay, ні напряму");
             }
 
             // Успішне підключення обробляється в події OnTunnelConnectionEstablished
