@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj": {}
+    "G:\\DCS\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj": {}
   },
   "projects": {
-    "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj": {
+    "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj",
+        "projectUniqueName": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj",
         "projectName": "GrayCat.Core",
-        "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj",
-        "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Core\\obj\\",
+        "projectPath": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj",
+        "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
+        "outputPath": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -31,6 +31,7 @@
         },
         "frameworks": {
           "net8.0": {
+            "framework": "net8.0",
             "targetAlias": "net8.0",
             "projectReferences": {}
           }
@@ -45,10 +46,11 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "10.0.300"
       },
       "frameworks": {
         "net8.0": {
+          "framework": "net8.0",
           "targetAlias": "net8.0",
           "dependencies": {
             "Microsoft.EntityFrameworkCore.Design": {
@@ -78,24 +80,24 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.306/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300-preview.0.26177.108/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj": {
+    "G:\\DCS\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj",
+        "projectUniqueName": "G:\\DCS\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj",
         "projectName": "GrayCat.Service",
-        "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj",
-        "packagesPath": "C:\\Users\\trock\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Service\\obj\\",
+        "projectPath": "G:\\DCS\\GrayCatSolution\\GrayCat.Service\\GrayCat.Service.csproj",
+        "packagesPath": "C:\\Users\\коте\\.nuget\\packages\\",
+        "outputPath": "G:\\DCS\\GrayCatSolution\\GrayCat.Service\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\trock\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\коте\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -109,10 +111,11 @@
         },
         "frameworks": {
           "net8.0": {
+            "framework": "net8.0",
             "targetAlias": "net8.0",
             "projectReferences": {
-              "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj": {
-                "projectPath": "C:\\Users\\trock\\Desktop\\DCS\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj"
+              "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj": {
+                "projectPath": "G:\\DCS\\GrayCatSolution\\GrayCat.Core\\GrayCat.Core.csproj"
               }
             }
           }
@@ -127,10 +130,11 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "10.0.300"
       },
       "frameworks": {
         "net8.0": {
+          "framework": "net8.0",
           "targetAlias": "net8.0",
           "dependencies": {
             "Microsoft.Extensions.Hosting": {
@@ -177,7 +181,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.306/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.300-preview.0.26177.108/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
