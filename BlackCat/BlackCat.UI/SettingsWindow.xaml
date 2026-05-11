@@ -1,0 +1,356 @@
+<mah:MetroWindow x:Class="BlackCat.UI.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
+        Title="Налаштування BlackCat" Height="600" Width="800"
+        WindowStartupLocation="CenterOwner"
+        Background="#1E1E1E"
+        Foreground="White">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Заголовок -->
+        <TextBlock Grid.Row="0" Text="Налаштування брандмауера"
+                   FontSize="24" FontWeight="Bold" Margin="0,0,0,20"/>
+
+        <!-- Табконтрол з налаштуваннями -->
+        <TabControl Grid.Row="1" Margin="0,0,0,20">
+
+            <!-- Загальні налаштування -->
+            <TabItem Header="Загальні">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+
+                        <!-- Black-ID -->
+                        <GroupBox Header="Black-ID" Margin="0,0,0,20">
+                            <StackPanel Margin="10">
+                                <TextBlock Text="Поточний Black-ID:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                <TextBox x:Name="CurrentBlackIDTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" FontSize="14" Padding="5"/>
+
+                                <Button x:Name="CreateBlackIDButton" Content="Створити новий Black-ID"
+                                        Margin="0,10,0,0" Padding="10,5" Click="CreateBlackIDButton_Click"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- Порт тунелю -->
+                        <GroupBox Header="Мережа" Margin="0,0,0,20">
+                            <StackPanel Margin="10">
+                                <TextBlock Text="Порт тунелю:" Margin="0,0,0,5"/>
+                                <mah:NumericUpDown x:Name="TunnelPortNumeric"
+                                                   Minimum="1024" Maximum="65535"
+                                                   Value="9999" Width="150" HorizontalAlignment="Left"/>
+                                <TextBlock Text="Змінюється після перезапуску"
+                                           Foreground="Gray" FontSize="11" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- Relay Server -->
+                        <GroupBox Header="🔀 Relay (тунель без відкритих портів)" Margin="0,0,0,20">
+                            <StackPanel Margin="10">
+                                <TextBlock TextWrapping="Wrap" Foreground="#808080" FontSize="11" Margin="0,0,0,10"
+                                           Text="Обидва пристрої підключаються до relay-вузла назовні — жодному не потрібен відкритий порт."/>
+
+                                <!-- Секція: цей комп'ютер як relay -->
+                                <Border Background="#1A2A1A" BorderBrush="#2E7D32" BorderThickness="1"
+                                        CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="📡 Зробити ЦЕЙ комп'ютер relay-вузлом" FontWeight="Bold" Margin="0,0,0,6"/>
+                                        <TextBlock TextWrapping="Wrap" Foreground="#808080" FontSize="11" Margin="0,0,0,8"
+                                                   Text="Якщо роутер підтримує UPnP — порт відкриється автоматично. Потім передайте адресу нижче іншому пристрою."/>
+                                        <CheckBox x:Name="RunAsRelayServerCheckBox"
+                                                  Content="Запустити relay-сервер на цьому комп'ютері"
+                                                  Margin="0,0,0,8"/>
+                                        <TextBlock Text="Порт relay-сервера:" Margin="0,0,0,4"/>
+                                        <mah:NumericUpDown x:Name="RelayServerPortNumeric"
+                                                           Minimum="1024" Maximum="65535" Value="9997"
+                                                           Width="120" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+                                        <TextBlock Text="Адреса для передачі іншому:" Foreground="#808080" FontSize="11" Margin="0,0,0,4"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" x:Name="MyRelayAddressTextBox"
+                                                     IsReadOnly="True" FontFamily="Consolas" FontSize="12"
+                                                     Background="#252526" Foreground="#4EC9B0" Padding="5"
+                                                     Text="(запустіть брандмауер щоб дізнатися)"/>
+                                            <Button Grid.Column="1" Content="📋" Margin="5,0,0,0" Padding="8,5"
+                                                    Click="CopyMyRelayAddress_Click" ToolTip="Скопіювати адресу relay"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Секція: підключитися до relay іншого -->
+                                <Border Background="#1A1A2A" BorderBrush="#1565C0" BorderThickness="1"
+                                        CornerRadius="4" Padding="10">
+                                    <StackPanel>
+                                        <TextBlock Text="🌐 Підключитися через relay іншого пристрою" FontWeight="Bold" Margin="0,0,0,6"/>
+                                        <TextBlock TextWrapping="Wrap" Foreground="#808080" FontSize="11" Margin="0,0,0,8"
+                                                   Text="Введіть адресу relay-сервера, яку передав вам інший користувач."/>
+                                        <TextBlock Text="Адреса relay-сервера:" Margin="0,0,0,4"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="80"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" x:Name="RelayHostTextBox"
+                                                     Background="#1E1E1E" Foreground="White" BorderBrush="#4EC9B0"
+                                                     Padding="5" FontFamily="Consolas"
+                                                     ToolTip="IP або домен relay-сервера, наприклад: 81.162.255.205"/>
+                                            <mah:NumericUpDown Grid.Column="2" x:Name="RelayPortNumeric"
+                                                               Minimum="1" Maximum="65535" Value="9997"/>
+                                        </Grid>
+                                        <CheckBox x:Name="RelayEnabledCheckBox"
+                                                  Content="Використовувати цей relay для з'єднань"
+                                                  Margin="0,10,0,0" IsChecked="False"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- Stealth Mode -->
+                        <GroupBox Header="Безпека" Margin="0,0,0,20">
+                            <StackPanel Margin="10">
+                                <CheckBox x:Name="StealthModeCheckBox"
+                                          Content="Увімкнути Stealth Mode (рекомендовано)"
+                                          IsChecked="True" Margin="0,0,0,10"/>
+                                <TextBlock Text="В режимі невидимки порт виглядає закритим для сканерів"
+                                           Foreground="Gray" FontSize="11" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                        <!-- Автозапуск -->
+                        <GroupBox Header="Автозапуск">
+                            <StackPanel Margin="10">
+                                <CheckBox x:Name="AutoStartCheckBox"
+                                          Content="Запускати BlackCat при старті системи"
+                                          Margin="0,0,0,10"/>
+                                <CheckBox x:Name="StartMinimizedCheckBox"
+                                          Content="Запускати згорнутим в трей"/>
+                            </StackPanel>
+                        </GroupBox>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Налаштування логування -->
+            <TabItem Header="Логування">
+                <StackPanel Margin="10">
+                    <GroupBox Header="Журнал подій">
+                        <StackPanel Margin="10">
+                            <CheckBox x:Name="LogToFileCheckBox"
+                                      Content="Зберігати логи в файл"
+                                      IsChecked="True" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Зберігати логи за останні:" Margin="0,0,0,5"/>
+                            <ComboBox x:Name="LogRetentionComboBox" Width="200" HorizontalAlignment="Left">
+                                <ComboBoxItem Content="7 днів" Tag="7"/>
+                                <ComboBoxItem Content="30 днів" Tag="30" IsSelected="True"/>
+                                <ComboBoxItem Content="90 днів" Tag="90"/>
+                                <ComboBoxItem Content="1 рік" Tag="365"/>
+                            </ComboBox>
+
+                            <Button x:Name="OpenLogFolderButton" Content="Відкрити папку з логами"
+                                    Margin="0,15,0,0" Padding="10,5" Click="OpenLogFolderButton_Click"/>
+                        </StackPanel>
+                    </GroupBox>
+                </StackPanel>
+            </TabItem>
+
+            <!-- Інформація для з'єднання -->
+            <TabItem Header="Для з'єднання">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+
+                        <!-- Інструкція -->
+                        <Border Background="#2D2D30" CornerRadius="5" Padding="15" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="📋 Дані для підключення до цього вузла" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBlock Text="Надайте ці дані іншому користувачу для встановлення з'єднання з вашим вузлом."
+                                           TextWrapping="Wrap" Foreground="Gray"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Основна інформація -->
+                        <GroupBox Header="Основна інформація" Margin="0,0,0,15">
+                            <Grid Margin="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Black-ID -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="🆔 Black-ID:" FontWeight="Bold" Margin="0,5" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" x:Name="ConnectionBlackIDTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5" FontSize="13" Background="#252526"/>
+                                <Button Grid.Row="0" Grid.Column="2" Content="📋 Копіювати" Margin="5,5,0,5" Padding="8,4"
+                                        Click="CopyBlackID_Click" ToolTip="Скопіювати Black-ID"/>
+
+                                <!-- Локальна IP -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="🏠 Локальна IP:" FontWeight="Bold" Margin="0,5" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" x:Name="LocalIPTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5" FontSize="13" Background="#252526"/>
+                                <Button Grid.Row="1" Grid.Column="2" Content="📋 Копіювати" Margin="5,5,0,5" Padding="8,4"
+                                        Click="CopyLocalIP_Click" ToolTip="Скопіювати локальну IP"/>
+
+                                <!-- Зовнішня IP -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="🌐 Зовнішня IP:" FontWeight="Bold" Margin="0,5" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" x:Name="ExternalIPTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5" FontSize="13" Background="#252526"/>
+                                <Button Grid.Row="2" Grid.Column="2" Content="📋 Копіювати" Margin="5,5,0,5" Padding="8,4"
+                                        Click="CopyExternalIP_Click" ToolTip="Скопіювати зовнішню IP"/>
+
+                                <!-- Порт -->
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="🔌 Порт:" FontWeight="Bold" Margin="0,5" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="3" Grid.Column="1" x:Name="ConnectionPortTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5" FontSize="13" Background="#252526"/>
+                                <Button Grid.Row="3" Grid.Column="2" Content="📋 Копіювати" Margin="5,5,0,5" Padding="8,4"
+                                        Click="CopyPort_Click" ToolTip="Скопіювати порт"/>
+
+                                <!-- Hardware Fingerprint -->
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="🔑 HW Fingerprint:" FontWeight="Bold" Margin="0,5" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="4" Grid.Column="1" x:Name="ConnectionFingerprintTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5" FontSize="11" Background="#252526"/>
+                                <Button Grid.Row="4" Grid.Column="2" Content="📋 Копіювати" Margin="5,5,0,5" Padding="8,4"
+                                        Click="CopyFingerprint_Click" ToolTip="Скопіювати fingerprint"/>
+
+                                <!-- Повна адреса -->
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="📍 Повна адреса:" FontWeight="Bold" Margin="0,5" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="5" Grid.Column="1" x:Name="FullAddressTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5" FontSize="13" Background="#252526" Foreground="#4EC9B0"/>
+                                <Button Grid.Row="5" Grid.Column="2" Content="📋 Копіювати" Margin="5,5,0,5" Padding="8,4"
+                                        Click="CopyFullAddress_Click" ToolTip="Скопіювати повну адресу"/>
+                            </Grid>
+                        </GroupBox>
+
+                        <!-- Додаткова інформація -->
+                        <GroupBox Header="Додаткова інформація" Margin="0,0,0,15">
+                            <Grid Margin="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="180"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="🖥️ Ім'я хоста:" FontWeight="Bold" Margin="0,5"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" x:Name="HostNameTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5" Background="#252526"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="🔄 Статус порту:" FontWeight="Bold" Margin="0,5"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" x:Name="PortStatusTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5" Background="#252526"/>
+                            </Grid>
+                        </GroupBox>
+
+                        <!-- Кнопки дій -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+                            <Button x:Name="RefreshConnectionInfoButton" Content="🔄 Оновити дані"
+                                    Padding="15,8" Margin="0,0,10,0" Click="RefreshConnectionInfo_Click"/>
+                            <Button x:Name="CopyAllConnectionInfoButton" Content="📋 Копіювати все"
+                                    Padding="15,8" Click="CopyAllConnectionInfo_Click"
+                                    ToolTip="Скопіювати всю інформацію в буфер обміну"/>
+                        </StackPanel>
+
+                        <!-- Підказка -->
+                        <Border Background="#2D2D30" CornerRadius="5" Padding="15" Margin="0,15,0,0">
+                            <StackPanel>
+                                <TextBlock Text="💡 Як використовувати:" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBlock TextWrapping="Wrap" Foreground="Gray">
+                                    <Run Text="1. "/>
+                                    <Run Text="Локальна IP" FontWeight="Bold"/>
+                                    <Run Text=" - для з'єднання в межах однієї мережі (Wi-Fi, LAN)"/>
+                                    <LineBreak/>
+                                    <LineBreak/>
+                                    <Run Text="2. "/>
+                                    <Run Text="Зовнішня IP" FontWeight="Bold"/>
+                                    <Run Text=" - для з'єднання через Інтернет (потрібно налаштувати Port Forwarding на роутері)"/>
+                                    <LineBreak/>
+                                    <LineBreak/>
+                                    <Run Text="3. "/>
+                                    <Run Text="Black-ID та HW Fingerprint" FontWeight="Bold"/>
+                                    <Run Text=" - необхідні для автентифікації вузла"/>
+                                    <LineBreak/>
+                                    <LineBreak/>
+                                    <Run Text="4. Натисніть " />
+                                    <Run Text="'Копіювати все'" FontWeight="Bold"/>
+                                    <Run Text=" та надішліть інформацію іншому користувачу через захищений канал"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Hardware Info -->
+            <TabItem Header="Система">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10">
+                        <GroupBox Header="Апаратна інформація">
+                            <Grid Margin="10">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="CPU ID:" FontWeight="Bold" Margin="0,5"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" x:Name="CpuIdTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Motherboard:" FontWeight="Bold" Margin="0,5"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" x:Name="MotherboardTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="MAC Address:" FontWeight="Bold" Margin="0,5"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" x:Name="MacAddressTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Fingerprint:" FontWeight="Bold" Margin="0,5"/>
+                                <TextBox Grid.Row="3" Grid.Column="1" x:Name="FingerprintTextBox" IsReadOnly="True"
+                                         FontFamily="Consolas" Margin="0,5"/>
+                            </Grid>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- Кнопки -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="SaveButton" Content="Зберегти"
+                    Width="100" Padding="10,5" Margin="0,0,10,0"
+                    Click="SaveButton_Click"/>
+            <Button x:Name="CancelButton" Content="Скасувати"
+                    Width="100" Padding="10,5"
+                    Click="CancelButton_Click"/>
+        </StackPanel>
+
+    </Grid>
+</mah:MetroWindow>
