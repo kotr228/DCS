@@ -1115,12 +1115,10 @@ public partial class MainWindow : Window
             }
 
             // Спробувати UPnP для відкриття порту relay назовні
-            string? publicIP = null;
             try
             {
                 using var natMgr = new NatManager(serverPort, "BlackCat Relay Server");
                 bool upnpOk = await natMgr.TryOpenPortAsync();
-                publicIP = natMgr.ExternalIP ?? _tunnelManager?.ExternalIP;
                 if (upnpOk)
                     Dispatcher.Invoke(() => AddLog($"✅ UPnP: порт {serverPort} відкрито автоматично"));
                 else
@@ -1131,8 +1129,16 @@ public partial class MainWindow : Window
                 Dispatcher.Invoke(() => AddLog($"⚠️ UPnP: {upnpEx.Message}"));
             }
 
+            // Отримати справжню публічну IP через ipify (чекати до 10 секунд)
+            string? publicIP = null;
+            for (int i = 0; i < 10; i++)
+            {
+                publicIP = _tunnelManager?.ExternalIP;
+                if (!string.IsNullOrEmpty(publicIP)) break;
+                await Task.Delay(1000);
+            }
             if (string.IsNullOrEmpty(publicIP))
-                publicIP = _tunnelManager?.ExternalIP ?? "?.?.?.?";
+                publicIP = "?.?.?.?";
 
             var relayAddress = $"{publicIP}:{serverPort}";
             Dispatcher.Invoke(() =>

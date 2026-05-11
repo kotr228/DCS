@@ -59,8 +59,18 @@ public class TunnelManager : IDisposable
     /// <summary>Налаштувати relay-сервер (host:port). Якщо задано — використовується для з'єднань</summary>
     public void SetRelayServer(string host, int port = 9997)
     {
-        _relayHost = host;
-        _relayPort = port;
+        // Дозволяємо передавати host у форматі "1.2.3.4:9997" — розбити на частини
+        if (host.Contains(':'))
+        {
+            var parts = host.Split(':', 2);
+            _relayHost = parts[0];
+            _relayPort = int.TryParse(parts[1], out int parsed) ? parsed : port;
+        }
+        else
+        {
+            _relayHost = host;
+            _relayPort = port;
+        }
     }
 
     public bool IsRelayConfigured => !string.IsNullOrWhiteSpace(_relayHost);
