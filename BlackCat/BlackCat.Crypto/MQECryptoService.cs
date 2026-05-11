@@ -13,7 +13,9 @@ public class MQECryptoService
     private readonly string _masterSecret;
     private const int BLOCK_SIZE = 4; // 4 байти = 1 кватерніон
     private const int MODULUS = 256;
-    private const int TIMESTAMP_VALIDITY_SECONDS = 5;
+    // 30с: достатньо для WAN-латентності + розсинхронізації годинників між машинами,
+    // і при цьому все ще захищає від replay-атак.
+    private const int TIMESTAMP_VALIDITY_SECONDS = 30;
 
     public MQECryptoService(string masterSecret)
     {
