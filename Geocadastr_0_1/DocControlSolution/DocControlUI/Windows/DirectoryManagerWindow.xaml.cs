@@ -1,5 +1,6 @@
 using DocControlService.Client;
 using DocControlService.Shared;
+using DocControlUI.Services;
 using MahApps.Metro.Controls;
 using System;
 using System.Collections.Generic;
@@ -726,6 +727,132 @@ namespace DocControlUI.Windows
             paragraph.Append(run);
             cell.Append(paragraph);
             return cell;
+        }
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // Git-аналітика: Excel
+        // ──────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Обробник кнопки "Аналітичний звіт Excel".
+        /// Завантажує git-історію обраної директорії і генерує .xlsx через GitAnalyticsReportService.
+        /// </summary>
+        private async void ExportGitReportToExcel_Click(object sender, RoutedEventArgs e)
+        {
+            if (_vcSelectedDirectory == null)
+            {
+                MessageBox.Show("Виберіть директорію на вкладці «Контроль версій».",
+                    "Увага", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                var saveDialog = new SaveFileDialog
+                {
+                    Filter   = "Excel файли (*.xlsx)|*.xlsx",
+                    FileName = $"GitАналітика_{_vcSelectedDirectory.Name}_{DateTime.Now:yyyy-MM-dd_HH-mm}.xlsx"
+                };
+
+                if (saveDialog.ShowDialog() != true) return;
+
+                SetStatus("Генерація Excel-звіту з git-аналітики...");
+
+                var history = await _client.GetGitHistoryAsync(_vcSelectedDirectory.Id);
+
+                if (history.Count == 0)
+                {
+                    MessageBox.Show("Для обраної директорії ще немає комітів у git-репозиторії.",
+                        "Немає даних", MessageBoxButton.OK, MessageBoxImage.Information);
+                    SetStatus("Готово");
+                    return;
+                }
+
+                await System.Threading.Tasks.Task.Run(() =>
+                {
+                    var svc = new GitAnalyticsReportService();
+                    svc.GenerateExcelReport(history, saveDialog.FileName, _vcSelectedDirectory.Name);
+                });
+
+                SetStatus("Готово");
+                MessageBox.Show($"Excel-звіт збережено:\n{saveDialog.FileName}",
+                    "Звіт готовий", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName        = saveDialog.FileName,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка: {ex.Message}");
+                MessageBox.Show($"Помилка при генерації Excel-звіту:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // ──────────────────────────────────────────────────────────────────────────
+        // Git-аналітика: Word
+        // ──────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Обробник кнопки "Аналітичний звіт Word".
+        /// Завантажує git-історію обраної директорії і генерує .docx через GitAnalyticsReportService.
+        /// </summary>
+        private async void ExportGitReportToWord_Click(object sender, RoutedEventArgs e)
+        {
+            if (_vcSelectedDirectory == null)
+            {
+                MessageBox.Show("Виберіть директорію на вкладці «Контроль версій».",
+                    "Увага", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            try
+            {
+                var saveDialog = new SaveFileDialog
+                {
+                    Filter   = "Word документи (*.docx)|*.docx",
+                    FileName = $"GitАналітика_{_vcSelectedDirectory.Name}_{DateTime.Now:yyyy-MM-dd_HH-mm}.docx"
+                };
+
+                if (saveDialog.ShowDialog() != true) return;
+
+                SetStatus("Генерація Word-звіту з git-аналітики...");
+
+                var history = await _client.GetGitHistoryAsync(_vcSelectedDirectory.Id);
+
+                if (history.Count == 0)
+                {
+                    MessageBox.Show("Для обраної директорії ще немає комітів у git-репозиторії.",
+                        "Немає даних", MessageBoxButton.OK, MessageBoxImage.Information);
+                    SetStatus("Готово");
+                    return;
+                }
+
+                await System.Threading.Tasks.Task.Run(() =>
+                {
+                    var svc = new GitAnalyticsReportService();
+                    svc.GenerateWordReport(history, saveDialog.FileName, _vcSelectedDirectory.Name);
+                });
+
+                SetStatus("Готово");
+                MessageBox.Show($"Word-звіт збережено:\n{saveDialog.FileName}",
+                    "Звіт готовий", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName        = saveDialog.FileName,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                SetStatus($"Помилка: {ex.Message}");
+                MessageBox.Show($"Помилка при генерації Word-звіту:\n{ex.Message}",
+                    "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         #endregion
