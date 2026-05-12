@@ -518,7 +518,7 @@ public class TunnelManager : IDisposable
         if (_udpTunnels.TryGetValue(peerBlackID, out var udpTunnel) && udpTunnel.IsConnected)
         {
             try { await udpTunnel.SendAsync(data); return true; }
-            catch { _udpTunnels.TryRemove(peerBlackID, out _); }
+            catch { _udpTunnels.TryRemove(peerBlackID, out var removed); removed?.Dispose(); }
         }
 
         if (_relayClient != null && _relayConnections.ContainsKey(peerBlackID))
@@ -722,7 +722,7 @@ public class TunnelManager : IDisposable
             });
             tunnel.Disconnected += (_, reason) =>
             {
-                _udpTunnels.TryRemove(peerBlackID, out _);
+                _udpTunnels.TryRemove(peerBlackID, out var dead); dead?.Dispose();
                 Console.WriteLine($"⚠️ UDP тунель до {peerBlackID} закрито: {reason}");
             };
             tunnel.Start();
