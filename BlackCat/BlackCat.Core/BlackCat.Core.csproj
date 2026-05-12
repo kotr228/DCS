@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\BlackCat.Shared\BlackCat.Shared.csproj" />
     <ProjectReference Include="..\BlackCat.NetworkCore\BlackCat.NetworkCore.csproj" />
+    <ProjectReference Include="..\BlackCat.Crypto\BlackCat.Crypto.csproj" />
   </ItemGroup>
 
   <ItemGroup>

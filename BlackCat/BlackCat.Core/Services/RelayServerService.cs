@@ -128,6 +128,10 @@ public class RelayServerService : IDisposable
                         await HandleRejectAsync(session, frame.Value.payload, ct);
                         break;
 
+                    case RelayProtocol.CmdStunAnswer:
+                        await HandleStunAnswerAsync(session, frame.Value.payload, ct);
+                        break;
+
                     case RelayProtocol.CmdPing:
                         await RelayProtocol.WriteControlAsync(session.Stream, new RelaySimpleMsg(RelayProtocol.CmdPong), ct);
                         break;
@@ -145,6 +149,18 @@ public class RelayServerService : IDisposable
                     catch { session.Partner = null; }
                 }
             }
+        }
+    }
+
+    private async Task HandleStunAnswerAsync(RelaySession sender, byte[] payload, CancellationToken ct)
+    {
+        var msg = RelayProtocol.ParseControl<RelayStunAnswerMsg>(payload);
+        if (msg == null || string.IsNullOrEmpty(msg.To)) return;
+
+        if (_sessions.TryGetValue(msg.To, out var target))
+        {
+            try { await RelayProtocol.WriteControlAsync(target.Stream, msg, ct); }
+            catch { }
         }
     }
 
@@ -166,11 +182,12 @@ public class RelayServerService : IDisposable
         target.PendingRequester = requester;
         requester.PendingTarget = target;
 
-        // Повідомити target про вхідний запит
+        // Повідомити target про вхідний запит (включаємо STUN endpoint для hole punching)
         await RelayProtocol.WriteControlAsync(target.Stream, new RelayIncomingMsg
         {
-            From   = requester.BlackID,
-            FromIP = requester.RemoteIP
+            From         = requester.BlackID,
+            FromIP       = requester.RemoteIP,
+            StunEndpoint = msg.StunEndpoint
         }, ct);
 
         WriteLog($"📨 Надіслано запит підключення від {requester.BlackID} до {target.BlackID}");

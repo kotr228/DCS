@@ -22,6 +22,7 @@ public class RelayTunnelClient : IDisposable
 
     public event EventHandler<RelayDataEventArgs>?    DataReceived;
     public event EventHandler<RelayIncomingMsg>?      IncomingRequest;
+    public event EventHandler<RelayStunAnswerMsg>?    StunAnswerReceived;
     public event EventHandler<string>?                Log;
     public event EventHandler<string>?                Disconnected;
 
@@ -78,16 +79,13 @@ public class RelayTunnelClient : IDisposable
     /// <summary>
     /// Запросити з'єднання з іншим вузлом через relay
     /// </summary>
-    public async Task<bool> RequestConnectionAsync(string targetBlackID, CancellationToken cancellationToken = default)
+    public async Task<bool> RequestConnectionAsync(string targetBlackID, string? ourStunEndpoint = null, CancellationToken cancellationToken = default)
     {
         if (_stream == null || !_registered) return false;
 
         var tcs = new TaskCompletionSource<bool>();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
         timeout.Token.Register(() => tcs.TrySetResult(false));
-
-        // Тимчасово перехоплюємо відповідь relay
-        EventHandler<RelayIncomingMsg>? incomingHandler = null;
 
         void OnAcceptedOrRejected(string cmd)
         {
@@ -99,12 +97,27 @@ public class RelayTunnelClient : IDisposable
 
         await RelayProtocol.WriteControlAsync(_stream, new RelayConnectMsg
         {
-            Target = targetBlackID,
-            From   = _ourBlackID
+            Target       = targetBlackID,
+            From         = _ourBlackID,
+            StunEndpoint = ourStunEndpoint
         }, cancellationToken);
 
         WriteLog($"🔌 Relay: запит на підключення до {targetBlackID}...");
         return await tcs.Task;
+    }
+
+    /// <summary>
+    /// Надіслати STUN endpoint через relay до вказаного вузла (для hole punching)
+    /// </summary>
+    public async Task SendStunAnswerAsync(string toBlackID, string ourStunEndpoint, CancellationToken ct = default)
+    {
+        if (_stream == null || !_registered) return;
+        await RelayProtocol.WriteControlAsync(_stream, new RelayStunAnswerMsg
+        {
+            To           = toBlackID,
+            From         = _ourBlackID,
+            StunEndpoint = ourStunEndpoint
+        }, ct);
     }
 
     private Action<string>? _pendingConnectionCallback;
@@ -178,6 +191,12 @@ public class RelayTunnelClient : IDisposable
                             WriteLog($"❌ Relay: відхилено — {rej?.Reason}");
                             _pendingConnectionCallback?.Invoke(RelayProtocol.CmdRejected);
                             _pendingConnectionCallback = null;
+                            break;
+
+                        case RelayProtocol.CmdStunAnswer:
+                            var stunMsg = RelayProtocol.ParseControl<RelayStunAnswerMsg>(frame.Value.payload);
+                            if (stunMsg != null)
+                                StunAnswerReceived?.Invoke(this, stunMsg);
                             break;
 
                         case RelayProtocol.CmdPong:
