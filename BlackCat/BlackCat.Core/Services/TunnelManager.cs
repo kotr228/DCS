@@ -661,15 +661,18 @@ public class TunnelManager : IDisposable
         IProgress<int>? progress = null,
         CancellationToken ct = default)
     {
-        var crypto  = new MQECryptoService(_masterSecret);
+        var crypto     = new MQECryptoService(_masterSecret);
         var punchBytes = new byte[] { 0xBC, 0xAA };
         using var punchCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         punchCts.CancelAfter(TimeSpan.FromSeconds(durationSeconds));
 
-        // Слухаємо відповідь у фоні
+        IPEndPoint? answeredEp = null;
+
+        // Слухаємо відповідь у фоні; після отримання — скасовуємо punch
         var listenTask = Task.Run(async () =>
         {
-            IPEndPoint? answeredEp = null;
+            // Встановлюємо socket receive timeout щоб не зависати вічно
+            udp.Client.ReceiveTimeout = 500;
             while (!punchCts.IsCancellationRequested)
             {
                 try
@@ -679,29 +682,32 @@ public class TunnelManager : IDisposable
                     {
                         answeredEp = res.RemoteEndPoint;
                         punchCts.Cancel();
+                        return;
                     }
                 }
-                catch { break; }
+                catch (OperationCanceledException) { break; }
+                catch { /* SocketException timeout — продовжуємо цикл */ }
             }
-            return answeredEp;
-        }, punchCts.Token);
+        });
 
-        // Надсилаємо punch-пакети кожні 200 мс
-        var start = DateTime.UtcNow;
+        // Надсилаємо punch-пакети кожні 200 мс, репортуємо зворотний відлік
+        var deadline = DateTime.UtcNow.AddSeconds(durationSeconds);
         while (!punchCts.IsCancellationRequested)
         {
             try
             {
                 await udp.SendAsync(punchBytes, punchBytes.Length, peerEp);
-                var elapsed = (int)(DateTime.UtcNow - start).TotalSeconds;
-                progress?.Report(elapsed);
+                int remaining = Math.Max(0, (int)(deadline - DateTime.UtcNow).TotalSeconds);
+                progress?.Report(remaining);
                 await Task.Delay(200, punchCts.Token);
             }
             catch (OperationCanceledException) { break; }
             catch { break; }
         }
 
-        var answeredEp = await listenTask;
+        // Дати listenTask максимум 1 секунду щоб завершитись
+        await Task.WhenAny(listenTask, Task.Delay(1000));
+
         if (answeredEp == null) return false;
 
         // Запустити UDP тунель

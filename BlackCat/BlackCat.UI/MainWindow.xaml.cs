@@ -1254,12 +1254,14 @@ public partial class MainWindow : Window
 
         AddLog($"🕳️ P2P: запуск hole punch → {peerEp} (30 сек)");
 
-        var progress = new Progress<int>(sec =>
+        var progress = new Progress<int>(remaining =>
         {
             Dispatcher.Invoke(() =>
             {
-                P2PProgressBar.Value = sec;
-                P2PStatusText.Text   = $"Очікування відповіді... {sec}/30 сек";
+                P2PProgressBar.Value = 30 - remaining;
+                P2PStatusText.Text   = remaining > 0
+                    ? $"Очікування відповіді... залишилось {remaining} сек"
+                    : "Час вийшов...";
             });
         });
 
@@ -1299,9 +1301,12 @@ public partial class MainWindow : Window
         }
         else
         {
-            P2PProgressBar.Value = 0;
-            P2PStatusText.Text   = "❌ Не вдалося — спробуй ще раз або перевір код";
-            AddLog("❌ P2P: hole punch невдалий. Можливо симетричний NAT або часова різниця > 30 сек");
+            P2PProgressBar.Value            = 0;
+            P2PStatusText.Text              = "❌ Не вдалося — натисни ще раз або перевір код";
+            P2PStatusText.Foreground        = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(0xF4, 0x87, 0x71));
+            AddLog("❌ P2P: hole punch невдалий. Причини: другий пристрій не натиснув «З'єднати», " +
+                   "часова різниця > 30 сек, або симетричний NAT у провайдера");
         }
     }
 
