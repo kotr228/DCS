@@ -1384,19 +1384,21 @@ public partial class MainWindow : Window
             var ourId = _ourBlackID?.FullID
                       ?? _blackIDRepository.GetActiveBlackID()?.FullID
                       ?? "UNKNOWN";
-            var json  = System.Text.Json.JsonSerializer.Serialize(
-                            new { blackID = ourId, displayName = ourId });
+            var json      = System.Text.Json.JsonSerializer.Serialize(
+                                new { blackID = ourId, displayName = ourId });
             var jsonBytes = System.Text.Encoding.UTF8.GetBytes(json);
-            var packet = new byte[NodeInfoMarker.Length + jsonBytes.Length];
+            var packet    = new byte[NodeInfoMarker.Length + jsonBytes.Length];
             NodeInfoMarker.CopyTo(packet, 0);
             jsonBytes.CopyTo(packet, NodeInfoMarker.Length);
 
-            await _tunnelManager.SendDataViaRelayAsync(peerBlackID, packet);
-            Dispatcher.Invoke(() => AddLog($"📤 Надіслано інформацію про вузол → {peerBlackID}"));
+            bool sent = await _tunnelManager.SendDataViaRelayAsync(peerBlackID, packet);
+            Dispatcher.Invoke(() => AddLog(sent
+                ? $"📤 Надіслано node info → {peerBlackID}"
+                : $"⚠️ Node info: тунель не знайдено для '{peerBlackID}'"));
         }
         catch (Exception ex)
         {
-            Dispatcher.Invoke(() => AddLog($"⚠️ Не вдалося надіслати node info: {ex.Message}"));
+            Dispatcher.Invoke(() => AddLog($"⚠️ SendNodeInfo error: {ex.Message}"));
         }
     }
 
@@ -1404,32 +1406,48 @@ public partial class MainWindow : Window
     {
         try
         {
-            var json    = System.Text.Encoding.UTF8.GetString(data, NodeInfoMarker.Length,
-                              data.Length - NodeInfoMarker.Length);
+            var json      = System.Text.Encoding.UTF8.GetString(
+                                data, NodeInfoMarker.Length, data.Length - NodeInfoMarker.Length);
             using var doc = System.Text.Json.JsonDocument.Parse(json);
             var blackID   = doc.RootElement.GetProperty("blackID").GetString();
             var name      = doc.RootElement.TryGetProperty("displayName", out var dn)
                                 ? dn.GetString() : blackID;
             if (string.IsNullOrEmpty(blackID)) return;
 
-            var node = _tunnelNodes.FirstOrDefault(t => t.IPAddress == sourceIP);
-            if (node != null && node.BlackID != blackID)
-            {
-                var oldId  = node.BlackID;
-                var dbPeer = _peerNodeRepository.GetPeerNodeByBlackID(oldId);
-                if (dbPeer != null)
-                {
-                    dbPeer.BlackID      = blackID;
-                    dbPeer.DisplayName  = name ?? blackID;
-                    _peerNodeRepository.UpdatePeerNode(dbPeer);
-                }
-                node.BlackID     = blackID;
-                node.DisplayName = name ?? blackID;
-                AddLog($"🆔 Вузол ідентифіковано: {blackID} ({sourceIP})");
+            AddLog($"📥 Отримано node info від {sourceIP}: {blackID}");
 
-                // Відповісти своєю інформацією
-                _ = Task.Run(() => SendNodeInfoAsync(blackID));
+            var node = _tunnelNodes.FirstOrDefault(t => t.IPAddress == sourceIP);
+            if (node == null)
+            {
+                AddLog($"⚠️ Node info: вузол з IP {sourceIP} не знайдено в списку");
+                return;
             }
+
+            if (node.BlackID == blackID) return; // вже актуальний — ігноруємо
+
+            var oldId      = node.BlackID;
+            var wasTempId  = oldId.StartsWith("peer_");
+
+            // Перейменувати тунель ДО відповіді, щоб SendNodeInfoAsync знайшов його
+            _tunnelManager?.RenameUdpTunnel(oldId, blackID);
+
+            // Оновити БД
+            var dbPeer = _peerNodeRepository.GetPeerNodeByBlackID(oldId);
+            if (dbPeer != null)
+            {
+                dbPeer.BlackID     = blackID;
+                dbPeer.DisplayName = name ?? blackID;
+                _peerNodeRepository.UpdatePeerNode(dbPeer);
+            }
+
+            // Оновити UI
+            node.BlackID     = blackID;
+            node.DisplayName = name ?? blackID;
+            AddLog($"🆔 Вузол ідентифіковано: {blackID} ({sourceIP})");
+
+            // Відповісти своєю інформацією (лише якщо мали тимчасовий ID — уникаємо петлі)
+            if (wasTempId)
+                _ = Task.Run(() => SendNodeInfoAsync(blackID));
         }
         catch (Exception ex)
         {

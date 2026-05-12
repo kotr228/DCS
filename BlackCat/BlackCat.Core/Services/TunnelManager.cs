@@ -309,6 +309,19 @@ public class TunnelManager : IDisposable
     }
 
     /// <summary>
+    /// Перейменувати ключ UDP тунелю (після авто-ідентифікації реального Black-ID)
+    /// </summary>
+    public void RenameUdpTunnel(string oldKey, string newKey)
+    {
+        if (oldKey == newKey) return;
+        if (_udpTunnels.TryRemove(oldKey, out var tunnel))
+        {
+            _udpTunnels[newKey] = tunnel;
+            Console.WriteLine($"🔑 Tunnel key: {oldKey} → {newKey}");
+        }
+    }
+
+    /// <summary>
     /// Від'єднатися від вузла (TCP або UDP P2P тунель)
     /// </summary>
     public void DisconnectFromNode(string peerBlackID)
