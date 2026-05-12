@@ -1249,9 +1249,9 @@ public partial class MainWindow : Window
         // Тимчасовий ID до авто-обміну інформацією
         var peerBlackID = $"peer_{peerEp.Address}_{peerEp.Port}";
 
-        // Додати вузол у список ДО hole punch, щоб OnTunnelConnectionEstablished знайшов його
+        // Шукаємо існуючий вузол лише за IP (порт змінюється кожну сесію)
         var existingItem = _tunnelNodes.FirstOrDefault(t =>
-            t.IPAddress == peerEp.Address.ToString() && t.Port == peerEp.Port);
+            t.IPAddress == peerEp.Address.ToString());
         bool wasNew = existingItem == null;
         if (existingItem == null)
         {
@@ -1269,7 +1269,8 @@ public partial class MainWindow : Window
         }
         else
         {
-            peerBlackID = existingItem.BlackID; // використовуємо збережений BlackID
+            peerBlackID           = existingItem.BlackID; // використовуємо збережений BlackID
+            existingItem.Port     = peerEp.Port;          // оновлюємо порт
             existingItem.IsConnecting  = true;
             existingItem.StatusDisplay = "Підключення...";
         }
@@ -1322,10 +1323,11 @@ public partial class MainWindow : Window
             P2PStatusText.Text   = "✅ З'єднано!";
             AddLog($"✅ P2P: прямий UDP тунель встановлено ({peerEp})");
 
-            // Зберегти у телефонну книгу
+            // Зберегти у телефонну книгу (шукаємо за IP щоб уникнути дублікатів)
             try
             {
-                var dbPeer = _peerNodeRepository.GetPeerNodeByBlackID(peerBlackID);
+                var dbPeer = _peerNodeRepository.GetAllPeerNodes()
+                    .FirstOrDefault(p => p.Address == peerEp.Address.ToString() && p.IsActive);
                 if (dbPeer == null)
                 {
                     _peerNodeRepository.AddPeerNode(new BlackCat.Shared.Models.PeerNode
@@ -1342,9 +1344,19 @@ public partial class MainWindow : Window
                 }
                 else
                 {
-                    dbPeer.LastConnectedAt = DateTime.UtcNow;
+                    // Оновити порт і статистику, не змінюючи BlackID
+                    dbPeer.Port                  = peerEp.Port;
+                    dbPeer.LastConnectedAt       = DateTime.UtcNow;
                     dbPeer.SuccessfulConnections++;
                     _peerNodeRepository.UpdatePeerNode(dbPeer);
+                    // Якщо знайдений запис має інший BlackID — оновити UI елемент
+                    if (existingItem.BlackID != dbPeer.BlackID)
+                    {
+                        _tunnelManager?.RenameUdpTunnel(peerBlackID, dbPeer.BlackID);
+                        existingItem.BlackID     = dbPeer.BlackID;
+                        existingItem.DisplayName = dbPeer.DisplayName;
+                        peerBlackID              = dbPeer.BlackID;
+                    }
                 }
             }
             catch (Exception ex) { AddLog($"⚠️ Не вдалося зберегти в книгу: {ex.Message}"); }
@@ -1431,19 +1443,42 @@ public partial class MainWindow : Window
             // Перейменувати тунель ДО відповіді, щоб SendNodeInfoAsync знайшов його
             _tunnelManager?.RenameUdpTunnel(oldId, blackID);
 
-            // Оновити БД
-            var dbPeer = _peerNodeRepository.GetPeerNodeByBlackID(oldId);
-            if (dbPeer != null)
-            {
-                dbPeer.BlackID     = blackID;
-                dbPeer.DisplayName = name ?? blackID;
-                _peerNodeRepository.UpdatePeerNode(dbPeer);
-            }
-
-            // Оновити UI
+            // Оновити UI одразу (до DB — щоб UNIQUE constraint не блокував)
             node.BlackID     = blackID;
             node.DisplayName = name ?? blackID;
             AddLog($"🆔 Вузол ідентифіковано: {blackID} ({sourceIP})");
+
+            // Оновити БД з обробкою UNIQUE constraint
+            try
+            {
+                var existingWithRealId = _peerNodeRepository.GetPeerNodeByBlackID(blackID);
+                var dbPeer             = _peerNodeRepository.GetPeerNodeByBlackID(oldId);
+
+                if (existingWithRealId != null)
+                {
+                    // Справжній BlackID вже є в БД (з попередньої сесії)
+                    // Видаляємо тимчасовий запис, оновлюємо існуючий
+                    if (dbPeer != null && dbPeer.Id != existingWithRealId.Id)
+                        _peerNodeRepository.DeletePeerNode(dbPeer.Id);
+
+                    existingWithRealId.Address               = sourceIP;
+                    existingWithRealId.Port                  = node.Port;
+                    existingWithRealId.DisplayName           = name ?? blackID;
+                    existingWithRealId.LastConnectedAt       = DateTime.UtcNow;
+                    existingWithRealId.SuccessfulConnections++;
+                    _peerNodeRepository.UpdatePeerNode(existingWithRealId);
+                }
+                else if (dbPeer != null)
+                {
+                    dbPeer.BlackID     = blackID;
+                    dbPeer.DisplayName = name ?? blackID;
+                    _peerNodeRepository.UpdatePeerNode(dbPeer);
+                }
+            }
+            catch (Exception dbEx)
+            {
+                AddLog($"⚠️ DB update error: {dbEx.Message}");
+            }
 
             // Відповісти своєю інформацією (лише якщо мали тимчасовий ID — уникаємо петлі)
             if (wasTempId)
