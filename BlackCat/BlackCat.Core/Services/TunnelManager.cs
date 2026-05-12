@@ -647,6 +647,84 @@ public class TunnelManager : IDisposable
         }
     }
 
+    // ─── MANUAL HOLE PUNCHING (без сервера) ──────────────────────────────────
+
+    /// <summary>
+    /// Ручний hole punch: надсилає punch-пакети до peerEp протягом durationSeconds секунд.
+    /// Повертає true якщо пір відповів (NAT пробито).
+    /// </summary>
+    public async Task<bool> ManualHolePunchAsync(
+        string peerBlackID,
+        IPEndPoint peerEp,
+        UdpClient udp,
+        int durationSeconds = 30,
+        IProgress<int>? progress = null,
+        CancellationToken ct = default)
+    {
+        var crypto  = new MQECryptoService(_masterSecret);
+        var punchBytes = new byte[] { 0xBC, 0xAA };
+        using var punchCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        punchCts.CancelAfter(TimeSpan.FromSeconds(durationSeconds));
+
+        // Слухаємо відповідь у фоні
+        var listenTask = Task.Run(async () =>
+        {
+            IPEndPoint? answeredEp = null;
+            while (!punchCts.IsCancellationRequested)
+            {
+                try
+                {
+                    var res = await udp.ReceiveAsync(punchCts.Token);
+                    if (res.RemoteEndPoint.Address.Equals(peerEp.Address))
+                    {
+                        answeredEp = res.RemoteEndPoint;
+                        punchCts.Cancel();
+                    }
+                }
+                catch { break; }
+            }
+            return answeredEp;
+        }, punchCts.Token);
+
+        // Надсилаємо punch-пакети кожні 200 мс
+        var start = DateTime.UtcNow;
+        while (!punchCts.IsCancellationRequested)
+        {
+            try
+            {
+                await udp.SendAsync(punchBytes, punchBytes.Length, peerEp);
+                var elapsed = (int)(DateTime.UtcNow - start).TotalSeconds;
+                progress?.Report(elapsed);
+                await Task.Delay(200, punchCts.Token);
+            }
+            catch (OperationCanceledException) { break; }
+            catch { break; }
+        }
+
+        var answeredEp = await listenTask;
+        if (answeredEp == null) return false;
+
+        // Запустити UDP тунель
+        var tunnel = new UdpEncryptedTunnel(udp, crypto, answeredEp);
+        tunnel.DataReceived += (_, data) => DataReceived?.Invoke(this, new TunnelDataEventArgs
+        {
+            SourceIP      = answeredEp.Address.ToString(),
+            DestinationIP = "local",
+            Data          = data
+        });
+        tunnel.Disconnected += (_, reason) =>
+        {
+            _udpTunnels.TryRemove(peerBlackID, out var dead); dead?.Dispose();
+            Console.WriteLine($"⚠️ Manual UDP тунель до {peerBlackID} закрито: {reason}");
+        };
+        tunnel.Start();
+        _udpTunnels[peerBlackID] = tunnel;
+
+        Console.WriteLine($"✅ Manual hole punch: прямий UDP тунель до {peerBlackID} ({answeredEp})");
+        RelayStatusChanged?.Invoke(this, $"✅ Прямий UDP тунель (manual P2P) до {peerBlackID}");
+        return true;
+    }
+
     // ─── UDP HOLE PUNCHING ────────────────────────────────────────────────────
 
     private void OnStunAnswerReceived(object? sender, RelayStunAnswerMsg msg)

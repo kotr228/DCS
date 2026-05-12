@@ -21,6 +21,10 @@ public partial class MainWindow : Window
     private FirewallCoordinator? _coordinator;
     private TunnelManager? _tunnelManager;
     private RelayServerService? _embeddedRelayServer;
+
+    // P2P manual signaling
+    private System.Net.Sockets.UdpClient? _p2pUdpSocket;
+    private CancellationTokenSource? _p2pPunchCts;
     private readonly DispatcherTimer _updateTimer;
     private readonly RuleRepository _ruleRepository;
     private readonly ProcessLookupService _processLookupService;
@@ -1154,8 +1158,157 @@ public partial class MainWindow : Window
         }
     }
 
+    // ─── P2P MANUAL SIGNALING ─────────────────────────────────────────────────
+
+    private async void P2PGetCodeButton_Click(object sender, RoutedEventArgs e)
+    {
+        P2PGetCodeButton.IsEnabled = false;
+        P2PCopyButton.IsEnabled    = false;
+        P2PMyCodeText.Text         = "⏳ Запит до STUN...";
+        P2PMyCodeText.Foreground   = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromRgb(0x80, 0x80, 0x80));
+
+        try
+        {
+            _p2pUdpSocket?.Dispose();
+            _p2pUdpSocket = new System.Net.Sockets.UdpClient(
+                System.Net.Sockets.AddressFamily.InterNetwork);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            var ep = await BlackCat.NetworkCore.StunClient
+                         .GetPublicEndpointAsync(_p2pUdpSocket, cts.Token);
+
+            if (ep == null)
+            {
+                P2PMyCodeText.Text       = "❌ STUN недоступний — перевірте інтернет";
+                P2PMyCodeText.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(0xF4, 0x87, 0x71));
+                _p2pUdpSocket.Dispose();
+                _p2pUdpSocket = null;
+            }
+            else
+            {
+                P2PMyCodeText.Text       = ep.ToString();
+                P2PMyCodeText.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(0x4E, 0xC9, 0xB0));
+                P2PCopyButton.IsEnabled  = true;
+                AddLog($"🌐 P2P: твій STUN endpoint = {ep}");
+            }
+        }
+        catch (Exception ex)
+        {
+            P2PMyCodeText.Text = $"❌ {ex.Message}";
+        }
+        finally
+        {
+            P2PGetCodeButton.IsEnabled = true;
+        }
+    }
+
+    private void P2PCopyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var code = P2PMyCodeText.Text;
+        if (!string.IsNullOrEmpty(code) && code.Contains(':'))
+        {
+            Clipboard.SetText(code);
+            AddLog("📋 P2P: код скопійовано в буфер обміну");
+        }
+    }
+
+    private async void P2PConnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        // Скасувати якщо вже йде
+        if (_p2pPunchCts != null)
+        {
+            _p2pPunchCts.Cancel();
+            return;
+        }
+
+        if (_p2pUdpSocket == null)
+        {
+            AddLog("❌ P2P: спочатку натисни «Отримати код»");
+            return;
+        }
+
+        var peerCode = P2PPeerCodeTextBox.Text.Trim();
+        if (!System.Net.IPEndPoint.TryParse(peerCode, out var peerEp))
+        {
+            AddLog("❌ P2P: невалідний код друга (очікується IP:порт, наприклад 81.162.255.205:54321)");
+            return;
+        }
+
+        if (_tunnelManager == null)
+        {
+            AddLog("❌ P2P: TunnelManager не запущено — спочатку запусти захист");
+            return;
+        }
+
+        // Отримати BlackID друга з коду або використати "p2p_peer"
+        var peerBlackID = $"p2p_{peerEp.Address}";
+
+        _p2pPunchCts = new CancellationTokenSource();
+        P2PConnectButton.Content    = "⏹️ Зупинити";
+        P2PGetCodeButton.IsEnabled  = false;
+        P2PProgressBar.Value        = 0;
+        P2PStatusText.Text          = "Пробиваємо NAT...";
+
+        AddLog($"🕳️ P2P: запуск hole punch → {peerEp} (30 сек)");
+
+        var progress = new Progress<int>(sec =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                P2PProgressBar.Value = sec;
+                P2PStatusText.Text   = $"Очікування відповіді... {sec}/30 сек";
+            });
+        });
+
+        bool success;
+        try
+        {
+            success = await _tunnelManager.ManualHolePunchAsync(
+                peerBlackID, peerEp, _p2pUdpSocket,
+                durationSeconds: 30,
+                progress: progress,
+                ct: _p2pPunchCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            success = false;
+        }
+        finally
+        {
+            _p2pPunchCts?.Dispose();
+            _p2pPunchCts = null;
+        }
+
+        P2PConnectButton.Content   = "🚀 З'єднати (30 сек)";
+        P2PGetCodeButton.IsEnabled = true;
+
+        if (success)
+        {
+            P2PProgressBar.Value = 30;
+            P2PStatusText.Text   = "✅ З'єднано!";
+            AddLog($"✅ P2P: прямий UDP тунель встановлено з {peerEp}");
+            // Після успіху сокет вже у тунелі — скинути щоб не можна було повторно використати
+            _p2pUdpSocket = null;
+            P2PCopyButton.IsEnabled = false;
+            P2PMyCodeText.Text      = "Натисни «Отримати код» для нового з'єднання";
+            P2PMyCodeText.Foreground = new System.Windows.Media.SolidColorBrush(
+                System.Windows.Media.Color.FromRgb(0x80, 0x80, 0x80));
+        }
+        else
+        {
+            P2PProgressBar.Value = 0;
+            P2PStatusText.Text   = "❌ Не вдалося — спробуй ще раз або перевір код";
+            AddLog("❌ P2P: hole punch невдалий. Можливо симетричний NAT або часова різниця > 30 сек");
+        }
+    }
+
     protected override void OnClosed(EventArgs e)
     {
+        _p2pPunchCts?.Cancel();
+        _p2pUdpSocket?.Dispose();
         _embeddedRelayServer?.Dispose();
         _tunnelManager?.Dispose();
         _connectionMonitor?.Dispose();

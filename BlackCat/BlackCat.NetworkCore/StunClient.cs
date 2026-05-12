@@ -29,11 +29,34 @@ public static class StunClient
         return null;
     }
 
+    /// <summary>
+    /// Повертає публічний endpoint для вже відкритого UDP сокета.
+    /// Використовувати для manual hole punching щоб STUN endpoint збігався з портом для punch.
+    /// </summary>
+    public static async Task<IPEndPoint?> GetPublicEndpointAsync(UdpClient udp, CancellationToken ct = default)
+    {
+        foreach (var (host, port) in Servers)
+        {
+            var ep = await TryServerAsync(udp, host, port, ct);
+            if (ep != null) return ep;
+        }
+        return null;
+    }
+
     private static async Task<IPEndPoint?> TryServerAsync(string host, int port, CancellationToken ct)
     {
         try
         {
             using var udp = new UdpClient(AddressFamily.InterNetwork);
+            return await TryServerAsync(udp, host, port, ct);
+        }
+        catch { return null; }
+    }
+
+    private static async Task<IPEndPoint?> TryServerAsync(UdpClient udp, string host, int port, CancellationToken ct)
+    {
+        try
+        {
 
             // Binding Request: type=0x0001, len=0, magic=0x2112A442, random transId
             var req = new byte[20];
