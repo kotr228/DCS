@@ -964,6 +964,25 @@ public partial class MainWindow : Window
                 AddLog($"✅ Підключено до {e.PeerBlackID}");
                 AddLog($"   🔒 Handshake пройшов успішно!");
                 AddLog($"   Session ID: {e.SessionId}");
+
+                // Зберегти подію в БД
+                try
+                {
+                    _eventRepository.LogEvent(new BlackCat.Shared.Models.ConnectionEvent
+                    {
+                        RemoteBlackID    = e.PeerBlackID,
+                        RemoteIP         = tunnel.IPAddress,
+                        RemotePort       = tunnel.Port,
+                        InitiatorBlackID = _ourBlackID?.FullID,
+                        TargetBlackID    = e.PeerBlackID,
+                        EventType        = ConnectionEventType.Connected,
+                        Direction        = ConnectionDirection.Outbound,
+                        Message          = $"P2P з'єднання встановлено з {e.PeerBlackID} ({tunnel.IPAddress}:{tunnel.Port})",
+                        IsAuthenticated  = true,
+                        Timestamp        = DateTime.UtcNow
+                    });
+                }
+                catch (Exception logEx) { AddLog($"⚠️ Event log error: {logEx.Message}"); }
             }
         });
     }
@@ -992,6 +1011,22 @@ public partial class MainWindow : Window
                 }
 
                 AddLog($"⚠️ З'єднання втрачено: {e.PeerBlackID}");
+
+                // Зберегти подію в БД
+                try
+                {
+                    _eventRepository.LogEvent(new BlackCat.Shared.Models.ConnectionEvent
+                    {
+                        RemoteBlackID = e.PeerBlackID,
+                        RemoteIP      = tunnel?.IPAddress ?? string.Empty,
+                        RemotePort    = tunnel?.Port ?? 0,
+                        EventType     = ConnectionEventType.Disconnected,
+                        Direction     = ConnectionDirection.Outbound,
+                        Message       = $"З'єднання з {e.PeerBlackID} розірвано",
+                        Timestamp     = DateTime.UtcNow
+                    });
+                }
+                catch { }
             }
         });
     }
@@ -1356,6 +1391,10 @@ public partial class MainWindow : Window
                         existingItem.BlackID     = dbPeer.BlackID;
                         existingItem.DisplayName = dbPeer.DisplayName;
                         peerBlackID              = dbPeer.BlackID;
+                        // Видалити дублікат якщо реальний BlackID вже є в списку
+                        var dup = _tunnelNodes.FirstOrDefault(
+                            t => t != existingItem && t.BlackID == existingItem.BlackID);
+                        if (dup != null) _tunnelNodes.Remove(dup);
                     }
                 }
             }
@@ -1447,6 +1486,10 @@ public partial class MainWindow : Window
             node.BlackID     = blackID;
             node.DisplayName = name ?? blackID;
             AddLog($"🆔 Вузол ідентифіковано: {blackID} ({sourceIP})");
+
+            // Видалити дублікат якщо такий BlackID вже був у списку (старий або тимчасовий)
+            var dupNode = _tunnelNodes.FirstOrDefault(t => t != node && t.BlackID == blackID);
+            if (dupNode != null) _tunnelNodes.Remove(dupNode);
 
             // Оновити БД з обробкою UNIQUE constraint
             try
