@@ -309,20 +309,28 @@ public class TunnelManager : IDisposable
     }
 
     /// <summary>
-    /// Від'єднатися від вузла
+    /// Від'єднатися від вузла (TCP або UDP P2P тунель)
     /// </summary>
     public void DisconnectFromNode(string peerBlackID)
     {
+        bool disconnected = false;
+
         if (_activeTunnels.TryRemove(peerBlackID, out var connection))
         {
             connection.Stream?.Close();
             connection.TcpClient?.Close();
+            disconnected = true;
+        }
 
-            ConnectionLost?.Invoke(this, new TunnelConnectionEventArgs
-            {
-                PeerBlackID = peerBlackID
-            });
+        if (_udpTunnels.TryRemove(peerBlackID, out var udpTunnel))
+        {
+            udpTunnel.Dispose();
+            disconnected = true;
+        }
 
+        if (disconnected)
+        {
+            ConnectionLost?.Invoke(this, new TunnelConnectionEventArgs { PeerBlackID = peerBlackID });
             Console.WriteLine($"🔌 Від'єднано від {peerBlackID}");
         }
     }
@@ -720,11 +728,20 @@ public class TunnelManager : IDisposable
         });
         tunnel.Disconnected += (_, reason) =>
         {
-            _udpTunnels.TryRemove(peerBlackID, out var dead); dead?.Dispose();
+            if (_udpTunnels.TryRemove(peerBlackID, out var dead)) dead?.Dispose();
+            ConnectionLost?.Invoke(this, new TunnelConnectionEventArgs { PeerBlackID = peerBlackID });
             Console.WriteLine($"⚠️ Manual UDP тунель до {peerBlackID} закрито: {reason}");
         };
         tunnel.Start();
         _udpTunnels[peerBlackID] = tunnel;
+
+        ConnectionEstablished?.Invoke(this, new TunnelConnectionEventArgs
+        {
+            PeerBlackID = peerBlackID,
+            Address     = answeredEp.Address.ToString(),
+            Port        = answeredEp.Port,
+            SessionId   = Guid.NewGuid().ToString("N")[..8]
+        });
 
         Console.WriteLine($"✅ Manual hole punch: прямий UDP тунель до {peerBlackID} ({answeredEp})");
         RelayStatusChanged?.Invoke(this, $"✅ Прямий UDP тунель (manual P2P) до {peerBlackID}");

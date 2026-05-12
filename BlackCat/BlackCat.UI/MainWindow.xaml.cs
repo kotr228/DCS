@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private System.Net.Sockets.UdpClient? _p2pUdpSocket;
     private CancellationTokenSource? _p2pPunchCts;
     private BlackCat.Shared.Models.BlackID? _ourBlackID;
+    private (string BlackID, string IP, int Port, string Name)? _p2pLoadedPeer;
     private readonly DispatcherTimer _updateTimer;
     private readonly RuleRepository _ruleRepository;
     private readonly ProcessLookupService _processLookupService;
@@ -336,6 +337,16 @@ public partial class MainWindow : Window
 
         // Оновити час роботи
         UptimeText.Text = $"Час роботи: {stats.Uptime:hh\\:mm\\:ss}";
+
+        // Оновити деталі вибраного тунелю якщо підключено
+        if (_selectedTunnel != null && _selectedTunnel.IsConnected)
+        {
+            if (_selectedTunnel.LastHandshake != DateTime.MinValue)
+                _selectedTunnel.ConnectionTime = DateTime.Now - _selectedTunnel.LastHandshake;
+            TunnelUptime.Text = _selectedTunnel.ConnectionTime.ToString(@"hh\:mm\:ss");
+            TunnelSentBytes.Text = FormatBytes(_selectedTunnel.SentBytes);
+            TunnelReceivedBytes.Text = FormatBytes(_selectedTunnel.ReceivedBytes);
+        }
 
         // Додати мітку часу
         var elapsed = DateTime.Now - _startTime;
@@ -1015,7 +1026,8 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
-            AddLog($"📨 Отримано дані: {e.Data.Length} байт від {e.SourceIP}");
+            var tunnel = _tunnelNodes.FirstOrDefault(t => t.IPAddress == e.SourceIP);
+            if (tunnel != null) tunnel.ReceivedBytes += e.Data.Length;
         });
     }
 
@@ -1162,12 +1174,12 @@ public partial class MainWindow : Window
             }
             else
             {
-                var blackIDPrefix = _ourBlackID?.FullID ?? "UNKNOWN";
-                P2PMyCodeText.Text       = $"{blackIDPrefix}@{ep}";
+                P2PMyCodeText.Text       = ep.ToString();
                 P2PMyCodeText.Foreground = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromRgb(0x4E, 0xC9, 0xB0));
-                P2PCopyButton.IsEnabled  = true;
-                AddLog($"🌐 P2P: твій код = {P2PMyCodeText.Text}");
+                P2PCopyButton.IsEnabled    = true;
+                P2PSaveFileButton.IsEnabled = true;
+                AddLog($"🌐 P2P: твій endpoint = {P2PMyCodeText.Text}");
             }
         }
         catch (Exception ex)
@@ -1186,13 +1198,85 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(code) && code.Contains(':'))
         {
             Clipboard.SetText(code);
-            AddLog("📋 P2P: код скопійовано в буфер обміну");
+            AddLog("📋 P2P: endpoint скопійовано в буфер обміну");
+        }
+    }
+
+    private void P2PSaveFileButton_Click(object sender, RoutedEventArgs e)
+    {
+        var endpointText = P2PMyCodeText.Text;
+        if (!endpointText.Contains(':')) { AddLog("❌ P2P: спочатку отримай код"); return; }
+
+        var ourBlackID = _ourBlackID?.FullID
+                      ?? _blackIDRepository.GetActiveBlackID()?.FullID
+                      ?? "UNKNOWN";
+
+        var colonIdx = endpointText.LastIndexOf(':');
+        var ip   = endpointText[..colonIdx];
+        var port = int.TryParse(endpointText[(colonIdx + 1)..], out int p) ? p : 0;
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName    = ourBlackID,
+            DefaultExt  = ".bcnode",
+            Filter      = "BlackCat Node (*.bcnode)|*.bcnode"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        var json = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            BlackID     = ourBlackID,
+            IP          = ip,
+            Port        = port,
+            DisplayName = ourBlackID,
+            GeneratedAt = DateTime.UtcNow
+        }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+
+        System.IO.File.WriteAllText(dlg.FileName, json);
+        AddLog($"💾 Файл збережено: {System.IO.Path.GetFileName(dlg.FileName)}");
+    }
+
+    private void P2PLoadFileButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            DefaultExt = ".bcnode",
+            Filter     = "BlackCat Node (*.bcnode)|*.bcnode|All files (*.*)|*.*"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        try
+        {
+            var json = System.IO.File.ReadAllText(dlg.FileName);
+            var doc  = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            var blackID = root.GetProperty("BlackID").GetString() ?? "UNKNOWN";
+            var ip      = root.GetProperty("IP").GetString() ?? "";
+            var port    = root.GetProperty("Port").GetInt32();
+            var name    = root.TryGetProperty("DisplayName", out var dn)
+                              ? dn.GetString() ?? blackID : blackID;
+
+            _p2pLoadedPeer = (blackID, ip, port, name);
+
+            P2PPeerInfoText.Text       = $"🆔 {blackID}\n📍 {ip}:{port}";
+            P2PPeerInfoText.Foreground = new SolidColorBrush(Color.FromRgb(0x4E, 0xC9, 0xB0));
+            P2PConnectButton.IsEnabled = true;
+
+            AddLog($"📂 Завантажено вузол: {blackID} @ {ip}:{port}");
+        }
+        catch (Exception ex)
+        {
+            AddLog($"❌ Помилка читання файлу: {ex.Message}");
+            MessageBox.Show($"Не вдалося прочитати файл:\n{ex.Message}",
+                "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
     private async void P2PConnectButton_Click(object sender, RoutedEventArgs e)
     {
-        // Скасувати якщо вже йде
         if (_p2pPunchCts != null)
         {
             _p2pPunchCts.Cancel();
@@ -1205,26 +1289,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        var peerCode = P2PPeerCodeTextBox.Text.Trim();
-
-        // Формат: BlackID@IP:port або просто IP:port
-        string peerBlackID;
-        string endpointPart;
-        var atIdx = peerCode.IndexOf('@');
-        if (atIdx > 0)
+        if (_p2pLoadedPeer == null)
         {
-            peerBlackID  = peerCode[..atIdx];
-            endpointPart = peerCode[(atIdx + 1)..];
-        }
-        else
-        {
-            endpointPart = peerCode;
-            peerBlackID  = $"p2p_{peerCode}";
-        }
-
-        if (!System.Net.IPEndPoint.TryParse(endpointPart, out var peerEp))
-        {
-            AddLog("❌ P2P: невалідний код (очікується BlackID@IP:порт або IP:порт)");
+            AddLog("❌ P2P: спочатку завантаж файл від друга");
             return;
         }
 
@@ -1234,11 +1301,47 @@ public partial class MainWindow : Window
             return;
         }
 
+        var peerBlackID = _p2pLoadedPeer.Value.BlackID;
+        var peerName    = _p2pLoadedPeer.Value.Name;
+
+        if (!System.Net.IPEndPoint.TryParse(
+                $"{_p2pLoadedPeer.Value.IP}:{_p2pLoadedPeer.Value.Port}", out var peerEp))
+        {
+            AddLog("❌ P2P: некоректна адреса у файлі");
+            return;
+        }
+
+        // Додати вузол у список ДО hole punch, щоб OnTunnelConnectionEstablished знайшов його
+        var existingItem = _tunnelNodes.FirstOrDefault(t => t.BlackID == peerBlackID);
+        bool wasNew = existingItem == null;
+        if (existingItem == null)
+        {
+            existingItem = new TunnelNodeItem
+            {
+                BlackID       = peerBlackID,
+                DisplayName   = peerName,
+                IPAddress     = peerEp.Address.ToString(),
+                Port          = peerEp.Port,
+                IsTrusted     = true,
+                IsConnecting  = true,
+                StatusDisplay = "Підключення..."
+            };
+            _tunnelNodes.Add(existingItem);
+        }
+        else
+        {
+            existingItem.IPAddress    = peerEp.Address.ToString();
+            existingItem.Port         = peerEp.Port;
+            existingItem.IsConnecting = true;
+            existingItem.StatusDisplay = "Підключення...";
+        }
+
         _p2pPunchCts = new CancellationTokenSource();
         P2PConnectButton.Content    = "⏹️ Зупинити";
         P2PGetCodeButton.IsEnabled  = false;
         P2PProgressBar.Value        = 0;
         P2PStatusText.Text          = "Пробиваємо NAT...";
+        P2PStatusText.Foreground    = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
 
         AddLog($"🕳️ P2P: запуск hole punch → {peerEp} (30 сек)");
 
@@ -1284,58 +1387,50 @@ public partial class MainWindow : Window
             // Зберегти у телефонну книгу
             try
             {
-                var existing = _peerNodeRepository.GetPeerNodeByBlackID(peerBlackID);
-                if (existing == null)
+                var dbPeer = _peerNodeRepository.GetPeerNodeByBlackID(peerBlackID);
+                if (dbPeer == null)
                 {
                     _peerNodeRepository.AddPeerNode(new BlackCat.Shared.Models.PeerNode
                     {
-                        BlackID     = peerBlackID,
-                        DisplayName = peerBlackID,
-                        Address     = peerEp.Address.ToString(),
-                        Port        = peerEp.Port,
-                        IsTrusted   = true,
-                        LastConnectedAt   = DateTime.UtcNow,
+                        BlackID               = peerBlackID,
+                        DisplayName           = peerName,
+                        Address               = peerEp.Address.ToString(),
+                        Port                  = peerEp.Port,
+                        IsTrusted             = true,
+                        LastConnectedAt       = DateTime.UtcNow,
                         SuccessfulConnections = 1
                     });
-                    // Додати в список
-                    Dispatcher.Invoke(() => _tunnelNodes.Add(new TunnelNodeItem
-                    {
-                        BlackID     = peerBlackID,
-                        DisplayName = peerBlackID,
-                        IPAddress   = peerEp.Address.ToString(),
-                        Port        = peerEp.Port,
-                        IsTrusted   = true,
-                        IsConnected = true,
-                        StatusDisplay = "Підключено (P2P)"
-                    }));
                     AddLog($"📖 Додано до телефонної книги: {peerBlackID}");
                 }
                 else
                 {
-                    existing.Address = peerEp.Address.ToString();
-                    existing.Port    = peerEp.Port;
-                    existing.LastConnectedAt = DateTime.UtcNow;
-                    existing.SuccessfulConnections++;
-                    _peerNodeRepository.UpdatePeerNode(existing);
-
-                    var item = _tunnelNodes.FirstOrDefault(t => t.BlackID == peerBlackID);
-                    if (item != null) { item.IsConnected = true; item.StatusDisplay = "Підключено (P2P)"; }
+                    dbPeer.Address = peerEp.Address.ToString();
+                    dbPeer.Port    = peerEp.Port;
+                    dbPeer.LastConnectedAt = DateTime.UtcNow;
+                    dbPeer.SuccessfulConnections++;
+                    _peerNodeRepository.UpdatePeerNode(dbPeer);
                 }
             }
             catch (Exception ex) { AddLog($"⚠️ Не вдалося зберегти в книгу: {ex.Message}"); }
 
-            _p2pUdpSocket = null;
-            P2PCopyButton.IsEnabled = false;
-            P2PMyCodeText.Text      = "Натисни «Отримати код» для нового з'єднання";
-            P2PMyCodeText.Foreground = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromRgb(0x80, 0x80, 0x80));
+            _p2pUdpSocket    = null; // власність тунелю
+            _p2pLoadedPeer   = null;
+            P2PCopyButton.IsEnabled     = false;
+            P2PSaveFileButton.IsEnabled = false;
+            P2PConnectButton.IsEnabled  = false;
+            P2PMyCodeText.Text          = "Натисни «Отримати код» для нового з'єднання";
+            P2PMyCodeText.Foreground    = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
+            P2PPeerInfoText.Text        = "Файл не завантажено";
+            P2PPeerInfoText.Foreground  = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
         }
         else
         {
-            P2PProgressBar.Value            = 0;
-            P2PStatusText.Text              = "❌ Не вдалося — натисни ще раз або перевір код";
-            P2PStatusText.Foreground        = new System.Windows.Media.SolidColorBrush(
-                System.Windows.Media.Color.FromRgb(0xF4, 0x87, 0x71));
+            if (wasNew) _tunnelNodes.Remove(existingItem);
+            else { existingItem.IsConnecting = false; existingItem.StatusDisplay = "Відключено"; }
+
+            P2PProgressBar.Value     = 0;
+            P2PStatusText.Text       = "❌ Не вдалося — спробуй ще раз або обміняйся новими файлами";
+            P2PStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xF4, 0x87, 0x71));
             AddLog("❌ P2P: hole punch невдалий. Причини: другий пристрій не натиснув «З'єднати», " +
                    "часова різниця > 30 сек, або симетричний NAT у провайдера");
         }

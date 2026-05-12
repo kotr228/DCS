@@ -445,7 +445,7 @@
                         <!-- Крок 1 -->
                         <Border Background="#2D2D30" CornerRadius="5" Padding="15" Margin="0,0,0,10">
                             <StackPanel>
-                                <TextBlock Text="① Отримай свій код і надішли другу"
+                                <TextBlock Text="① Отримай код і збережи файл для друга"
                                            FontWeight="Bold" Margin="0,0,0,10"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -467,18 +467,26 @@
                                             Content="🔄 Отримати код" Width="140"
                                             Click="P2PGetCodeButton_Click"/>
                                 </Grid>
+                                <Button x:Name="P2PSaveFileButton" Content="💾 Зберегти мій файл (.bcnode)"
+                                        Margin="0,8,0,0" IsEnabled="False"
+                                        Click="P2PSaveFileButton_Click"/>
                             </StackPanel>
                         </Border>
 
                         <!-- Крок 2 -->
                         <Border Background="#2D2D30" CornerRadius="5" Padding="15" Margin="0,0,0,10">
                             <StackPanel>
-                                <TextBlock Text="② Встав код від друга" FontWeight="Bold" Margin="0,0,0,10"/>
-                                <TextBox x:Name="P2PPeerCodeTextBox"
-                                         Background="#1E1E1E" Foreground="White"
-                                         FontFamily="Consolas" FontSize="13"
-                                         BorderBrush="#6A9955" BorderThickness="1"
-                                         Padding="8"/>
+                                <TextBlock Text="② Завантаж файл від друга (.bcnode)"
+                                           FontWeight="Bold" Margin="0,0,0,10"/>
+                                <Button x:Name="P2PLoadFileButton" Content="📂 Завантажити файл (.bcnode)"
+                                        Click="P2PLoadFileButton_Click"/>
+                                <Border Background="#1E1E1E" BorderBrush="#404040" BorderThickness="1"
+                                        CornerRadius="3" Padding="8,6" Margin="0,8,0,0">
+                                    <TextBlock x:Name="P2PPeerInfoText"
+                                               Text="Файл не завантажено"
+                                               FontFamily="Consolas" FontSize="12"
+                                               Foreground="#808080"/>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -490,6 +498,7 @@
                                 <Button x:Name="P2PConnectButton"
                                         Content="🚀 З'єднати (30 сек)"
                                         Height="38" FontSize="13"
+                                        IsEnabled="False"
                                         Click="P2PConnectButton_Click"/>
                                 <ProgressBar x:Name="P2PProgressBar"
                                              Height="6" Margin="0,12,0,4"
@@ -508,10 +517,11 @@
                                 <TextBlock Text="ℹ️ Як це працює" FontWeight="Bold" Margin="0,0,0,6"/>
                                 <TextBlock Foreground="#90C890" FontSize="11" TextWrapping="Wrap"
                                            LineHeight="18">
-                                    <Run>1. Кожен отримує свій код (публічний UDP endpoint через STUN)</Run><LineBreak/>
-                                    <Run>2. Обмінюєтесь кодами через Telegram / Viber / будь-що</Run><LineBreak/>
-                                    <Run>3. Обидва натискають «З'єднати» — є 30 секунд</Run><LineBreak/>
-                                    <Run>4. Після успіху — прямий зашифрований MQE-тунель без серверів</Run><LineBreak/>
+                                    <Run>1. Натисни «Отримати код» → збережи свій файл (.bcnode)</Run><LineBreak/>
+                                    <Run>2. Надішли файл другу через Telegram / Viber / будь-що</Run><LineBreak/>
+                                    <Run>3. Завантаж файл від друга (крок ②)</Run><LineBreak/>
+                                    <Run>4. Обидва натискають «З'єднати» — є 30 секунд</Run><LineBreak/>
+                                    <Run>5. Після успіху — прямий зашифрований MQE-тунель без серверів</Run><LineBreak/>
                                     <Run Foreground="#C8A050">⚠ Може не спрацювати при симетричному NAT (рідко у домашніх мережах)</Run>
                                 </TextBlock>
                             </StackPanel>
