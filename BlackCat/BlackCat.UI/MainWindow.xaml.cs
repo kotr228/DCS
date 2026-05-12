@@ -25,6 +25,7 @@ public partial class MainWindow : Window
     // P2P manual signaling
     private System.Net.Sockets.UdpClient? _p2pUdpSocket;
     private CancellationTokenSource? _p2pPunchCts;
+    private BlackCat.Shared.Models.BlackID? _ourBlackID;
     private readonly DispatcherTimer _updateTimer;
     private readonly RuleRepository _ruleRepository;
     private readonly ProcessLookupService _processLookupService;
@@ -181,38 +182,10 @@ public partial class MainWindow : Window
                 _tunnelManager.RelayStatusChanged       += (_, msg) => Dispatcher.Invoke(() => AddLog(msg));
 
                 // Запустити сервер для прийому вхідних з'єднань
+                _ourBlackID = ourBlackID;
                 await _tunnelManager.StartServerAsync(ourBlackID);
 
-                AddLog($"✅ TunnelManager запущено (порт 9999)");
-                AddLog($"💡 Поділіться своєю IP-адресою з іншим користувачем для підключення");
-
-                var relayCfg = RelayConfig.Load();
-
-                // Запустити relay-сервер на цій машині якщо налаштовано
-                if (relayCfg.RunAsServer)
-                {
-                    _ = Task.Run(async () =>
-                    {
-                        await StartEmbeddedRelayServerAsync(relayCfg.ServerPort, ourBlackID);
-                    });
-                }
-
-                // Підключитися до relay-сервера якщо налаштовано
-                if (relayCfg.Enabled && !string.IsNullOrWhiteSpace(relayCfg.Host))
-                {
-                    _tunnelManager.SetRelayServer(relayCfg.Host, relayCfg.Port);
-                    AddLog($"🔀 Підключення до relay-сервера {relayCfg.Host}:{relayCfg.Port}...");
-                    _ = Task.Run(async () =>
-                    {
-                        bool ok = await _tunnelManager.StartRelayAsync(ourBlackID);
-                        if (!ok)
-                            Dispatcher.Invoke(() => AddLog("⚠️ Relay: не вдалося підключитися."));
-                    });
-                }
-                else if (!relayCfg.RunAsServer)
-                {
-                    AddLog("ℹ️ Relay не налаштовано. Відкрийте Налаштування → Relay для підключення без портів.");
-                }
+                AddLog($"✅ BlackCat запущено. Використовуй вкладку 🕳️ P2P для з'єднання.");
 
                 // Показати IP — спочатку локальну, потім реальну публічну через ipify.org
                 _ = Task.Run(async () =>
@@ -880,32 +853,33 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException($"Вузол {_selectedTunnel.BlackID} не знайдено в базі даних");
             }
 
-            bool success = false;
+            if (string.IsNullOrEmpty(peerNode.Address))
+                throw new InvalidOperationException(
+                    "Немає збереженого P2P endpoint.\n\nОбміняйтесь кодами у вкладці 🕳️ P2P.");
 
-            // Спробувати relay якщо підключений
-            if (_tunnelManager.IsRelayConfigured)
-            {
-                AddLog($"🔀 Підключення через relay...");
-                success = await _tunnelManager.ConnectViaRelayAsync(peerNode, ourBlackID);
-                if (!success)
-                    AddLog($"⚠️ Relay не відповів — пробую пряме підключення...");
-            }
-            else
-            {
-                AddLog($"ℹ️ Relay не налаштовано — пряме підключення");
-            }
+            if (!System.Net.IPEndPoint.TryParse($"{peerNode.Address}:{peerNode.Port}", out var storedEp))
+                throw new InvalidOperationException("Збережений endpoint некоректний.");
 
-            // Пряме підключення якщо relay не спрацював або не налаштований
-            if (!success)
-                success = await _tunnelManager.ConnectToNodeAsync(peerNode, ourBlackID);
+            // Перепідключення через UDP hole punch до збереженого endpoint
+            _p2pUdpSocket?.Dispose();
+            _p2pUdpSocket = new System.Net.Sockets.UdpClient(
+                System.Net.Sockets.AddressFamily.InterNetwork);
+
+            AddLog($"🕳️ Перепідключення до {peerNode.BlackID} ({storedEp}) — 30 сек...");
+
+            bool success = await _tunnelManager.ManualHolePunchAsync(
+                peerNode.BlackID, storedEp, _p2pUdpSocket, durationSeconds: 30);
 
             if (!success)
             {
-                var hint = _tunnelManager.IsRelayConfigured
-                    ? "Relay не відповів, і пряме підключення не вдалося.\n\nПереконайтесь, що relay-сервер запущено і доступний."
-                    : "Пряме підключення не вдалося.\n\nДля з'єднання без відкритих портів:\n• На ОДНІЙ з машин увімкніть Relay-сервер в Налаштуваннях\n• Введіть адресу relay на ІНШІЙ машині";
-                throw new InvalidOperationException(hint);
+                _p2pUdpSocket?.Dispose();
+                _p2pUdpSocket = null;
+                throw new InvalidOperationException(
+                    "Hole punch не вдався — IP міг змінитись після розриву.\n\n" +
+                    "Обміняйтесь новими кодами у вкладці 🕳️ P2P.");
             }
+
+            _p2pUdpSocket = null; // тепер у тунелі
 
             // Успішне підключення обробляється в події OnTunnelConnectionEstablished
         }
@@ -1188,11 +1162,12 @@ public partial class MainWindow : Window
             }
             else
             {
-                P2PMyCodeText.Text       = ep.ToString();
+                var blackIDPrefix = _ourBlackID?.FullID ?? "UNKNOWN";
+                P2PMyCodeText.Text       = $"{blackIDPrefix}@{ep}";
                 P2PMyCodeText.Foreground = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromRgb(0x4E, 0xC9, 0xB0));
                 P2PCopyButton.IsEnabled  = true;
-                AddLog($"🌐 P2P: твій STUN endpoint = {ep}");
+                AddLog($"🌐 P2P: твій код = {P2PMyCodeText.Text}");
             }
         }
         catch (Exception ex)
@@ -1231,9 +1206,25 @@ public partial class MainWindow : Window
         }
 
         var peerCode = P2PPeerCodeTextBox.Text.Trim();
-        if (!System.Net.IPEndPoint.TryParse(peerCode, out var peerEp))
+
+        // Формат: BlackID@IP:port або просто IP:port
+        string peerBlackID;
+        string endpointPart;
+        var atIdx = peerCode.IndexOf('@');
+        if (atIdx > 0)
         {
-            AddLog("❌ P2P: невалідний код друга (очікується IP:порт, наприклад 81.162.255.205:54321)");
+            peerBlackID  = peerCode[..atIdx];
+            endpointPart = peerCode[(atIdx + 1)..];
+        }
+        else
+        {
+            endpointPart = peerCode;
+            peerBlackID  = $"p2p_{peerCode}";
+        }
+
+        if (!System.Net.IPEndPoint.TryParse(endpointPart, out var peerEp))
+        {
+            AddLog("❌ P2P: невалідний код (очікується BlackID@IP:порт або IP:порт)");
             return;
         }
 
@@ -1242,9 +1233,6 @@ public partial class MainWindow : Window
             AddLog("❌ P2P: TunnelManager не запущено — спочатку запусти захист");
             return;
         }
-
-        // Отримати BlackID друга з коду або використати "p2p_peer"
-        var peerBlackID = $"p2p_{peerEp.Address}";
 
         _p2pPunchCts = new CancellationTokenSource();
         P2PConnectButton.Content    = "⏹️ Зупинити";
@@ -1291,8 +1279,51 @@ public partial class MainWindow : Window
         {
             P2PProgressBar.Value = 30;
             P2PStatusText.Text   = "✅ З'єднано!";
-            AddLog($"✅ P2P: прямий UDP тунель встановлено з {peerEp}");
-            // Після успіху сокет вже у тунелі — скинути щоб не можна було повторно використати
+            AddLog($"✅ P2P: прямий UDP тунель встановлено з {peerBlackID} ({peerEp})");
+
+            // Зберегти у телефонну книгу
+            try
+            {
+                var existing = _peerNodeRepository.GetPeerNodeByBlackID(peerBlackID);
+                if (existing == null)
+                {
+                    _peerNodeRepository.AddPeerNode(new BlackCat.Shared.Models.PeerNode
+                    {
+                        BlackID     = peerBlackID,
+                        DisplayName = peerBlackID,
+                        Address     = peerEp.Address.ToString(),
+                        Port        = peerEp.Port,
+                        IsTrusted   = true,
+                        LastConnectedAt   = DateTime.UtcNow,
+                        SuccessfulConnections = 1
+                    });
+                    // Додати в список
+                    Dispatcher.Invoke(() => _tunnelNodes.Add(new TunnelNodeItem
+                    {
+                        BlackID     = peerBlackID,
+                        DisplayName = peerBlackID,
+                        IPAddress   = peerEp.Address.ToString(),
+                        Port        = peerEp.Port,
+                        IsTrusted   = true,
+                        IsConnected = true,
+                        StatusDisplay = "Підключено (P2P)"
+                    }));
+                    AddLog($"📖 Додано до телефонної книги: {peerBlackID}");
+                }
+                else
+                {
+                    existing.Address = peerEp.Address.ToString();
+                    existing.Port    = peerEp.Port;
+                    existing.LastConnectedAt = DateTime.UtcNow;
+                    existing.SuccessfulConnections++;
+                    _peerNodeRepository.UpdatePeerNode(existing);
+
+                    var item = _tunnelNodes.FirstOrDefault(t => t.BlackID == peerBlackID);
+                    if (item != null) { item.IsConnected = true; item.StatusDisplay = "Підключено (P2P)"; }
+                }
+            }
+            catch (Exception ex) { AddLog($"⚠️ Не вдалося зберегти в книгу: {ex.Message}"); }
+
             _p2pUdpSocket = null;
             P2PCopyButton.IsEnabled = false;
             P2PMyCodeText.Text      = "Натисни «Отримати код» для нового з'єднання";

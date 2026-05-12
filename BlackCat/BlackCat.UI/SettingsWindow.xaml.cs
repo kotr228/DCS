@@ -74,17 +74,6 @@ public partial class SettingsWindow : MetroWindow
             CpuIdTextBox.Text = $"Помилка: {ex.Message}";
         }
 
-        // Relay налаштування
-        try
-        {
-            var cfg = RelayConfig.Load();
-            RelayHostTextBox.Text = cfg.Host;
-            RelayPortNumeric.Value = cfg.Port;
-            RelayEnabledCheckBox.IsChecked = cfg.Enabled;
-            RunAsRelayServerCheckBox.IsChecked = cfg.RunAsServer;
-            RelayServerPortNumeric.Value = cfg.ServerPort;
-        }
-        catch { }
     }
 
     private void CreateBlackIDButton_Click(object sender, RoutedEventArgs e)
@@ -181,33 +170,10 @@ public partial class SettingsWindow : MetroWindow
         }
     }
 
-    private void CopyMyRelayAddress_Click(object sender, RoutedEventArgs e)
-    {
-        CopyToClipboard(MyRelayAddressTextBox.Text, "Адресу relay-сервера");
-    }
-
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            var cfg = new RelayConfig
-            {
-                Host        = RelayHostTextBox.Text.Trim(),
-                Port        = (int)(RelayPortNumeric.Value ?? 9997),
-                Enabled     = RelayEnabledCheckBox.IsChecked == true,
-                RunAsServer = RunAsRelayServerCheckBox.IsChecked == true,
-                ServerPort  = (int)(RelayServerPortNumeric.Value ?? 9997)
-            };
-            cfg.Save();
-
-            DialogResult = true;
-            Close();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Помилка збереження: {ex.Message}", "Помилка",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        DialogResult = true;
+        Close();
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
