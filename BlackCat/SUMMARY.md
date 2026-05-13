@@ -1,310 +1,127 @@
-# BlackCat Firewall - Резюме проекту
+# BlackCat — Короткий довідник
 
-## 🎯 Призначення
+## Що це
 
-BlackCat Firewall - це передовий брандмауер, розроблений для **вирішення критичної проблеми безпеки мережевої комунікації в проекті DCS**.
-
-### Проблема, яку вирішує
-
-У проекті DCS (зокрема в **DocControlSolution**) виявлено критичну вразливість:
-
-```
-❌ Нешифрована мережева передача даних через TCP
-❌ Відсутність TLS/SSL шифрування
-❌ JSON передається в plain text
-❌ Можливість перехоплення конфіденційних даних
-```
-
-**Файл з проблемою:**
-`Geocadastr_0_1/DocControlSolution/DocControlNetworkCore/Services/FileTransferService.cs:85`
-
-### Рішення
-
-BlackCat Firewall впроваджує **унікальне кватерніонне шифрування (MQE)**, яке:
-
-✅ Шифрує всі дані на рівні пакетів
-✅ Використовує динамічні ключі (змінюються кожного разу)
-✅ Захищає від Replay Attack (валідація timestamp)
-✅ Забезпечує цілісність даних (SHA256 checksum)
-✅ Має низьку затримку (< 50 мс)
+BlackCat — брандмауер з вбудованим зашифрованим P2P-тунелем. Два вузли з'єднуються напряму через NAT (UDP hole punching) і обмінюються трафіком, зашифрованим власним алгоритмом MQE (Modular Quaternion Encryption).
 
 ---
 
-## 📦 Склад проекту
+## Ключові компоненти
 
-### Структура (6 проектів)
-
-```
-BlackCat/
-├── BlackCat.Shared          # Спільні моделі (PacketInfo, FilterRule, TunnelPacket)
-├── BlackCat.Crypto          # Кватерніонне шифрування (Quaternion, MQECryptoService)
-├── BlackCat.NetworkCore     # Мережа (PacketInterceptor, SecureTunnelService)
-├── BlackCat.Core            # Бізнес-логіка (FilterEngine, FirewallCoordinator)
-├── BlackCat.Service         # Windows Service (фонова служба)
-└── BlackCat.UI              # WPF інтерфейс (моніторинг в реальному часі)
-```
-
-### Статистика
-
-| Метрика | Значення |
-|---------|----------|
-| Проектів | 6 |
-| Файлів коду | ~20 |
-| Рядків коду | ~3000 |
-| NuGet пакетів | 10 |
-| Документації | 4 файли (README, ARCHITECTURE, BUILD, SUMMARY) |
+| Компонент | Файл | Що робить |
+|-----------|------|-----------|
+| MQE шифрування | `Crypto/MQECryptoService.cs` | Encrypt/Decrypt через кватерніони |
+| Кватерніонна математика | `Crypto/Quaternion.cs` | Множення Гамільтона, mod inverse |
+| UDP тунель | `NetworkCore/UdpEncryptedTunnel.cs` | Зашифрований UDP + keepalive |
+| Hole punching | `Core/Services/TunnelManager.cs` | ManualHolePunchAsync |
+| STUN | `NetworkCore/StunClient.cs` | Визначення публічного endpoint |
+| Фільтр пакетів | `Core/FilterEngine.cs` | Allow/Block/Tunnel за правилами |
+| Телефонна книга | `Core/Data/PeerNodeRepository.cs` | CRUD для SQLite PeerNodes |
+| Головне вікно | `UI/MainWindow.xaml.cs` | P2P signaling, файли, статистика |
 
 ---
 
-## 🔐 Криптографія MQE
-
-### Що таке Modular Quaternion Encryption?
-
-BlackCat використовує **власний алгоритм шифрування** на основі кватерніонів (4-вимірних комплексних чисел).
-
-#### Основні компоненти:
-
-1. **Кватерніон:** `Q = w + xi + yj + zk`
-2. **Ключ:** Генерується з `SHA256(MasterSecret + Timestamp)`
-3. **Шифрування:** `Cipher = Data * Key` (множення Гамільтона)
-4. **Розшифрування:** `Data = Cipher * Key⁻¹`
-
-#### Переваги:
-
-✅ **Стійкість до частотного аналізу** - Нелінійне перетворення
-✅ **Динамічний ключ** - Змінюється для кожного пакету
-✅ **Захист від Replay** - Timestamp валідація (5 сек)
-✅ **Швидкість** - Тільки цілочисельна арифметика
-✅ **256-біт ефективний ключ** - SHA256 hash
-
-#### Приклад:
+## Маркери типів пакетів
 
 ```
-Plaintext:  [72, 101, 108, 108]  // "Hell"
-Timestamp:  638705123456789000
-Key:        SHA256("MySecret" + 638705123456789000)
-            → Quaternion(142, 78, 203, 91)
-Cipher:     Data * Key
-            → [245, 12, 178, 33]  (зашифровано)
+0xFF          — keepalive (raw, не через MQE)
+0xBC 0xAA     — hole punch сигнал
+0xBC 0x1D     — node info exchange (JSON з BlackID)
+0xBC 0x1E     — file transfer
 ```
 
 ---
 
-## 🛡️ Функціональність
+## Формати
 
-### 1. Перехоплення пакетів
-
-- **Raw Sockets** для низькорівневого перехоплення
-- Парсинг IP, TCP, UDP заголовків
-- Вимагає прав адміністратора
-
-### 2. Фільтрація трафіку
-
-- **Whitelist/Blacklist** з пріоритетами
-- **CIDR підтримка** (192.168.0.0/16)
-- **Протокол/Порт фільтри** (TCP, UDP, ICMP)
-- **Три дії:** Allow, Block, Tunnel
-
-### 3. Захищений тунель
-
-- **MQE шифрування** для всіх пакетів
-- **TCP транспорт** (порт 9999)
-- **Автоматична валідація** timestamp і checksum
-- **Peer-to-peer** архітектура
-
-### 4. Моніторинг
-
-- **Real-time графіки** (LiveCharts)
-- **Статистика:** Total, Allowed, Blocked, Tunneled
-- **Швидкість потоку** (KB/s)
-- **Детальне логування** (Serilog)
-
----
-
-## 📊 Технічні характеристики
-
-### Продуктивність
-
-| Параметр | Значення |
-|----------|----------|
-| Затримка шифрування | < 50 мс |
-| Пропускна здатність | До 1 Gbps (hardware limit) |
-| Розмір блоку | 4 байти (1 кватерніон) |
-| Timestamp Validity | 5 секунд |
-| Ефективна довжина ключа | 256 біт (SHA256) |
-
-### Безпека
-
-| Загроза | Захист |
-|---------|--------|
-| Replay Attack | ✅ Timestamp валідація |
-| Man-in-the-Middle | ✅ Кватерніонне шифрування |
-| Частотний аналіз | ✅ Динамічний ключ |
-| Brute Force | ✅ 2²⁵⁶ комбінацій |
-| Підробка пакету | ✅ SHA256 Checksum |
-
----
-
-## 🚀 Швидкий старт
-
-### Встановлення
-
-```bash
-# 1. Клонувати
-git clone https://github.com/kotr228/DCS.git
-cd DCS/BlackCat
-
-# 2. Зібрати
-dotnet restore
-dotnet build --configuration Release
-
-# 3. Запустити UI (як адміністратор)
-cd BlackCat.UI/bin/Release/net8.0-windows
-Start-Process "BlackCat.UI.exe" -Verb RunAs
+### Black-ID
+```
+РОЛЬ-МІСТО-НАЗВА-КОД
+MAIN-KYIV-SERVER-2N4D
 ```
 
-### Використання
-
-1. **Запустити UI** з правами адміністратора
-2. **Натиснути "Запустити"**
-3. **Додати правила фільтрації** (опціонально)
-4. **Переглядати статистику** в реальному часі
-
----
-
-## 📈 Інтеграція з DCS
-
-### Поточний стан
-
-BlackCat створено як **окрему програму**, яка може працювати незалежно.
-
-### Майбутня інтеграція (Roadmap)
-
-#### Фаза 1: Заміна FileTransferService
-```csharp
-// Було (небезпечно):
-using var stream = client.GetStream();
-await stream.WriteAsync(buffer, 0, bytesRead);
-
-// Буде (безпечно):
-var tunnelService = new SecureTunnelService(masterSecret);
-await tunnelService.SendAsync(buffer, remoteIP, remotePort);
+### P2P код (endpoint)
+```
+IP:порт
+81.162.255.205:54321
 ```
 
-#### Фаза 2: Інтеграція в DocControl
-- Замінити `DocControlNetworkCore/FileTransferService.cs` на `BlackCat.NetworkCore/SecureTunnelService.cs`
-- Додати `BlackCat.Crypto` як залежність
-- Налаштувати `MasterSecret` в конфігурації
-- Оновити клієнти DocControlUI
+### Node info пакет
+```
+[0xBC][0x1D] + UTF-8 JSON
+{"blackID":"MAIN-KYIV-SERVER-2N4D","displayName":"MAIN-KYIV-SERVER-2N4D"}
+```
 
-#### Фаза 3: Централізований моніторинг
-- Інтегрувати BlackCat.UI в DocControlUI
-- Показувати статистику мережевого трафіку
-- Логувати всі файлові операції через тунель
-
----
-
-## 🎓 Вивчення проекту
-
-### Для початківців
-
-1. **Читати:** `README.md` - загальний огляд
-2. **Читати:** `ARCHITECTURE.md` - як все працює
-3. **Експериментувати:** Запустити UI та пограти з правилами
-4. **Дебаг:** Відкрити в Visual Studio та прокрокувати код
-
-### Для досвідчених
-
-1. **Читати:** `ARCHITECTURE.md` - детальна архітектура
-2. **Читати:** `BlackCat.Crypto/MQECryptoService.cs` - алгоритм шифрування
-3. **Експериментувати:** Додати нові дії фільтрації (наприклад, RateLimit)
-4. **Контрибутити:** Додати unit-тести, benchmarks
+### File transfer пакет
+```
+[0xBC][0x1E][4B: довжина імені LE][ім'я UTF-8][вміст]
+```
 
 ---
 
-## 🔮 Roadmap
+## Тимчасові папки
 
-### v1.1 (Найближчим часом)
-- [ ] Unit-тести для всіх компонентів
-- [ ] Integration тести для тунелю
-- [ ] Performance benchmarks (порівняння з AES-256)
-- [ ] Додаткові алгоритми шифрування (опціонально)
+```
+temp_data/    — системні файли програми
+  nodeinfo_sent_{ourID}.json
+  nodeinfo_recv_{IP}.json
+  sent_{peerID}_{filename}
+  recv_{IP}_{time}_{name}.meta
 
-### v1.2 (Середньострокові)
-- [ ] Інтеграція з WinPcap/Npcap для повного перехоплення
-- [ ] WFP драйвер для kernel-level фільтрації
-- [ ] Web Dashboard (ASP.NET Core)
-- [ ] REST API для керування
-
-### v2.0 (Довгострокові)
-- [ ] Multi-platform (Linux через iptables)
-- [ ] Advanced analytics з ML
-- [ ] Distributed firewall (кластер)
-- [ ] Hardware acceleration (GPU)
+temp_files/   — отримані від пірів файли
+  hello_{BlackID}_{час}.txt     (автоматично при підключенні)
+```
 
 ---
 
-## 📞 Підтримка
+## Алгоритм MQE
 
-### Документація
-
-- **README.md** - Загальний огляд та використання
-- **ARCHITECTURE.md** - Детальна архітектура та алгоритми
-- **BUILD.md** - Збірка, розгортання, troubleshooting
-- **SUMMARY.md** - Цей файл (резюме)
-
-### Контакти
-
-- **GitHub Issues:** https://github.com/kotr228/DCS/issues
-- **Pull Requests:** Вітаються!
+```
+Ключ:     K = SHA256(masterSecret + timestamp)[0..3] -> Quaternion(W,X,Y,Z)
+Умова:    norm(K) % 2 != 0  (непарна норма -> оборотний)
+Encrypt:  C = P * K   (Hamilton *, mod 256, блоки по 4 байти)
+Decrypt:  P = C * K⁻¹
+Захист:   timestamp ±30 сек (replay), SHA256 checksum (integrity)
+```
 
 ---
 
-## 🏆 Досягнення
+## База даних
 
-### Що вирішено
+SQLite файл `blackcat.db` поряд з `.exe`.
 
-✅ **Критична проблема безпеки** в DCS/DocControlSolution
-✅ **Унікальний алгоритм шифрування** (MQE на кватерніонах)
-✅ **Повноцінний брандмауер** з фільтрацією та моніторингом
-✅ **Сучасний WPF інтерфейс** з real-time графіками
-✅ **Windows Service** для фонової роботи
-✅ **Детальна документація** (4 файли, 500+ рядків)
+```sql
+PeerNodes       -- телефонна книга (BlackID UNIQUE)
+LocalBlackID    -- наш власний Black-ID
+FilterRules     -- правила брандмауера
+ConnectionEvents -- журнал: підключення, файли (BytesSent/BytesReceived)
+EventTypes      -- довідник типів подій
+DatabaseVersion -- версія схеми
+```
 
-### Статистика розробки
+**EventType значення в ConnectionEvents:**
 
-| Параметр | Значення |
-|----------|----------|
-| Проектів створено | 6 |
-| Рядків коду | ~3000 |
-| Файлів документації | 4 |
-| Часу розробки | 1 сесія |
-| Виправлених критичних проблем | 1 (нешифрований TCP) |
-
----
-
-## 💡 Висновок
-
-**BlackCat Firewall** - це не просто брандмауер, а **комплексне рішення** для захисту мережевої комунікації в проекті DCS.
-
-### Ключові переваги:
-
-1. **Унікальна криптографія** - MQE на кватерніонах (не має аналогів)
-2. **Модульна архітектура** - Легко інтегрується в існуючі проекти
-3. **Низька затримка** - < 50 мс (підходить для real-time)
-4. **Детальний моніторинг** - Real-time графіки та логування
-5. **Відкритий код** - MIT ліцензія, можна вивчати та модифікувати
-
-### Що далі?
-
-1. **Тестування** - Запустити та протестувати всі функції
-2. **Інтеграція** - Поступово замінити небезпечний код в DCS
-3. **Розширення** - Додати нові функції (ML, API, тощо)
+| Значення | Enum | Коли пишеться |
+|----------|------|---------------|
+| 1 | Connected | P2P з'єднання встановлено |
+| 2 | Disconnected | З'єднання розірвано |
+| 5 | AuthenticationSuccess | Файл надіслано або отримано |
 
 ---
 
-**BlackCat Firewall v1.0.0** - Захист мережі на новому рівні! 🐱🔒
+## Порти
 
-**Дата створення:** 2026-01-13
-**Автор:** Claude Code (Sonnet 4.5)
-**Проект:** DCS Security Enhancement
+| Порт | Протокол | Призначення |
+|------|----------|-------------|
+| 9999 | TCP/UDP | Тунель (вхідні + P2P) |
+| 19302 | UDP | STUN (stun.l.google.com) |
+
+---
+
+## Залежності NuGet
+
+```
+Microsoft.Data.Sqlite
+LiveCharts.Wpf
+Serilog + Serilog.Sinks.File + Serilog.Sinks.Console
+```

@@ -1,503 +1,240 @@
-# Збірка та розгортання BlackCat Firewall
+# BlackCat — Збірка та розгортання
 
-## Вимоги до розробки
+## Вимоги
 
-### Обов'язкові
-
-- **Windows 10/11** (x64)
-- **.NET 8.0 SDK** ([завантажити](https://dotnet.microsoft.com/download/dotnet/8.0))
-- **Visual Studio 2022** (рекомендовано) або **Visual Studio Code**
-- **Git** для версійного контролю
-
-### Рекомендовані
-
-- **Windows Terminal** для зручної роботи з командним рядком
-- **WinPcap** або **Npcap** для повного перехоплення пакетів
-- **SQL Browser** для перегляду SQLite бази даних
+| Інструмент | Версія |
+|------------|--------|
+| .NET SDK | 8.0+ |
+| Windows | 10 / 11 (x64) |
+| Visual Studio | 2022+ або VS Code з C# Extension |
+| Права | Адміністратор (для Raw Socket та UPnP) |
 
 ---
 
-## Швидкий старт
+## Структура рішення
 
-```bash
-# Клонувати репозиторій
-git clone https://github.com/kotr228/DCS.git
-cd DCS/BlackCat
+```
+BlackCat.sln
+├── BlackCat.Shared        net8.0           (без UI-залежностей)
+├── BlackCat.Crypto        net8.0
+├── BlackCat.NetworkCore   net8.0
+├── BlackCat.Core          net8.0
+├── BlackCat.Service       net8.0-windows   (Windows Service)
+└── BlackCat.UI            net8.0-windows   (WPF)
+```
 
-# Відновити NuGet пакети
+---
+
+## Збірка
+
+### Через командний рядок
+
+```bat
+:: Перейти в папку з рішенням
+cd BlackCat
+
+:: Відновити пакети
 dotnet restore
 
-# Зібрати всі проекти
-dotnet build --configuration Release
-
-# Запустити UI (потребує прав адміністратора)
-cd BlackCat.UI
-dotnet run
-```
-
----
-
-## Детальна збірка
-
-### 1. Підготовка середовища
-
-#### Встановлення .NET 8.0 SDK
-
-```powershell
-# Перевірити чи встановлено .NET 8.0
-dotnet --list-sdks
-
-# Якщо немає, завантажити з:
-# https://dotnet.microsoft.com/download/dotnet/8.0
-```
-
-#### Встановлення Visual Studio 2022
-
-**Workloads для встановлення:**
-- .NET Desktop Development
-- Windows Presentation Foundation (WPF)
-
-### 2. Відновлення залежностей
-
-```bash
-# З кореневої директорії BlackCat/
-dotnet restore BlackCat.sln
-
-# Або для окремих проектів:
-dotnet restore BlackCat.Shared/BlackCat.Shared.csproj
-dotnet restore BlackCat.Crypto/BlackCat.Crypto.csproj
-dotnet restore BlackCat.NetworkCore/BlackCat.NetworkCore.csproj
-dotnet restore BlackCat.Core/BlackCat.Core.csproj
-dotnet restore BlackCat.Service/BlackCat.Service.csproj
-dotnet restore BlackCat.UI/BlackCat.UI.csproj
-```
-
-### 3. Збірка проектів
-
-#### Debug збірка
-
-```bash
-dotnet build BlackCat.sln --configuration Debug
-```
-
-#### Release збірка
-
-```bash
+:: Зібрати все рішення
 dotnet build BlackCat.sln --configuration Release
+
+:: Зібрати тільки UI (для розробки)
+dotnet build BlackCat.UI/BlackCat.UI.csproj --configuration Debug
 ```
 
-#### Збірка окремих проектів
+### Через Visual Studio
 
-```bash
-# BlackCat.UI
-dotnet build BlackCat.UI/BlackCat.UI.csproj -c Release
-
-# BlackCat.Service
-dotnet build BlackCat.Service/BlackCat.Service.csproj -c Release
-```
-
-### 4. Публікація (для розгортання)
-
-#### Self-contained публікація (з .NET runtime)
-
-```bash
-# Windows x64
-dotnet publish BlackCat.Service/BlackCat.Service.csproj \
-    -c Release \
-    -r win-x64 \
-    --self-contained true \
-    -p:PublishSingleFile=true \
-    -o ./publish/service
-
-dotnet publish BlackCat.UI/BlackCat.UI.csproj \
-    -c Release \
-    -r win-x64 \
-    --self-contained true \
-    -p:PublishSingleFile=true \
-    -o ./publish/ui
-```
-
-#### Framework-dependent публікація (потрібен .NET Runtime на цільовій машині)
-
-```bash
-dotnet publish BlackCat.Service/BlackCat.Service.csproj \
-    -c Release \
-    -r win-x64 \
-    --self-contained false \
-    -o ./publish/service
-
-dotnet publish BlackCat.UI/BlackCat.UI.csproj \
-    -c Release \
-    -r win-x64 \
-    --self-contained false \
-    -o ./publish/ui
-```
+1. Відкрити `BlackCat.sln`
+2. Встановити конфігурацію: `Release` або `Debug`
+3. `Build → Build Solution` (Ctrl+Shift+B)
 
 ---
 
-## Структура вихідних файлів
+## Запуск
 
-Після збірки:
+### UI (розробка/тестування)
 
-```
-BlackCat/
-├── BlackCat.Shared/bin/Release/net8.0/
-│   └── BlackCat.Shared.dll
-├── BlackCat.Crypto/bin/Release/net8.0/
-│   └── BlackCat.Crypto.dll
-├── BlackCat.NetworkCore/bin/Release/net8.0/
-│   └── BlackCat.NetworkCore.dll
-├── BlackCat.Core/bin/Release/net8.0/
-│   └── BlackCat.Core.dll
-├── BlackCat.Service/bin/Release/net8.0-windows/
-│   ├── BlackCat.Service.exe
-│   ├── BlackCat.Service.dll
-│   ├── appsettings.json
-│   └── [залежності]
-└── BlackCat.UI/bin/Release/net8.0-windows/
-    ├── BlackCat.UI.exe
-    ├── BlackCat.UI.dll
-    └── [залежності]
+```bat
+:: Потрібні права адміністратора для Raw Socket
+dotnet run --project BlackCat.UI/BlackCat.UI.csproj
 ```
 
----
+Або запустити `BlackCat.UI.exe` від імені адміністратора.
 
-## Розгортання
+### Windows Service (продакшн)
 
-### Варіант 1: Windows Service (рекомендовано)
+```bat
+:: Зібрати як self-contained
+dotnet publish BlackCat.Service/BlackCat.Service.csproj ^
+  --configuration Release ^
+  --runtime win-x64 ^
+  --self-contained true ^
+  --output ./publish/service
 
-#### 1.1. Опублікувати сервіс
+:: Встановити службу
+sc create "BlackCatFirewall" ^
+  binPath="C:\path\to\publish\service\BlackCat.Service.exe" ^
+  start=auto ^
+  DisplayName="BlackCat Firewall Service"
 
-```bash
-dotnet publish BlackCat.Service/BlackCat.Service.csproj \
-    -c Release \
-    -r win-x64 \
-    --self-contained true \
-    -p:PublishSingleFile=true \
-    -o C:\BlackCat\Service
-```
-
-#### 1.2. Налаштувати appsettings.json
-
-```json
-{
-  "BlackCat": {
-    "MasterSecret": "YOUR_SECURE_PASSWORD_HERE_256_BIT",
-    "DatabasePath": "C:\\BlackCat\\Data\\blackcat.db",
-    "TunnelPort": 9999,
-    "DefaultAllow": false,
-    "EnablePacketInterception": true
-  },
-  "Serilog": {
-    "MinimumLevel": "Information"
-  }
-}
-```
-
-**⚠️ ВАЖЛИВО:** Змініть `MasterSecret`!
-
-#### 1.3. Встановити як Windows Service
-
-```powershell
-# Відкрити PowerShell як Адміністратор
-
-# Створити службу
-sc create BlackCatFirewall `
-    binPath="C:\BlackCat\Service\BlackCat.Service.exe" `
-    DisplayName="BlackCat Firewall" `
-    start=auto
-
-# Встановити опис
-sc description BlackCatFirewall "Брандмауер з кватерніонним шифруванням"
-
-# Запустити службу
+:: Запустити
 sc start BlackCatFirewall
 
-# Перевірити статус
-sc query BlackCatFirewall
-```
-
-#### 1.4. Видалення служби (якщо потрібно)
-
-```powershell
-# Зупинити
+:: Зупинити
 sc stop BlackCatFirewall
 
-# Видалити
+:: Видалити
 sc delete BlackCatFirewall
 ```
 
-### Варіант 2: Standalone UI
+---
 
-```bash
-# Просто запустити UI
-cd BlackCat.UI/bin/Release/net8.0-windows
-.\BlackCat.UI.exe
+## Перший запуск
+
+### 1. Запустити від адміністратора
+
+`BlackCat.UI.exe` потребує прав адміністратора для:
+- `Socket(SocketType.Raw)` — перехоплення пакетів
+- `netsh advfirewall` — відкриття портів у Windows Firewall
+- UPnP-запити до роутера
+
+### 2. Створити Black-ID
+
+**Налаштування → Black-ID → Створити**
+
+Формат: `РОЛЬ-МІСТО-НАЗВА-КОД`
+
+Приклади:
+```
+MAIN-KYIV-SERVER-2N4D
+SKLAD-ODESA-PC-7X99
+CLIENT-KHARKIV-LAPTOP-A1B2
 ```
 
-**Важливо:** Запустіть з правами адміністратора!
+Black-ID зберігається в таблиці `LocalBlackID` бази даних `blackcat.db`.
 
-```powershell
-# З PowerShell
-Start-Process "BlackCat.UI.exe" -Verb RunAs
-```
+### 3. Натиснути "Запустити"
+
+Програма:
+- Запускає `FirewallCoordinator` (Raw Socket перехоплення)
+- Ініціалізує `TunnelManager` (UDP-сервер на порту 9999)
+- Намагається відкрити порт через UPnP
+- Визначає публічну IP через ipify.org
+
+### 4. Підключитися до піра
+
+Перейти на вкладку **🕳️ P2P** і виконати обмін кодами (детально в README.md).
 
 ---
 
-## Налаштування прав доступу
+## Конфігурація
 
-### Дозволити Raw Socket
-
-BlackCat використовує Raw Sockets для перехоплення пакетів, що вимагає прав адміністратора.
-
-**Варіант 1: Запуск з правами адміністратора**
-
-```powershell
-Start-Process "BlackCat.UI.exe" -Verb RunAs
-```
-
-**Варіант 2: Налаштування постійних прав (Windows Service)**
-
-При встановленні як Windows Service, служба автоматично працює з системними правами.
-
----
-
-## Збірка з Visual Studio
-
-### 1. Відкрити рішення
-
-1. Запустити Visual Studio 2022
-2. File → Open → Project/Solution
-3. Вибрати `BlackCat/BlackCat.sln`
-
-### 2. Налаштувати стартовий проект
-
-- **Для тестування UI:** Right-click на `BlackCat.UI` → Set as Startup Project
-- **Для тестування Service:** Right-click на `BlackCat.Service` → Set as Startup Project
-
-### 3. Зібрати рішення
-
-- Build → Build Solution (Ctrl+Shift+B)
-- Або: Build → Rebuild Solution
-
-### 4. Запустити з дебагером
-
-- Debug → Start Debugging (F5)
-- Або: Debug → Start Without Debugging (Ctrl+F5)
-
-**Важливо:** Visual Studio потрібно запускати з правами адміністратора!
-
-### 5. Публікація через Visual Studio
-
-1. Right-click на проекті (BlackCat.Service або BlackCat.UI)
-2. Publish...
-3. Вибрати ціль:
-   - Folder
-   - TargetRuntime: win-x64
-   - Deployment mode: Self-contained або Framework-dependent
-4. Натиснути Publish
-
----
-
-## Тестування
-
-### Unit тести (TODO)
-
-```bash
-# Коли будуть додані тести
-dotnet test BlackCat.Tests/BlackCat.Tests.csproj
-```
-
-### Інтеграційне тестування
-
-#### 1. Запустити два екземпляри
-
-**Машина 1 (Сервер):**
-```bash
-cd BlackCat.Service/bin/Release/net8.0-windows
-.\BlackCat.Service.exe
-```
-
-**Машина 2 (Клієнт):**
-```bash
-cd BlackCat.UI/bin/Release/net8.0-windows
-.\BlackCat.UI.exe
-```
-
-#### 2. Налаштувати правила тунелювання
-
-У BlackCat.UI на клієнті додати правило:
-
-```
-Назва: Тунель до сервера
-IP: [IP сервера]
-Порт: 9999
-Дія: Tunnel
-```
-
-#### 3. Перевірити з'єднання
-
-Спробувати відправити дані через тунель і перевірити логи обох сторін.
-
----
-
-## Troubleshooting
-
-### Помилка: "Raw socket requires administrator privileges"
-
-**Рішення:**
-Запустіть програму з правами адміністратора.
-
-```powershell
-Start-Process "BlackCat.UI.exe" -Verb RunAs
-```
-
-### Помилка: "Could not load file or assembly"
-
-**Рішення:**
-Перезібрати рішення з чистим кешем.
-
-```bash
-dotnet clean
-dotnet restore
-dotnet build
-```
-
-### Помилка: "Port 9999 already in use"
-
-**Рішення:**
-Змінити порт в `appsettings.json`:
+### appsettings.json (BlackCat.Service)
 
 ```json
 {
   "BlackCat": {
-    "TunnelPort": 10000
+    "MasterSecret": "YourSecretPasswordHere",
+    "DatabasePath": "blackcat.db",
+    "TunnelPort": 9999,
+    "EnablePacketInterception": true
+  },
+  "Serilog": {
+    "MinimumLevel": "Information",
+    "WriteTo": [
+      { "Name": "Console" },
+      {
+        "Name": "File",
+        "Args": {
+          "path": "logs/blackcat-.log",
+          "rollingInterval": "Day"
+        }
+      }
+    ]
   }
 }
 ```
 
-### Помилка: "Database is locked"
+### MasterSecret
 
-**Рішення:**
-Закрити всі інші екземпляри програми, які використовують БД.
+Спільний секрет для MQE-шифрування. Обидва вузли **повинні мати однаковий** `MasterSecret`, інакше розшифрування не вдасться.
 
-```bash
-# Перевірити процеси
-tasklist | findstr BlackCat
+Поточне значення в UI: `"YourSecretPasswordHere"` (захардкоджено в `StartButton_Click`).
 
-# Вбити процес
-taskkill /F /IM BlackCat.Service.exe
+> Для виробничого використання: перенести `MasterSecret` в `appsettings.json` або змінний середовища.
+
+---
+
+## База даних
+
+SQLite файл `blackcat.db` створюється автоматично поряд з `.exe` при першому запуску.
+
+**Схема версіонується** через таблицю `DatabaseVersion`. При невідповідності версій — `DatabaseMigrator` застосовує міграції автоматично. Якщо міграція не вдалась — БД перестворюється з нуля.
+
+**Розташування:** `%AppDir%\blackcat.db`
+
+---
+
+## Папки тимчасових файлів
+
+Створюються автоматично при запуску UI:
+
+```
+%AppDir%\temp_data\     — системні файли (node info JSON, метадані трансферів)
+%AppDir%\temp_files\    — файли отримані від пірів
 ```
 
 ---
 
-## CI/CD
+## Порти та мережа
 
-### GitHub Actions (приклад)
+| Порт | Протокол | Призначення |
+|------|----------|-------------|
+| 9999 | TCP | Вхідні захищені з'єднання (handshake) |
+| 9999 | UDP | P2P тунель (або динамічний після hole punch) |
+| 19302 | UDP | STUN запити (stun.l.google.com) |
 
-```yaml
-name: Build BlackCat
+Для прийому вхідних P2P підключень з інтернету потрібно:
+1. **UPnP** на роутері (автоматично) — або
+2. **Port Forwarding**: `{публічна IP}:9999` → `{локальна IP}:9999`
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+Для **вихідних** підключень (ви ініціатор hole punch) — роутер не потрібен.
 
-jobs:
-  build:
-    runs-on: windows-latest
+---
 
-    steps:
-    - uses: actions/checkout@v3
+## Усунення неполадок
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v3
-      with:
-        dotnet-version: 8.0.x
+### "Адреса вже використовується"
 
-    - name: Restore dependencies
-      run: dotnet restore BlackCat/BlackCat.sln
+Raw Socket на Windows може конфліктувати з іншими процесами або запускатись без прав адміністратора.
 
-    - name: Build
-      run: dotnet build BlackCat/BlackCat.sln --no-restore --configuration Release
+```bat
+:: Перевірити хто займає порт 9999
+netstat -ano | findstr :9999
 
-    - name: Test
-      run: dotnet test BlackCat/BlackCat.sln --no-build --configuration Release
-
-    - name: Publish Service
-      run: |
-        dotnet publish BlackCat/BlackCat.Service/BlackCat.Service.csproj `
-          -c Release `
-          -r win-x64 `
-          --self-contained true `
-          -p:PublishSingleFile=true `
-          -o ./artifacts/service
-
-    - name: Publish UI
-      run: |
-        dotnet publish BlackCat/BlackCat.UI/BlackCat.UI.csproj `
-          -c Release `
-          -r win-x64 `
-          --self-contained true `
-          -p:PublishSingleFile=true `
-          -o ./artifacts/ui
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: BlackCat-Release
-        path: ./artifacts/
+:: Перевірити правила брандмауера
+netsh advfirewall firewall show rule name="BlackCat Secure Tunnel"
 ```
 
----
+### STUN не відповідає
 
-## Версіонування
+- Перевірте інтернет-з'єднання
+- Порт UDP 19302 має бути відкритий (зазвичай відкритий за замовчуванням)
+- Спробуйте `nslookup stun.l.google.com`
 
-Використовується Semantic Versioning 2.0.0:
+### Hole punch не вдається
 
-```
-MAJOR.MINOR.PATCH
+1. Обидва учасники повинні натиснути "З'єднати" **в один час** (допуск ±30 секунд)
+2. Деякі провайдери використовують **симетричний NAT** — hole punch через нього неможливий без relay-сервера
+3. Перевірте що UDP не блокується корпоративним файерволом
 
-- MAJOR: Несумісні зміни API
-- MINOR: Нові функції (зворотно-сумісні)
-- PATCH: Виправлення помилок
-```
+### BlackID не оновлюється після підключення
 
-Поточна версія: **1.0.0**
+Можлива UNIQUE constraint помилка в БД якщо той самий BlackID вже є з попередньої сесії. Перевірте лог програми на наявність `⚠️ DB update error:`. Видаліть старі записи через **Тунелі → Видалити**.
 
----
+### Файли не надходять до temp_files/
 
-## Контрибуція
-
-### Workflow для розробників
-
-1. Fork репозиторій
-2. Створити feature branch
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. Внести зміни
-4. Перевірити збірку
-   ```bash
-   dotnet build --configuration Release
-   ```
-5. Закомітити
-   ```bash
-   git commit -m "Add amazing feature"
-   ```
-6. Запушити
-   ```bash
-   git push origin feature/amazing-feature
-   ```
-7. Створити Pull Request
-
----
-
-## Ліцензія
-
-MIT License - Дивіться [LICENSE](LICENSE)
-
----
-
-**BlackCat Firewall Build Guide** v1.0.0
+- Переконайтеся що `temp_files/` існує поряд з `BlackCat.UI.exe`
+- Перевірте права запису в цю папку
+- Перевірте лог на `📥 Отримано файл` або `⚠️ File receive error`
