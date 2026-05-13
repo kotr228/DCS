@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -27,8 +28,13 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _p2pPunchCts;
     private BlackCat.Shared.Models.BlackID? _ourBlackID;
 
-    // Маркер пакету авто-обміну інформацією про вузол
-    private static readonly byte[] NodeInfoMarker = { 0xBC, 0x1D };
+    // Маркери типів пакетів
+    private static readonly byte[] NodeInfoMarker     = { 0xBC, 0x1D }; // node info exchange
+    private static readonly byte[] FileTransferMarker = { 0xBC, 0x1E }; // file transfer
+
+    // Шляхи до тимчасових папок
+    private static readonly string TempDataDir  = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "temp_data");
+    private static readonly string TempFilesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "temp_files");
     private readonly DispatcherTimer _updateTimer;
     private readonly RuleRepository _ruleRepository;
     private readonly ProcessLookupService _processLookupService;
@@ -89,6 +95,10 @@ public partial class MainWindow : Window
         _blackIDService = new BlackIDService();
         _handshakeService = new HandshakeService(_blackIDService, _peerNodeRepository, _eventRepository);
         _connectionMonitor = new ConnectionMonitorService(_peerNodeRepository, _eventRepository);
+
+        // Створити папки для тимчасових файлів
+        Directory.CreateDirectory(TempDataDir);
+        Directory.CreateDirectory(TempFilesDir);
 
         // Налаштування графіків
         InitializeCharts();
@@ -983,6 +993,14 @@ public partial class MainWindow : Window
                     });
                 }
                 catch (Exception logEx) { AddLog($"⚠️ Event log error: {logEx.Message}"); }
+
+                // Надіслати тестовий файл через 1 секунду після handshake
+                var peerId = e.PeerBlackID;
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(1000);
+                    await SendHelloFileAsync(peerId);
+                });
             }
         });
     }
@@ -1063,12 +1081,21 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
-            // Авто-обмін node info
+            // Node info exchange
             if (e.Data.Length > NodeInfoMarker.Length
                 && e.Data[0] == NodeInfoMarker[0]
                 && e.Data[1] == NodeInfoMarker[1])
             {
                 HandleNodeInfoPacket(e.SourceIP, e.Data);
+                return;
+            }
+
+            // File transfer
+            if (e.Data.Length > FileTransferMarker.Length
+                && e.Data[0] == FileTransferMarker[0]
+                && e.Data[1] == FileTransferMarker[1])
+            {
+                HandleFilePacket(e.SourceIP, e.Data);
                 return;
             }
 
@@ -1443,6 +1470,15 @@ public partial class MainWindow : Window
             jsonBytes.CopyTo(packet, NodeInfoMarker.Length);
 
             bool sent = await _tunnelManager.SendDataViaRelayAsync(peerBlackID, packet);
+
+            // Зберегти відправлений node info в temp_data
+            try
+            {
+                var metaFile = Path.Combine(TempDataDir, $"nodeinfo_sent_{ourId}.json");
+                File.WriteAllText(metaFile, json);
+            }
+            catch { }
+
             Dispatcher.Invoke(() => AddLog(sent
                 ? $"📤 Надіслано node info → {peerBlackID}"
                 : $"⚠️ Node info: тунель не знайдено для '{peerBlackID}'"));
@@ -1466,6 +1502,14 @@ public partial class MainWindow : Window
             if (string.IsNullOrEmpty(blackID)) return;
 
             AddLog($"📥 Отримано node info від {sourceIP}: {blackID}");
+
+            // Зберегти отриманий node info в temp_data
+            try
+            {
+                var metaFile = Path.Combine(TempDataDir, $"nodeinfo_recv_{sourceIP.Replace(':', '_')}.json");
+                File.WriteAllText(metaFile, json);
+            }
+            catch { }
 
             var node = _tunnelNodes.FirstOrDefault(t => t.IPAddress == sourceIP);
             if (node == null)
@@ -1530,6 +1574,106 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             AddLog($"⚠️ Node info parse error: {ex.Message}");
+        }
+    }
+
+    // ─── FILE TRANSFER ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Сформувати файл-пакет: [marker 2B][filename_len 4B LE][filename UTF8][content]
+    /// </summary>
+    private static byte[] BuildFilePacket(string filename, byte[] content)
+    {
+        var nameBytes = System.Text.Encoding.UTF8.GetBytes(filename);
+        var packet    = new byte[FileTransferMarker.Length + 4 + nameBytes.Length + content.Length];
+        int offset    = 0;
+
+        FileTransferMarker.CopyTo(packet, offset); offset += FileTransferMarker.Length;
+        BitConverter.GetBytes(nameBytes.Length).CopyTo(packet, offset); offset += 4;
+        nameBytes.CopyTo(packet, offset); offset += nameBytes.Length;
+        content.CopyTo(packet, offset);
+
+        return packet;
+    }
+
+    /// <summary>
+    /// Надіслати файл через зашифрований тунель і зберегти копію в temp_data
+    /// </summary>
+    private async Task SendFileAsync(string peerBlackID, string filename, byte[] content)
+    {
+        if (_tunnelManager == null) return;
+        try
+        {
+            var packet = BuildFilePacket(filename, content);
+            bool sent  = await _tunnelManager.SendDataViaRelayAsync(peerBlackID, packet);
+
+            // Зберегти копію відправленого файлу в temp_data
+            var outPath = Path.Combine(TempDataDir, $"sent_{peerBlackID}_{filename}");
+            await File.WriteAllBytesAsync(outPath, content);
+
+            Dispatcher.Invoke(() => AddLog(sent
+                ? $"📤 Файл надіслано → {peerBlackID}: {filename} ({content.Length} B)"
+                : $"⚠️ Не вдалося надіслати файл '{filename}' до '{peerBlackID}'"));
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.Invoke(() => AddLog($"⚠️ SendFile error: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Надіслати тестовий hello.txt при встановленні з'єднання
+    /// </summary>
+    private async Task SendHelloFileAsync(string peerBlackID)
+    {
+        var ourId    = _ourBlackID?.FullID
+                     ?? _blackIDRepository.GetActiveBlackID()?.FullID
+                     ?? "UNKNOWN";
+        var text     = $"Привіт від {ourId}!\r\n" +
+                       $"З'єднання встановлено: {DateTime.Now:dd.MM.yyyy HH:mm:ss}\r\n" +
+                       $"Тунель активний ✓";
+        var content  = System.Text.Encoding.UTF8.GetBytes(text);
+        var filename = $"hello_{ourId}_{DateTime.Now:HHmmss}.txt";
+
+        await SendFileAsync(peerBlackID, filename, content);
+    }
+
+    /// <summary>
+    /// Обробити отриманий файл-пакет: розпакувати, зберегти в temp_files, дамп в temp_data
+    /// </summary>
+    private void HandleFilePacket(string sourceIP, byte[] data)
+    {
+        try
+        {
+            int offset      = FileTransferMarker.Length;
+            int nameLen     = BitConverter.ToInt32(data, offset); offset += 4;
+            var filename    = System.Text.Encoding.UTF8.GetString(data, offset, nameLen); offset += nameLen;
+            var content     = data.Skip(offset).ToArray();
+
+            // Sanitize filename
+            var safeName    = Path.GetFileName(filename);
+            if (string.IsNullOrEmpty(safeName)) safeName = "received_file.bin";
+
+            // Зберегти в temp_files (для користувача)
+            var savePath    = Path.Combine(TempFilesDir, safeName);
+            File.WriteAllBytes(savePath, content);
+
+            // Зберегти метадані в temp_data (для програми)
+            var metaPath = Path.Combine(TempDataDir,
+                $"recv_{sourceIP}_{DateTime.Now:yyyyMMdd_HHmmss}_{safeName}.meta");
+            File.WriteAllText(metaPath,
+                $"from={sourceIP}\r\nfilename={safeName}\r\nsize={content.Length}\r\ntimestamp={DateTime.UtcNow:O}\r\n");
+
+            // Оновити статистику тунелю
+            var tunnel = _tunnelNodes.FirstOrDefault(t => t.IPAddress == sourceIP);
+            if (tunnel != null) tunnel.ReceivedBytes += data.Length;
+
+            AddLog($"📥 Отримано файл від {sourceIP}: {safeName} ({content.Length} B)");
+            AddLog($"   💾 Збережено: {savePath}");
+        }
+        catch (Exception ex)
+        {
+            AddLog($"⚠️ File receive error: {ex.Message}");
         }
     }
 
