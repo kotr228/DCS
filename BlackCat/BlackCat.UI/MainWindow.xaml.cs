@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -21,6 +22,19 @@ public partial class MainWindow : Window
     private FirewallCoordinator? _coordinator;
     private TunnelManager? _tunnelManager;
     private RelayServerService? _embeddedRelayServer;
+
+    // P2P manual signaling
+    private System.Net.Sockets.UdpClient? _p2pUdpSocket;
+    private CancellationTokenSource? _p2pPunchCts;
+    private BlackCat.Shared.Models.BlackID? _ourBlackID;
+
+    // Маркери типів пакетів
+    private static readonly byte[] NodeInfoMarker     = { 0xBC, 0x1D }; // node info exchange
+    private static readonly byte[] FileTransferMarker = { 0xBC, 0x1E }; // file transfer
+
+    // Шляхи до тимчасових папок
+    private static readonly string TempDataDir  = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "temp_data");
+    private static readonly string TempFilesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "temp_files");
     private readonly DispatcherTimer _updateTimer;
     private readonly RuleRepository _ruleRepository;
     private readonly ProcessLookupService _processLookupService;
@@ -81,6 +95,10 @@ public partial class MainWindow : Window
         _blackIDService = new BlackIDService();
         _handshakeService = new HandshakeService(_blackIDService, _peerNodeRepository, _eventRepository);
         _connectionMonitor = new ConnectionMonitorService(_peerNodeRepository, _eventRepository);
+
+        // Створити папки для тимчасових файлів
+        Directory.CreateDirectory(TempDataDir);
+        Directory.CreateDirectory(TempFilesDir);
 
         // Налаштування графіків
         InitializeCharts();
@@ -177,38 +195,10 @@ public partial class MainWindow : Window
                 _tunnelManager.RelayStatusChanged       += (_, msg) => Dispatcher.Invoke(() => AddLog(msg));
 
                 // Запустити сервер для прийому вхідних з'єднань
+                _ourBlackID = ourBlackID;
                 await _tunnelManager.StartServerAsync(ourBlackID);
 
-                AddLog($"✅ TunnelManager запущено (порт 9999)");
-                AddLog($"💡 Поділіться своєю IP-адресою з іншим користувачем для підключення");
-
-                var relayCfg = RelayConfig.Load();
-
-                // Запустити relay-сервер на цій машині якщо налаштовано
-                if (relayCfg.RunAsServer)
-                {
-                    _ = Task.Run(async () =>
-                    {
-                        await StartEmbeddedRelayServerAsync(relayCfg.ServerPort, ourBlackID);
-                    });
-                }
-
-                // Підключитися до relay-сервера якщо налаштовано
-                if (relayCfg.Enabled && !string.IsNullOrWhiteSpace(relayCfg.Host))
-                {
-                    _tunnelManager.SetRelayServer(relayCfg.Host, relayCfg.Port);
-                    AddLog($"🔀 Підключення до relay-сервера {relayCfg.Host}:{relayCfg.Port}...");
-                    _ = Task.Run(async () =>
-                    {
-                        bool ok = await _tunnelManager.StartRelayAsync(ourBlackID);
-                        if (!ok)
-                            Dispatcher.Invoke(() => AddLog("⚠️ Relay: не вдалося підключитися."));
-                    });
-                }
-                else if (!relayCfg.RunAsServer)
-                {
-                    AddLog("ℹ️ Relay не налаштовано. Відкрийте Налаштування → Relay для підключення без портів.");
-                }
+                AddLog($"✅ BlackCat запущено. Використовуй вкладку 🕳️ P2P для з'єднання.");
 
                 // Показати IP — спочатку локальну, потім реальну публічну через ipify.org
                 _ = Task.Run(async () =>
@@ -359,6 +349,16 @@ public partial class MainWindow : Window
 
         // Оновити час роботи
         UptimeText.Text = $"Час роботи: {stats.Uptime:hh\\:mm\\:ss}";
+
+        // Оновити деталі вибраного тунелю якщо підключено
+        if (_selectedTunnel != null && _selectedTunnel.IsConnected)
+        {
+            if (_selectedTunnel.LastHandshake != DateTime.MinValue)
+                _selectedTunnel.ConnectionTime = DateTime.Now - _selectedTunnel.LastHandshake;
+            TunnelUptime.Text = _selectedTunnel.ConnectionTime.ToString(@"hh\:mm\:ss");
+            TunnelSentBytes.Text = FormatBytes(_selectedTunnel.SentBytes);
+            TunnelReceivedBytes.Text = FormatBytes(_selectedTunnel.ReceivedBytes);
+        }
 
         // Додати мітку часу
         var elapsed = DateTime.Now - _startTime;
@@ -876,32 +876,33 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException($"Вузол {_selectedTunnel.BlackID} не знайдено в базі даних");
             }
 
-            bool success = false;
+            if (string.IsNullOrEmpty(peerNode.Address))
+                throw new InvalidOperationException(
+                    "Немає збереженого P2P endpoint.\n\nОбміняйтесь кодами у вкладці 🕳️ P2P.");
 
-            // Спробувати relay якщо підключений
-            if (_tunnelManager.IsRelayConfigured)
-            {
-                AddLog($"🔀 Підключення через relay...");
-                success = await _tunnelManager.ConnectViaRelayAsync(peerNode, ourBlackID);
-                if (!success)
-                    AddLog($"⚠️ Relay не відповів — пробую пряме підключення...");
-            }
-            else
-            {
-                AddLog($"ℹ️ Relay не налаштовано — пряме підключення");
-            }
+            if (!System.Net.IPEndPoint.TryParse($"{peerNode.Address}:{peerNode.Port}", out var storedEp))
+                throw new InvalidOperationException("Збережений endpoint некоректний.");
 
-            // Пряме підключення якщо relay не спрацював або не налаштований
-            if (!success)
-                success = await _tunnelManager.ConnectToNodeAsync(peerNode, ourBlackID);
+            // Перепідключення через UDP hole punch до збереженого endpoint
+            _p2pUdpSocket?.Dispose();
+            _p2pUdpSocket = new System.Net.Sockets.UdpClient(
+                System.Net.Sockets.AddressFamily.InterNetwork);
+
+            AddLog($"🕳️ Перепідключення до {peerNode.BlackID} ({storedEp}) — 30 сек...");
+
+            bool success = await _tunnelManager.ManualHolePunchAsync(
+                peerNode.BlackID, storedEp, _p2pUdpSocket, durationSeconds: 30);
 
             if (!success)
             {
-                var hint = _tunnelManager.IsRelayConfigured
-                    ? "Relay не відповів, і пряме підключення не вдалося.\n\nПереконайтесь, що relay-сервер запущено і доступний."
-                    : "Пряме підключення не вдалося.\n\nДля з'єднання без відкритих портів:\n• На ОДНІЙ з машин увімкніть Relay-сервер в Налаштуваннях\n• Введіть адресу relay на ІНШІЙ машині";
-                throw new InvalidOperationException(hint);
+                _p2pUdpSocket?.Dispose();
+                _p2pUdpSocket = null;
+                throw new InvalidOperationException(
+                    "Hole punch не вдався — IP міг змінитись після розриву.\n\n" +
+                    "Обміняйтесь новими кодами у вкладці 🕳️ P2P.");
             }
+
+            _p2pUdpSocket = null; // тепер у тунелі
 
             // Успішне підключення обробляється в події OnTunnelConnectionEstablished
         }
@@ -973,6 +974,33 @@ public partial class MainWindow : Window
                 AddLog($"✅ Підключено до {e.PeerBlackID}");
                 AddLog($"   🔒 Handshake пройшов успішно!");
                 AddLog($"   Session ID: {e.SessionId}");
+
+                // Зберегти подію в БД
+                try
+                {
+                    _eventRepository.LogEvent(new BlackCat.Shared.Models.ConnectionEvent
+                    {
+                        RemoteBlackID    = e.PeerBlackID,
+                        RemoteIP         = tunnel.IPAddress,
+                        RemotePort       = tunnel.Port,
+                        InitiatorBlackID = _ourBlackID?.FullID,
+                        TargetBlackID    = e.PeerBlackID,
+                        EventType        = ConnectionEventType.Connected,
+                        Direction        = ConnectionDirection.Outbound,
+                        Message          = $"P2P з'єднання встановлено з {e.PeerBlackID} ({tunnel.IPAddress}:{tunnel.Port})",
+                        IsAuthenticated  = true,
+                        Timestamp        = DateTime.UtcNow
+                    });
+                }
+                catch (Exception logEx) { AddLog($"⚠️ Event log error: {logEx.Message}"); }
+
+                // Надіслати тестовий файл через 1 секунду після handshake
+                var peerId = e.PeerBlackID;
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(1000);
+                    await SendHelloFileAsync(peerId);
+                });
             }
         });
     }
@@ -1001,6 +1029,22 @@ public partial class MainWindow : Window
                 }
 
                 AddLog($"⚠️ З'єднання втрачено: {e.PeerBlackID}");
+
+                // Зберегти подію в БД
+                try
+                {
+                    _eventRepository.LogEvent(new BlackCat.Shared.Models.ConnectionEvent
+                    {
+                        RemoteBlackID = e.PeerBlackID,
+                        RemoteIP      = tunnel?.IPAddress ?? string.Empty,
+                        RemotePort    = tunnel?.Port ?? 0,
+                        EventType     = ConnectionEventType.Disconnected,
+                        Direction     = ConnectionDirection.Outbound,
+                        Message       = $"З'єднання з {e.PeerBlackID} розірвано",
+                        Timestamp     = DateTime.UtcNow
+                    });
+                }
+                catch { }
             }
         });
     }
@@ -1037,7 +1081,26 @@ public partial class MainWindow : Window
     {
         Dispatcher.Invoke(() =>
         {
-            AddLog($"📨 Отримано дані: {e.Data.Length} байт від {e.SourceIP}");
+            // Node info exchange
+            if (e.Data.Length > NodeInfoMarker.Length
+                && e.Data[0] == NodeInfoMarker[0]
+                && e.Data[1] == NodeInfoMarker[1])
+            {
+                HandleNodeInfoPacket(e.SourceIP, e.Data);
+                return;
+            }
+
+            // File transfer
+            if (e.Data.Length > FileTransferMarker.Length
+                && e.Data[0] == FileTransferMarker[0]
+                && e.Data[1] == FileTransferMarker[1])
+            {
+                HandleFilePacket(e.SourceIP, e.Data);
+                return;
+            }
+
+            var tunnel = _tunnelNodes.FirstOrDefault(t => t.IPAddress == e.SourceIP);
+            if (tunnel != null) tunnel.ReceivedBytes += e.Data.Length;
         });
     }
 
@@ -1154,8 +1217,522 @@ public partial class MainWindow : Window
         }
     }
 
+    // ─── P2P MANUAL SIGNALING ─────────────────────────────────────────────────
+
+    private async void P2PGetCodeButton_Click(object sender, RoutedEventArgs e)
+    {
+        P2PGetCodeButton.IsEnabled = false;
+        P2PCopyButton.IsEnabled    = false;
+        P2PMyCodeText.Text         = "⏳ Запит до STUN...";
+        P2PMyCodeText.Foreground   = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromRgb(0x80, 0x80, 0x80));
+
+        try
+        {
+            _p2pUdpSocket?.Dispose();
+            _p2pUdpSocket = new System.Net.Sockets.UdpClient(
+                System.Net.Sockets.AddressFamily.InterNetwork);
+
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(6));
+            var ep = await BlackCat.NetworkCore.StunClient
+                         .GetPublicEndpointAsync(_p2pUdpSocket, cts.Token);
+
+            if (ep == null)
+            {
+                P2PMyCodeText.Text       = "❌ STUN недоступний — перевірте інтернет";
+                P2PMyCodeText.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(0xF4, 0x87, 0x71));
+                _p2pUdpSocket.Dispose();
+                _p2pUdpSocket = null;
+            }
+            else
+            {
+                P2PMyCodeText.Text       = ep.ToString();
+                P2PMyCodeText.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(0x4E, 0xC9, 0xB0));
+                P2PCopyButton.IsEnabled = true;
+                AddLog($"🌐 P2P: твій endpoint = {P2PMyCodeText.Text}");
+            }
+        }
+        catch (Exception ex)
+        {
+            P2PMyCodeText.Text = $"❌ {ex.Message}";
+        }
+        finally
+        {
+            P2PGetCodeButton.IsEnabled = true;
+        }
+    }
+
+    private void P2PCopyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var code = P2PMyCodeText.Text;
+        if (!string.IsNullOrEmpty(code) && code.Contains(':'))
+        {
+            Clipboard.SetText(code);
+            AddLog("📋 P2P: endpoint скопійовано в буфер обміну");
+        }
+    }
+
+    private async void P2PConnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_p2pPunchCts != null)
+        {
+            _p2pPunchCts.Cancel();
+            return;
+        }
+
+        if (_p2pUdpSocket == null)
+        {
+            AddLog("❌ P2P: спочатку натисни «Отримати код»");
+            return;
+        }
+
+        var peerCode = P2PPeerCodeTextBox.Text.Trim();
+        if (string.IsNullOrEmpty(peerCode))
+        {
+            AddLog("❌ P2P: введи код від друга в поле ②");
+            return;
+        }
+
+        if (_tunnelManager == null)
+        {
+            AddLog("❌ P2P: TunnelManager не запущено — спочатку запусти захист");
+            return;
+        }
+
+        // Формат: IP:port (просто endpoint)
+        if (!System.Net.IPEndPoint.TryParse(peerCode, out var peerEp))
+        {
+            AddLog("❌ P2P: невалідний код (очікується IP:порт, наприклад 81.162.255.205:54321)");
+            return;
+        }
+
+        // Тимчасовий ID до авто-обміну інформацією
+        var peerBlackID = $"peer_{peerEp.Address}_{peerEp.Port}";
+
+        // Шукаємо існуючий вузол лише за IP (порт змінюється кожну сесію)
+        var existingItem = _tunnelNodes.FirstOrDefault(t =>
+            t.IPAddress == peerEp.Address.ToString());
+        bool wasNew = existingItem == null;
+        if (existingItem == null)
+        {
+            existingItem = new TunnelNodeItem
+            {
+                BlackID       = peerBlackID,
+                DisplayName   = peerCode,
+                IPAddress     = peerEp.Address.ToString(),
+                Port          = peerEp.Port,
+                IsTrusted     = true,
+                IsConnecting  = true,
+                StatusDisplay = "Підключення..."
+            };
+            _tunnelNodes.Add(existingItem);
+        }
+        else
+        {
+            peerBlackID           = existingItem.BlackID; // використовуємо збережений BlackID
+            existingItem.Port     = peerEp.Port;          // оновлюємо порт
+            existingItem.IsConnecting  = true;
+            existingItem.StatusDisplay = "Підключення...";
+        }
+
+        _p2pPunchCts = new CancellationTokenSource();
+        P2PConnectButton.Content   = "⏹️ Зупинити";
+        P2PGetCodeButton.IsEnabled = false;
+        P2PProgressBar.Value       = 0;
+        P2PStatusText.Text         = "Пробиваємо NAT...";
+        P2PStatusText.Foreground   = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
+
+        AddLog($"🕳️ P2P: запуск hole punch → {peerEp} (30 сек)");
+
+        var progress = new Progress<int>(remaining =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                P2PProgressBar.Value = 30 - remaining;
+                P2PStatusText.Text   = remaining > 0
+                    ? $"Очікування відповіді... залишилось {remaining} сек"
+                    : "Час вийшов...";
+            });
+        });
+
+        bool success;
+        try
+        {
+            success = await _tunnelManager.ManualHolePunchAsync(
+                peerBlackID, peerEp, _p2pUdpSocket,
+                durationSeconds: 30,
+                progress: progress,
+                ct: _p2pPunchCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            success = false;
+        }
+        finally
+        {
+            _p2pPunchCts?.Dispose();
+            _p2pPunchCts = null;
+        }
+
+        P2PConnectButton.Content   = "🚀 З'єднати (30 сек)";
+        P2PGetCodeButton.IsEnabled = true;
+
+        if (success)
+        {
+            P2PProgressBar.Value = 30;
+            P2PStatusText.Text   = "✅ З'єднано!";
+            AddLog($"✅ P2P: прямий UDP тунель встановлено ({peerEp})");
+
+            // Зберегти у телефонну книгу (шукаємо за IP щоб уникнути дублікатів)
+            try
+            {
+                var dbPeer = _peerNodeRepository.GetAllPeerNodes()
+                    .FirstOrDefault(p => p.Address == peerEp.Address.ToString() && p.IsActive);
+                if (dbPeer == null)
+                {
+                    _peerNodeRepository.AddPeerNode(new BlackCat.Shared.Models.PeerNode
+                    {
+                        BlackID               = peerBlackID,
+                        DisplayName           = peerCode,
+                        Address               = peerEp.Address.ToString(),
+                        Port                  = peerEp.Port,
+                        IsTrusted             = true,
+                        LastConnectedAt       = DateTime.UtcNow,
+                        SuccessfulConnections = 1
+                    });
+                    AddLog($"📖 Додано до телефонної книги: {peerCode}");
+                }
+                else
+                {
+                    // Оновити порт і статистику, не змінюючи BlackID
+                    dbPeer.Port                  = peerEp.Port;
+                    dbPeer.LastConnectedAt       = DateTime.UtcNow;
+                    dbPeer.SuccessfulConnections++;
+                    _peerNodeRepository.UpdatePeerNode(dbPeer);
+                    // Якщо знайдений запис має інший BlackID — оновити UI елемент
+                    if (existingItem.BlackID != dbPeer.BlackID)
+                    {
+                        _tunnelManager?.RenameUdpTunnel(peerBlackID, dbPeer.BlackID);
+                        existingItem.BlackID     = dbPeer.BlackID;
+                        existingItem.DisplayName = dbPeer.DisplayName;
+                        peerBlackID              = dbPeer.BlackID;
+                        // Видалити дублікат якщо реальний BlackID вже є в списку
+                        var dup = _tunnelNodes.FirstOrDefault(
+                            t => t != existingItem && t.BlackID == existingItem.BlackID);
+                        if (dup != null) _tunnelNodes.Remove(dup);
+                    }
+                }
+            }
+            catch (Exception ex) { AddLog($"⚠️ Не вдалося зберегти в книгу: {ex.Message}"); }
+
+            // Авто-обмін інформацією про вузол через тунель
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(400); // дати тунелю осісти
+                await SendNodeInfoAsync(peerBlackID);
+            });
+
+            _p2pUdpSocket = null; // власність тунелю
+            P2PCopyButton.IsEnabled = false;
+            P2PMyCodeText.Text      = "Натисни «Отримати код» для нового з'єднання";
+            P2PMyCodeText.Foreground = new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
+        }
+        else
+        {
+            if (wasNew) _tunnelNodes.Remove(existingItem);
+            else { existingItem.IsConnecting = false; existingItem.StatusDisplay = "Відключено"; }
+
+            P2PProgressBar.Value     = 0;
+            P2PStatusText.Text       = "❌ Не вдалося — спробуй ще раз";
+            P2PStatusText.Foreground = new SolidColorBrush(Color.FromRgb(0xF4, 0x87, 0x71));
+            AddLog("❌ P2P: hole punch невдалий. Причини: другий пристрій не натиснув «З'єднати», " +
+                   "часова різниця > 30 сек, або симетричний NAT у провайдера");
+        }
+    }
+
+    // ─── NODE INFO AUTO-EXCHANGE ──────────────────────────────────────────────
+
+    private async Task SendNodeInfoAsync(string peerBlackID)
+    {
+        if (_tunnelManager == null) return;
+        try
+        {
+            var ourId = _ourBlackID?.FullID
+                      ?? _blackIDRepository.GetActiveBlackID()?.FullID
+                      ?? "UNKNOWN";
+            var json      = System.Text.Json.JsonSerializer.Serialize(
+                                new { blackID = ourId, displayName = ourId });
+            var jsonBytes = System.Text.Encoding.UTF8.GetBytes(json);
+            var packet    = new byte[NodeInfoMarker.Length + jsonBytes.Length];
+            NodeInfoMarker.CopyTo(packet, 0);
+            jsonBytes.CopyTo(packet, NodeInfoMarker.Length);
+
+            bool sent = await _tunnelManager.SendDataViaRelayAsync(peerBlackID, packet);
+
+            // Зберегти відправлений node info в temp_data
+            try
+            {
+                var metaFile = Path.Combine(TempDataDir, $"nodeinfo_sent_{ourId}.json");
+                File.WriteAllText(metaFile, json);
+            }
+            catch { }
+
+            Dispatcher.Invoke(() => AddLog(sent
+                ? $"📤 Надіслано node info → {peerBlackID}"
+                : $"⚠️ Node info: тунель не знайдено для '{peerBlackID}'"));
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.Invoke(() => AddLog($"⚠️ SendNodeInfo error: {ex.Message}"));
+        }
+    }
+
+    private void HandleNodeInfoPacket(string sourceIP, byte[] data)
+    {
+        try
+        {
+            var json      = System.Text.Encoding.UTF8.GetString(
+                                data, NodeInfoMarker.Length, data.Length - NodeInfoMarker.Length);
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var blackID   = doc.RootElement.GetProperty("blackID").GetString();
+            var name      = doc.RootElement.TryGetProperty("displayName", out var dn)
+                                ? dn.GetString() : blackID;
+            if (string.IsNullOrEmpty(blackID)) return;
+
+            AddLog($"📥 Отримано node info від {sourceIP}: {blackID}");
+
+            // Зберегти отриманий node info в temp_data
+            try
+            {
+                var metaFile = Path.Combine(TempDataDir, $"nodeinfo_recv_{sourceIP.Replace(':', '_')}.json");
+                File.WriteAllText(metaFile, json);
+            }
+            catch { }
+
+            var node = _tunnelNodes.FirstOrDefault(t => t.IPAddress == sourceIP);
+            if (node == null)
+            {
+                AddLog($"⚠️ Node info: вузол з IP {sourceIP} не знайдено в списку");
+                return;
+            }
+
+            if (node.BlackID == blackID) return; // вже актуальний — ігноруємо
+
+            var oldId      = node.BlackID;
+            var wasTempId  = oldId.StartsWith("peer_");
+
+            // Перейменувати тунель ДО відповіді, щоб SendNodeInfoAsync знайшов його
+            _tunnelManager?.RenameUdpTunnel(oldId, blackID);
+
+            // Оновити UI одразу (до DB — щоб UNIQUE constraint не блокував)
+            node.BlackID     = blackID;
+            node.DisplayName = name ?? blackID;
+            AddLog($"🆔 Вузол ідентифіковано: {blackID} ({sourceIP})");
+
+            // Видалити дублікат якщо такий BlackID вже був у списку (старий або тимчасовий)
+            var dupNode = _tunnelNodes.FirstOrDefault(t => t != node && t.BlackID == blackID);
+            if (dupNode != null) _tunnelNodes.Remove(dupNode);
+
+            // Оновити БД з обробкою UNIQUE constraint
+            try
+            {
+                var existingWithRealId = _peerNodeRepository.GetPeerNodeByBlackID(blackID);
+                var dbPeer             = _peerNodeRepository.GetPeerNodeByBlackID(oldId);
+
+                if (existingWithRealId != null)
+                {
+                    // Справжній BlackID вже є в БД (з попередньої сесії)
+                    // Видаляємо тимчасовий запис, оновлюємо існуючий
+                    if (dbPeer != null && dbPeer.Id != existingWithRealId.Id)
+                        _peerNodeRepository.DeletePeerNode(dbPeer.Id);
+
+                    existingWithRealId.Address               = sourceIP;
+                    existingWithRealId.Port                  = node.Port;
+                    existingWithRealId.DisplayName           = name ?? blackID;
+                    existingWithRealId.LastConnectedAt       = DateTime.UtcNow;
+                    existingWithRealId.SuccessfulConnections++;
+                    _peerNodeRepository.UpdatePeerNode(existingWithRealId);
+                }
+                else if (dbPeer != null)
+                {
+                    dbPeer.BlackID     = blackID;
+                    dbPeer.DisplayName = name ?? blackID;
+                    _peerNodeRepository.UpdatePeerNode(dbPeer);
+                }
+            }
+            catch (Exception dbEx)
+            {
+                AddLog($"⚠️ DB update error: {dbEx.Message}");
+            }
+
+            // Відповісти своєю інформацією (лише якщо мали тимчасовий ID — уникаємо петлі)
+            if (wasTempId)
+                _ = Task.Run(() => SendNodeInfoAsync(blackID));
+        }
+        catch (Exception ex)
+        {
+            AddLog($"⚠️ Node info parse error: {ex.Message}");
+        }
+    }
+
+    // ─── FILE TRANSFER ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Сформувати файл-пакет: [marker 2B][filename_len 4B LE][filename UTF8][content]
+    /// </summary>
+    private static byte[] BuildFilePacket(string filename, byte[] content)
+    {
+        var nameBytes = System.Text.Encoding.UTF8.GetBytes(filename);
+        var packet    = new byte[FileTransferMarker.Length + 4 + nameBytes.Length + content.Length];
+        int offset    = 0;
+
+        FileTransferMarker.CopyTo(packet, offset); offset += FileTransferMarker.Length;
+        BitConverter.GetBytes(nameBytes.Length).CopyTo(packet, offset); offset += 4;
+        nameBytes.CopyTo(packet, offset); offset += nameBytes.Length;
+        content.CopyTo(packet, offset);
+
+        return packet;
+    }
+
+    /// <summary>
+    /// Надіслати файл через зашифрований тунель і зберегти копію в temp_data
+    /// </summary>
+    private async Task SendFileAsync(string peerBlackID, string filename, byte[] content)
+    {
+        if (_tunnelManager == null) return;
+        try
+        {
+            var packet = BuildFilePacket(filename, content);
+            bool sent  = await _tunnelManager.SendDataViaRelayAsync(peerBlackID, packet);
+
+            if (sent)
+            {
+                // Зберегти копію відправленого файлу в temp_data
+                var outPath = Path.Combine(TempDataDir, $"sent_{peerBlackID}_{filename}");
+                await File.WriteAllBytesAsync(outPath, content);
+
+                // Оновити статистику тунелю і залогувати в DB
+                Dispatcher.Invoke(() =>
+                {
+                    var tunnel = _tunnelNodes.FirstOrDefault(t => t.BlackID == peerBlackID);
+                    if (tunnel != null) tunnel.SentBytes += content.Length;
+
+                    AddLog($"📤 Файл надіслано → {peerBlackID}: {filename} ({content.Length} B)");
+                });
+
+                try
+                {
+                    var tunnelNode = await Dispatcher.InvokeAsync(() =>
+                        _tunnelNodes.FirstOrDefault(t => t.BlackID == peerBlackID));
+                    _eventRepository.LogEvent(new BlackCat.Shared.Models.ConnectionEvent
+                    {
+                        RemoteBlackID    = peerBlackID,
+                        RemoteIP         = tunnelNode?.IPAddress ?? string.Empty,
+                        RemotePort       = tunnelNode?.Port ?? 0,
+                        InitiatorBlackID = _ourBlackID?.FullID,
+                        EventType        = ConnectionEventType.AuthenticationSuccess,
+                        Direction        = ConnectionDirection.Outbound,
+                        Message          = $"Файл надіслано: {filename} ({content.Length} B) → {peerBlackID}",
+                        IsAuthenticated  = true,
+                        BytesSent        = content.Length,
+                        Timestamp        = DateTime.UtcNow
+                    });
+                }
+                catch { }
+            }
+            else
+            {
+                Dispatcher.Invoke(() =>
+                    AddLog($"⚠️ Не вдалося надіслати файл '{filename}' до '{peerBlackID}'"));
+            }
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.Invoke(() => AddLog($"⚠️ SendFile error: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Надіслати тестовий hello.txt при встановленні з'єднання
+    /// </summary>
+    private async Task SendHelloFileAsync(string peerBlackID)
+    {
+        var ourId    = _ourBlackID?.FullID
+                     ?? _blackIDRepository.GetActiveBlackID()?.FullID
+                     ?? "UNKNOWN";
+        var text     = $"Привіт від {ourId}!\r\n" +
+                       $"З'єднання встановлено: {DateTime.Now:dd.MM.yyyy HH:mm:ss}\r\n" +
+                       $"Тунель активний ✓";
+        var content  = System.Text.Encoding.UTF8.GetBytes(text);
+        var filename = $"hello_{ourId}_{DateTime.Now:HHmmss}.txt";
+
+        await SendFileAsync(peerBlackID, filename, content);
+    }
+
+    /// <summary>
+    /// Обробити отриманий файл-пакет: розпакувати, зберегти в temp_files, дамп в temp_data
+    /// </summary>
+    private void HandleFilePacket(string sourceIP, byte[] data)
+    {
+        try
+        {
+            int offset      = FileTransferMarker.Length;
+            int nameLen     = BitConverter.ToInt32(data, offset); offset += 4;
+            var filename    = System.Text.Encoding.UTF8.GetString(data, offset, nameLen); offset += nameLen;
+            var content     = data.Skip(offset).ToArray();
+
+            // Sanitize filename
+            var safeName    = Path.GetFileName(filename);
+            if (string.IsNullOrEmpty(safeName)) safeName = "received_file.bin";
+
+            // Зберегти в temp_files (для користувача)
+            var savePath    = Path.Combine(TempFilesDir, safeName);
+            File.WriteAllBytes(savePath, content);
+
+            // Зберегти метадані в temp_data (для програми)
+            var metaPath = Path.Combine(TempDataDir,
+                $"recv_{sourceIP}_{DateTime.Now:yyyyMMdd_HHmmss}_{safeName}.meta");
+            File.WriteAllText(metaPath,
+                $"from={sourceIP}\r\nfilename={safeName}\r\nsize={content.Length}\r\ntimestamp={DateTime.UtcNow:O}\r\n");
+
+            // Оновити статистику тунелю
+            var tunnel = _tunnelNodes.FirstOrDefault(t => t.IPAddress == sourceIP);
+            if (tunnel != null) tunnel.ReceivedBytes += data.Length;
+
+            // Залогувати отримання файлу в DB
+            try
+            {
+                _eventRepository.LogEvent(new BlackCat.Shared.Models.ConnectionEvent
+                {
+                    RemoteBlackID   = tunnel?.BlackID,
+                    RemoteIP        = sourceIP,
+                    RemotePort      = tunnel?.Port ?? 0,
+                    TargetBlackID   = _ourBlackID?.FullID,
+                    EventType       = ConnectionEventType.AuthenticationSuccess,
+                    Direction       = ConnectionDirection.Inbound,
+                    Message         = $"Файл отримано: {safeName} ({content.Length} B) від {sourceIP}",
+                    IsAuthenticated = true,
+                    BytesReceived   = content.Length,
+                    Timestamp       = DateTime.UtcNow
+                });
+            }
+            catch { }
+
+            AddLog($"📥 Отримано файл від {sourceIP}: {safeName} ({content.Length} B)");
+            AddLog($"   💾 Збережено: {savePath}");
+        }
+        catch (Exception ex)
+        {
+            AddLog($"⚠️ File receive error: {ex.Message}");
+        }
+    }
+
     protected override void OnClosed(EventArgs e)
     {
+        _p2pPunchCts?.Cancel();
+        _p2pUdpSocket?.Dispose();
         _embeddedRelayServer?.Dispose();
         _tunnelManager?.Dispose();
         _connectionMonitor?.Dispose();

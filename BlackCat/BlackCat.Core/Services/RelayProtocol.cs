@@ -21,9 +21,10 @@ public static class RelayProtocol
     public const string CmdReject    = "reject";
     public const string CmdAccepted  = "accepted";
     public const string CmdRejected  = "rejected";
-    public const string CmdPing      = "ping";
-    public const string CmdPong      = "pong";
-    public const string CmdDisconnect= "disconnect";
+    public const string CmdPing        = "ping";
+    public const string CmdPong        = "pong";
+    public const string CmdDisconnect  = "disconnect";
+    public const string CmdStunAnswer  = "stun_answer"; // hole punch signaling
 
     public static async Task WriteControlAsync(Stream stream, object message, CancellationToken ct = default)
     {
@@ -100,15 +101,25 @@ public class RelayRegisterMsg : RelayMessage
 public class RelayConnectMsg : RelayMessage
 {
     public RelayConnectMsg() => Cmd = RelayProtocol.CmdConnect;
-    public string Target { get; set; } = string.Empty;
-    public string From   { get; set; } = string.Empty;
+    public string  Target        { get; set; } = string.Empty;
+    public string  From          { get; set; } = string.Empty;
+    public string? StunEndpoint  { get; set; } // "ip:port" для hole punching
 }
 
 public class RelayIncomingMsg : RelayMessage
 {
     public RelayIncomingMsg() => Cmd = RelayProtocol.CmdIncoming;
-    public string From   { get; set; } = string.Empty;
-    public string FromIP { get; set; } = string.Empty;
+    public string  From          { get; set; } = string.Empty;
+    public string  FromIP        { get; set; } = string.Empty;
+    public string? StunEndpoint  { get; set; } // публічний UDP endpoint ініціатора
+}
+
+public class RelayStunAnswerMsg : RelayMessage
+{
+    public RelayStunAnswerMsg() => Cmd = RelayProtocol.CmdStunAnswer;
+    public string  To            { get; set; } = string.Empty;
+    public string  From          { get; set; } = string.Empty;
+    public string  StunEndpoint  { get; set; } = string.Empty;
 }
 
 public class RelayAcceptMsg : RelayMessage

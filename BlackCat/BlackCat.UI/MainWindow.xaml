@@ -333,13 +333,13 @@
                                          Padding="5" Margin="0,0,0,10"/>
 
                                 <!-- IP адреса -->
-                                <TextBlock Text="IP адреса:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                <TextBlock Text="P2P Endpoint IP:" FontWeight="Bold" Margin="0,0,0,5"/>
                                 <TextBox x:Name="TunnelIPTextBox"
                                          Background="#1E1E1E" Foreground="White"
                                          Padding="5" Margin="0,0,0,10"/>
 
                                 <!-- Порт -->
-                                <TextBlock Text="Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                <TextBlock Text="P2P Endpoint Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
                                 <TextBox x:Name="TunnelPortTextBox" Text="9999"
                                          Background="#1E1E1E" Foreground="White"
                                          Padding="5" Margin="0,0,0,10"/>
@@ -422,7 +422,7 @@
 
                             <!-- Кнопки дій -->
                             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                                <Button x:Name="ConnectTunnelButton" Content="🔌 Підключити" Width="120"
+                                <Button x:Name="ConnectTunnelButton" Content="🕳️ Перепідключити" Width="140"
                                         Margin="0,0,10,0" Click="ConnectTunnelButton_Click" IsEnabled="False"/>
                                 <Button x:Name="DisconnectTunnelButton" Content="🔌 Від'єднати" Width="120"
                                         Click="DisconnectTunnelButton_Click" IsEnabled="False"/>
@@ -431,6 +431,95 @@
                         </ScrollViewer>
                     </Border>
                 </Grid>
+            </TabItem>
+
+            <!-- P2P Manual Signaling -->
+            <TabItem Header="🕳️ P2P">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="15" MaxWidth="600">
+
+                        <TextBlock Text="Пряме P2P з'єднання" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+                        <TextBlock Text="Без сервера — обмін кодами через будь-який месенджер"
+                                   Foreground="#808080" FontSize="12" Margin="0,0,0,20"/>
+
+                        <!-- Крок 1 -->
+                        <Border Background="#2D2D30" CornerRadius="5" Padding="15" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="① Отримай свій код і надішли другу"
+                                           FontWeight="Bold" Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0" Background="#1E1E1E" BorderBrush="#4EC9B0"
+                                            BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,0,8,0">
+                                        <TextBlock x:Name="P2PMyCodeText"
+                                                   Text="Натисни «Отримати код»"
+                                                   FontFamily="Consolas" FontSize="13"
+                                                   Foreground="#808080" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <Button Grid.Column="1" x:Name="P2PCopyButton" Content="📋"
+                                            Width="36" Margin="0,0,5,0" IsEnabled="False"
+                                            Click="P2PCopyButton_Click" ToolTip="Копіювати в буфер"/>
+                                    <Button Grid.Column="2" x:Name="P2PGetCodeButton"
+                                            Content="🔄 Отримати код" Width="140"
+                                            Click="P2PGetCodeButton_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Крок 2 -->
+                        <Border Background="#2D2D30" CornerRadius="5" Padding="15" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="② Встав код від друга" FontWeight="Bold" Margin="0,0,0,10"/>
+                                <TextBox x:Name="P2PPeerCodeTextBox"
+                                         Background="#1E1E1E" Foreground="White"
+                                         FontFamily="Consolas" FontSize="13"
+                                         BorderBrush="#6A9955" BorderThickness="1"
+                                         Padding="8"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Крок 3 -->
+                        <Border Background="#2D2D30" CornerRadius="5" Padding="15" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="③ Натисніть «З'єднати» одночасно з другом"
+                                           FontWeight="Bold" Margin="0,0,0,12"/>
+                                <Button x:Name="P2PConnectButton"
+                                        Content="🚀 З'єднати (30 сек)"
+                                        Height="38" FontSize="13"
+                                        Click="P2PConnectButton_Click"/>
+                                <ProgressBar x:Name="P2PProgressBar"
+                                             Height="6" Margin="0,12,0,4"
+                                             Minimum="0" Maximum="30" Value="0"
+                                             Foreground="#4EC9B0" Background="#1E1E1E"/>
+                                <TextBlock x:Name="P2PStatusText" Text=""
+                                           Foreground="#808080" FontSize="11"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Підказка -->
+                        <Border Background="#1A2E1A" BorderBrush="#3A7A3A"
+                                BorderThickness="1" CornerRadius="5" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="ℹ️ Як це працює" FontWeight="Bold" Margin="0,0,0,6"/>
+                                <TextBlock Foreground="#90C890" FontSize="11" TextWrapping="Wrap"
+                                           LineHeight="18">
+                                    <Run>1. Натисни «Отримати код» — це твій публічний UDP endpoint</Run><LineBreak/>
+                                    <Run>2. Надішли код другу через Telegram / Viber / будь-що</Run><LineBreak/>
+                                    <Run>3. Встав код від друга в поле ②</Run><LineBreak/>
+                                    <Run>4. Обидва натискають «З'єднати» — є 30 секунд</Run><LineBreak/>
+                                    <Run>5. Після успіху — прямий зашифрований MQE-тунель без серверів</Run><LineBreak/>
+                                    <Run Foreground="#C8A050">⚠ Може не спрацювати при симетричному NAT (рідко у домашніх мережах)</Run>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
             <!-- Лог -->
