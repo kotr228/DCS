@@ -1607,13 +1607,46 @@ public partial class MainWindow : Window
             var packet = BuildFilePacket(filename, content);
             bool sent  = await _tunnelManager.SendDataViaRelayAsync(peerBlackID, packet);
 
-            // Зберегти копію відправленого файлу в temp_data
-            var outPath = Path.Combine(TempDataDir, $"sent_{peerBlackID}_{filename}");
-            await File.WriteAllBytesAsync(outPath, content);
+            if (sent)
+            {
+                // Зберегти копію відправленого файлу в temp_data
+                var outPath = Path.Combine(TempDataDir, $"sent_{peerBlackID}_{filename}");
+                await File.WriteAllBytesAsync(outPath, content);
 
-            Dispatcher.Invoke(() => AddLog(sent
-                ? $"📤 Файл надіслано → {peerBlackID}: {filename} ({content.Length} B)"
-                : $"⚠️ Не вдалося надіслати файл '{filename}' до '{peerBlackID}'"));
+                // Оновити статистику тунелю і залогувати в DB
+                Dispatcher.Invoke(() =>
+                {
+                    var tunnel = _tunnelNodes.FirstOrDefault(t => t.BlackID == peerBlackID);
+                    if (tunnel != null) tunnel.SentBytes += content.Length;
+
+                    AddLog($"📤 Файл надіслано → {peerBlackID}: {filename} ({content.Length} B)");
+                });
+
+                try
+                {
+                    var tunnelNode = await Dispatcher.InvokeAsync(() =>
+                        _tunnelNodes.FirstOrDefault(t => t.BlackID == peerBlackID));
+                    _eventRepository.LogEvent(new BlackCat.Shared.Models.ConnectionEvent
+                    {
+                        RemoteBlackID    = peerBlackID,
+                        RemoteIP         = tunnelNode?.IPAddress ?? string.Empty,
+                        RemotePort       = tunnelNode?.Port ?? 0,
+                        InitiatorBlackID = _ourBlackID?.FullID,
+                        EventType        = ConnectionEventType.AuthenticationSuccess,
+                        Direction        = ConnectionDirection.Outbound,
+                        Message          = $"Файл надіслано: {filename} ({content.Length} B) → {peerBlackID}",
+                        IsAuthenticated  = true,
+                        BytesSent        = content.Length,
+                        Timestamp        = DateTime.UtcNow
+                    });
+                }
+                catch { }
+            }
+            else
+            {
+                Dispatcher.Invoke(() =>
+                    AddLog($"⚠️ Не вдалося надіслати файл '{filename}' до '{peerBlackID}'"));
+            }
         }
         catch (Exception ex)
         {
@@ -1667,6 +1700,25 @@ public partial class MainWindow : Window
             // Оновити статистику тунелю
             var tunnel = _tunnelNodes.FirstOrDefault(t => t.IPAddress == sourceIP);
             if (tunnel != null) tunnel.ReceivedBytes += data.Length;
+
+            // Залогувати отримання файлу в DB
+            try
+            {
+                _eventRepository.LogEvent(new BlackCat.Shared.Models.ConnectionEvent
+                {
+                    RemoteBlackID   = tunnel?.BlackID,
+                    RemoteIP        = sourceIP,
+                    RemotePort      = tunnel?.Port ?? 0,
+                    TargetBlackID   = _ourBlackID?.FullID,
+                    EventType       = ConnectionEventType.AuthenticationSuccess,
+                    Direction       = ConnectionDirection.Inbound,
+                    Message         = $"Файл отримано: {safeName} ({content.Length} B) від {sourceIP}",
+                    IsAuthenticated = true,
+                    BytesReceived   = content.Length,
+                    Timestamp       = DateTime.UtcNow
+                });
+            }
+            catch { }
 
             AddLog($"📥 Отримано файл від {sourceIP}: {safeName} ({content.Length} B)");
             AddLog($"   💾 Збережено: {savePath}");
