@@ -6,7 +6,8 @@
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
         xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
         mc:Ignorable="d"
-        Title="BlackCat Firewall - Monitor" Height="700" Width="1200"
+        Title="BlackCat Firewall" Height="700" Width="1200"
+        Icon="/Assets/BC.ico"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}"
         Foreground="{StaticResource TextBrush}"
@@ -21,8 +22,10 @@
         </Grid.RowDefinitions>
 
         <!-- Заголовок -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
-            <TextBlock Text="🐱 BlackCat Firewall" FontSize="28" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"/>
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20" VerticalAlignment="Center">
+            <Image Source="/Assets/BC.ico" Width="36" Height="36" Margin="0,0,12,0" VerticalAlignment="Center"/>
+            <TextBlock Text="BlackCat Firewall" FontSize="28" FontWeight="Bold"
+                       Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
         </StackPanel>
 
         <!-- Статистика (цифри) -->
