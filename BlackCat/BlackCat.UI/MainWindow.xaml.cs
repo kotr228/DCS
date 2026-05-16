@@ -83,6 +83,7 @@ public partial class MainWindow : Window
 
     // DCS інтеграція
     private DcsIntegrationService? _dcsService;
+    private IpcBridgeService?      _ipcBridge;
     private readonly DcsTransferRepository _dcsTransferRepository;
     private readonly ObservableCollection<DcsTransferItem> _dcsActiveTransfers = new();
 
@@ -222,6 +223,10 @@ public partial class MainWindow : Window
                     _dcsService.FileReceived     += OnDcsFileReceived;
                     DcsDisabledBanner.Visibility  = Visibility.Collapsed;
                     AddLog("🗂️ DCS-інтеграція активована");
+
+                    // IPC-міст: повідомляти DCS NetworkCore про WAN-тунелі
+                    _ipcBridge = new IpcBridgeService(_tunnelManager);
+                    AddLog("🔗 IPC-міст до DCS активовано");
                 }
                 catch (Exception dcsEx)
                 {
@@ -1781,6 +1786,7 @@ public partial class MainWindow : Window
         _p2pUdpSocket?.Dispose();
         _embeddedRelayServer?.Dispose();
         try { _dcsService?.Dispose(); } catch { }
+        try { _ipcBridge?.Dispose(); } catch { }
         _tunnelManager?.Dispose();
         _connectionMonitor?.Dispose();
         _coordinator?.Stop();

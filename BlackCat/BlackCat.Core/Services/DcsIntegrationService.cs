@@ -333,6 +333,10 @@ public sealed class DcsIntegrationService : IDisposable
         catch { return false; }
     }
 
+    /// <summary>Надіслати довільний DCS-пакет через тунель (для RemoteCacheService тощо).</summary>
+    public Task<bool> SendRawPacketAsync(string peerBlackID, DcsPacket packet)
+        => SendPacketSafeAsync(peerBlackID, packet);
+
     private void LogDcsEvent(string peerBlackID, string eventTypeName, string message,
         long bytesSent = 0, long bytesReceived = 0)
     {

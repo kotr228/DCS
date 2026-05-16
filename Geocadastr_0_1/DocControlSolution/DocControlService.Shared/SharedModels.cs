@@ -410,8 +410,28 @@ namespace DocControlService.Shared
         LockFile,
         UnlockFile,
         GetFileLockInfo,
-        UpdateFileLockHeartbeat
+        UpdateFileLockHeartbeat,
 
+        // BlackCat WAN Bridge (v1.0)
+        RegisterBlackCatPeer,
+        UnregisterBlackCatPeer
+
+    }
+
+    /// <summary>
+    /// Паспорт вузла BlackCat, що передається через Named Pipe "BlackCatBridgePipe"
+    /// від BlackCat Firewall до DCS NetworkCore при встановленні/завершенні WAN-тунелю.
+    /// </summary>
+    [Serializable]
+    public class BlackCatPassport
+    {
+        public string BlackId     { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string IpAddress   { get; set; } = string.Empty;
+        public int    Port        { get; set; }
+        /// <summary>"Connected" або "Offline"</summary>
+        public string Status      { get; set; } = "Connected";
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
     }
 
     [Serializable]

@@ -125,6 +125,16 @@ namespace DocControlService.Shared
         public string ProtocolVersion { get; set; } = "1.0";
 
         /// <summary>
+        /// Чи прийшов цей вузол через WAN-тунель BlackCat (а не LAN UDP-discovery).
+        /// </summary>
+        public bool IsRemoteTunnel { get; set; } = false;
+
+        /// <summary>
+        /// Black-ID вузла в системі BlackCat Firewall (порожній для LAN-вузлів).
+        /// </summary>
+        public string BlackId { get; set; } = string.Empty;
+
+        /// <summary>
         /// Перевірка чи це цей же екземпляр (щоб не знаходити самого себе)
         /// </summary>
         public bool IsSelf(Guid localInstanceId)

@@ -4,6 +4,7 @@ using DocControlService.Shared;
 using System;
 using System.IO;
 using System.IO.Pipes;
+using System.Security.Cryptography;
 using System.ServiceProcess;
 using System.Text;
 using System.Text.Json;
@@ -27,6 +28,11 @@ namespace DocControlNetworkCore
 
         private PeerIdentity? _localIdentity;
         private string _sharedDirectory = @"C:\SharedFiles"; // За замовчуванням
+
+        // BlackCat WAN Bridge
+        private const string BlackCatPipeName = "BlackCatBridgePipe";
+        private CancellationTokenSource? _bridgeCts;
+        private Task? _bridgeTask;
 
         public NetworkCoreService(bool debugMode = false)
         {
@@ -103,6 +109,13 @@ namespace DocControlNetworkCore
                 Log("   ✓ File Transfer готовий");
                 Log("");
 
+                // 7. BlackCat WAN Bridge (IPC сервер)
+                Log("7. Запуск BlackCat Bridge (Named Pipe сервер)...");
+                _bridgeCts  = new CancellationTokenSource();
+                _bridgeTask = Task.Run(() => RunBlackCatBridgeAsync(_bridgeCts.Token));
+                Log($"   ✓ BlackCat Bridge запущено (pipe: {BlackCatPipeName})");
+                Log("");
+
                 Log("═══════════════════════════════════════════════════════");
                 Log("  ✓ Мережеве ядро успішно запущено!");
                 Log("═══════════════════════════════════════════════════════");
@@ -120,6 +133,9 @@ namespace DocControlNetworkCore
 
             try
             {
+                _bridgeCts?.Cancel();
+                try { _bridgeTask?.Wait(TimeSpan.FromSeconds(3)); } catch { }
+
                 _discoveryService?.Stop();
                 _commandLayer?.Stop();
                 _peerRegistry?.Stop();
@@ -127,6 +143,7 @@ namespace DocControlNetworkCore
                 _discoveryService?.Dispose();
                 _commandLayer?.Dispose();
                 _peerRegistry?.Dispose();
+                _bridgeCts?.Dispose();
 
                 Log("✓ Мережеве ядро зупинено");
             }
@@ -351,6 +368,122 @@ namespace DocControlNetworkCore
             {
                 Log($"[NetworkCore] 🔍 NotifyDocControlService завершено для {peer.UserName}@{peer.MachineName}");
             }
+        }
+
+        // ─── BlackCat WAN Bridge ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Нескінченний цикл Named Pipe сервера, що приймає паспорти від BlackCat.
+        /// Кожне підключення обробляється окремо — сервер одразу готовий до наступного.
+        /// </summary>
+        private async Task RunBlackCatBridgeAsync(CancellationToken cancellationToken)
+        {
+            Log("[Bridge] Pipe сервер запущено");
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                NamedPipeServerStream? pipe = null;
+                try
+                {
+                    pipe = new NamedPipeServerStream(
+                        BlackCatPipeName,
+                        PipeDirection.In,
+                        NamedPipeServerStream.MaxAllowedServerInstances,
+                        PipeTransmissionMode.Byte,
+                        PipeOptions.Asynchronous);
+
+                    await pipe.WaitForConnectionAsync(cancellationToken);
+
+                    // Обробити в окремій задачі, щоб сервер міг прийняти наступне підключення
+                    var captured = pipe;
+                    pipe = null; // не Dispose у finally
+                    _ = Task.Run(() => HandleBridgeConnectionAsync(captured), cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    Log($"[Bridge] Помилка pipe сервера: {ex.Message}", isError: true);
+                    await Task.Delay(1000, cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    pipe?.Dispose();
+                }
+            }
+
+            Log("[Bridge] Pipe сервер зупинено");
+        }
+
+        private async Task HandleBridgeConnectionAsync(NamedPipeServerStream pipe)
+        {
+            try
+            {
+                using (pipe)
+                {
+                    using var reader = new StreamReader(pipe, Encoding.UTF8, false, 1024, true);
+                    var line = await reader.ReadLineAsync();
+                    if (string.IsNullOrWhiteSpace(line)) return;
+
+                    var passport = JsonSerializer.Deserialize<BlackCatPassport>(line);
+                    if (passport == null) return;
+
+                    Log($"[Bridge] Паспорт від BlackCat: {passport.BlackId} ({passport.Status})");
+
+                    if (passport.Status == "Offline")
+                    {
+                        // Знайти та видалити відповідний вузол
+                        var existing = FindPeerByBlackId(passport.BlackId);
+                        if (existing != null)
+                        {
+                            _peerRegistry?.RemovePeer(existing.InstanceId);
+                            Log($"[Bridge] WAN вузол відключився: {passport.BlackId}");
+                        }
+                    }
+                    else
+                    {
+                        // Зареєструвати або оновити WAN вузол
+                        var peer = new PeerIdentity
+                        {
+                            InstanceId       = DeriveGuidFromBlackId(passport.BlackId),
+                            UserName         = passport.DisplayName,
+                            MachineName      = passport.BlackId,
+                            IpAddress        = passport.IpAddress,
+                            TcpPort          = passport.Port > 0 ? passport.Port : 9999,
+                            UdpPort          = 0,
+                            LastSeen         = DateTime.Now,
+                            ProtocolVersion  = "BlackCat/1.0",
+                            IsRemoteTunnel   = true,
+                            BlackId          = passport.BlackId
+                        };
+
+                        _peerRegistry?.AddOrUpdatePeer(peer);
+                        Log($"[Bridge] WAN вузол зареєстровано: {passport.BlackId} ({passport.IpAddress})");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"[Bridge] Помилка обробки паспорту: {ex.Message}", isError: true);
+            }
+        }
+
+        private PeerIdentity? FindPeerByBlackId(string blackId)
+        {
+            if (_peerRegistry == null) return null;
+            var peers = _peerRegistry.GetAllPeers();
+            foreach (var p in peers)
+                if (p.BlackId == blackId) return p;
+            return null;
+        }
+
+        private static Guid DeriveGuidFromBlackId(string blackId)
+        {
+            // Стабільний Guid з рядка через MD5 (детермінований)
+            var hash = MD5.HashData(Encoding.UTF8.GetBytes("blackcat:" + blackId));
+            return new Guid(hash);
         }
 
         private void InitializeComponent()
