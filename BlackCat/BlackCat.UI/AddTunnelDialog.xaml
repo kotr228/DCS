@@ -1,81 +1,126 @@
-<mah:MetroWindow x:Class="BlackCat.UI.AddTunnelDialog"
+<Window x:Class="BlackCat.UI.AddTunnelDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
         Title="Додати вузол Black-ID" Height="450" Width="550"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None" AllowsTransparency="True" ResizeMode="NoResize"
+        Background="Transparent">
 
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Border Background="{StaticResource BackgroundBrush}"
+            BorderBrush="{StaticResource PrimaryBrush}"
+            BorderThickness="2" CornerRadius="0">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-        <!-- Заголовок -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,20">
-            <TextBlock Text="Додати вузол до телефонної книги" FontSize="20" FontWeight="Bold"/>
-            <TextBlock Text="Введіть Black-ID та IP адресу віддаленого вузла"
-                       FontSize="12" Foreground="Gray" Margin="0,5,0,0"/>
-        </StackPanel>
-
-        <!-- Форма -->
-        <StackPanel Grid.Row="1">
-            <!-- Black-ID -->
-            <TextBlock Text="Black-ID віддаленого вузла:" FontWeight="Bold" Margin="0,0,0,5"/>
-            <TextBox x:Name="BlackIDTextBox"
-                     FontFamily="Consolas" FontSize="14"
-                     Padding="8" Margin="0,0,0,5"/>
-            <TextBlock TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,0,0,15">
-                Приклад: SKLAD-ODESA-SERVER-7X99
-                <LineBreak/>
-                Адміністратор віддаленого вузла повинен надати вам цей код.
-            </TextBlock>
-
-            <!-- IP адреса -->
-            <TextBlock Text="IP адреса:" FontWeight="Bold" Margin="0,0,0,5"/>
-            <TextBox x:Name="IPAddressTextBox"
-                     Padding="8" Margin="0,0,0,5"/>
-            <TextBlock TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,0,0,15">
-                Можна вказати IP адресу (наприклад: 192.168.1.100) або доменне ім'я (наприклад: server.example.com).
-                <LineBreak/>
-                Для роботи через інтернет використовуйте публічну IP або DDNS.
-            </TextBlock>
-
-            <!-- Порт -->
-            <TextBlock Text="Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
-            <TextBox x:Name="PortTextBox" Text="9999"
-                     Padding="8" Margin="0,0,0,5"/>
-            <TextBlock TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,0,0,15">
-                Стандартний порт BlackCat: 9999. Змінюйте тільки якщо віддалений вузол використовує інший порт.
-            </TextBlock>
-
-            <!-- Інформація про захист -->
-            <Border Background="#1E1E1E" BorderBrush="#4EC9B0" BorderThickness="2"
-                    CornerRadius="5" Padding="12" Margin="0,10,0,0">
-                <StackPanel>
-                    <TextBlock Text="🔒 Захист з'єднання:" FontWeight="Bold" Margin="0,0,0,8"/>
-                    <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#CCCCCC">
-                        ✓ Hardware Fingerprinting - прив'язка до заліза
-                        <LineBreak/>
-                        ✓ Handshake Validation - перевірка автентичності
-                        <LineBreak/>
-                        ✓ MQE шифрування - захист даних
-                        <LineBreak/>
-                        ✓ Stealth Mode - захист від сканування
-                    </TextBlock>
-                </StackPanel>
+            <!-- Chrome header -->
+            <Border Grid.Row="0" Background="{StaticResource PrimaryDarkBrush}" Padding="12,0"
+                    MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Grid>
+                    <TextBlock Text="ДОДАТИ ВУЗОЛ BLACK-ID" FontWeight="Bold" FontSize="12"
+                               Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
+                    <Button Content="✕" Width="36" Height="36" HorizontalAlignment="Right"
+                            FontSize="16" Cursor="Hand" Click="CloseButton_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="border" Background="{TemplateBinding Background}" Width="36" Height="36">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="border" Property="Background" Value="#F44336"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
             </Border>
-        </StackPanel>
 
-        <!-- Кнопки -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-            <Button x:Name="AddButton" Content="Додати"
-                    Width="100" Padding="10,5" Margin="0,0,10,0"
-                    Click="AddButton_Click" IsDefault="True"/>
-            <Button x:Name="CancelButton" Content="Скасувати"
-                    Width="100" Padding="10,5"
-                    Click="CancelButton_Click" IsCancel="True"/>
-        </StackPanel>
-    </Grid>
-</mah:MetroWindow>
+            <!-- Content -->
+            <Grid Grid.Row="1" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Заголовок -->
+                <StackPanel Grid.Row="0" Margin="0,0,0,20">
+                    <TextBlock Text="Додати вузол до телефонної книги" FontSize="20" FontWeight="Bold"/>
+                    <TextBlock Text="Введіть Black-ID та IP адресу віддаленого вузла"
+                               FontSize="12" Foreground="Gray" Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <!-- Форма -->
+                <StackPanel Grid.Row="1">
+                    <!-- Black-ID -->
+                    <TextBlock Text="Black-ID віддаленого вузла:" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <TextBox x:Name="BlackIDTextBox"
+                             FontFamily="Consolas" FontSize="14"
+                             Padding="8" Margin="0,0,0,5"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,0,0,15">
+                        Приклад: SKLAD-ODESA-SERVER-7X99
+                        <LineBreak/>
+                        Адміністратор віддаленого вузла повинен надати вам цей код.
+                    </TextBlock>
+
+                    <!-- IP адреса -->
+                    <TextBlock Text="IP адреса:" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <TextBox x:Name="IPAddressTextBox"
+                             Padding="8" Margin="0,0,0,5"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,0,0,15">
+                        Можна вказати IP адресу (наприклад: 192.168.1.100) або доменне ім'я (наприклад: server.example.com).
+                        <LineBreak/>
+                        Для роботи через інтернет використовуйте публічну IP або DDNS.
+                    </TextBlock>
+
+                    <!-- Порт -->
+                    <TextBlock Text="Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
+                    <TextBox x:Name="PortTextBox" Text="9999"
+                             Padding="8" Margin="0,0,0,5"/>
+                    <TextBlock TextWrapping="Wrap" Foreground="Gray" FontSize="11" Margin="0,0,0,15">
+                        Стандартний порт BlackCat: 9999. Змінюйте тільки якщо віддалений вузол використовує інший порт.
+                    </TextBlock>
+
+                    <!-- Інформація про захист -->
+                    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PrimaryBrush}"
+                            BorderThickness="1" CornerRadius="0" Padding="12" Margin="0,10,0,0">
+                        <StackPanel>
+                            <TextBlock Text="🔒 Захист з'єднання:" FontWeight="Bold" Margin="0,0,0,8"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextBrush}">
+                                ✓ Hardware Fingerprinting - прив'язка до заліза
+                                <LineBreak/>
+                                ✓ Handshake Validation - перевірка автентичності
+                                <LineBreak/>
+                                ✓ MQE шифрування - захист даних
+                                <LineBreak/>
+                                ✓ Stealth Mode - захист від сканування
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Кнопки -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                    <Button x:Name="AddButton" Content="Додати"
+                            Width="100" Padding="10,5" Margin="0,0,10,0"
+                            Click="AddButton_Click" IsDefault="True"/>
+                    <Button x:Name="CancelButton" Content="Скасувати"
+                            Width="100" Padding="10,5"
+                            Click="CancelButton_Click" IsCancel="True"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

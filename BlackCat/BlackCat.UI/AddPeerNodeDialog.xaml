@@ -1,78 +1,122 @@
-<mah:MetroWindow x:Class="BlackCat.UI.AddPeerNodeDialog"
+<Window x:Class="BlackCat.UI.AddPeerNodeDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
         Title="Додати вузол" Height="500" Width="600"
         WindowStartupLocation="CenterOwner"
-        Background="#1E1E1E"
-        Foreground="White">
+        WindowStyle="None" AllowsTransparency="True" ResizeMode="NoResize"
+        Background="Transparent">
 
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+    <Border Background="{StaticResource BackgroundBrush}"
+            BorderBrush="{StaticResource PrimaryBrush}"
+            BorderThickness="2" CornerRadius="0">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-        <!-- Заголовок -->
-        <TextBlock Grid.Row="0" Text="Додати новий вузол до телефонної книги"
-                   FontSize="18" FontWeight="Bold" Margin="0,0,0,20"/>
+            <!-- Chrome header -->
+            <Border Grid.Row="0" Background="{StaticResource PrimaryDarkBrush}" Padding="12,0"
+                    MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Grid>
+                    <TextBlock Text="ДОДАТИ ВУЗОЛ" FontWeight="Bold" FontSize="12"
+                               Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
+                    <Button Content="✕" Width="36" Height="36" HorizontalAlignment="Right"
+                            FontSize="16" Cursor="Hand" Click="CloseButton_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="border" Background="{TemplateBinding Background}" Width="36" Height="36">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="border" Property="Background" Value="#F44336"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </Border>
 
-        <!-- Форма -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel>
+            <!-- Content -->
+            <Grid Grid.Row="1" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <!-- Black-ID -->
-                <TextBlock Text="Black-ID вузла:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <TextBox x:Name="BlackIDTextBox" FontFamily="Consolas" Padding="8"
-                         ToolTip="Формат: ROLE-CITY-NAME-CODE (наприклад: OFFICE-KYIV-PC1-A7B9)"/>
-                <TextBlock Foreground="Gray" FontSize="11" Margin="0,5,0,15"
-                           Text="Формат: ROLE-CITY-NAME-CODE"/>
+                <!-- Заголовок -->
+                <TextBlock Grid.Row="0" Text="Додати новий вузол до телефонної книги"
+                           FontSize="18" FontWeight="Bold" Margin="0,0,0,20"/>
 
-                <!-- IP адреса -->
-                <TextBlock Text="IP адреса:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <TextBox x:Name="IPAddressTextBox" Padding="8"
-                         ToolTip="IPv4 адреса (наприклад: 192.168.1.100 або 88.99.100.101)"/>
-                <TextBlock Foreground="Gray" FontSize="11" Margin="0,5,0,15"
-                           Text="Локальна (192.168.x.x) або зовнішня IP"/>
+                <!-- Форма -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
 
-                <!-- Порт -->
-                <TextBlock Text="Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <mah:NumericUpDown x:Name="PortNumeric" Value="9999" Minimum="1024" Maximum="65535"
-                                   HorizontalAlignment="Left" Width="150"/>
-                <TextBlock Foreground="Gray" FontSize="11" Margin="0,5,0,15"
-                           Text="За замовчуванням: 9999"/>
+                        <!-- Black-ID -->
+                        <TextBlock Text="Black-ID вузла:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBox x:Name="BlackIDTextBox" FontFamily="Consolas" Padding="8"
+                                 ToolTip="Формат: ROLE-CITY-NAME-CODE (наприклад: OFFICE-KYIV-PC1-A7B9)"/>
+                        <TextBlock Foreground="Gray" FontSize="11" Margin="0,5,0,15"
+                                   Text="Формат: ROLE-CITY-NAME-CODE"/>
 
-                <!-- Назва -->
-                <TextBlock Text="Назва для відображення:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <TextBox x:Name="DisplayNameTextBox" Padding="8"
-                         ToolTip="Зрозуміла назва для ідентифікації (наприклад: Головний сервер Одеса)"/>
+                        <!-- IP адреса -->
+                        <TextBlock Text="IP адреса:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBox x:Name="IPAddressTextBox" Padding="8"
+                                 ToolTip="IPv4 адреса (наприклад: 192.168.1.100 або 88.99.100.101)"/>
+                        <TextBlock Foreground="Gray" FontSize="11" Margin="0,5,0,15"
+                                   Text="Локальна (192.168.x.x) або зовнішня IP"/>
 
-                <!-- Опис -->
-                <TextBlock Text="Опис (опціонально):" FontWeight="Bold" Margin="0,10,0,5"/>
-                <TextBox x:Name="DescriptionTextBox" Padding="8" Height="60"
-                         TextWrapping="Wrap" AcceptsReturn="True"
-                         ToolTip="Додаткова інформація про вузол"/>
+                        <!-- Порт -->
+                        <TextBlock Text="Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <mah:NumericUpDown x:Name="PortNumeric" Value="9999" Minimum="1024" Maximum="65535"
+                                           HorizontalAlignment="Left" Width="150"/>
+                        <TextBlock Foreground="Gray" FontSize="11" Margin="0,5,0,15"
+                                   Text="За замовчуванням: 9999"/>
 
-                <!-- Довіряти -->
-                <CheckBox x:Name="IsTrustedCheckBox" Content="Довіряти цьому вузлу"
-                          IsChecked="True" Margin="0,15,0,0"/>
-                <TextBlock Foreground="Orange" FontSize="11" Margin="25,5,0,0" TextWrapping="Wrap"
-                           Text="⚠️ Тільки довірені вузли можуть встановлювати з'єднання. Увімкніть цю опцію лише для ваших власних вузлів!"/>
+                        <!-- Назва -->
+                        <TextBlock Text="Назва для відображення:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBox x:Name="DisplayNameTextBox" Padding="8"
+                                 ToolTip="Зрозуміла назва для ідентифікації (наприклад: Головний сервер Одеса)"/>
 
-            </StackPanel>
-        </ScrollViewer>
+                        <!-- Опис -->
+                        <TextBlock Text="Опис (опціонально):" FontWeight="Bold" Margin="0,10,0,5"/>
+                        <TextBox x:Name="DescriptionTextBox" Padding="8" Height="60"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 ToolTip="Додаткова інформація про вузол"/>
 
-        <!-- Кнопки -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-            <Button x:Name="SaveButton" Content="💾 Зберегти"
-                    Width="120" Padding="10,8" Margin="0,0,10,0"
-                    Click="SaveButton_Click"
-                    Style="{DynamicResource MahApps.Styles.Button.Square.Accent}"/>
-            <Button x:Name="CancelButton" Content="❌ Скасувати"
-                    Width="120" Padding="10,8"
-                    Click="CancelButton_Click"/>
-        </StackPanel>
+                        <!-- Довіряти -->
+                        <CheckBox x:Name="IsTrustedCheckBox" Content="Довіряти цьому вузлу"
+                                  IsChecked="True" Margin="0,15,0,0"/>
+                        <TextBlock Foreground="Orange" FontSize="11" Margin="25,5,0,0" TextWrapping="Wrap"
+                                   Text="⚠️ Тільки довірені вузли можуть встановлювати з'єднання. Увімкніть цю опцію лише для ваших власних вузлів!"/>
 
-    </Grid>
-</mah:MetroWindow>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Кнопки -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                    <Button x:Name="SaveButton" Content="💾 Зберегти"
+                            Width="120" Padding="10,8" Margin="0,0,10,0"
+                            Click="SaveButton_Click"
+                            Style="{StaticResource SuccessButton}"/>
+                    <Button x:Name="CancelButton" Content="❌ Скасувати"
+                            Width="120" Padding="10,8"
+                            Click="CancelButton_Click"/>
+                </StackPanel>
+
+            </Grid>
+        </Grid>
+    </Border>
+</Window>
