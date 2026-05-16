@@ -344,7 +344,7 @@ public sealed class DcsIntegrationService : IDisposable
                 RemoteIP         = string.Empty,
                 RemotePort       = 0,
                 InitiatorBlackID = _ourBlackID,
-                EventType        = ConnectionEventType.DataTransferred,
+                EventType        = ConnectionEventType.AuthenticationSuccess,
                 Direction        = ConnectionDirection.Outbound,
                 Message          = $"[DCS] {message}",
                 IsAuthenticated  = true,

@@ -1788,7 +1788,6 @@ public partial class MainWindow : Window
         _ruleRepository?.Dispose();
         base.OnClosed(e);
     }
-}
 
     // ─── DCS UI обробники ─────────────────────────────────────────────────────
 
@@ -2028,6 +2027,8 @@ public partial class MainWindow : Window
         };
         return total > 0 ? $"{Fmt(done)} / {Fmt(total)}" : Fmt(done);
     }
+
+} // end MainWindow
 
 /// <summary>
 /// Елемент статистики процесу
