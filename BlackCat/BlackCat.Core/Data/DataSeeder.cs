@@ -126,8 +126,15 @@ public class DataSeeder
             new { Name = "InvalidSignature", Desc = "Невірний підпис", Cat = "Security", Sev = "Error" },
             new { Name = "ConnectionError", Desc = "Помилка з'єднання", Cat = "Error", Sev = "Error" },
             new { Name = "SuspiciousActivity", Desc = "Підозріла активність", Cat = "Security", Sev = "Warning" },
-            new { Name = "DataTransferred", Desc = "Передача даних", Cat = "Data", Sev = "Info" },
-            new { Name = "PacketDropped", Desc = "Пакет відкинуто", Cat = "Data", Sev = "Warning" }
+            new { Name = "DataTransferred",   Desc = "Передача даних",            Cat = "Data",     Sev = "Info"    },
+            new { Name = "PacketDropped",      Desc = "Пакет відкинуто",           Cat = "Data",     Sev = "Warning" },
+
+            // DCS інтеграція
+            new { Name = "DcsFileSyncStart",   Desc = "Початок передачі файлу DCS",       Cat = "DCS", Sev = "Info"    },
+            new { Name = "DcsFileSyncSuccess", Desc = "Успішна передача файлу DCS",        Cat = "DCS", Sev = "Info"    },
+            new { Name = "DcsFileSyncError",   Desc = "Помилка передачі файлу DCS",        Cat = "DCS", Sev = "Error"   },
+            new { Name = "DcsFileLocked",      Desc = "Файл DCS заблоковано іншим вузлом", Cat = "DCS", Sev = "Warning" },
+            new { Name = "DcsFolderShared",    Desc = "Папка DCS відкрита для обміну",     Cat = "DCS", Sev = "Info"    }
         };
 
         foreach (var evt in eventTypes)

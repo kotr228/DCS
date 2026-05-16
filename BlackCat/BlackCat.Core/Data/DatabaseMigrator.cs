@@ -50,6 +50,11 @@ public class DatabaseMigrator
             MigrateToVersion2();
         }
 
+        if (currentVersion < 3)
+        {
+            MigrateToVersion3();
+        }
+
         Console.WriteLine("=== МІГРАЦІЇ ЗАВЕРШЕНО ===\n");
     }
 
@@ -222,6 +227,91 @@ public class DatabaseMigrator
         catch (Exception ex)
         {
             Console.WriteLine($"   ⚠ Помилка оновлення FK: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Міграція до версії 3: DCS інтеграція — таблиця передавань та нові EventTypes
+    /// </summary>
+    private void MigrateToVersion3()
+    {
+        Console.WriteLine("➡ Міграція до версії 3 (DCS інтеграція)...");
+
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+
+        try
+        {
+            // Таблиця DcsTransfers
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    CREATE TABLE IF NOT EXISTS DcsTransfers (
+                        Id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                        ConnectionEventId INTEGER,
+                        FilePath          TEXT NOT NULL,
+                        FileSize          INTEGER NOT NULL DEFAULT 0,
+                        TargetFolder      TEXT,
+                        SyncStatusId      INTEGER,
+                        ChecksumSHA256    TEXT,
+                        PeerBlackID       TEXT,
+                        TransferredAt     TEXT NOT NULL,
+                        FOREIGN KEY (ConnectionEventId) REFERENCES ConnectionEvents(Id) ON DELETE CASCADE,
+                        FOREIGN KEY (SyncStatusId)      REFERENCES ConnectionStatuses(Id)
+                    );";
+                cmd.ExecuteNonQuery();
+            }
+
+            // Індекси для DcsTransfers
+            foreach (var idxSql in new[]
+            {
+                "CREATE INDEX IF NOT EXISTS idx_dcstransfers_peer ON DcsTransfers(PeerBlackID);",
+                "CREATE INDEX IF NOT EXISTS idx_dcstransfers_time ON DcsTransfers(TransferredAt);"
+            })
+            {
+                try
+                {
+                    using var idxCmd = connection.CreateCommand();
+                    idxCmd.CommandText = idxSql;
+                    idxCmd.ExecuteNonQuery();
+                }
+                catch { }
+            }
+
+            // Нові типи подій DCS
+            var dcsEventTypes = new[]
+            {
+                new { Name = "DcsFileSyncStart",   Desc = "Початок передачі файлу DCS",       Cat = "DCS", Sev = "Info"    },
+                new { Name = "DcsFileSyncSuccess", Desc = "Успішна передача файлу DCS",        Cat = "DCS", Sev = "Info"    },
+                new { Name = "DcsFileSyncError",   Desc = "Помилка передачі файлу DCS",        Cat = "DCS", Sev = "Error"   },
+                new { Name = "DcsFileLocked",      Desc = "Файл DCS заблоковано іншим вузлом", Cat = "DCS", Sev = "Warning" },
+                new { Name = "DcsFolderShared",    Desc = "Папка DCS відкрита для обміну",     Cat = "DCS", Sev = "Info"    }
+            };
+
+            foreach (var evt in dcsEventTypes)
+            {
+                try
+                {
+                    using var evtCmd = connection.CreateCommand();
+                    evtCmd.CommandText = @"
+                        INSERT OR IGNORE INTO EventTypes (Name, Description, Category, Severity, IsActive)
+                        VALUES (@Name, @Desc, @Cat, @Sev, 1)";
+                    evtCmd.Parameters.AddWithValue("@Name", evt.Name);
+                    evtCmd.Parameters.AddWithValue("@Desc", evt.Desc);
+                    evtCmd.Parameters.AddWithValue("@Cat",  evt.Cat);
+                    evtCmd.Parameters.AddWithValue("@Sev",  evt.Sev);
+                    evtCmd.ExecuteNonQuery();
+                }
+                catch { }
+            }
+
+            RecordVersion(3, "DCS інтеграція: DcsTransfers та DCS EventTypes");
+            Console.WriteLine("✅ Міграція до версії 3 завершена");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Помилка міграції до версії 3: {ex.Message}");
+            throw;
         }
     }
 

@@ -522,6 +522,171 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- DCS Документообіг -->
+            <TabItem Header="🗂️ DCS">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="130"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Заголовок -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                        <TextBlock Text="🗂️ Документообіг DCS" FontSize="18" FontWeight="Bold"
+                                   Foreground="#4EC9B0" VerticalAlignment="Center"/>
+                        <TextBlock Text="Захищена передача файлів через MQE-тунель"
+                                   Foreground="#808080" FontSize="11" Margin="12,0,0,0"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- Банер: брандмауер не запущено -->
+                    <Border x:Name="DcsDisabledBanner" Grid.Row="1"
+                            Background="#2A1A1A" BorderBrush="#F44747" BorderThickness="1"
+                            CornerRadius="5" Padding="12" Margin="0,0,0,10"
+                            Visibility="Visible">
+                        <TextBlock Text="⚠ Запустіть брандмауер (кнопка ▶️ Запустити), щоб активувати DCS-передачі"
+                                   Foreground="#F44747" FontSize="12" TextWrapping="Wrap"/>
+                    </Border>
+
+                    <!-- Вибір піра -->
+                    <Grid Grid.Row="2" Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Одержувач:" VerticalAlignment="Center"
+                                   Foreground="#808080" Margin="0,0,10,0"/>
+                        <ComboBox x:Name="DcsPeerCombo" Grid.Column="1"
+                                  Background="#2D2D30" Foreground="White"
+                                  BorderBrush="#4EC9B0" BorderThickness="1" Padding="6,4"
+                                  DisplayMemberPath="BlackID"
+                                  SelectionChanged="DcsPeerCombo_SelectionChanged"/>
+                        <TextBlock x:Name="DcsPeerStatusText" Grid.Column="2"
+                                   Foreground="#808080" FontSize="11"
+                                   VerticalAlignment="Center" Margin="10,0,0,0"/>
+                    </Grid>
+
+                    <!-- Зона перетягування файлів -->
+                    <Border x:Name="DcsDropZone" Grid.Row="3"
+                            Background="#252526" BorderBrush="#4EC9B0" BorderThickness="1"
+                            CornerRadius="5" Margin="0,0,0,10"
+                            AllowDrop="True"
+                            Drop="DcsDropZone_Drop"
+                            DragOver="DcsDropZone_DragOver"
+                            DragLeave="DcsDropZone_DragLeave">
+                        <Grid>
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock Text="📂 Перетягніть файли сюди для захищеної відправки"
+                                           HorizontalAlignment="Center"
+                                           Foreground="#808080" FontSize="13" Margin="0,0,0,8"/>
+                                <TextBlock Text="або" HorizontalAlignment="Center"
+                                           Foreground="#555555" FontSize="11" Margin="0,0,0,8"/>
+                                <Button x:Name="DcsBrowseButton" Content="📁 Вибрати файл"
+                                        HorizontalAlignment="Center"
+                                        Padding="20,6" Click="DcsBrowseButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Активні передачі з прогрес-барами -->
+                    <StackPanel Grid.Row="4" Margin="0,0,0,6">
+                        <TextBlock Text="Активні передачі" Foreground="#808080" FontSize="11"
+                                   Margin="0,0,0,4"/>
+                        <ItemsControl x:Name="DcsActiveList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#2D2D30" CornerRadius="4"
+                                            Padding="10,7" Margin="0,0,0,4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="120"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding DirectionIcon}"
+                                                       Foreground="#4EC9B0"
+                                                       FontSize="14" Margin="0,0,8,0"
+                                                       VerticalAlignment="Center"/>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding FileName}"
+                                                           Foreground="White" FontSize="12"/>
+                                                <TextBlock Text="{Binding PeerBlackID}"
+                                                           Foreground="#808080" FontSize="10"/>
+                                                <ProgressBar Value="{Binding Progress}"
+                                                             Minimum="0" Maximum="100"
+                                                             Height="5" Margin="0,3,0,0"
+                                                             Foreground="{Binding ProgressColor}"
+                                                             Background="#1E1E1E"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding SizeText}"
+                                                       Foreground="#808080" FontSize="10"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right"
+                                                       Margin="8,0"/>
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding StatusText}"
+                                                       Foreground="{Binding ProgressColor}"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- Історія передач -->
+                    <Grid Grid.Row="5">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="Історія передач" Foreground="#808080" FontSize="11"
+                                       VerticalAlignment="Center"/>
+                            <Button Content="🔄" Padding="6,2" Margin="8,0,0,0" FontSize="11"
+                                    Click="DcsRefreshHistory_Click" ToolTip="Оновити"/>
+                        </StackPanel>
+                        <DataGrid x:Name="DcsHistoryGrid" Grid.Row="1"
+                                  Background="#1E1E1E" Foreground="White"
+                                  BorderBrush="#4EC9B0" BorderThickness="1"
+                                  RowBackground="#252526" AlternatingRowBackground="#2D2D30"
+                                  GridLinesVisibility="Horizontal"
+                                  HorizontalGridLinesBrush="#3A3A3A"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  HeadersVisibility="Column"
+                                  FontSize="12">
+                            <DataGrid.ColumnHeaderStyle>
+                                <Style TargetType="DataGridColumnHeader">
+                                    <Setter Property="Background" Value="#2D2D30"/>
+                                    <Setter Property="Foreground" Value="#4EC9B0"/>
+                                    <Setter Property="FontSize"   Value="12"/>
+                                    <Setter Property="Padding"    Value="8,6"/>
+                                </Style>
+                            </DataGrid.ColumnHeaderStyle>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Файл"    Binding="{Binding FilePath}"  Width="*"/>
+                                <DataGridTextColumn Header="Peer"    Binding="{Binding PeerBlackID}" Width="180"/>
+                                <DataGridTextColumn Header="Розмір"  Binding="{Binding FileSizeDisplay}" Width="80"/>
+                                <DataGridTextColumn Header="Час"     Binding="{Binding TimeDisplay}" Width="130"/>
+                                <DataGridTextColumn Header="SHA256"  Binding="{Binding ChecksumShort}" Width="80"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
+
+                </Grid>
+            </TabItem>
+
             <!-- Лог -->
             <TabItem Header="📋 Лог">
                 <Grid Margin="10">

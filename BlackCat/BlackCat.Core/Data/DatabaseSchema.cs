@@ -8,7 +8,7 @@ public static class DatabaseSchema
     /// <summary>
     /// Версія схеми БД
     /// </summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>
     /// SQL команди для створення всіх таблиць
@@ -158,6 +158,24 @@ public static class DatabaseSchema
         );",
 
         // ============================================
+        // DCS ІНТЕГРАЦІЯ
+        // ============================================
+
+        @"CREATE TABLE IF NOT EXISTS DcsTransfers (
+            Id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            ConnectionEventId INTEGER,
+            FilePath          TEXT NOT NULL,
+            FileSize          INTEGER NOT NULL DEFAULT 0,
+            TargetFolder      TEXT,
+            SyncStatusId      INTEGER,
+            ChecksumSHA256    TEXT,
+            PeerBlackID       TEXT,
+            TransferredAt     TEXT NOT NULL,
+            FOREIGN KEY (ConnectionEventId) REFERENCES ConnectionEvents(Id) ON DELETE CASCADE,
+            FOREIGN KEY (SyncStatusId)      REFERENCES ConnectionStatuses(Id)
+        );",
+
+        // ============================================
         // ТАБЛИЦЯ ВЕРСІЙ БД
         // ============================================
 
@@ -199,6 +217,10 @@ public static class DatabaseSchema
         // ServerLocations
         "CREATE INDEX IF NOT EXISTS idx_serverlocations_server ON ServerLocations(ServerId);",
         "CREATE INDEX IF NOT EXISTS idx_serverlocations_city ON ServerLocations(CityId);",
-        "CREATE INDEX IF NOT EXISTS idx_serverlocations_coords ON ServerLocations(Latitude, Longitude);"
+        "CREATE INDEX IF NOT EXISTS idx_serverlocations_coords ON ServerLocations(Latitude, Longitude);",
+
+        // DcsTransfers
+        "CREATE INDEX IF NOT EXISTS idx_dcstransfers_peer ON DcsTransfers(PeerBlackID);",
+        "CREATE INDEX IF NOT EXISTS idx_dcstransfers_time ON DcsTransfers(TransferredAt);"
     };
 }
