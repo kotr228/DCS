@@ -16,30 +16,15 @@
         <StackPanel Grid.Row="0" Margin="0,0,0,15">
             <TextBlock Text="Активні TCP з'єднання" FontSize="20" FontWeight="Bold"/>
             <TextBlock Text="Виберіть порт або кілька портів для додавання до правила"
-                       FontSize="12" Foreground="Gray" Margin="0,5,0,0"/>
+                       FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,5,0,0"/>
         </StackPanel>
 
         <!-- Список з'єднань -->
         <DataGrid Grid.Row="1" x:Name="ConnectionsDataGrid"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False"
-                  CanUserDeleteRows="False"
                   IsReadOnly="True"
                   SelectionMode="Extended"
-                  Background="Transparent" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
-                  GridLinesVisibility="All" HorizontalGridLinesBrush="#4EC9B0" VerticalGridLinesBrush="#4EC9B0"
-                  RowBackground="#252526" AlternatingRowBackground="#2D2D30"
+                  Background="Transparent"
                   SelectionChanged="ConnectionsDataGrid_SelectionChanged">
-            <DataGrid.ColumnHeaderStyle>
-                <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="Background" Value="#2D2D30"/>
-                    <Setter Property="Foreground" Value="White"/>
-                    <Setter Property="BorderBrush" Value="#4EC9B0"/>
-                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                    <Setter Property="Padding" Value="8,5"/>
-                    <Setter Property="FontWeight" Value="Bold"/>
-                </Style>
-            </DataGrid.ColumnHeaderStyle>
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Процес" Binding="{Binding ProcessName}" Width="150"/>
                 <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="60"/>
@@ -58,7 +43,7 @@
                        Text="Не вибрано"
                        VerticalAlignment="Center"
                        Margin="0,0,20,0"
-                       Foreground="Gray"/>
+                       Foreground="{StaticResource TextMutedBrush}"/>
             <Button x:Name="SelectButton" Content="Вибрати"
                     Width="100" Padding="10,5" Margin="0,0,10,0"
                     Click="SelectButton_Click"

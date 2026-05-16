@@ -24,26 +24,10 @@
         <!-- Список правил -->
         <DataGrid Grid.Row="1" Grid.Column="0"
                   x:Name="RulesDataGrid"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False"
-                  CanUserDeleteRows="False"
                   IsReadOnly="True"
-                  SelectionMode="Single"
-                  Background="Transparent" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
-                  GridLinesVisibility="All" HorizontalGridLinesBrush="#4EC9B0" VerticalGridLinesBrush="#4EC9B0"
-                  RowBackground="#252526" AlternatingRowBackground="#2D2D30"
+                  Background="Transparent"
                   SelectionChanged="RulesDataGrid_SelectionChanged"
                   Margin="0,0,10,0">
-            <DataGrid.ColumnHeaderStyle>
-                <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="Background" Value="#2D2D30"/>
-                    <Setter Property="Foreground" Value="White"/>
-                    <Setter Property="BorderBrush" Value="#4EC9B0"/>
-                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                    <Setter Property="Padding" Value="8,5"/>
-                    <Setter Property="FontWeight" Value="Bold"/>
-                </Style>
-            </DataGrid.ColumnHeaderStyle>
             <DataGrid.Columns>
                 <DataGridCheckBoxColumn Header="Увімкнено" Binding="{Binding IsEnabled}" Width="80"/>
                 <DataGridTextColumn Header="Пріоритет" Binding="{Binding Priority}" Width="70"/>
@@ -73,14 +57,14 @@
                 <TextBlock Text="IP адреса / Підмережа:" FontWeight="Bold" Margin="0,0,0,5"/>
                 <TextBox x:Name="RuleIPTextBox" Margin="0,0,0,5"
                          ToolTip="Наприклад: 192.168.1.100 або 192.168.0.0/24"/>
-                <TextBlock Text="CIDR підтримується" Foreground="Gray" FontSize="10" Margin="0,0,0,10"/>
+                <TextBlock Text="CIDR підтримується" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,10"/>
 
                 <!-- Порт -->
                 <TextBlock Text="Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
                 <mah:NumericUpDown x:Name="RulePortNumeric"
                                    Minimum="0" Maximum="65535"
                                    Value="0" Margin="0,0,0,5"/>
-                <TextBlock Text="0 = будь-який порт" Foreground="Gray" FontSize="10" Margin="0,0,0,10"/>
+                <TextBlock Text="0 = будь-який порт" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,10"/>
 
                 <!-- Діапазон портів -->
                 <TextBlock Text="Діапазон портів (опціонально):" FontWeight="Bold" Margin="0,0,0,5"/>
@@ -126,7 +110,7 @@
                 <mah:NumericUpDown x:Name="RulePriorityNumeric"
                                    Minimum="1" Maximum="999"
                                    Value="100" Margin="0,0,0,5"/>
-                <TextBlock Text="Нижче = вища пріоритетність" Foreground="Gray" FontSize="10" Margin="0,0,0,10"/>
+                <TextBlock Text="Нижче = вища пріоритетність" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,10"/>
 
                 <!-- Увімкнено -->
                 <CheckBox x:Name="RuleEnabledCheckBox" Content="Правило увімкнено"

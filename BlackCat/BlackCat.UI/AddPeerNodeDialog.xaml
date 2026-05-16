@@ -4,8 +4,8 @@
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
         Title="Додати вузол" Height="500" Width="600"
         WindowStartupLocation="CenterOwner"
-        Background="#1E1E1E"
-        Foreground="White">
+        Background="{StaticResource BackgroundBrush}"
+        Foreground="{StaticResource TextBrush}">
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -26,21 +26,21 @@
                 <TextBlock Text="Black-ID вузла:" FontWeight="Bold" Margin="0,0,0,5"/>
                 <TextBox x:Name="BlackIDTextBox" FontFamily="Consolas" Padding="8"
                          ToolTip="Формат: ROLE-CITY-NAME-CODE (наприклад: OFFICE-KYIV-PC1-A7B9)"/>
-                <TextBlock Foreground="Gray" FontSize="11" Margin="0,5,0,15"
+                <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,5,0,15"
                            Text="Формат: ROLE-CITY-NAME-CODE"/>
 
                 <!-- IP адреса -->
                 <TextBlock Text="IP адреса:" FontWeight="Bold" Margin="0,0,0,5"/>
                 <TextBox x:Name="IPAddressTextBox" Padding="8"
                          ToolTip="IPv4 адреса (наприклад: 192.168.1.100 або 88.99.100.101)"/>
-                <TextBlock Foreground="Gray" FontSize="11" Margin="0,5,0,15"
+                <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,5,0,15"
                            Text="Локальна (192.168.x.x) або зовнішня IP"/>
 
                 <!-- Порт -->
                 <TextBlock Text="Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
                 <mah:NumericUpDown x:Name="PortNumeric" Value="9999" Minimum="1024" Maximum="65535"
                                    HorizontalAlignment="Left" Width="150"/>
-                <TextBlock Foreground="Gray" FontSize="11" Margin="0,5,0,15"
+                <TextBlock Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,5,0,15"
                            Text="За замовчуванням: 9999"/>
 
                 <!-- Назва -->

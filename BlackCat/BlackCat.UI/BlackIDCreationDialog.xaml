@@ -49,7 +49,7 @@
             <TextBox x:Name="NameTextBox" Margin="0,0,0,10"
                      Text="SERVER" MaxLength="20"/>
             <TextBlock Text="Тільки англійські літери та цифри, без пробілів"
-                       Foreground="Gray" FontSize="11" Margin="0,0,0,15"/>
+                       Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,0,0,15"/>
 
             <!-- Попередній перегляд -->
             <Border BorderBrush="{DynamicResource MahApps.Brushes.Accent}"
