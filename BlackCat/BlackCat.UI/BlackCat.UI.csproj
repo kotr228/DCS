@@ -6,7 +6,22 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Assets\BC.ico</ApplicationIcon>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Company>BlackCat Security</Company>
+    <Product>BlackCat Firewall</Product>
+    <Copyright>Copyright © 2025 BlackCat Security</Copyright>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\BC.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\BC.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\BlackCat.Core\BlackCat.Core.csproj" />
