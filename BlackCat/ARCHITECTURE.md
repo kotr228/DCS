@@ -786,11 +786,102 @@ CREATE TABLE DatabaseVersion (
 
 ---
 
+---
+
+## Нові сервіси (v1.1.0)
+
+### BlackCatCommandService
+
+Named pipe сервер на `"BlackCatCommandPipe"` — приймає команди від DCS у напрямку DCS→BlackCat.
+
+```csharp
+// Запуск:
+BlackCatCommandService.StartAsync()  // запускає named pipe сервер
+// При отриманні ShareDirectoryCommand:
+DcsIntegrationService.SendDirectoryAsync(dirPath, peerBlackID)
+```
+
+**Підтримувані команди:**
+
+| Команда | Дія |
+|---------|-----|
+| `ShareDirectoryCommand` | Запускає `DcsIntegrationService.SendDirectoryAsync()` для передачі директорії пірові |
+
+---
+
+### DcsIntegrationService.SendDirectoryAsync
+
+Рекурсивно обходить дерево директорій і надсилає кожен файл пірові через `DcsPacket` протокол по MQE-тунелю.
+
+```
+SendDirectoryAsync(dirPath, peerBlackID)
+  ├── Enumerate all files recursively
+  ├── For each file:
+  │   ├── Build FileMeta packet { dirName, relativePath }
+  │   └── Send via DcsPacket over MQE tunnel
+  └── Incoming files saved to:
+      temp_files/{sourceBlackID}/{dirName}/{relativePath}
+```
+
+**Розширення протоколу `DcsPacket`:**
+- `FileMeta` пакети тепер несуть мета-ключі `dirName` та `relativePath`
+- `DcsIncomingTransfer` і `DcsFileReceivedEventArgs` отримали поля `DirName` / `RelativePath`
+- `TunnelDataEventArgs` отримав поле `PeerBlackID` (заповнюється для UDP direct tunnels)
+
+---
+
+### IpcBridgeService
+
+Раніше не підключався до `MainWindow`; починаючи з v1.1.0 коректно інстанціюється в `MainWindow.xaml.cs` і забезпечує IPC між UI та Core-сервісами.
+
+---
+
+### Кастомний Chrome (v1.1.0)
+
+Всі вікна (`MainWindow`, `StartupWindow`, `RulesManagementWindow` тощо) конвертовано на borderless-стиль:
+
+```xml
+WindowStyle="None"
+AllowsTransparency="True"
+```
+
+Кастомний заголовок реалізований у кожному вікні:
+- `MouseLeftButtonDown` → `DragMove()` для перетягування
+- Кнопки стилів `ChromeButton` (мінімізація/максимізація) та `ChromeCloseButton` (закриття)
+
+---
+
+### Високопродуктивний графічний конвеєр (v1.1.0)
+
+Модуль моніторингу трафіку переписаний за MVVM з нульовим GC-тиском.
+
+```
+BackgroundTrafficCollector (1 Hz, non-UI thread)
+    └─ P/Invoke збір даних
+    └─ → ConcurrentQueue<TrafficDataPoint>
+            ↓
+DispatcherTimer (50 ms / 20 Hz, UI thread)
+    └─ Drains queue
+    └─ CircularBuffer<T> (O(1) insert / access)
+    └─ LiveCharts series: RemoveAt(0) + Add()  (без Clear())
+    └─ ProcessStatItem pool — in-place mutation
+```
+
+| Компонент | Розміщення | Призначення |
+|-----------|-----------|-------------|
+| `TrafficChartViewModel` | `UI/ViewModels/` | MVVM ViewModel, `INotifyPropertyChanged` |
+| `CircularBuffer<T>` | `Core/Utils/` | O(1) кільцевий буфер, 60-секундна вікно |
+| `BackgroundTrafficCollector` | `Core/Services/` | P/Invoke збір даних поза UI-потоком |
+| `TrafficDataPoint` | `Shared/Models/` | Value-type struct (нульовий GC) |
+| `ProcessTrafficEntry` | `Shared/Models/` | Value-type struct для статистики процесу |
+
+---
+
 ## Технологічний стек
 
 | Компонент | Технологія |
 |-----------|------------|
-| UI | WPF (.NET 8.0-windows), LiveCharts.Wpf |
+| UI | WPF (.NET 8.0-windows), LiveCharts.Wpf 0.9.7 |
 | База даних | SQLite (Microsoft.Data.Sqlite) |
 | Шифрування | MQE (власний) + SHA256 (System.Security.Cryptography) |
 | Мережа | Raw Socket, UdpClient, TcpClient |
@@ -798,3 +889,4 @@ CREATE TABLE DatabaseVersion (
 | NAT | UPnP або ручне port forwarding |
 | Логування | Serilog з файловою ротацією |
 | Windows Service | .NET Generic Host + UseWindowsService() |
+| IPC (DCS→BlackCat) | Named Pipe (`BlackCatCommandPipe`) |

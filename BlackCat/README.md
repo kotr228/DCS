@@ -43,18 +43,38 @@ BlackCat — брандмауер нового покоління з вбудо�
 - Телефонна книга оновлюється без участі користувача
 - Автоматичний тест тунелю: надсилається `hello.txt` після handshake
 
+**Кастомний Chrome (borderless)**
+- Всі вікна (`MainWindow`, `StartupWindow`, `RulesManagementWindow` тощо) без системної рамки
+- `WindowStyle="None"` + `AllowsTransparency="True"`
+- Кастомний заголовок з підтримкою перетягування (`DragMove()`)
+- Кнопки мінімізації, максимізації, закриття зі стилями `ChromeButton` / `ChromeCloseButton`
+
+**Високопродуктивний моніторинг трафіку (MVVM)**
+- `TrafficChartViewModel` — MVVM ViewModel з `INotifyPropertyChanged`, власник усього стану графіків
+- `CircularBuffer<T>` — O(1) кільцевий буфер для 60-секундної історії
+- `BackgroundTrafficCollector` — фонова Task (1 Гц), P/Invoke поза UI-потоком → `ConcurrentQueue<TrafficDataPoint>`
+- `DispatcherTimer` (50 мс / 20 Гц) дренує чергу — без `ObservableCollection.Clear()`
+- Value-type struct-и `TrafficDataPoint` / `ProcessTrafficEntry` — нульовий GC-тиск
+
+**Дзеркалювання директорій (інтеграція з DCS)**
+- `BlackCatCommandService` — named pipe сервер `"BlackCatCommandPipe"` для прийому команд від DCS
+- `DcsIntegrationService.SendDirectoryAsync()` — рекурсивна передача дерев директорій через MQE-тунель
+- `IpcBridgeService` — коректно підключений до `MainWindow.xaml.cs`
+- Вхідні файли зберігаються до `temp_files/{sourceBlackID}/{dirName}/`
+- Протокол `DcsPacket` розширено: `FileMeta` пакети несуть `dirName` та `relativePath`
+
 **Журналювання**
 - SQLite база даних: вузли, події підключень, правила, статистика
 - `temp_data/` — системні файли програми (node info JSON, метадані трансферів)
-- `temp_files/` — файли отримані від пірів
+- `temp_files/` — файли отримані від пірів (включно з дзеркальованими директоріями)
 
 ---
 
 ## Архітектура
 
 ```
-BlackCat.UI          — WPF інтерфейс (графіки, тунелі, P2P, логи)
-BlackCat.Core        — Бізнес-логіка (фільтр, тунель, БД, сервіси)
+BlackCat.UI          — WPF інтерфейс (кастомний chrome, графіки MVVM, тунелі, P2P, логи)
+BlackCat.Core        — Бізнес-логіка (фільтр, тунель, БД, сервіси, DCS-інтеграція)
 BlackCat.NetworkCore — Мережевий рівень (Raw Socket, UDP тунель, STUN)
 BlackCat.Crypto      — Шифрування MQE (кватерніони)
 BlackCat.Shared      — Загальні моделі та перерахування
@@ -237,7 +257,8 @@ Keepalive-пакети (`0xFF`) **не проходять через MQE** — �
 BlackCat/
 ├── BlackCat.Shared/
 │   └── Models/         PacketInfo, FilterRule, TunnelPacket,
-│                       PeerNode, BlackID, ConnectionEvent
+│                       PeerNode, BlackID, ConnectionEvent,
+│                       TrafficDataPoint, ProcessTrafficEntry (value structs)
 │
 ├── BlackCat.Crypto/
 │   ├── Quaternion.cs   Математика кватерніонів (Hamilton ×, mod inverse)
@@ -253,16 +274,25 @@ BlackCat/
 │   ├── FilterEngine.cs        Правила з CIDR
 │   ├── FirewallCoordinator.cs Головний координатор
 │   ├── Data/                  SQLite репозиторії
+│   ├── Utils/
+│   │   └── CircularBuffer.cs  O(1) кільцевий буфер (60-сек. історія)
 │   └── Services/              TunnelManager, HandshakeService,
-│                              NatManager, RelayServerService...
+│                              NatManager, RelayServerService,
+│                              BackgroundTrafficCollector,
+│                              DcsIntegrationService,
+│                              BlackCatCommandService,
+│                              IpcBridgeService
 │
 ├── BlackCat.Service/          Windows Service
 │
 └── BlackCat.UI/
-    ├── MainWindow.xaml/cs     Головне вікно
-    ├── SettingsWindow          Налаштування
-    ├── RulesManagementWindow   Правила фільтрації
-    └── *Dialog                 Діалоги
+    ├── MainWindow.xaml/cs     Головне вікно (кастомний chrome, IpcBridgeService)
+    ├── StartupWindow          Вікно запуску (кастомний chrome)
+    ├── SettingsWindow         Налаштування (кастомний chrome)
+    ├── RulesManagementWindow  Правила фільтрації (кастомний chrome)
+    ├── ViewModels/
+    │   └── TrafficChartViewModel.cs  MVVM ViewModel графіків трафіку
+    └── *Dialog                Діалоги (кастомний chrome)
 ```
 
 ---

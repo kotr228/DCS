@@ -68,9 +68,10 @@ DocControlUI/bin/Release/
 ├── DocControlUI.exe                # Головний додаток
 ├── DocControlService.Client.dll   # Клієнт для комунікації
 ├── DocControlService.Shared.dll   # Спільні моделі
-├── MahApps.Metro.dll              # UI бібліотека
 └── ... (інші залежності)
 ```
+
+> **⚠️ Примітка (v1.1.0):** `MahApps.Metro.dll` **більше не входить** до складу проекту. Всі вікна конвертовано з `MetroWindow` на стандартний WPF `Window` з кастомним borderless chrome. `MahApps.Metro` повністю видалено з залежностей.
 
 ---
 
@@ -250,7 +251,10 @@ https://dotnet.microsoft.com/download/dotnet/8.0
 
 ### Помилка: "Не вдалося завантажити MahApps.Metro"
 
-**Рішення:**
+> **Ця помилка більше не повинна виникати** — MahApps.Metro видалено з проекту у версії v1.1.0.
+> Якщо помилка з'являється, це означає що у вас стара версія коду. Виконайте `git pull` та `dotnet restore`.
+
+**Для старих версій:**
 ```cmd
 dotnet restore
 ```
@@ -304,6 +308,6 @@ dotnet restore
 
 ---
 
-**Версія:** v0.11.0
-**Дата:** 2024-12-30
+**Версія:** v1.1.0
+**Дата:** 17.05.2026
 **Build:** Release

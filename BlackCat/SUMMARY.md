@@ -17,18 +17,14 @@ BlackCat — брандмауер з вбудованим зашифровани
 | STUN | `NetworkCore/StunClient.cs` | Визначення публічного endpoint |
 | Фільтр пакетів | `Core/FilterEngine.cs` | Allow/Block/Tunnel за правилами |
 | Телефонна книга | `Core/Data/PeerNodeRepository.cs` | CRUD для SQLite PeerNodes |
-| Головне вікно | `UI/MainWindow.xaml.cs` | P2P signaling, файли, статистика |
-
----
-
-## Маркери типів пакетів
-
-```
-0xFF          — keepalive (raw, не через MQE)
-0xBC 0xAA     — hole punch сигнал
-0xBC 0x1D     — node info exchange (JSON з BlackID)
-0xBC 0x1E     — file transfer
-```
+| Головне вікно | `UI/MainWindow.xaml.cs` | P2P signaling, файли, статистика, IpcBridgeService |
+| **НОВІ (v1.1.0)** | | |
+| DCS команди | `Core/Services/BlackCatCommandService.cs` | Named pipe `"BlackCatCommandPipe"`, прийом `ShareDirectoryCommand` |
+| Передача директорій | `Core/Services/DcsIntegrationService.cs` | `SendDirectoryAsync()` — рекурсивна передача по MQE |
+| IPC до Core | `Core/Services/IpcBridgeService.cs` | Тепер коректно підключений у MainWindow |
+| ViewModel графіків | `UI/ViewModels/TrafficChartViewModel.cs` | MVVM, `INotifyPropertyChanged`, стан графіків |
+| Кільцевий буфер | `Core/Utils/CircularBuffer.cs` | O(1) insert/access, 60-секундне вікно |
+| Збір трафіку | `Core/Services/BackgroundTrafficCollector.cs` | 1 Гц, P/Invoke поза UI → `ConcurrentQueue` |
 
 ---
 
@@ -59,6 +55,18 @@ IP:порт
 
 ---
 
+## Маркери типів пакетів (розширено v1.1.0)
+
+```
+0xFF              — keepalive (raw, не через MQE)
+0xBC 0xAA         — hole punch сигнал
+0xBC 0x1D         — node info exchange (JSON з BlackID)
+0xBC 0x1E         — file transfer
+DcsPacket/FileMeta — дзеркалювання директорій (dirName + relativePath)
+```
+
+---
+
 ## Тимчасові папки
 
 ```
@@ -69,7 +77,8 @@ temp_data/    — системні файли програми
   recv_{IP}_{time}_{name}.meta
 
 temp_files/   — отримані від пірів файли
-  hello_{BlackID}_{час}.txt     (автоматично при підключенні)
+  hello_{BlackID}_{час}.txt              (автоматично при підключенні)
+  {sourceBlackID}/{dirName}/{file}       (дзеркальовані директорії, v1.1.0)
 ```
 
 ---
@@ -118,10 +127,32 @@ DatabaseVersion -- версія схеми
 
 ---
 
+## Дзеркалювання директорій (v1.1.0)
+
+### Потік (DCS → BlackCat → піровий BlackCat)
+
+```
+DCS натискає "Надати доступ"
+    → ShareDirectoryWithDeviceAsync (ServiceClient)
+    → HandleShareDirectoryWithDeviceAsync (DocControlWindowsService)
+        → копія в temp_files/{deviceName}/{dirName}/
+        → запис у DirectoryMirrors DB
+        → надсилає ShareDirectoryCommand у BlackCatCommandPipe
+                ↓
+    BlackCatCommandService (named pipe сервер)
+        → DcsIntegrationService.SendDirectoryAsync(dir, peerBlackID)
+            → DcsPacket/FileMeta з dirName + relativePath
+            → MQE-тунель → піровий BlackCat
+                ↓
+    Прийом: temp_files/{sourceBlackID}/{dirName}/{relativePath}
+```
+
+---
+
 ## Залежності NuGet
 
 ```
 Microsoft.Data.Sqlite
-LiveCharts.Wpf
+LiveCharts.Wpf 0.9.7
 Serilog + Serilog.Sinks.File + Serilog.Sinks.Console
 ```
