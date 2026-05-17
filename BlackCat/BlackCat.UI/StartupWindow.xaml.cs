@@ -30,6 +30,8 @@ public partial class StartupWindow : Window
         DragMove();
     }
 
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
+
     private async Task CheckSystemStatus()
     {
         try

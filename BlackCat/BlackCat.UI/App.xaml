@@ -69,6 +69,59 @@
             <!-- 📝  ГЛОБАЛЬНІ СТИЛІ                                             -->
             <!-- ═══════════════════════════════════════════════════════════════ -->
 
+            <!-- ── Chrome кнопки заголовка вікна ── -->
+            <Style x:Key="ChromeButton" TargetType="Button">
+                <Setter Property="Background"   Value="Transparent"/>
+                <Setter Property="Foreground"   Value="{StaticResource TextBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Width"        Value="44"/>
+                <Setter Property="Height"       Value="40"/>
+                <Setter Property="FontSize"     Value="14"/>
+                <Setter Property="Cursor"       Value="Hand"/>
+                <Setter Property="Margin"       Value="0"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="border" Background="{TemplateBinding Background}"
+                                    Width="44" Height="40">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#555555"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="ChromeCloseButton" TargetType="Button">
+                <Setter Property="Background"   Value="Transparent"/>
+                <Setter Property="Foreground"   Value="{StaticResource TextBrush}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Width"        Value="44"/>
+                <Setter Property="Height"       Value="40"/>
+                <Setter Property="FontSize"     Value="14"/>
+                <Setter Property="Cursor"       Value="Hand"/>
+                <Setter Property="Margin"       Value="0"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="border" Background="{TemplateBinding Background}"
+                                    Width="44" Height="40">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="border" Property="Background" Value="#F44336"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!-- ── TextBlock ── -->
             <Style TargetType="TextBlock">
                 <Setter Property="Foreground"       Value="{StaticResource TextBrush}"/>

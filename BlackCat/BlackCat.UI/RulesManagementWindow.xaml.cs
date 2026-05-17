@@ -371,4 +371,18 @@ public partial class RulesManagementWindow : Window
     }
 
     private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
+    private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == System.Windows.WindowState.Maximized)
+        {
+            WindowState = System.Windows.WindowState.Normal;
+            MaximizeButton.Content = "□";
+        }
+        else
+        {
+            WindowState = System.Windows.WindowState.Maximized;
+            MaximizeButton.Content = "⧉";
+        }
+    }
 }

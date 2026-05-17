@@ -20,63 +20,21 @@
             </Grid.RowDefinitions>
 
             <!-- Chrome header -->
-            <Border Grid.Row="0" Background="{StaticResource PrimaryDarkBrush}" Padding="14,0"
+            <Border Grid.Row="0" Background="{StaticResource SurfaceAltBrush}" Padding="14,0"
                     MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <Grid>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Image Source="/Assets/BC.ico" Width="24" Height="24" Margin="0,0,10,0"/>
-                        <TextBlock Text="BlackCat Firewall" FontWeight="Bold" FontSize="14"
+                        <Image Source="/Assets/BC.ico" Width="22" Height="22" Margin="0,0,10,0"/>
+                        <TextBlock Text="BlackCat Firewall" FontWeight="Bold" FontSize="13"
                                    Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <!-- Мінімізація -->
-                        <Button Content="—" Width="44" Height="44" FontSize="14" Cursor="Hand"
-                                Click="MinimizeButton_Click">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="border" Background="{TemplateBinding Background}" Width="44" Height="44">
-                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="border" Property="Background" Value="#555555"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                        <!-- Закриття -->
-                        <Button Content="✕" Width="44" Height="44" FontSize="16" Cursor="Hand"
-                                Click="AppCloseButton_Click">
-                            <Button.Style>
-                                <Style TargetType="Button">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="border" Background="{TemplateBinding Background}" Width="44" Height="44">
-                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter TargetName="border" Property="Background" Value="#F44336"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
-                        </Button>
+                        <Button Content="—" Click="MinimizeButton_Click"
+                                Style="{StaticResource ChromeButton}"/>
+                        <Button x:Name="MaximizeButton" Content="□" Click="MaximizeButton_Click"
+                                Style="{StaticResource ChromeButton}"/>
+                        <Button Content="✕" Click="AppCloseButton_Click"
+                                Style="{StaticResource ChromeCloseButton}"/>
                     </StackPanel>
                 </Grid>
             </Border>

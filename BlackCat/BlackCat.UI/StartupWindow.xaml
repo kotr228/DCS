@@ -23,9 +23,9 @@
 
             <!-- Заголовок -->
             <Border Grid.Row="0"
-                    Background="{StaticResource PrimaryDarkBrush}"
+                    Background="{StaticResource SurfaceAltBrush}"
                     CornerRadius="0"
-                    Padding="20"
+                    Padding="20,16"
                     MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -36,55 +36,27 @@
 
                     <Image Grid.Column="0"
                            Source="/Assets/BC.ico"
-                           Width="64" Height="64"
-                           Margin="0,0,20,0"
+                           Width="56" Height="56"
+                           Margin="0,0,18,0"
                            VerticalAlignment="Center"/>
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock Text="BlackCat Firewall"
-                                   FontSize="28"
-                                   FontWeight="Bold"
+                                   FontSize="26" FontWeight="Bold"
                                    Foreground="{StaticResource PrimaryBrush}"/>
                         <TextBlock Text="Network Security Suite v1.0.0"
-                                   FontSize="13"
+                                   FontSize="12"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    Margin="0,5,0,0"/>
                     </StackPanel>
 
-                    <!-- Кнопка закриття -->
-                    <Button Grid.Column="2"
-                            Content="✕"
-                            Width="40" Height="40"
-                            FontSize="18"
-                            Background="Transparent"
-                            Foreground="{StaticResource TextBrush}"
-                            BorderThickness="0"
-                            Click="CloseButton_Click"
-                            VerticalAlignment="Top"
-                            Cursor="Hand">
-                        <Button.Style>
-                            <Style TargetType="Button">
-                                <Setter Property="Background" Value="Transparent"/>
-                                <Setter Property="Template">
-                                    <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="border"
-                                                    Background="{TemplateBinding Background}"
-                                                    CornerRadius="0"
-                                                    Width="40" Height="40">
-                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="border" Property="Background" Value="#F44336"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Setter.Value>
-                                </Setter>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                    <!-- Кнопки chrome -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                        <Button Content="—" Click="MinimizeButton_Click"
+                                Style="{StaticResource ChromeButton}"/>
+                        <Button Content="✕" Click="CloseButton_Click"
+                                Style="{StaticResource ChromeCloseButton}"/>
+                    </StackPanel>
                 </Grid>
             </Border>
 
