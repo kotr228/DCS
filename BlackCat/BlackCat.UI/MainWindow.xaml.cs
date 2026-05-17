@@ -8,9 +8,7 @@ using BlackCat.Core.Data;
 using BlackCat.Core.Services;
 using BlackCat.Shared.Models;
 using BlackCat.Shared.Enums;
-using LiveCharts;
-using LiveCharts.Wpf;
-using LiveCharts.Defaults;
+using BlackCat.UI.ViewModels;
 using System.Collections.ObjectModel;
 using System.Linq;
 using NetworkProtocol = BlackCat.Shared.Enums.ProtocolType;
@@ -45,33 +43,9 @@ public partial class MainWindow : Window
     private readonly ConnectionEventRepository _eventRepository;
     private readonly BlackIDService _blackIDService;
 
-    // Графіки - швидкість (стовпчаста)
-    private readonly ChartValues<double> _speedValues = new();
-
-    // Графіки - трафік по програмах (динамічні серії)
-    private readonly Dictionary<string, ChartValues<double>> _processTrafficValues = new();
-    private readonly Dictionary<string, Color> _processColors = new();
-    private readonly List<Color> _availableColors = new()
-    {
-        Color.FromRgb(106, 153, 85),   // Зелений
-        Color.FromRgb(244, 135, 113),  // Червоний
-        Color.FromRgb(86, 156, 214),   // Синій
-        Color.FromRgb(220, 220, 170),  // Жовтий
-        Color.FromRgb(197, 134, 192),  // Фіолетовий
-        Color.FromRgb(78, 201, 176),   // М'ятний
-        Color.FromRgb(206, 145, 120),  // Помаранчевий
-        Color.FromRgb(156, 220, 254)   // Блакитний
-    };
-    private int _colorIndex = 0;
-
-    // Вісь часу
-    private readonly List<string> _timeLabels = new();
-    private DateTime _startTime;
-
-    // Статистика процесів
-    private readonly ObservableCollection<ProcessStatItem> _processStats = new();
-    private readonly Dictionary<string, ProcessStatItem> _processStatsDict = new();
-    private readonly Dictionary<string, long> _lastProcessBytes = new();
+    // Chart ViewModel and background data collector
+    private readonly TrafficChartViewModel _chartVm;
+    private BackgroundTrafficCollector? _trafficCollector;
 
     // Тунелі Black-ID
     private readonly ObservableCollection<TunnelNodeItem> _tunnelNodes = new();
@@ -100,11 +74,17 @@ public partial class MainWindow : Window
         Directory.CreateDirectory(TempDataDir);
         Directory.CreateDirectory(TempFilesDir);
 
-        // Налаштування графіків
+        // Ініціалізувати ViewModel графіку
+        _chartVm = new TrafficChartViewModel();
+
+        // Налаштування графіків та статистики через ViewModel
         InitializeCharts();
 
-        // Налаштування статистики процесів
-        ProcessStatsDataGrid.ItemsSource = _processStats;
+        // Прив'язати таблицю статистики до ViewModel
+        ProcessStatsDataGrid.ItemsSource = _chartVm.ProcessStats;
+
+        // Підписка на зміни stat-label рядків з ViewModel
+        _chartVm.PropertyChanged += OnChartVmPropertyChanged;
 
         // Налаштування тунелів
         TunnelsDataGrid.ItemsSource = _tunnelNodes;
@@ -123,30 +103,9 @@ public partial class MainWindow : Window
 
     private void InitializeCharts()
     {
-        _startTime = DateTime.Now;
-
-        PacketsChart.Series = new SeriesCollection
-        {
-            // Стовпчаста діаграма для швидкості
-            new ColumnSeries
-            {
-                Title = "Швидкість (KB/s)",
-                Values = _speedValues,
-                Fill = new SolidColorBrush(Color.FromArgb(180, 78, 201, 176)),
-                MaxColumnWidth = 30,  // ширина стовпчика
-                ColumnPadding = 4     // відступ між стовпчиками
-            }
-        };
-
-        // Налаштування осі X (час)
-        PacketsChart.AxisX[0].Labels = _timeLabels;
-        PacketsChart.AxisX[0].LabelFormatter = value =>
-        {
-            var index = (int)value;
-            if (index >= 0 && index < _timeLabels.Count)
-                return _timeLabels[index];
-            return "";
-        };
+        // Bind chart to ViewModel's data sources
+        PacketsChart.Series = _chartVm.Series;
+        PacketsChart.AxisX[0].LabelFormatter = _chartVm.LabelFormatter;
     }
 
     private void LoadRules()
@@ -232,6 +191,14 @@ public partial class MainWindow : Window
             StartButton.IsEnabled = false;
             StopButton.IsEnabled = true;
 
+            // Background collector: P/Invoke runs off UI thread, points fed into ViewModel queue
+            _trafficCollector = new BackgroundTrafficCollector(
+                _chartVm.Enqueue,
+                _processLookupService,
+                () => _coordinator?.Statistics);
+            _trafficCollector.Start();
+            _chartVm.Start();
+
             _updateTimer.Start();
 
             AddLog("✅ Брандмауер запущено");
@@ -279,6 +246,11 @@ public partial class MainWindow : Window
             StartButton.IsEnabled = true;
             StopButton.IsEnabled = false;
 
+            _trafficCollector?.Stop();
+            _trafficCollector?.Dispose();
+            _trafficCollector = null;
+            _chartVm.Stop();
+
             _updateTimer.Stop();
 
             AddLog("✅ Брандмауер зупинено");
@@ -321,6 +293,26 @@ public partial class MainWindow : Window
         LogTextBox.Clear();
     }
 
+    private void OnChartVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        // ViewModel fires on the UI thread (DispatcherTimer) — no Invoke needed
+        switch (e.PropertyName)
+        {
+            case nameof(TrafficChartViewModel.TotalPackets):
+                TotalPacketsText.Text    = _chartVm.TotalPackets;    break;
+            case nameof(TrafficChartViewModel.AllowedPackets):
+                AllowedPacketsText.Text  = _chartVm.AllowedPackets;  break;
+            case nameof(TrafficChartViewModel.BlockedPackets):
+                BlockedPacketsText.Text  = _chartVm.BlockedPackets;  break;
+            case nameof(TrafficChartViewModel.TunneledPackets):
+                TunneledPacketsText.Text = _chartVm.TunneledPackets; break;
+            case nameof(TrafficChartViewModel.SpeedText):
+                SpeedText.Text           = _chartVm.SpeedText;       break;
+            case nameof(TrafficChartViewModel.UptimeText):
+                UptimeText.Text          = _chartVm.UptimeText;      break;
+        }
+    }
+
     private void OnLogMessage(object? sender, string message)
     {
         Dispatcher.Invoke(() => AddLog(message));
@@ -337,55 +329,19 @@ public partial class MainWindow : Window
 
         var stats = _coordinator.Statistics;
 
-        // Оновити цифри
-        TotalPacketsText.Text = stats.TotalPackets.ToString("N0");
-        AllowedPacketsText.Text = stats.AllowedPackets.ToString("N0");
-        BlockedPacketsText.Text = stats.BlockedPackets.ToString("N0");
-        TunneledPacketsText.Text = stats.TunneledPackets.ToString("N0");
-        SpeedText.Text = $"{stats.BytesPerSecond / 1024:F2} KB/s";
+        // Stat labels are updated by TrafficChartViewModel at 20 Hz via its own timer.
+        // The 1-second timer here handles only lightweight tunnel-panel updates.
 
-        // Оновити статус тунелю
         UpdateTunnelStatus(stats.TunnelStatus);
 
-        // Оновити час роботи
-        UptimeText.Text = $"Час роботи: {stats.Uptime:hh\\:mm\\:ss}";
-
-        // Оновити деталі вибраного тунелю якщо підключено
         if (_selectedTunnel != null && _selectedTunnel.IsConnected)
         {
             if (_selectedTunnel.LastHandshake != DateTime.MinValue)
                 _selectedTunnel.ConnectionTime = DateTime.Now - _selectedTunnel.LastHandshake;
-            TunnelUptime.Text = _selectedTunnel.ConnectionTime.ToString(@"hh\:mm\:ss");
-            TunnelSentBytes.Text = FormatBytes(_selectedTunnel.SentBytes);
+            TunnelUptime.Text        = _selectedTunnel.ConnectionTime.ToString(@"hh\:mm\:ss");
+            TunnelSentBytes.Text     = FormatBytes(_selectedTunnel.SentBytes);
             TunnelReceivedBytes.Text = FormatBytes(_selectedTunnel.ReceivedBytes);
         }
-
-        // Додати мітку часу
-        var elapsed = DateTime.Now - _startTime;
-        _timeLabels.Add($"{elapsed:mm\\:ss}");
-
-        // Додати швидкість (стовпчаста діаграма)
-        _speedValues.Add(stats.BytesPerSecond / 1024.0);
-
-        // Оновити трафік по програмах
-        UpdateProcessTraffic();
-
-        // Обмежити кількість точок на графіку (60 точок = 1 хвилина при оновленні раз на секунду)
-        if (_speedValues.Count > 60)
-        {
-            _speedValues.RemoveAt(0);
-            _timeLabels.RemoveAt(0);
-
-            // Видалити старі дані з серій програм
-            foreach (var values in _processTrafficValues.Values)
-            {
-                if (values.Count > 60)
-                    values.RemoveAt(0);
-            }
-        }
-
-        // Оновити статистику процесів
-        UpdateProcessStatistics();
     }
 
     private void UpdateTunnelStatus(TunnelStatus status)
@@ -411,186 +367,9 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>
-    /// Оновити трафік по програмах на графіку
-    /// </summary>
-    private void UpdateProcessTraffic()
-    {
-        try
-        {
-            // Отримати активні з'єднання
-            var connections = _processLookupService.GetActiveTcpConnections();
-
-            // Групувати за процесами
-            var processGroups = connections
-                .Where(c => !string.IsNullOrEmpty(c.ProcessName))
-                .GroupBy(c => c.ProcessName)
-                .Select(g => new
-                {
-                    ProcessName = g.Key,
-                    ConnectionCount = g.Count(),
-                    // Оцінка трафіку (в реальності треба рахувати байти)
-                    EstimatedKBps = g.Count() * 10.0
-                })
-                .OrderByDescending(p => p.EstimatedKBps)
-                .Take(5)  // Топ-5 програм
-                .ToList();
-
-            // Список існуючих процесів
-            var currentProcesses = processGroups.Select(p => p.ProcessName).ToHashSet();
-
-            // Додати/оновити серії для кожної програми
-            foreach (var group in processGroups)
-            {
-                if (!_processTrafficValues.ContainsKey(group.ProcessName))
-                {
-                    // Створити нову серію
-                    var color = _availableColors[_colorIndex % _availableColors.Count];
-                    _colorIndex++;
-
-                    _processColors[group.ProcessName] = color;
-                    _processTrafficValues[group.ProcessName] = new ChartValues<double>();
-
-                    // Заповнити попередні значення нулями
-                    for (int i = 0; i < _speedValues.Count; i++)
-                    {
-                        _processTrafficValues[group.ProcessName].Add(0);
-                    }
-
-                    // Додати серію на графік
-                    PacketsChart.Series.Add(new LineSeries
-                    {
-                        Title = group.ProcessName,
-                        Values = _processTrafficValues[group.ProcessName],
-                        Stroke = new SolidColorBrush(color),
-                        Fill = Brushes.Transparent,
-                        PointGeometry = null,
-                        LineSmoothness = 0.3
-                    });
-                }
-
-                // Додати нове значення
-                _processTrafficValues[group.ProcessName].Add(group.EstimatedKBps);
-            }
-
-            // Додати нулі для процесів, які зараз не активні
-            foreach (var process in _processTrafficValues.Keys.ToList())
-            {
-                if (!currentProcesses.Contains(process))
-                {
-                    _processTrafficValues[process].Add(0);
-                }
-            }
-
-            // Видалити старі неактивні процеси (якщо вони довго не з'являлися)
-            var processesToRemove = new List<string>();
-            foreach (var process in _processTrafficValues.Keys.ToList())
-            {
-                // Якщо останні 10 значень = 0, видалити серію
-                if (_processTrafficValues[process].Count >= 10)
-                {
-                    var lastTen = _processTrafficValues[process].Skip(_processTrafficValues[process].Count - 10).ToList();
-                    if (lastTen.All(v => v == 0))
-                    {
-                        processesToRemove.Add(process);
-                    }
-                }
-            }
-
-            foreach (var process in processesToRemove)
-            {
-                // Знайти і видалити серію з графіка
-                var seriesToRemove = PacketsChart.Series.FirstOrDefault(s => s.Title == process);
-                if (seriesToRemove != null)
-                {
-                    PacketsChart.Series.Remove(seriesToRemove);
-                }
-
-                _processTrafficValues.Remove(process);
-                _processColors.Remove(process);
-            }
-        }
-        catch
-        {
-            // Ігнорувати помилки
-        }
-    }
-
-    /// <summary>
-    /// Оновити статистику процесів
-    /// </summary>
-    private void UpdateProcessStatistics()
-    {
-        try
-        {
-            // Отримати активні з'єднання
-            var connections = _processLookupService.GetActiveTcpConnections();
-
-            // Групувати за процесами та порахувати трафік
-            var processGroups = connections
-                .Where(c => !string.IsNullOrEmpty(c.ProcessName))
-                .GroupBy(c => c.ProcessName)
-                .Select(g => new
-                {
-                    ProcessName = g.Key,
-                    ConnectionCount = g.Count(),
-                    // Оцінка трафіку на основі кількості з'єднань (приблизно)
-                    // В майбутньому можна додати реальний підрахунок байтів
-                    EstimatedBytes = g.Count() * 1024L * (new Random().Next(1, 100))
-                })
-                .OrderByDescending(p => p.ConnectionCount)
-                .Take(10)
-                .ToList();
-
-            // Оновити колекцію
-            foreach (var group in processGroups)
-            {
-                if (_processStatsDict.TryGetValue(group.ProcessName, out var existingStat))
-                {
-                    // Оновити існуючий
-                    existingStat.PacketCount = group.ConnectionCount;
-                    existingStat.TotalBytes = existingStat.TotalBytes + group.EstimatedBytes;
-                    existingStat.UpdateTrafficDisplay();
-                }
-                else
-                {
-                    // Додати новий
-                    var newStat = new ProcessStatItem
-                    {
-                        ProcessName = group.ProcessName,
-                        PacketCount = group.ConnectionCount,
-                        TotalBytes = group.EstimatedBytes
-                    };
-                    newStat.UpdateTrafficDisplay();
-
-                    _processStatsDict[group.ProcessName] = newStat;
-                    _processStats.Add(newStat);
-                }
-            }
-
-            // Відсортувати за трафіком
-            var sorted = _processStats.OrderByDescending(p => p.TotalBytes).ToList();
-            _processStats.Clear();
-            foreach (var item in sorted.Take(10))
-            {
-                _processStats.Add(item);
-            }
-
-            // Очистити словник від видалених
-            var toRemove = _processStatsDict.Keys
-                .Where(k => !_processStats.Any(p => p.ProcessName == k))
-                .ToList();
-
-            foreach (var key in toRemove)
-            {
-                _processStatsDict.Remove(key);
-            }
-        }
-        catch
-        {
-            // Ігнорувати помилки отримання статистики
-        }
-    }
+    // UpdateProcessTraffic and UpdateProcessStatistics are removed.
+    // All chart and process-stats logic now lives in TrafficChartViewModel,
+    // fed by BackgroundTrafficCollector running on a background Task.
 
     private void AddLog(string message)
     {
@@ -1739,6 +1518,9 @@ public partial class MainWindow : Window
         _coordinator?.Stop();
         _coordinator?.Dispose();
         _ruleRepository?.Dispose();
+        _trafficCollector?.Stop();
+        _trafficCollector?.Dispose();
+        _chartVm.Dispose();
         base.OnClosed(e);
     }
 
