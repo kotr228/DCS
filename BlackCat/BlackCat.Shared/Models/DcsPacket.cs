@@ -85,6 +85,8 @@ public class DcsIncomingTransfer
     public string   ExpectedChecksum { get; set; } = string.Empty;
     public string   SourceBlackID    { get; set; } = string.Empty;
     public DateTime StartedAt        { get; set; } = DateTime.UtcNow;
+    public string   DirName          { get; set; } = string.Empty;
+    public string   RelativePath     { get; set; } = string.Empty;
 
     // Ключ = індекс чанку. lock(Chunks) перед записом.
     public SortedDictionary<int, byte[]> Chunks { get; } = new();
@@ -109,4 +111,6 @@ public class DcsFileReceivedEventArgs : EventArgs
     public string FileName      { get; init; } = string.Empty;
     public string SourceBlackID { get; init; } = string.Empty;
     public byte[] Data          { get; init; } = Array.Empty<byte>();
+    public string DirName       { get; init; } = string.Empty;
+    public string RelativePath  { get; init; } = string.Empty;
 }

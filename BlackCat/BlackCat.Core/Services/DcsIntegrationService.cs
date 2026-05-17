@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -194,6 +195,115 @@ public sealed class DcsIntegrationService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Send all files in <paramref name="localDirPath"/> to the peer.
+    /// Each file is tagged with dirName+relativePath so the receiver reconstructs the tree.
+    /// </summary>
+    public async Task<bool> SendDirectoryAsync(
+        string peerBlackID,
+        string localDirPath,
+        string remoteDirName,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Directory.Exists(localDirPath)) return false;
+
+        var files = Directory.EnumerateFiles(localDirPath, "*", SearchOption.AllDirectories).ToList();
+        bool allOk = true;
+        foreach (var file in files)
+        {
+            if (cancellationToken.IsCancellationRequested) break;
+            var relative = Path.GetRelativePath(localDirPath, file);
+            allOk &= await SendFileWithMetaAsync(peerBlackID, file, remoteDirName, relative, cancellationToken);
+        }
+        return allOk;
+    }
+
+    private async Task<bool> SendFileWithMetaAsync(
+        string peerBlackID,
+        string filePath,
+        string dirName,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(peerBlackID) || !File.Exists(filePath))
+            return false;
+
+        var transferId = Guid.NewGuid().ToString("N")[..12];
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _outgoing[transferId] = linked;
+
+        var fileName = Path.GetFileName(filePath);
+        try
+        {
+            byte[] fileData;
+            try { fileData = await File.ReadAllBytesAsync(filePath, linked.Token); }
+            catch (Exception ex)
+            {
+                RaiseProgress(transferId, fileName, peerBlackID, 0, 0, 0, error: ex.Message);
+                return false;
+            }
+
+            var  checksum    = ComputeSha256(fileData);
+            long totalSize   = fileData.Length;
+            int  chunkSize   = DcsPacket.MaxChunkSize;
+            int  totalChunks = Math.Max(1, (int)Math.Ceiling((double)totalSize / chunkSize));
+
+            var metaPacket = new DcsPacket
+            {
+                PayloadType = DcsPayloadType.FileMeta,
+                Meta = new Dictionary<string, string>
+                {
+                    ["transferId"]    = transferId,
+                    ["fileName"]      = fileName,
+                    ["totalSize"]     = totalSize.ToString(),
+                    ["totalChunks"]   = totalChunks.ToString(),
+                    ["checksum"]      = checksum,
+                    ["senderBlackID"] = _ourBlackID ?? "UNKNOWN",
+                    ["dirName"]       = dirName,
+                    ["relativePath"]  = relativePath
+                }
+            };
+            if (!await SendPacketSafeAsync(peerBlackID, metaPacket)) return false;
+
+            for (int i = 0; i < totalChunks; i++)
+            {
+                if (linked.Token.IsCancellationRequested) return false;
+                int start = i * chunkSize;
+                int len   = (int)Math.Min(chunkSize, totalSize - start);
+
+                var chunk = new DcsPacket
+                {
+                    PayloadType = DcsPayloadType.FileChunk,
+                    Meta = new Dictionary<string, string>
+                    {
+                        ["transferId"]  = transferId,
+                        ["chunkIndex"]  = i.ToString(),
+                        ["totalChunks"] = totalChunks.ToString()
+                    },
+                    Content = fileData.AsSpan(start, len).ToArray()
+                };
+                if (!await SendPacketSafeAsync(peerBlackID, chunk)) return false;
+            }
+
+            var completePacket = new DcsPacket
+            {
+                PayloadType = DcsPayloadType.FileComplete,
+                Meta = new Dictionary<string, string>
+                {
+                    ["transferId"] = transferId,
+                    ["checksum"]   = checksum,
+                    ["fileName"]   = fileName
+                }
+            };
+            if (!await SendPacketSafeAsync(peerBlackID, completePacket)) return false;
+
+            return true;
+        }
+        catch (OperationCanceledException) { return false; }
+        catch { return false; }
+        finally { _outgoing.TryRemove(transferId, out _); }
+    }
+
     // ─── Прийом ───────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -240,7 +350,9 @@ public sealed class DcsIntegrationService : IDisposable
                 TotalSize        = long.TryParse(p.Meta.GetValueOrDefault("totalSize"),   out var sz) ? sz : 0,
                 TotalChunks      = int.TryParse( p.Meta.GetValueOrDefault("totalChunks"), out var tc) ? tc : 1,
                 ExpectedChecksum = p.Meta.GetValueOrDefault("checksum", ""),
-                SourceBlackID    = sourceBlackID
+                SourceBlackID    = sourceBlackID,
+                DirName          = p.Meta.GetValueOrDefault("dirName",      ""),
+                RelativePath     = p.Meta.GetValueOrDefault("relativePath", "")
             };
             _incoming[t.TransferId] = t;
             RaiseProgress(t.TransferId, t.FileName, sourceBlackID, 0, 0, t.TotalSize);
@@ -293,7 +405,9 @@ public sealed class DcsIntegrationService : IDisposable
                     TransferId    = t.TransferId,
                     FileName      = t.FileName,
                     SourceBlackID = sourceBlackID,
-                    Data          = data
+                    Data          = data,
+                    DirName       = t.DirName,
+                    RelativePath  = t.RelativePath
                 });
             }
             catch { }

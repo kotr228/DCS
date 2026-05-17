@@ -52,6 +52,10 @@ public partial class MainWindow : Window
     private TunnelNodeItem? _selectedTunnel;
     private readonly PeerNodeRepository _peerNodeRepository;
 
+    // DCS directory mirror integration
+    private DcsIntegrationService?  _dcsIntegration;
+    private BlackCatCommandService? _commandService;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -153,6 +157,15 @@ public partial class MainWindow : Window
                 _tunnelManager.NatDiagnosticReady       += OnNatDiagnosticReady;
                 _tunnelManager.RelayStatusChanged       += (_, msg) => Dispatcher.Invoke(() => AddLog(msg));
 
+                // DCS directory mirror integration
+                var dcsTransferRepo = new DcsTransferRepository(_database);
+                _dcsIntegration = new DcsIntegrationService(
+                    _tunnelManager, _eventRepository, dcsTransferRepo, ourBlackID.FullID);
+                _dcsIntegration.FileReceived += OnDcsMirrorFileReceived;
+
+                _commandService = new BlackCatCommandService(_dcsIntegration);
+                _commandService.Start();
+
                 // Запустити сервер для прийому вхідних з'єднань
                 _ourBlackID = ourBlackID;
                 await _tunnelManager.StartServerAsync(ourBlackID);
@@ -233,6 +246,12 @@ public partial class MainWindow : Window
 
             _embeddedRelayServer?.Dispose();
             _embeddedRelayServer = null;
+
+            _commandService?.Stop();
+            _commandService?.Dispose();
+            _commandService = null;
+            _dcsIntegration?.Dispose();
+            _dcsIntegration = null;
 
             _tunnelManager?.Dispose();
             _tunnelManager = null;
@@ -878,9 +897,39 @@ public partial class MainWindow : Window
                 return;
             }
 
+            // DCS directory mirror packets (marker 0xBC 0x1F)
+            if (e.Data.Length > 2 && e.Data[0] == 0xBC && e.Data[1] == 0x1F)
+            {
+                var peerID = !string.IsNullOrEmpty(e.PeerBlackID)
+                    ? e.PeerBlackID
+                    : _tunnelNodes.FirstOrDefault(t => t.IPAddress == e.SourceIP)?.BlackID ?? e.SourceIP;
+                _dcsIntegration?.HandleIncomingPacket(peerID, e.Data);
+                return;
+            }
+
             var tunnel = _tunnelNodes.FirstOrDefault(t => t.IPAddress == e.SourceIP);
             if (tunnel != null) tunnel.ReceivedBytes += e.Data.Length;
         });
+    }
+
+    private void OnDcsMirrorFileReceived(object? sender, DcsFileReceivedEventArgs e)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(e.DirName)) return;
+
+            var relative = string.IsNullOrEmpty(e.RelativePath) ? e.FileName : e.RelativePath;
+            var destDir  = Path.Combine(TempFilesDir, e.SourceBlackID, e.DirName);
+            var destFile = Path.Combine(destDir, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
+            File.WriteAllBytes(destFile, e.Data);
+
+            Dispatcher.Invoke(() => AddLog($"📁 Дзеркало отримано: {e.DirName}/{relative} від {e.SourceBlackID}"));
+        }
+        catch (Exception ex)
+        {
+            Dispatcher.Invoke(() => AddLog($"❌ Помилка зберігання дзеркала: {ex.Message}"));
+        }
     }
 
     private void OnUPnPStatusChanged(object? sender, bool success)
@@ -1513,6 +1562,9 @@ public partial class MainWindow : Window
         _p2pPunchCts?.Cancel();
         _p2pUdpSocket?.Dispose();
         _embeddedRelayServer?.Dispose();
+        _commandService?.Stop();
+        _commandService?.Dispose();
+        _dcsIntegration?.Dispose();
         _tunnelManager?.Dispose();
         _connectionMonitor?.Dispose();
         _coordinator?.Stop();

@@ -429,6 +429,23 @@ namespace DocControlService.Client
             return true;
         }
 
+        public async Task<bool> ShareDirectoryWithDeviceAsync(int directoryId, int deviceId)
+        {
+            var request = new ShareDirectoryWithDeviceRequest
+            {
+                DirectoryId = directoryId,
+                DeviceId    = deviceId
+            };
+
+            var response = await SendCommandAsync(new ServiceCommand
+            {
+                Type = ServiceCommandType.ShareDirectoryWithDevice,
+                Data = JsonSerializer.Serialize(request)
+            });
+
+            return response?.Success == true;
+        }
+
         public async Task<bool> RevokeAccessAsync(int directoryId, int deviceId)
         {
             var request = new AccessRequest

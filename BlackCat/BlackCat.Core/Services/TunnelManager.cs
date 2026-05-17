@@ -551,9 +551,10 @@ public class TunnelManager : IDisposable
     {
         DataReceived?.Invoke(this, new TunnelDataEventArgs
         {
-            SourceIP = $"relay://{_relayHost}",
+            SourceIP      = $"relay://{_relayHost}",
             DestinationIP = "local",
-            Data = e.Data
+            Data          = e.Data,
+            PeerBlackID   = e.From
         });
     }
 
@@ -737,7 +738,8 @@ public class TunnelManager : IDisposable
         {
             SourceIP      = answeredEp.Address.ToString(),
             DestinationIP = "local",
-            Data          = data
+            Data          = data,
+            PeerBlackID   = peerBlackID
         });
         tunnel.Disconnected += (_, reason) =>
         {
@@ -832,7 +834,8 @@ public class TunnelManager : IDisposable
             {
                 SourceIP      = answeredEp.Address.ToString(),
                 DestinationIP = "local",
-                Data          = data
+                Data          = data,
+                PeerBlackID   = peerBlackID
             });
             tunnel.Disconnected += (_, reason) =>
             {
@@ -902,6 +905,7 @@ public class TunnelDataEventArgs : EventArgs
     public string SourceIP { get; set; } = string.Empty;
     public string DestinationIP { get; set; } = string.Empty;
     public byte[] Data { get; set; } = Array.Empty<byte>();
+    public string PeerBlackID { get; set; } = string.Empty;
 }
 
 /// <summary>

@@ -1858,7 +1858,11 @@ namespace DocControlUI
 
                 await _client.GrantAccessAsync(_selectedMyDirectory.Id, _selectedDevice.Id);
 
-                MessageBox.Show($"Доступ надано!\n\nПристрій: {_selectedDevice.Name}\nДиректорія: {_selectedMyDirectory.Name}",
+                // Mirror directory to remote device via BlackCat tunnel (fire-and-forget)
+                _ = _client.ShareDirectoryWithDeviceAsync(_selectedMyDirectory.Id, _selectedDevice.Id);
+
+                MessageBox.Show(
+                    $"Доступ надано!\n\nПристрій: {_selectedDevice.Name}\nДиректорія: {_selectedMyDirectory.Name}\n\nДиректорію розпочато дублювати в temp_files.",
                     "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
 
                 // Оновити список доступів

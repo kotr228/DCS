@@ -234,7 +234,19 @@
               ON IpFilterRules(directoryId);",
 
             @"CREATE INDEX IF NOT EXISTS idx_ipfilter_georoadmap
-              ON IpFilterRules(geoRoadmapId);"
+              ON IpFilterRules(geoRoadmapId);",
+
+            // ========== НОВІ ТАБЛИЦІ v1.1 - ДЗЕРКАЛЮВАННЯ ДИРЕКТОРІЙ ==========
+
+            @"CREATE TABLE IF NOT EXISTS DirectoryMirrors (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                directoryId INTEGER NOT NULL,
+                deviceName TEXT NOT NULL,
+                mirrorPath TEXT NOT NULL,
+                peerBlackID TEXT NOT NULL DEFAULT '',
+                createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(directoryId) REFERENCES directory(id) ON DELETE CASCADE
+            );"
         };
 
         // Вбудовані шаблони геокарт

@@ -414,7 +414,10 @@ namespace DocControlService.Shared
 
         // BlackCat WAN Bridge (v1.0)
         RegisterBlackCatPeer,
-        UnregisterBlackCatPeer
+        UnregisterBlackCatPeer,
+
+        // Directory mirroring (v1.1)
+        ShareDirectoryWithDevice
 
     }
 
@@ -884,6 +887,24 @@ namespace DocControlService.Shared
         public string ApiKey { get; set; }
         public bool IsActive { get; set; }
         public DateTime LastUsed { get; set; }
+    }
+
+    [Serializable]
+    public class ShareDirectoryWithDeviceRequest
+    {
+        public int DirectoryId { get; set; }
+        public int DeviceId    { get; set; }
+    }
+
+    [Serializable]
+    public class DirectoryMirrorModel
+    {
+        public int      Id          { get; set; }
+        public int      DirectoryId { get; set; }
+        public string   DeviceName  { get; set; } = string.Empty;
+        public string   MirrorPath  { get; set; } = string.Empty;
+        public string   PeerBlackID { get; set; } = string.Empty;
+        public DateTime CreatedAt   { get; set; }
     }
 
 }

@@ -582,6 +582,9 @@ namespace DocControlService
                     case ServiceCommandType.UpdateFileLockHeartbeat:
                         return await HandleUpdateFileLockHeartbeat(command.Data);
 
+                    case ServiceCommandType.ShareDirectoryWithDevice:
+                        return await HandleShareDirectoryWithDeviceAsync(command.Data);
+
                     default:
                         return new ServiceResponse
                         {
@@ -1097,6 +1100,95 @@ namespace DocControlService
                 Success = true,
                 Message = "Access granted successfully"
             };
+        }
+
+        private async Task<ServiceResponse> HandleShareDirectoryWithDeviceAsync(string data)
+        {
+            try
+            {
+                var request = JsonSerializer.Deserialize<ShareDirectoryWithDeviceRequest>(data);
+
+                // Resolve directory
+                var dir = _dirRepo.GetAllDirectories().FirstOrDefault(d => d.Id == request.DirectoryId);
+                if (dir == null)
+                    return new ServiceResponse { Success = false, Message = "Директорію не знайдено" };
+
+                // Resolve device
+                var device = _deviceRepo.GetAllDevices().FirstOrDefault(d => d.Id == request.DeviceId);
+                if (device == null)
+                    return new ServiceResponse { Success = false, Message = "Пристрій не знайдено" };
+
+                // Build mirror path: temp_files/{deviceName}/{dirName}/
+                var serviceDir = AppDomain.CurrentDomain.BaseDirectory;
+                var dirName    = Path.GetFileName(dir.Browse.TrimEnd(Path.DirectorySeparatorChar, '/'));
+                if (string.IsNullOrEmpty(dirName)) dirName = dir.Name;
+                var mirrorPath = Path.Combine(serviceDir, "temp_files", device.Name, dirName);
+                Directory.CreateDirectory(mirrorPath);
+
+                // Copy all files recursively into the mirror
+                if (Directory.Exists(dir.Browse))
+                {
+                    foreach (var srcFile in Directory.EnumerateFiles(dir.Browse, "*", SearchOption.AllDirectories))
+                    {
+                        var relative = Path.GetRelativePath(dir.Browse, srcFile);
+                        var destFile = Path.Combine(mirrorPath, relative);
+                        Directory.CreateDirectory(Path.GetDirectoryName(destFile)!);
+                        File.Copy(srcFile, destFile, overwrite: true);
+                    }
+                }
+
+                // Persist mirror record in DB
+                using (var conn = _dbManager.GetConnection())
+                {
+                    conn.Open();
+                    using var cmd = conn.CreateCommand();
+                    cmd.CommandText = @"INSERT OR REPLACE INTO DirectoryMirrors
+                        (directoryId, deviceName, mirrorPath, peerBlackID, createdAt)
+                        VALUES (@dirId, @devName, @path, @blackId, @now)";
+                    cmd.Parameters.AddWithValue("@dirId",   request.DirectoryId);
+                    cmd.Parameters.AddWithValue("@devName", device.Name);
+                    cmd.Parameters.AddWithValue("@path",    mirrorPath);
+                    cmd.Parameters.AddWithValue("@blackId", device.Name); // WAN device.Name == BlackID
+                    cmd.Parameters.AddWithValue("@now",     DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss"));
+                    cmd.ExecuteNonQuery();
+                }
+
+                // Ask BlackCat to push the directory to the remote peer
+                await SendBlackCatMirrorCommandAsync(device.Name, mirrorPath, dirName);
+
+                Log($"Directory mirrored: {dir.Browse} → {mirrorPath} for peer {device.Name}");
+
+                return new ServiceResponse
+                {
+                    Success = true,
+                    Message = $"Директорію '{dir.Name}' віддзеркалено для пристрою '{device.Name}'"
+                };
+            }
+            catch (Exception ex)
+            {
+                Log($"Error HandleShareDirectoryWithDevice: {ex.Message}", EventLogEntryType.Error);
+                return new ServiceResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        private async Task SendBlackCatMirrorCommandAsync(string peerBlackID, string localDirPath, string remoteDirName)
+        {
+            try
+            {
+                using var pipe = new NamedPipeClientStream(".", "BlackCatCommandPipe", PipeDirection.Out);
+                await pipe.ConnectAsync(3000);
+                if (!pipe.IsConnected) return;
+
+                var payload = new { PeerBlackID = peerBlackID, LocalDirPath = localDirPath, RemoteDirName = remoteDirName };
+                var json    = JsonSerializer.Serialize(payload) + "\n";
+                var bytes   = Encoding.UTF8.GetBytes(json);
+                await pipe.WriteAsync(bytes);
+                await pipe.FlushAsync();
+            }
+            catch
+            {
+                // BlackCat not running — mirror saved locally; transfer will not happen this time
+            }
         }
 
         private ServiceResponse HandleRevokeAccess(string data)
