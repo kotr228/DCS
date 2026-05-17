@@ -123,7 +123,7 @@
                     <Border Grid.Column="3" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="15" Margin="5">
                         <StackPanel>
                             <TextBlock Text="Через тунель" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
-                            <TextBlock x:Name="TunneledPacketsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
+                            <TextBlock x:Name="TunneledPacketsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource InfoBrush}"/>
                         </StackPanel>
                     </Border>
 
@@ -472,7 +472,7 @@
                                             <Run>3. Встав код від друга в поле ②</Run><LineBreak/>
                                             <Run>4. Обидва натискають «З'єднати» — є 30 секунд</Run><LineBreak/>
                                             <Run>5. Після успіху — прямий зашифрований MQE-тунель без серверів</Run><LineBreak/>
-                                            <Run Foreground="{StaticResource AccentBrush}">⚠ Може не спрацювати при симетричному NAT (рідко у домашніх мережах)</Run>
+                                            <Run Foreground="{StaticResource InfoBrush}">⚠ Може не спрацювати при симетричному NAT (рідко у домашніх мережах)</Run>
                                         </TextBlock>
                                     </StackPanel>
                                 </Border>
