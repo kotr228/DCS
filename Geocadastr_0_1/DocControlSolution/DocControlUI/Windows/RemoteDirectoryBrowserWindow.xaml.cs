@@ -183,8 +183,7 @@ namespace DocControlUI.Windows
             {
                 Console.WriteLine($"[RemoteDirectoryBrowser] Помилка: {ex.Message}");
                 SetStatus($"Помилка: {ex.Message}");
-                await this.ShowMessageAsync("Помилка підключення",
-                    $"Не вдалося завантажити директорії з пристрою '{_deviceName}':\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося завантажити директорії з пристрою '{_deviceName}':\n\n{ex.Message}", "Помилка підключення", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -283,7 +282,7 @@ namespace DocControlUI.Windows
         {
             if (_selectedDirectory == null)
             {
-                await this.ShowMessageAsync("Помилка", "Оберіть директорію для сканування");
+                MessageBox.Show("Оберіть директорію для сканування", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -293,7 +292,7 @@ namespace DocControlUI.Windows
 
                 await _client.RemoteScanDirectoryAsync(_deviceName, _selectedDirectory.Id);
 
-                await this.ShowMessageAsync("Успіх", $"Директорія '{_selectedDirectory.Name}' успішно проск анована");
+                MessageBox.Show($"Директорія '{_selectedDirectory.Name}' успішно проскансована", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadDirectoryStatistics();
 
                 SetStatus("Сканування завершено");
@@ -301,7 +300,7 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteDirectoryBrowser] Помилка сканування: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося просканувати директорію:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося просканувати директорію:\n\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 SetStatus("Помилка сканування");
             }
         }
@@ -423,17 +422,11 @@ namespace DocControlUI.Windows
                 // Перевірити чи файл заблокований іншим користувачем
                 if (lockInfo != null && lockInfo.IsLockedByOther)
                 {
-                    var result = await this.ShowMessageAsync("Файл зайнятий",
-                        $"Файл '{fileName}' зараз редагується:\n\n{lockInfo.LockDescription}\n\n" +
-                        $"Відкрити у режимі тільки для читання?",
-                        MessageDialogStyle.AffirmativeAndNegative,
-                        new MetroDialogSettings
-                        {
-                            AffirmativeButtonText = "Так, читання",
-                            NegativeButtonText = "Скасувати"
-                        });
+                    var result = MessageBox.Show(
+                        $"Файл '{fileName}' зараз редагується:\n\n{lockInfo.LockDescription}\n\nВідкрити у режимі тільки для читання?",
+                        "Файл зайнятий", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
-                    if (result != MessageDialogResult.Affirmative)
+                    if (result != MessageBoxResult.Yes)
                     {
                         SetStatus("Відкриття скасовано");
                         return;
@@ -594,7 +587,7 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteDirectoryBrowser] Помилка відкриття файлу: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося відкрити файл:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося відкрити файл:\n\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 SetStatus("Помилка відкриття файлу");
             }
         }
@@ -682,7 +675,7 @@ namespace DocControlUI.Windows
         {
             if (string.IsNullOrEmpty(_currentPath)) return;
 
-            var folderName = await this.ShowInputAsync("Створити папку", "Введіть назву нової папки:");
+            var folderName = ShowInputDialog("Створити папку", "Введіть назву нової папки:");
             if (string.IsNullOrWhiteSpace(folderName)) return;
 
             try
@@ -691,7 +684,7 @@ namespace DocControlUI.Windows
 
                 await _client.RemoteCreateFolderAsync(_deviceName, _currentPath, folderName);
 
-                await this.ShowMessageAsync("Успіх", $"Папку '{folderName}' успішно створено");
+                MessageBox.Show($"Папку '{folderName}' успішно створено", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadFileSystemItems();
 
                 SetStatus("Папку створено");
@@ -699,7 +692,7 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteDirectoryBrowser] Помилка створення папки: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося створити папку:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося створити папку:\n\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 SetStatus("Помилка створення");
             }
         }
@@ -708,7 +701,7 @@ namespace DocControlUI.Windows
         {
             if (string.IsNullOrEmpty(_currentPath)) return;
 
-            var fileName = await this.ShowInputAsync("Створити файл", "Введіть назву нового файлу:");
+            var fileName = ShowInputDialog("Створити файл", "Введіть назву нового файлу:");
             if (string.IsNullOrWhiteSpace(fileName)) return;
 
             try
@@ -717,7 +710,7 @@ namespace DocControlUI.Windows
 
                 await _client.RemoteCreateFileAsync(_deviceName, _currentPath, fileName);
 
-                await this.ShowMessageAsync("Успіх", $"Файл '{fileName}' успішно створено");
+                MessageBox.Show($"Файл '{fileName}' успішно створено", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadFileSystemItems();
 
                 SetStatus("Файл створено");
@@ -725,7 +718,7 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteDirectoryBrowser] Помилка створення файлу: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося створити файл:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося створити файл:\n\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 SetStatus("Помилка створення");
             }
         }
@@ -734,10 +727,7 @@ namespace DocControlUI.Windows
         {
             if (FileSystemGrid.SelectedItem is not FileSystemItemViewModel item) return;
 
-            var newName = await this.ShowInputAsync("Перейменувати", "Введіть нову назву:", new MetroDialogSettings
-            {
-                DefaultText = item.Name
-            });
+            var newName = ShowInputDialog("Перейменувати", "Введіть нову назву:", item.Name);
 
             if (string.IsNullOrWhiteSpace(newName) || newName == item.Name) return;
 
@@ -747,7 +737,7 @@ namespace DocControlUI.Windows
 
                 await _client.RemoteRenameFileOrFolderAsync(_deviceName, item.FullPath, newName);
 
-                await this.ShowMessageAsync("Успіх", $"'{item.Name}' успішно перейменовано в '{newName}'");
+                MessageBox.Show($"'{item.Name}' успішно перейменовано в '{newName}'", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadFileSystemItems();
 
                 SetStatus("Перейменовано");
@@ -755,7 +745,7 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteDirectoryBrowser] Помилка перейменування: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося перейменувати:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося перейменувати:\n\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 SetStatus("Помилка перейменування");
             }
         }
@@ -764,12 +754,10 @@ namespace DocControlUI.Windows
         {
             if (FileSystemGrid.SelectedItem is not FileSystemItemViewModel item) return;
 
-            var result = await this.ShowMessageAsync("Підтвердження видалення",
-                $"Ви впевнені, що хочете видалити '{item.Name}'?",
-                MessageDialogStyle.AffirmativeAndNegative,
-                new MetroDialogSettings { AffirmativeButtonText = "Так", NegativeButtonText = "Ні" });
+            var result = MessageBox.Show($"Ви впевнені, що хочете видалити '{item.Name}'?",
+                "Підтвердження видалення", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
-            if (result != MessageDialogResult.Affirmative) return;
+            if (result != MessageBoxResult.Yes) return;
 
             try
             {
@@ -777,7 +765,7 @@ namespace DocControlUI.Windows
 
                 await _client.RemoteDeleteFileOrFolderAsync(_deviceName, item.FullPath, item.IsDirectory, recursive: true);
 
-                await this.ShowMessageAsync("Успіх", $"'{item.Name}' успішно видалено");
+                MessageBox.Show($"'{item.Name}' успішно видалено", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadFileSystemItems();
 
                 SetStatus("Видалено");
@@ -785,7 +773,7 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteDirectoryBrowser] Помилка видалення: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося видалити:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося видалити:\n\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 SetStatus("Помилка видалення");
             }
         }
@@ -824,14 +812,14 @@ namespace DocControlUI.Windows
         {
             if (_selectedDirectory == null)
             {
-                await this.ShowMessageAsync("Помилка", "Оберіть директорію");
+                MessageBox.Show("Оберіть директорію", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             var message = CommitMessageTextBox.Text.Trim();
             if (string.IsNullOrWhiteSpace(message))
             {
-                await this.ShowMessageAsync("Помилка", "Введіть повідомлення коміту");
+                MessageBox.Show("Введіть повідомлення коміту", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -843,7 +831,7 @@ namespace DocControlUI.Windows
 
                 await _client.RemoteGitCommitAsync(_deviceName, _selectedDirectory.Id, message);
 
-                await this.ShowMessageAsync("Успіх", $"Коміт успішно виконано:\n{message}");
+                MessageBox.Show($"Коміт успішно виконано:\n{message}", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
                 CommitMessageTextBox.Clear();
                 await LoadGitHistory();
 
@@ -854,7 +842,7 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteDirectoryBrowser] Помилка коміту: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося виконати коміт:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося виконати коміт:\n\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 GitStatusIndicator.Foreground = new SolidColorBrush(Color.FromRgb(244, 67, 54));
                 GitStatusLabel.Text = "Помилка";
                 SetStatus("Помилка коміту");
@@ -870,22 +858,20 @@ namespace DocControlUI.Windows
         {
             if (_selectedDirectory == null)
             {
-                await this.ShowMessageAsync("Помилка", "Оберіть директорію");
+                MessageBox.Show("Оберіть директорію", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             if (GitHistoryGrid.SelectedItem is not GitCommitHistoryModel commit)
             {
-                await this.ShowMessageAsync("Помилка", "Оберіть коміт з історії для відкату");
+                MessageBox.Show("Оберіть коміт з історії для відкату", "Помилка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            var result = await this.ShowMessageAsync("Підтвердження відкату",
-                $"Ви впевнені, що хочете відкотити до коміту:\n\n{commit.Hash}\n{commit.Message}\n\nЦе видалить всі зміни після цього коміту!",
-                MessageDialogStyle.AffirmativeAndNegative,
-                new MetroDialogSettings { AffirmativeButtonText = "Так, відкотити", NegativeButtonText = "Скасувати" });
+            var result = MessageBox.Show($"Ви впевнені, що хочете відкотити до коміту:\n\n{commit.Hash}\n{commit.Message}\n\nЦе видалить всі зміни після цього коміту!",
+                "Підтвердження відкату", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
-            if (result != MessageDialogResult.Affirmative) return;
+            if (result != MessageBoxResult.Yes) return;
 
             try
             {
@@ -895,7 +881,7 @@ namespace DocControlUI.Windows
 
                 await _client.RemoteGitRevertAsync(_deviceName, _selectedDirectory.Id, commit.Hash);
 
-                await this.ShowMessageAsync("Успіх", $"Успішно відкочено до коміту:\n{commit.Hash}");
+                MessageBox.Show($"Успішно відкочено до коміту:\n{commit.Hash}", "Успіх", MessageBoxButton.OK, MessageBoxImage.Information);
                 await LoadGitHistory();
 
                 GitStatusIndicator.Foreground = new SolidColorBrush(Color.FromRgb(76, 175, 80));
@@ -905,7 +891,7 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteDirectoryBrowser] Помилка відкату: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося виконати відкат:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося виконати відкат:\n\n{ex.Message}", "Помилка", MessageBoxButton.OK, MessageBoxImage.Error);
                 GitStatusIndicator.Foreground = new SolidColorBrush(Color.FromRgb(244, 67, 54));
                 GitStatusLabel.Text = "Помилка";
                 SetStatus("Помилка відкату");
@@ -943,7 +929,40 @@ namespace DocControlUI.Windows
 
         #endregion
 
-        #region Chrome Handlers
+        private static string ShowInputDialog(string title, string prompt, string defaultText = "")
+        {
+            var dialog = new Window
+            {
+                Title = title,
+                Width = 420,
+                Height = 160,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStyle = WindowStyle.ToolWindow
+            };
+            var stack = new System.Windows.Controls.StackPanel { Margin = new System.Windows.Thickness(16) };
+            stack.Children.Add(new System.Windows.Controls.TextBlock { Text = prompt, Margin = new System.Windows.Thickness(0, 0, 0, 8) });
+            var textBox = new System.Windows.Controls.TextBox { Text = defaultText };
+            stack.Children.Add(textBox);
+            var buttonPanel = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                Margin = new System.Windows.Thickness(0, 12, 0, 0)
+            };
+            var okButton = new System.Windows.Controls.Button { Content = "OK", Width = 80, Margin = new System.Windows.Thickness(0, 0, 8, 0), IsDefault = true };
+            var cancelButton = new System.Windows.Controls.Button { Content = "Скасувати", Width = 100, IsCancel = true };
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            stack.Children.Add(buttonPanel);
+            dialog.Content = stack;
+            string result = null;
+            okButton.Click += (s, e) => { result = textBox.Text; dialog.DialogResult = true; };
+            cancelButton.Click += (s, e) => { dialog.DialogResult = false; };
+            return dialog.ShowDialog() == true ? result : null;
+        }
+
+                #region Chrome Handlers
 
         private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
         private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
