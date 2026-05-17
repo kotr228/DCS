@@ -21,13 +21,7 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Заголовок -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20" VerticalAlignment="Center">
-            <Image Source="/Assets/BC.ico" Width="36" Height="36" Margin="0,0,12,0" VerticalAlignment="Center"/>
-            <TextBlock Text="BlackCat Firewall" FontSize="28" FontWeight="Bold"
-                       Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
-        </StackPanel>
-
+        
         <!-- Статистика (цифри) -->
         <Grid Grid.Row="1" Margin="0,0,0,20">
             <Grid.ColumnDefinitions>
@@ -290,9 +284,9 @@
 
                             <!-- Кнопки керування -->
                             <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
-                                <Button x:Name="AddTunnelButton" Content="➕ Додати" Width="100" Margin="0,0,5,0"
+                                <Button x:Name="AddTunnelButton" Content="➕ Додати" Width="166" Margin="0,0,5,0"
                                         Click="AddTunnelButton_Click"/>
-                                <Button x:Name="RemoveTunnelButton" Content="🗑️ Видалити" Width="100"
+                                <Button x:Name="RemoveTunnelButton" Content="🗑️ Видалити" Width="161"
                                         IsEnabled="False" Click="RemoveTunnelButton_Click"/>
                             </StackPanel>
                         </Grid>
