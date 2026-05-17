@@ -1,10 +1,9 @@
 using System.Windows;
-using MahApps.Metro.Controls;
 using System.Text.RegularExpressions;
 
 namespace BlackCat.UI;
 
-public partial class AddTunnelDialog : MetroWindow
+public partial class AddTunnelDialog : Window
 {
     public string BlackID { get; private set; } = string.Empty;
     public string IPAddress { get; private set; } = string.Empty;
@@ -104,4 +103,7 @@ public partial class AddTunnelDialog : MetroWindow
         // Простий regex для доменного імені
         return Regex.IsMatch(domain, @"^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?(\.[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?)*\.[a-zA-Z]{2,}$");
     }
+
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
 }

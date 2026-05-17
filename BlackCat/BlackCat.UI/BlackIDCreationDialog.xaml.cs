@@ -3,11 +3,9 @@ using System.Windows;
 using System.Windows.Controls;
 using BlackCat.Core.Services;
 using BlackCat.Shared.Models;
-using MahApps.Metro.Controls;
-
 namespace BlackCat.UI;
 
-public partial class BlackIDCreationDialog : MetroWindow
+public partial class BlackIDCreationDialog : Window
 {
     private readonly BlackIDService _blackIDService;
     public BlackID? CreatedBlackID { get; private set; }
@@ -123,4 +121,7 @@ public partial class BlackIDCreationDialog : MetroWindow
         DialogResult = false;
         Close();
     }
+
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
 }

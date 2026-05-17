@@ -3,11 +3,9 @@ using System.Windows.Controls;
 using BlackCat.Core.Services;
 using System.Collections.Generic;
 using System.Linq;
-using MahApps.Metro.Controls;
-
 namespace BlackCat.UI;
 
-public partial class ActivePortsDialog : MetroWindow
+public partial class ActivePortsDialog : Window
 {
     public int SelectedPort { get; private set; }
     public string? SelectedProcessName { get; private set; }
@@ -82,4 +80,7 @@ public partial class ActivePortsDialog : MetroWindow
         DialogResult = false;
         Close();
     }
+
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
 }

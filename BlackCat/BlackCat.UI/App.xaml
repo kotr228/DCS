@@ -1,8 +1,7 @@
 <Application x:Class="BlackCat.UI.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
-             StartupUri="MainWindow.xaml">
+             StartupUri="StartupWindow.xaml">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -69,14 +68,6 @@
             <!-- ═══════════════════════════════════════════════════════════════ -->
             <!-- 📝  ГЛОБАЛЬНІ СТИЛІ                                             -->
             <!-- ═══════════════════════════════════════════════════════════════ -->
-
-            <!-- ── MahApps MetroWindow ── -->
-            <Style TargetType="mah:MetroWindow">
-                <Setter Property="FontFamily"  Value="Segoe UI"/>
-                <Setter Property="FontSize"    Value="14"/>
-                <Setter Property="Background"  Value="{StaticResource BackgroundBrush}"/>
-                <Setter Property="Foreground"  Value="{StaticResource TextBrush}"/>
-            </Style>
 
             <!-- ── TextBlock ── -->
             <Style TargetType="TextBlock">

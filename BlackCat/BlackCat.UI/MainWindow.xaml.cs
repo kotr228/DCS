@@ -1,5 +1,4 @@
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -14,7 +13,6 @@ using LiveCharts.Wpf;
 using LiveCharts.Defaults;
 using System.Collections.ObjectModel;
 using System.Linq;
-using Microsoft.Win32;
 using NetworkProtocol = BlackCat.Shared.Enums.ProtocolType;
 
 namespace BlackCat.UI;
@@ -33,7 +31,6 @@ public partial class MainWindow : Window
     // Маркери типів пакетів
     private static readonly byte[] NodeInfoMarker     = { 0xBC, 0x1D }; // node info exchange
     private static readonly byte[] FileTransferMarker = { 0xBC, 0x1E }; // file transfer
-    private static readonly byte[] DcsDataMarker      = { 0xBC, 0x1F }; // DCS document system
 
     // Шляхи до тимчасових папок
     private static readonly string TempDataDir  = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "temp_data");
@@ -81,12 +78,6 @@ public partial class MainWindow : Window
     private TunnelNodeItem? _selectedTunnel;
     private readonly PeerNodeRepository _peerNodeRepository;
 
-    // DCS інтеграція
-    private DcsIntegrationService? _dcsService;
-    private IpcBridgeService?      _ipcBridge;
-    private readonly DcsTransferRepository _dcsTransferRepository;
-    private readonly ObservableCollection<DcsTransferItem> _dcsActiveTransfers = new();
-
     public MainWindow()
     {
         InitializeComponent();
@@ -99,7 +90,6 @@ public partial class MainWindow : Window
         _blackIDRepository = new BlackIDRepository(_database);
         _peerNodeRepository = new PeerNodeRepository(_database);
         _eventRepository = new ConnectionEventRepository(_database);
-        _dcsTransferRepository = new DcsTransferRepository(_database);
 
         // Ініціалізувати сервіси для з'єднань
         _blackIDService = new BlackIDService();
@@ -119,11 +109,6 @@ public partial class MainWindow : Window
         // Налаштування тунелів
         TunnelsDataGrid.ItemsSource = _tunnelNodes;
         LoadTunnels();
-
-        // DCS — прив'язати колекції та завантажити історію
-        DcsActiveList.ItemsSource = _dcsActiveTransfers;
-        DcsPeerCombo.ItemsSource  = _tunnelNodes;
-        RefreshDcsHistory();
 
         // Таймер оновлення UI
         _updateTimer = new DispatcherTimer
@@ -212,26 +197,6 @@ public partial class MainWindow : Window
                 // Запустити сервер для прийому вхідних з'єднань
                 _ourBlackID = ourBlackID;
                 await _tunnelManager.StartServerAsync(ourBlackID);
-
-                // Ініціалізувати DCS-міст (graceful — якщо DCS немає, просто вимкнено)
-                try
-                {
-                    _dcsService = new DcsIntegrationService(
-                        _tunnelManager, _eventRepository,
-                        _dcsTransferRepository, ourBlackID.FullID);
-                    _dcsService.TransferProgress += OnDcsTransferProgress;
-                    _dcsService.FileReceived     += OnDcsFileReceived;
-                    DcsDisabledBanner.Visibility  = Visibility.Collapsed;
-                    AddLog("🗂️ DCS-інтеграція активована");
-
-                    // IPC-міст: повідомляти DCS NetworkCore про WAN-тунелі
-                    _ipcBridge = new IpcBridgeService(_tunnelManager);
-                    AddLog("🔗 IPC-міст до DCS активовано");
-                }
-                catch (Exception dcsEx)
-                {
-                    AddLog($"ℹ️ DCS: {dcsEx.Message}");
-                }
 
                 AddLog($"✅ BlackCat запущено. Використовуй вкладку 🕳️ P2P для з'єднання.");
 
@@ -1134,22 +1099,6 @@ public partial class MainWindow : Window
                 return;
             }
 
-            // DCS document system packet
-            if (e.Data.Length > DcsDataMarker.Length
-                && e.Data[0] == DcsDataMarker[0]
-                && e.Data[1] == DcsDataMarker[1])
-            {
-                try
-                {
-                    var srcNode = _tunnelNodes.FirstOrDefault(t => t.IPAddress == e.SourceIP);
-                    var srcBlackID = srcNode?.BlackID ?? e.SourceIP;
-                    // HandleIncomingPacket ніколи не кидає — виклик безпечний з UI потоку
-                    _dcsService?.HandleIncomingPacket(srcBlackID, e.Data);
-                }
-                catch { }
-                return;
-            }
-
             var tunnel = _tunnelNodes.FirstOrDefault(t => t.IPAddress == e.SourceIP);
             if (tunnel != null) tunnel.ReceivedBytes += e.Data.Length;
         });
@@ -1785,8 +1734,6 @@ public partial class MainWindow : Window
         _p2pPunchCts?.Cancel();
         _p2pUdpSocket?.Dispose();
         _embeddedRelayServer?.Dispose();
-        try { _dcsService?.Dispose(); } catch { }
-        try { _ipcBridge?.Dispose(); } catch { }
         _tunnelManager?.Dispose();
         _connectionMonitor?.Dispose();
         _coordinator?.Stop();
@@ -1795,246 +1742,10 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
-    // ─── DCS UI обробники ─────────────────────────────────────────────────────
-
-    private void DcsPeerCombo_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
-    {
-        try
-        {
-            if (DcsPeerCombo.SelectedItem is TunnelNodeItem node)
-            {
-                bool connected = _dcsService?.IsConnectedTo(node.BlackID) == true;
-                DcsPeerStatusText.Text       = connected ? "🟢 Підключено" : "🔴 Не підключено";
-                DcsPeerStatusText.Foreground  = connected
-                    ? new SolidColorBrush(Color.FromRgb(0x4E, 0xC9, 0xB0))
-                    : new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80));
-            }
-        }
-        catch { }
-    }
-
-    private void DcsDropZone_DragOver(object sender, DragEventArgs e)
-    {
-        try
-        {
-            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
-                ? DragDropEffects.Copy
-                : DragDropEffects.None;
-            DcsDropZone.BorderBrush = new SolidColorBrush(Color.FromRgb(0x6A, 0x99, 0x55));
-            e.Handled = true;
-        }
-        catch { e.Effects = DragDropEffects.None; }
-    }
-
-    private void DcsDropZone_DragLeave(object sender, DragEventArgs e)
-    {
-        try { DcsDropZone.BorderBrush = new SolidColorBrush(Color.FromRgb(0x4E, 0xC9, 0xB0)); }
-        catch { }
-    }
-
-    private void DcsDropZone_Drop(object sender, DragEventArgs e)
-    {
-        try
-        {
-            DcsDropZone.BorderBrush = new SolidColorBrush(Color.FromRgb(0x4E, 0xC9, 0xB0));
-            if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return;
-
-            var files = e.Data.GetData(DataFormats.FileDrop) as string[];
-            if (files == null || files.Length == 0) return;
-
-            SendDcsFiles(files);
-        }
-        catch (Exception ex)
-        {
-            AddLog($"⚠️ DCS drop error: {ex.Message}");
-        }
-    }
-
-    private void DcsBrowseButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var dlg = new OpenFileDialog
-            {
-                Title       = "Вибрати файли для DCS-передачі",
-                Multiselect = true,
-                Filter      = "Всі файли (*.*)|*.*"
-            };
-            if (dlg.ShowDialog() == true)
-                SendDcsFiles(dlg.FileNames);
-        }
-        catch (Exception ex)
-        {
-            AddLog($"⚠️ DCS browse error: {ex.Message}");
-        }
-    }
-
-    private void DcsRefreshHistory_Click(object sender, RoutedEventArgs e)
-    {
-        try { RefreshDcsHistory(); }
-        catch { }
-    }
-
-    private void SendDcsFiles(string[] filePaths)
-    {
-        try
-        {
-            if (_dcsService == null)
-            {
-                AddLog("⚠️ DCS: спочатку запустіть брандмауер");
-                return;
-            }
-
-            if (DcsPeerCombo.SelectedItem is not TunnelNodeItem peer)
-            {
-                AddLog("⚠️ DCS: оберіть вузол-одержувач у списку");
-                return;
-            }
-
-            foreach (var filePath in filePaths)
-            {
-                var fp = filePath; // capture for closure
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await _dcsService.SendFileAsync(peer.BlackID, fp);
-                    }
-                    catch (Exception ex)
-                    {
-                        Dispatcher.Invoke(() => AddLog($"⚠️ DCS send error: {ex.Message}"));
-                    }
-                });
-            }
-        }
-        catch (Exception ex)
-        {
-            AddLog($"⚠️ DCS: {ex.Message}");
-        }
-    }
-
-    private void OnDcsTransferProgress(object? sender, DcsTransferProgressEventArgs e)
-    {
-        try
-        {
-            Dispatcher.Invoke(() =>
-            {
-                try
-                {
-                    var item = _dcsActiveTransfers.FirstOrDefault(t => t.TransferId == e.TransferId);
-
-                    if (item == null)
-                    {
-                        item = new DcsTransferItem
-                        {
-                            TransferId     = e.TransferId,
-                            FileName       = e.FileName,
-                            PeerBlackID    = e.PeerBlackID,
-                            DirectionIcon  = "↑"
-                        };
-                        _dcsActiveTransfers.Insert(0, item);
-                    }
-
-                    item.Progress   = e.ProgressPercent;
-                    item.SizeText   = FormatDcsSize(e.BytesDone, e.TotalBytes);
-                    item.IsComplete = e.IsComplete;
-                    item.IsError    = e.IsError;
-                    item.StatusText = e.IsError
-                        ? $"❌ {e.ErrorMessage}"
-                        : e.IsComplete ? "✅" : $"{e.ProgressPercent:F0}%";
-
-                    if (e.IsComplete || e.IsError)
-                    {
-                        RefreshDcsHistory();
-                        // Видаляємо завершені через 4 секунди
-                        var toRemove = item;
-                        _ = Task.Delay(4000).ContinueWith(_ =>
-                            Dispatcher.Invoke(() =>
-                            {
-                                try { _dcsActiveTransfers.Remove(toRemove); } catch { }
-                            }));
-                    }
-                }
-                catch { }
-            });
-        }
-        catch { }
-    }
-
-    private void OnDcsFileReceived(object? sender, DcsFileReceivedEventArgs e)
-    {
-        try
-        {
-            // Зберегти отриманий файл у temp_files
-            var safeName = Path.GetFileName(e.FileName);
-            if (string.IsNullOrEmpty(safeName)) safeName = "dcs_received.bin";
-            var savePath = Path.Combine(TempFilesDir, safeName);
-
-            File.WriteAllBytes(savePath, e.Data);
-
-            Dispatcher.Invoke(() =>
-            {
-                try
-                {
-                    // Додаємо до активних як вхідний
-                    var item = _dcsActiveTransfers.FirstOrDefault(t => t.TransferId == e.TransferId);
-                    if (item != null)
-                    {
-                        item.DirectionIcon = "↓";
-                        item.IsComplete    = true;
-                        item.StatusText    = "✅";
-                        item.Progress      = 100;
-                    }
-
-                    // Оновлюємо статистику тунелю
-                    var tunnel = _tunnelNodes.FirstOrDefault(t => t.BlackID == e.SourceBlackID);
-                    if (tunnel != null) tunnel.ReceivedBytes += e.Data.LongLength;
-
-                    AddLog($"📥 DCS: файл отримано від {e.SourceBlackID}: {safeName} ({e.Data.Length} B)");
-                    AddLog($"   💾 Збережено: {savePath}");
-
-                    RefreshDcsHistory();
-                }
-                catch { }
-            });
-        }
-        catch (Exception ex)
-        {
-            try { Dispatcher.Invoke(() => AddLog($"⚠️ DCS receive error: {ex.Message}")); } catch { }
-        }
-    }
-
-    private void RefreshDcsHistory()
-    {
-        try
-        {
-            var records = _dcsTransferRepository.GetRecentTransfers(50);
-            var viewModels = records.Select(r => new DcsHistoryItem
-            {
-                FilePath       = r.FilePath,
-                PeerBlackID    = r.PeerBlackID ?? "—",
-                FileSize       = r.FileSize,
-                TransferredAt  = r.TransferredAt,
-                ChecksumSHA256 = r.ChecksumSHA256
-            }).ToList();
-            DcsHistoryGrid.ItemsSource = viewModels;
-        }
-        catch { }
-    }
-
-    private static string FormatDcsSize(long done, long total)
-    {
-        static string Fmt(long b) => b switch
-        {
-            < 1024             => $"{b} B",
-            < 1024 * 1024      => $"{b / 1024.0:F1} KB",
-            < 1024L * 1024 * 1024 => $"{b / (1024.0 * 1024):F1} MB",
-            _                  => $"{b / (1024.0 * 1024 * 1024):F2} GB"
-        };
-        return total > 0 ? $"{Fmt(done)} / {Fmt(total)}" : Fmt(done);
-    }
-
-} // end MainWindow
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
+    private void AppCloseButton_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
+}
 
 /// <summary>
 /// Елемент статистики процесу
@@ -2104,75 +1815,6 @@ public class ProcessStatItem : System.ComponentModel.INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(propertyName));
     }
-}
-
-/// <summary>Елемент активного DCS-передавання для UI списку з прогрес-баром.</summary>
-public class DcsTransferItem : System.ComponentModel.INotifyPropertyChanged
-{
-    private string _transferId    = string.Empty;
-    private string _fileName      = string.Empty;
-    private string _peerBlackID   = string.Empty;
-    private string _directionIcon = "↑";
-    private double _progress;
-    private string _statusText    = string.Empty;
-    private string _sizeText      = string.Empty;
-    private bool   _isComplete;
-    private bool   _isError;
-
-    public string TransferId    { get => _transferId;    set { _transferId    = value; OnPC(); } }
-    public string FileName      { get => _fileName;      set { _fileName      = value; OnPC(); } }
-    public string PeerBlackID   { get => _peerBlackID;   set { _peerBlackID   = value; OnPC(); } }
-    public string DirectionIcon { get => _directionIcon; set { _directionIcon = value; OnPC(); } }
-    public string StatusText    { get => _statusText;    set { _statusText    = value; OnPC(); } }
-    public string SizeText      { get => _sizeText;      set { _sizeText      = value; OnPC(); } }
-
-    public double Progress
-    {
-        get => _progress;
-        set { _progress = value; OnPC(); OnPC(nameof(ProgressColor)); }
-    }
-    public bool IsComplete
-    {
-        get => _isComplete;
-        set { _isComplete = value; OnPC(); OnPC(nameof(ProgressColor)); }
-    }
-    public bool IsError
-    {
-        get => _isError;
-        set { _isError = value; OnPC(); OnPC(nameof(ProgressColor)); }
-    }
-
-    public SolidColorBrush ProgressColor => IsError
-        ? new SolidColorBrush(Color.FromRgb(0xF4, 0x47, 0x47))
-        : IsComplete
-            ? new SolidColorBrush(Color.FromRgb(0x4E, 0xC9, 0xB0))
-            : new SolidColorBrush(Color.FromRgb(0x56, 0x9C, 0xD6));
-
-    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
-    private void OnPC([System.Runtime.CompilerServices.CallerMemberName] string? name = null)
-        => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
-}
-
-/// <summary>Рядок таблиці історії DCS-передавань.</summary>
-public class DcsHistoryItem
-{
-    public string   FilePath       { get; set; } = string.Empty;
-    public string   PeerBlackID    { get; set; } = string.Empty;
-    public long     FileSize       { get; set; }
-    public DateTime TransferredAt  { get; set; }
-    public string?  ChecksumSHA256 { get; set; }
-
-    public string FileSizeDisplay => FileSize switch
-    {
-        < 1024                => $"{FileSize} B",
-        < 1024 * 1024         => $"{FileSize / 1024.0:F1} KB",
-        < 1024L * 1024 * 1024 => $"{FileSize / (1024.0 * 1024):F1} MB",
-        _                     => $"{FileSize / (1024.0 * 1024 * 1024):F2} GB"
-    };
-    public string TimeDisplay   => TransferredAt.ToLocalTime().ToString("dd.MM HH:mm:ss");
-    public string ChecksumShort => ChecksumSHA256?.Length >= 8
-                                   ? ChecksumSHA256[..8] + "…"
-                                   : (ChecksumSHA256 ?? "—");
 }
 
 /// <summary>
