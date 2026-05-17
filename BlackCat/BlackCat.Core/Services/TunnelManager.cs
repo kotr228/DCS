@@ -553,8 +553,7 @@ public class TunnelManager : IDisposable
         {
             SourceIP      = $"relay://{_relayHost}",
             DestinationIP = "local",
-            Data          = e.Data,
-            PeerBlackID   = e.From
+            Data          = e.Data
         });
     }
 
