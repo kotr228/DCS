@@ -1,5 +1,4 @@
 using DocControlService.Client;
-using MahApps.Metro.Controls;
 using System;
 using System.Diagnostics;
 using System.ServiceProcess;
@@ -8,7 +7,7 @@ using System.Windows;
 
 namespace DocControlUI.Windows
 {
-    public partial class StartupWindow : MetroWindow
+    public partial class StartupWindow : Window
     {
         private readonly DocControlServiceClient _client;
         private bool _serviceRunning = false;

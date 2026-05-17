@@ -7,11 +7,9 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using MahApps.Metro.Controls;
-
 namespace DocControlUI
 {
-    public partial class MainWindow : MetroWindow
+    public partial class MainWindow : Window
     {
         private readonly DocControlServiceClient _client;
         private List<DirectoryWithAccessModel> _directories;
@@ -1278,6 +1276,27 @@ namespace DocControlUI
                 ShowError("Помилка тестування", ex.Message);
             }
         }
+
+        #endregion
+
+        #region Chrome Handlers
+
+        private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
+        private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (WindowState == System.Windows.WindowState.Maximized)
+            {
+                WindowState = System.Windows.WindowState.Normal;
+                MaximizeButton.Content = "□";
+            }
+            else
+            {
+                WindowState = System.Windows.WindowState.Maximized;
+                MaximizeButton.Content = "⧉";
+            }
+        }
+        private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
         #endregion
 
