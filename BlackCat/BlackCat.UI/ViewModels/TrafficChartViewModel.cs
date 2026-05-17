@@ -52,7 +52,7 @@ internal sealed class CircularBuffer<T>
 ///   BackgroundTrafficCollector (background Task)
 ///       → ConcurrentQueue&lt;TrafficDataPoint&gt;  (lock-free handoff)
 ///           → 50 ms DispatcherTimer (UI thread)
-///               → ChartValues updated once per tick via SuspendUpdates/ResumeUpdates
+///               → ChartValues slid via RemoveAt(0)+Add (2 events/tick at 1 Hz)
 ///
 /// Memory:
 ///   • CircularBuffer keeps exactly MaxHistory doubles — no RemoveAt(0) O(n) shifts.
@@ -187,14 +187,12 @@ public sealed class TrafficChartViewModel : INotifyPropertyChanged, IDisposable
         // Swap label array atomically (reference write is atomic on x64)
         _labels = _labelHistory.ToArray();
 
-        // ── Batch-update speed chart (1 CollectionChanged, not N) ─────────
-        var snapshot = _speedHistory.ToArray();
-        SpeedValues.SuspendUpdates();
-        SpeedValues.Clear();
-        // AddRange fires only one event after SuspendUpdates is released
-        foreach (var v in snapshot)
-            SpeedValues.Add(v);
-        SpeedValues.ResumeUpdates();
+        // ── Slide speed chart window: RemoveAt(0) + Add = 2 CollectionChanged ──
+        // Background collector fires at 1 Hz, so this path runs at most once
+        // per second — RemoveAt(0) on 60 items is ~60 shifts, negligible at 1 Hz.
+        if (SpeedValues.Count >= MaxHistory)
+            SpeedValues.RemoveAt(0);
+        SpeedValues.Add(latest.SpeedKBps);
 
         // ── Update per-process series ─────────────────────────────────────
         UpdateProcessSeries(latest.ProcessTraffic);
@@ -226,15 +224,11 @@ public sealed class TrafficChartViewModel : INotifyPropertyChanged, IDisposable
                 values = CreateProcessSeries(entry.ProcessName);
             }
 
-            var buf = _processHistory[entry.ProcessName];
-            buf.Add(entry.EstimatedKBps);
+            _processHistory[entry.ProcessName].Add(entry.EstimatedKBps);
 
-            // Sync ChartValues from circular buffer in one batch
-            var snap = buf.ToArray();
-            values.SuspendUpdates();
-            values.Clear();
-            foreach (var v in snap) values.Add(v);
-            values.ResumeUpdates();
+            if (values.Count >= MaxHistory)
+                values.RemoveAt(0);
+            values.Add(entry.EstimatedKBps);
         }
 
         // Advance inactive process histories and prune stale series
@@ -256,10 +250,9 @@ public sealed class TrafficChartViewModel : INotifyPropertyChanged, IDisposable
             else
             {
                 var values = _processValues[name];
-                values.SuspendUpdates();
-                values.Clear();
-                foreach (var v in snap) values.Add(v);
-                values.ResumeUpdates();
+                if (values.Count >= MaxHistory)
+                    values.RemoveAt(0);
+                values.Add(0.0);
             }
         }
 
