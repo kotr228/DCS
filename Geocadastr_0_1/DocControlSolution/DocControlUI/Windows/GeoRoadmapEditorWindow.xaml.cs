@@ -11,11 +11,9 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using MahApps.Metro.Controls;
-
 namespace DocControlUI.Windows
 {
-    public partial class GeoRoadmapEditorWindow : MetroWindow
+    public partial class GeoRoadmapEditorWindow : Window
     {
         private readonly DocControlServiceClient _client;
         private GeoRoadmap _currentRoadmap;
@@ -1152,6 +1150,27 @@ namespace DocControlUI.Windows
                 Close();
             }
         }
+
+        #endregion
+
+        #region Chrome Handlers
+
+        private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
+        private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (WindowState == System.Windows.WindowState.Maximized)
+            {
+                WindowState = System.Windows.WindowState.Normal;
+                MaximizeButton.Content = "□";
+            }
+            else
+            {
+                WindowState = System.Windows.WindowState.Maximized;
+                MaximizeButton.Content = "⧉";
+            }
+        }
+        private void CloseButton_Click(object sender, RoutedEventArgs e) => Close_Click(sender, e);
 
         #endregion
     }

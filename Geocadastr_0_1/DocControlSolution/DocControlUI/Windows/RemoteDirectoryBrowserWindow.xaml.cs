@@ -1,7 +1,5 @@
 using DocControlService.Client;
 using DocControlService.Shared;
-using MahApps.Metro.Controls;
-using MahApps.Metro.Controls.Dialogs;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -16,7 +14,7 @@ using System.Windows.Media;
 
 namespace DocControlUI.Windows
 {
-    public partial class RemoteDirectoryBrowserWindow : MetroWindow
+    public partial class RemoteDirectoryBrowserWindow : Window
     {
         private readonly DocControlServiceClient _client;
         private readonly string _deviceName;
@@ -942,6 +940,27 @@ namespace DocControlUI.Windows
         {
             StatusText.Text = message;
         }
+
+        #endregion
+
+        #region Chrome Handlers
+
+        private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
+        private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (WindowState == System.Windows.WindowState.Maximized)
+            {
+                WindowState = System.Windows.WindowState.Normal;
+                MaximizeButton.Content = "□";
+            }
+            else
+            {
+                WindowState = System.Windows.WindowState.Maximized;
+                MaximizeButton.Content = "⧉";
+            }
+        }
+        private void ChromeCloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
         #endregion
     }

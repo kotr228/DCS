@@ -1,6 +1,4 @@
 using DocControlService.Client;
-using MahApps.Metro.Controls;
-using MahApps.Metro.Controls.Dialogs;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -9,7 +7,7 @@ using System.Windows.Media;
 
 namespace DocControlUI.Windows
 {
-    public partial class RemoteFileEditorWindow : MetroWindow
+    public partial class RemoteFileEditorWindow : Window
     {
         private readonly DocControlServiceClient _client;
         private readonly string _deviceName;
@@ -42,23 +40,19 @@ namespace DocControlUI.Windows
         {
             if (_isModified)
             {
-                var result = await this.ShowMessageAsync("Незбережені зміни",
+                var result = MessageBox.Show(
                     "Файл має незбережені зміни. Зберегти перед закриттям?",
-                    MessageDialogStyle.AffirmativeAndNegativeAndSingleAuxiliary,
-                    new MetroDialogSettings
-                    {
-                        AffirmativeButtonText = "Зберегти",
-                        NegativeButtonText = "Не зберігати",
-                        FirstAuxiliaryButtonText = "Скасувати"
-                    });
+                    "Незбережені зміни",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question);
 
-                if (result == MessageDialogResult.Affirmative)
+                if (result == MessageBoxResult.Yes)
                 {
                     e.Cancel = true;
                     await SaveFileContent();
                     Close();
                 }
-                else if (result == MessageDialogResult.FirstAuxiliary)
+                else if (result == MessageBoxResult.Cancel)
                 {
                     e.Cancel = true;
                 }
@@ -83,7 +77,8 @@ namespace DocControlUI.Windows
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteFileEditor] Помилка завантаження: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося завантажити файл:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося завантажити файл:\n\n{ex.Message}", "Помилка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
                 SetStatus("Помилка завантаження", Colors.Red);
             }
         }
@@ -99,13 +94,15 @@ namespace DocControlUI.Windows
                 _originalContent = ContentTextBox.Text;
                 _isModified = false;
 
-                await this.ShowMessageAsync("Успіх", "Файл успішно збережено");
+                MessageBox.Show("Файл успішно збережено", "Успіх",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
                 SetStatus("Збережено", Colors.Green);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"[RemoteFileEditor] Помилка збереження: {ex.Message}");
-                await this.ShowMessageAsync("Помилка", $"Не вдалося зберегти файл:\n\n{ex.Message}");
+                MessageBox.Show($"Не вдалося зберегти файл:\n\n{ex.Message}", "Помилка",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
                 SetStatus("Помилка збереження", Colors.Red);
             }
         }
@@ -148,16 +145,13 @@ namespace DocControlUI.Windows
         {
             if (_isModified)
             {
-                var result = await this.ShowMessageAsync("Незбережені зміни",
+                var result = MessageBox.Show(
                     "Файл має незбережені зміни. Відновити з віддаленого пристрою?",
-                    MessageDialogStyle.AffirmativeAndNegative,
-                    new MetroDialogSettings
-                    {
-                        AffirmativeButtonText = "Так, відновити",
-                        NegativeButtonText = "Скасувати"
-                    });
+                    "Незбережені зміни",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
 
-                if (result != MessageDialogResult.Affirmative)
+                if (result != MessageBoxResult.Yes)
                     return;
             }
 
@@ -168,5 +162,11 @@ namespace DocControlUI.Windows
         {
             Close();
         }
+
+        #region Chrome Handlers
+
+        private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+
+        #endregion
     }
 }

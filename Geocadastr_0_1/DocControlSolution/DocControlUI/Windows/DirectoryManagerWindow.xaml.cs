@@ -1,7 +1,6 @@
 using DocControlService.Client;
 using DocControlService.Shared;
 using DocControlUI.Services;
-using MahApps.Metro.Controls;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,7 +20,7 @@ using IOPath = System.IO.Path;
 
 namespace DocControlUI.Windows
 {
-    public partial class DirectoryManagerWindow : MetroWindow
+    public partial class DirectoryManagerWindow : Window
     {
         private readonly DocControlServiceClient _client;
         private List<DirectoryModel> _allDirectories;
@@ -486,6 +485,27 @@ namespace DocControlUI.Windows
         {
             StatusText.Text = message;
         }
+
+        #region Chrome Handlers
+
+        private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
+        private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (WindowState == System.Windows.WindowState.Maximized)
+            {
+                WindowState = System.Windows.WindowState.Normal;
+                MaximizeButton.Content = "□";
+            }
+            else
+            {
+                WindowState = System.Windows.WindowState.Maximized;
+                MaximizeButton.Content = "⧉";
+            }
+        }
+        private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
+        #endregion
 
         #region Export Methods
 

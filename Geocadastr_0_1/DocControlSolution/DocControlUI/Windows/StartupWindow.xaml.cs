@@ -266,6 +266,13 @@ namespace DocControlUI.Windows
             Application.Current.Shutdown();
         }
 
+        #region Chrome Handlers
+
+        private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
+
+        #endregion
+
         /// <summary>
         /// Відкрити головне вікно
         /// </summary>
