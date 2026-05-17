@@ -1,7 +1,7 @@
 # 📚 DCS - Повна Документація Проектів
 
-**Дата оновлення:** 01.05.2026  
-**Версія:** 1.0.0
+**Дата оновлення:** 17.05.2026  
+**Версія:** 1.1.0
 
 ---
 
@@ -14,6 +14,7 @@
 5. [Geocadastr](#geocadastr)
 6. [Технологічний стек](#технологічний-стек)
 7. [Розгортання](#розгортання)
+8. [Нові функції v1.1.0 (17.05.2026)](#нові-функції-v110)
 
 ---
 
@@ -887,7 +888,8 @@ GrayCatSolution/
 | **UI Framework** | WPF | .NET 8.0 |
 | **База даних** | SQLite | 3.x |
 | **Логування** | Serilog | 3.x |
-| **UI Library** | MahApps.Metro | 2.4.11 |
+| **UI Library (BlackCat)** | WPF Custom Chrome | — |
+| **UI Library (DCS — попередня)** | ~~MahApps.Metro~~ | видалено в v1.1.0 |
 | **Графіки** | LiveCharts.Wpf | 0.9.7 |
 | **Testing** | xUnit | 2.x |
 | **Benchmark** | BenchmarkDotNet | 0.13.x |
@@ -944,6 +946,143 @@ ENTRYPOINT ["dotnet", "BlackCat.Service.dll"]
 
 ---
 
+---
+
+## 🆕 Нові функції v1.1.0
+
+> Зміни додані після 01.05.2026. Версія документації: **1.1.0**, дата: **17.05.2026**.
+
+---
+
+### 🖼️ Кастомний Chrome (обидва проекти)
+
+**BlackCat** та **DCS (CoffeeCat)** перейшли з системної рамки вікна на повністю кастомний borderless chrome.
+
+#### BlackCat
+Всі вікна (`MainWindow`, `StartupWindow`, `RulesManagementWindow` тощо) тепер мають:
+- `WindowStyle="None"` + `AllowsTransparency="True"`
+- Кастомний заголовок з підтримкою перетягування (`MouseLeftButtonDown` → `DragMove()`)
+- Кнопки мінімізації, максимізації, закриття зі стилями `ChromeButton` / `ChromeCloseButton`
+
+#### DCS / CoffeeCat
+Всі вікна конвертовані з `MetroWindow` (MahApps.Metro) на звичайний `Window` з кастомним заголовком:
+- Hover-колір заголовка: `#7A4A1E`
+- Колір кнопки закриття: `#F44336`
+- `ShowMessageAsync` / `ShowInputAsync` замінено на `MessageBox.Show()` + власний хелпер `ShowInputDialog()`
+- **MahApps.Metro повністю видалено** з проекту DCS
+
+---
+
+### 📊 Високопродуктивний графічний конвеєр (BlackCat)
+
+Модуль моніторингу трафіку повністю переписаний за архітектурою MVVM з нульовим GC-тиском.
+
+#### Нові компоненти
+
+| Компонент | Файл | Призначення |
+|-----------|------|-------------|
+| `TrafficChartViewModel` | `UI/ViewModels/TrafficChartViewModel.cs` | MVVM ViewModel, `INotifyPropertyChanged`, власник усього стану графіків |
+| `CircularBuffer<T>` | `Core/Utils/CircularBuffer.cs` | O(1) кільцевий буфер для 60-секундної історії |
+| `BackgroundTrafficCollector` | `Core/Services/BackgroundTrafficCollector.cs` | Фонова Task (1 Гц), P/Invoke поза UI-потоком → `ConcurrentQueue<TrafficDataPoint>` |
+| `TrafficDataPoint` | `Shared/Models/TrafficDataPoint.cs` | Value-type struct (нульовий GC) |
+| `ProcessTrafficEntry` | `Shared/Models/ProcessTrafficEntry.cs` | Value-type struct для статистики процесу |
+
+#### Потік даних
+
+```
+BackgroundTrafficCollector (1 Hz, non-UI thread)
+    └─ P/Invoke збір даних
+    └─ → ConcurrentQueue<TrafficDataPoint>
+            ↓
+DispatcherTimer (50 ms / 20 Hz, UI thread)
+    └─ Drains queue
+    └─ CircularBuffer<T> — sliding window
+    └─ LiveCharts series: RemoveAt(0) + Add()  (без Clear())
+    └─ ProcessStatItem pool — in-place mutation (без ObservableCollection.Clear())
+```
+
+**Ключові оптимізації:**
+- Збір даних винесений з UI-потоку → нульові фрізи
+- `ProcessStatItem` оновлюються in-place — `ObservableCollection.Clear()` не викликається
+- Struct-типи `TrafficDataPoint` / `ProcessTrafficEntry` — нульовий GC-тиск
+- `CircularBuffer<T>` — O(1) вставка та доступ замість `List<T>.RemoveAt(0)` O(n)
+
+---
+
+### 📁 Дзеркалювання директорій (BlackCat ↔ DCS)
+
+Ключова нова функція: обидва застосунки тепер вміють копіювати повні дерева директорій між вузлами через MQE-тунель.
+
+#### Архітектура взаємодії
+
+```
+DCS (CoffeeCat)                           BlackCat
+      |                                      |
+      |-- ShareDirectoryWithDeviceAsync()    |
+      |   (ServiceClient)                    |
+      |       ↓                              |
+      |   HandleShareDirectoryWithDeviceAsync|
+      |   (DocControlWindowsService)         |
+      |   - копіює до temp_files/            |
+      |   - зберігає у DirectoryMirrors DB   |
+      |       ↓                              |
+      |   BlackCatCommandPipe ─────────────> BlackCatCommandService
+      |   (ShareDirectoryCommand)            (named pipe сервер)
+      |                                      |
+      |                                      ↓
+      |                                 DcsIntegrationService
+      |                                 .SendDirectoryAsync()
+      |                                      |
+      |   MQE-тунель (DcsPacket) <─────────  | FileMeta packets
+      |                                      |  (dirName + relativePath)
+      |                                      |
+      | DcsIncomingTransfer                  |
+      | → temp_files/{sourceBlackID}/{dirName}/
+```
+
+#### DCS (CoffeeCat) — нові компоненти
+
+**База даних — нова таблиця `DirectoryMirrors`:**
+```sql
+CREATE TABLE DirectoryMirrors (
+    directoryId  TEXT PRIMARY KEY,
+    deviceName   TEXT NOT NULL,
+    mirrorPath   TEXT NOT NULL,
+    peerBlackID  TEXT NOT NULL,
+    createdAt    TEXT NOT NULL
+);
+```
+
+**Новий код:**
+
+| Компонент | Де | Призначення |
+|-----------|----|-------------|
+| `HandleShareDirectoryWithDeviceAsync` | `DocControlWindowsService` | Копіює директорію до `temp_files/{deviceName}/{dirName}/`, зберігає до `DirectoryMirrors`, надсилає команду через pipe |
+| `ShareDirectoryWithDeviceAsync` | `ServiceClient` | Клієнтська обгортка для виклику сервісу |
+| `GrantAccessToDevice_Click` | UI, Network tab | Тепер також запускає дзеркалювання директорії |
+| `CommandType.ShareDirectoryWithDevice` | `Shared/Enums` | Новий тип команди |
+| `ShareDirectoryWithDeviceRequest` | `Shared/Models` | Модель запиту |
+| `DirectoryMirrorModel` | `Shared/Models` | Модель запису дзеркала |
+
+**NetworkCore fix:** `HandleBridgeConnectionAsync` тепер викликає `NotifyDocControlService()` після реєстрації WAN-піра BlackCat — пристрій з'являється у вкладці "Мережа" DCS.
+
+#### BlackCat — нові компоненти
+
+| Компонент | Призначення |
+|-----------|-------------|
+| `BlackCatCommandService` | Named pipe сервер `"BlackCatCommandPipe"` (напрямок DCS→BlackCat); отримує `ShareDirectoryCommand`, запускає `SendDirectoryAsync()` |
+| `DcsIntegrationService.SendDirectoryAsync()` | Рекурсивно обходить дерево директорій і надсилає кожен файл через `DcsPacket` з полями `dirName` та `relativePath` |
+| `IpcBridgeService` | Тепер коректно інстанціюється в `MainWindow.xaml.cs` (раніше не підключався) |
+
+**Розширення протоколу `DcsPacket`:**
+- `FileMeta` пакети тепер несуть мета-ключі `dirName` та `relativePath`
+- `DcsIncomingTransfer` і `DcsFileReceivedEventArgs` отримали відповідні поля `DirName` / `RelativePath`
+- `TunnelDataEventArgs` отримав поле `PeerBlackID` (заповнюється для UDP direct tunnels)
+
+**Папка прийому:** вхідні файли зберігаються до `temp_files/{sourceBlackID}/{dirName}/`
+
+---
+
 ## 📞 Підтримка
 
 **Email:** support@blackcat-firewall.com  
@@ -969,6 +1108,6 @@ Copyright (c) 2026 DCS Team
 
 ---
 
-**Документація оновлена:** 01.05.2026  
-**Версія:** 1.0.0  
+**Документація оновлена:** 17.05.2026  
+**Версія:** 1.1.0  
 **Репозиторій:** https://github.com/kotr228/DCS
