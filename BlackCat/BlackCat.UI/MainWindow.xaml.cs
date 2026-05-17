@@ -55,6 +55,7 @@ public partial class MainWindow : Window
     // DCS directory mirror integration
     private DcsIntegrationService?  _dcsIntegration;
     private BlackCatCommandService? _commandService;
+    private IpcBridgeService?       _ipcBridge;
 
     public MainWindow()
     {
@@ -157,6 +158,9 @@ public partial class MainWindow : Window
                 _tunnelManager.NatDiagnosticReady       += OnNatDiagnosticReady;
                 _tunnelManager.RelayStatusChanged       += (_, msg) => Dispatcher.Invoke(() => AddLog(msg));
 
+                // IPC bridge: notify DCS NetworkCore when tunnels connect/disconnect
+                _ipcBridge = new IpcBridgeService(_tunnelManager);
+
                 // DCS directory mirror integration
                 var dcsTransferRepo = new DcsTransferRepository(_database);
                 _dcsIntegration = new DcsIntegrationService(
@@ -252,6 +256,8 @@ public partial class MainWindow : Window
             _commandService = null;
             _dcsIntegration?.Dispose();
             _dcsIntegration = null;
+            _ipcBridge?.Dispose();
+            _ipcBridge = null;
 
             _tunnelManager?.Dispose();
             _tunnelManager = null;
@@ -1565,6 +1571,7 @@ public partial class MainWindow : Window
         _commandService?.Stop();
         _commandService?.Dispose();
         _dcsIntegration?.Dispose();
+        _ipcBridge?.Dispose();
         _tunnelManager?.Dispose();
         _connectionMonitor?.Dispose();
         _coordinator?.Stop();

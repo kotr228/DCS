@@ -461,6 +461,9 @@ namespace DocControlNetworkCore
 
                         _peerRegistry?.AddOrUpdatePeer(peer);
                         Log($"[Bridge] WAN вузол зареєстровано: {passport.BlackId} ({passport.IpAddress})");
+
+                        // Сповістити DocControlService про новий WAN-пристрій (той самий шлях що й LAN)
+                        _ = Task.Run(() => NotifyDocControlService(peer));
                     }
                 }
             }
