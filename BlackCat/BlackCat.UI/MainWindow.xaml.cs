@@ -1741,6 +1741,10 @@ public partial class MainWindow : Window
         _ruleRepository?.Dispose();
         base.OnClosed(e);
     }
+
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
+    private void AppCloseButton_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
 }
 
 /// <summary>

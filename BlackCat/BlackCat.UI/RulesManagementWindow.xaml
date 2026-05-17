@@ -1,164 +1,185 @@
-<mah:MetroWindow x:Class="BlackCat.UI.RulesManagementWindow"
+<Window x:Class="BlackCat.UI.RulesManagementWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
         Title="Керування правилами фільтрації" Height="700" Width="1200"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None" AllowsTransparency="True" ResizeMode="CanResize"
+        Background="Transparent">
 
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="2*"/>
-            <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+    <Border Background="{StaticResource BackgroundBrush}"
+            BorderBrush="{StaticResource PrimaryBrush}"
+            BorderThickness="2" CornerRadius="0">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-        <!-- Заголовок -->
-        <TextBlock Grid.Row="0" Grid.Column="0" Text="Правила фільтрації"
-                   FontSize="24" FontWeight="Bold" Margin="0,0,0,20"/>
+            <!-- Chrome header -->
+            <Border Grid.Row="0" Background="{StaticResource PrimaryDarkBrush}" Padding="12,0"
+                    MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Grid>
+                    <TextBlock Text="ПРАВИЛА ФІЛЬТРАЦІЇ" FontWeight="Bold" FontSize="12"
+                               Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
+                    <Button Content="✕" Width="36" Height="36" HorizontalAlignment="Right"
+                            FontSize="16" Cursor="Hand" Click="CloseButton_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="border" Background="{TemplateBinding Background}" Width="36" Height="36">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="border" Property="Background" Value="#F44336"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </Border>
 
-        <!-- Список правил -->
-        <DataGrid Grid.Row="1" Grid.Column="0"
-                  x:Name="RulesDataGrid"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False"
-                  CanUserDeleteRows="False"
-                  IsReadOnly="True"
-                  SelectionMode="Single"
-                  Background="Transparent" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
-                  GridLinesVisibility="All" HorizontalGridLinesBrush="#4EC9B0" VerticalGridLinesBrush="#4EC9B0"
-                  RowBackground="#252526" AlternatingRowBackground="#2D2D30"
-                  SelectionChanged="RulesDataGrid_SelectionChanged"
-                  Margin="0,0,10,0">
-            <DataGrid.ColumnHeaderStyle>
-                <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="Background" Value="#2D2D30"/>
-                    <Setter Property="Foreground" Value="White"/>
-                    <Setter Property="BorderBrush" Value="#4EC9B0"/>
-                    <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                    <Setter Property="Padding" Value="8,5"/>
-                    <Setter Property="FontWeight" Value="Bold"/>
-                </Style>
-            </DataGrid.ColumnHeaderStyle>
-            <DataGrid.Columns>
-                <DataGridCheckBoxColumn Header="Увімкнено" Binding="{Binding IsEnabled}" Width="80"/>
-                <DataGridTextColumn Header="Пріоритет" Binding="{Binding Priority}" Width="70"/>
-                <DataGridTextColumn Header="Назва" Binding="{Binding Name}" Width="*"/>
-                <DataGridTextColumn Header="IP/Підмережа" Binding="{Binding IPAddress}" Width="140"/>
-                <DataGridTextColumn Header="Порт" Binding="{Binding Port}" Width="60"/>
-                <DataGridTextColumn Header="Протокол" Binding="{Binding Protocol}" Width="80"/>
-                <DataGridTextColumn Header="Дія" Binding="{Binding Action}" Width="80"/>
-                <DataGridTextColumn Header="Процес" Binding="{Binding ProcessName}" Width="120"/>
-            </DataGrid.Columns>
-        </DataGrid>
+            <!-- Content -->
+            <Grid Grid.Row="1" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-        <!-- Розділювач -->
-        <GridSplitter Grid.Row="1" Grid.Column="1"
-                      Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"/>
+                <!-- Заголовок -->
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Правила фільтрації"
+                           FontSize="24" FontWeight="Bold" Margin="0,0,0,20"/>
 
-        <!-- Деталі правила -->
-        <ScrollViewer Grid.Row="1" Grid.Column="2" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="10,0,0,0">
-                <TextBlock Text="Деталі правила" FontSize="18" FontWeight="Bold" Margin="0,0,0,15"/>
+                <!-- Список правил -->
+                <DataGrid Grid.Row="1" Grid.Column="0"
+                          x:Name="RulesDataGrid"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          IsReadOnly="True"
+                          SelectionMode="Single"
+                          SelectionChanged="RulesDataGrid_SelectionChanged"
+                          Margin="0,0,10,0">
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Header="Увімкнено" Binding="{Binding IsEnabled}" Width="80"/>
+                        <DataGridTextColumn Header="Пріоритет" Binding="{Binding Priority}" Width="70"/>
+                        <DataGridTextColumn Header="Назва" Binding="{Binding Name}" Width="*"/>
+                        <DataGridTextColumn Header="IP/Підмережа" Binding="{Binding IPAddress}" Width="140"/>
+                        <DataGridTextColumn Header="Порт" Binding="{Binding Port}" Width="60"/>
+                        <DataGridTextColumn Header="Протокол" Binding="{Binding Protocol}" Width="80"/>
+                        <DataGridTextColumn Header="Дія" Binding="{Binding Action}" Width="80"/>
+                        <DataGridTextColumn Header="Процес" Binding="{Binding ProcessName}" Width="120"/>
+                    </DataGrid.Columns>
+                </DataGrid>
 
-                <!-- Назва -->
-                <TextBlock Text="Назва:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <TextBox x:Name="RuleNameTextBox" Margin="0,0,0,10"/>
+                <!-- Розділювач -->
+                <GridSplitter Grid.Row="1" Grid.Column="1"
+                              Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"/>
 
-                <!-- IP адреса -->
-                <TextBlock Text="IP адреса / Підмережа:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <TextBox x:Name="RuleIPTextBox" Margin="0,0,0,5"
-                         ToolTip="Наприклад: 192.168.1.100 або 192.168.0.0/24"/>
-                <TextBlock Text="CIDR підтримується" Foreground="Gray" FontSize="10" Margin="0,0,0,10"/>
+                <!-- Деталі правила -->
+                <ScrollViewer Grid.Row="1" Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="10,0,0,0">
+                        <TextBlock Text="Деталі правила" FontSize="18" FontWeight="Bold" Margin="0,0,0,15"/>
 
-                <!-- Порт -->
-                <TextBlock Text="Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <mah:NumericUpDown x:Name="RulePortNumeric"
-                                   Minimum="0" Maximum="65535"
-                                   Value="0" Margin="0,0,0,5"/>
-                <TextBlock Text="0 = будь-який порт" Foreground="Gray" FontSize="10" Margin="0,0,0,10"/>
+                        <TextBlock Text="Назва:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBox x:Name="RuleNameTextBox" Margin="0,0,0,10"/>
 
-                <!-- Діапазон портів -->
-                <TextBlock Text="Діапазон портів (опціонально):" FontWeight="Bold" Margin="0,0,0,5"/>
-                <TextBox x:Name="RulePortRangeTextBox" Margin="0,0,0,5"
-                         ToolTip="Наприклад: 80,443 або 8000-9000"/>
-                <Button Content="Вибрати з активних..." Click="SelectActivePortButton_Click"
-                        Padding="5,2" Margin="0,0,0,10" HorizontalAlignment="Left"/>
+                        <TextBlock Text="IP адреса / Підмережа:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBox x:Name="RuleIPTextBox" Margin="0,0,0,5"
+                                 ToolTip="Наприклад: 192.168.1.100 або 192.168.0.0/24"/>
+                        <TextBlock Text="CIDR підтримується" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,10"/>
 
-                <!-- Протокол -->
-                <TextBlock Text="Протокол:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <ComboBox x:Name="RuleProtocolComboBox" Margin="0,0,0,10">
-                    <ComboBoxItem Content="Будь-який" Tag="0"/>
-                    <ComboBoxItem Content="TCP" Tag="6"/>
-                    <ComboBoxItem Content="UDP" Tag="17"/>
-                    <ComboBoxItem Content="ICMP" Tag="1"/>
-                </ComboBox>
+                        <TextBlock Text="Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <mah:NumericUpDown x:Name="RulePortNumeric"
+                                           Minimum="0" Maximum="65535"
+                                           Value="0" Margin="0,0,0,5"/>
+                        <TextBlock Text="0 = будь-який порт" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,10"/>
 
-                <!-- Дія -->
-                <TextBlock Text="Дія:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <ComboBox x:Name="RuleActionComboBox" Margin="0,0,0,10">
-                    <ComboBoxItem Content="Дозволити" Tag="0"/>
-                    <ComboBoxItem Content="Блокувати" Tag="1"/>
-                    <ComboBoxItem Content="Через тунель" Tag="2"/>
-                </ComboBox>
+                        <TextBlock Text="Діапазон портів (опціонально):" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBox x:Name="RulePortRangeTextBox" Margin="0,0,0,5"
+                                 ToolTip="Наприклад: 80,443 або 8000-9000"/>
+                        <Button Content="Вибрати з активних..." Click="SelectActivePortButton_Click"
+                                Padding="5,2" Margin="0,0,0,10" HorizontalAlignment="Left"/>
 
-                <!-- Напрямок -->
-                <TextBlock Text="Напрямок:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <ComboBox x:Name="RuleDirectionComboBox" Margin="0,0,0,10">
-                    <ComboBoxItem Content="Обидва" Tag="0"/>
-                    <ComboBoxItem Content="Вхідний" Tag="1"/>
-                    <ComboBoxItem Content="Вихідний" Tag="2"/>
-                </ComboBox>
+                        <TextBlock Text="Протокол:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <ComboBox x:Name="RuleProtocolComboBox" Margin="0,0,0,10">
+                            <ComboBoxItem Content="Будь-який" Tag="0"/>
+                            <ComboBoxItem Content="TCP" Tag="6"/>
+                            <ComboBoxItem Content="UDP" Tag="17"/>
+                            <ComboBoxItem Content="ICMP" Tag="1"/>
+                        </ComboBox>
 
-                <!-- Application Control -->
-                <TextBlock Text="Назва процесу (опціонально):" FontWeight="Bold" Margin="0,0,0,5"/>
-                <TextBox x:Name="RuleProcessNameTextBox" Margin="0,0,0,5"
-                         ToolTip="Наприклад: chrome.exe, WINWORD.EXE"/>
-                <Button Content="Вибрати з запущених..." Click="SelectRunningProcessButton_Click"
-                        Padding="5,2" Margin="0,0,0,10" HorizontalAlignment="Left"/>
+                        <TextBlock Text="Дія:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <ComboBox x:Name="RuleActionComboBox" Margin="0,0,0,10">
+                            <ComboBoxItem Content="Дозволити" Tag="0"/>
+                            <ComboBoxItem Content="Блокувати" Tag="1"/>
+                            <ComboBoxItem Content="Через тунель" Tag="2"/>
+                        </ComboBox>
 
-                <!-- Пріоритет -->
-                <TextBlock Text="Пріоритет:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <mah:NumericUpDown x:Name="RulePriorityNumeric"
-                                   Minimum="1" Maximum="999"
-                                   Value="100" Margin="0,0,0,5"/>
-                <TextBlock Text="Нижче = вища пріоритетність" Foreground="Gray" FontSize="10" Margin="0,0,0,10"/>
+                        <TextBlock Text="Напрямок:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <ComboBox x:Name="RuleDirectionComboBox" Margin="0,0,0,10">
+                            <ComboBoxItem Content="Обидва" Tag="0"/>
+                            <ComboBoxItem Content="Вхідний" Tag="1"/>
+                            <ComboBoxItem Content="Вихідний" Tag="2"/>
+                        </ComboBox>
 
-                <!-- Увімкнено -->
-                <CheckBox x:Name="RuleEnabledCheckBox" Content="Правило увімкнено"
-                          IsChecked="True" Margin="0,0,0,15"/>
+                        <TextBlock Text="Назва процесу (опціонально):" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBox x:Name="RuleProcessNameTextBox" Margin="0,0,0,5"
+                                 ToolTip="Наприклад: chrome.exe, WINWORD.EXE"/>
+                        <Button Content="Вибрати з запущених..." Click="SelectRunningProcessButton_Click"
+                                Padding="5,2" Margin="0,0,0,10" HorizontalAlignment="Left"/>
 
-                <!-- Опис -->
-                <TextBlock Text="Опис:" FontWeight="Bold" Margin="0,0,0,5"/>
-                <TextBox x:Name="RuleDescriptionTextBox" Height="60"
-                         TextWrapping="Wrap" AcceptsReturn="True"/>
-            </StackPanel>
-        </ScrollViewer>
+                        <TextBlock Text="Пріоритет:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <mah:NumericUpDown x:Name="RulePriorityNumeric"
+                                           Minimum="1" Maximum="999"
+                                           Value="100" Margin="0,0,0,5"/>
+                        <TextBlock Text="Нижче = вища пріоритетність" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,0,10"/>
 
-        <!-- Кнопки керування -->
-        <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Margin="0,20,0,0">
-            <Button x:Name="AddButton" Content="+ Додати"
-                    Width="100" Padding="10,5" Margin="0,0,10,0"
-                    Click="AddButton_Click"/>
-            <Button x:Name="SaveButton" Content="💾 Зберегти"
-                    Width="100" Padding="10,5" Margin="0,0,10,0"
-                    Click="SaveButton_Click"
-                    IsEnabled="False"/>
-            <Button x:Name="DeleteButton" Content="🗑 Видалити"
-                    Width="100" Padding="10,5" Margin="0,0,10,0"
-                    Click="DeleteButton_Click"
-                    IsEnabled="False"/>
-        </StackPanel>
+                        <CheckBox x:Name="RuleEnabledCheckBox" Content="Правило увімкнено"
+                                  IsChecked="True" Margin="0,0,0,15"/>
 
-        <!-- Кнопка закриття -->
-        <Button Grid.Row="2" Grid.Column="2"
-                x:Name="CloseButton" Content="Закрити"
-                Width="100" Padding="10,5" Margin="10,20,0,0"
-                HorizontalAlignment="Right"
-                Click="CloseButton_Click"/>
-    </Grid>
-</mah:MetroWindow>
+                        <TextBlock Text="Опис:" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <TextBox x:Name="RuleDescriptionTextBox" Height="60"
+                                 TextWrapping="Wrap" AcceptsReturn="True"/>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Кнопки керування -->
+                <StackPanel Grid.Row="2" Grid.Column="0" Orientation="Horizontal" Margin="0,20,0,0">
+                    <Button x:Name="AddButton" Content="+ Додати"
+                            Width="100" Padding="10,5" Margin="0,0,10,0"
+                            Click="AddButton_Click"/>
+                    <Button x:Name="SaveButton" Content="💾 Зберегти"
+                            Width="100" Padding="10,5" Margin="0,0,10,0"
+                            Click="SaveButton_Click"
+                            IsEnabled="False"/>
+                    <Button x:Name="DeleteButton" Content="🗑 Видалити"
+                            Width="100" Padding="10,5" Margin="0,0,10,0"
+                            Click="DeleteButton_Click"
+                            IsEnabled="False"/>
+                </StackPanel>
+
+                <Button Grid.Row="2" Grid.Column="2"
+                        x:Name="CloseButton" Content="Закрити"
+                        Width="100" Padding="10,5" Margin="10,20,0,0"
+                        HorizontalAlignment="Right"
+                        Click="CloseButton_Click"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

@@ -2,11 +2,9 @@ using System.Net;
 using System.Windows;
 using BlackCat.Core.Data;
 using BlackCat.Shared.Models;
-using MahApps.Metro.Controls;
-
 namespace BlackCat.UI;
 
-public partial class AddPeerNodeDialog : MetroWindow
+public partial class AddPeerNodeDialog : Window
 {
     private readonly PeerNodeRepository _peerNodeRepository;
     public PeerNode? CreatedPeerNode { get; private set; }
@@ -166,4 +164,7 @@ public partial class AddPeerNodeDialog : MetroWindow
         DialogResult = false;
         Close();
     }
+
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
 }

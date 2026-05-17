@@ -6,11 +6,11 @@ using BlackCat.Core.Configuration;
 using BlackCat.Core.Data;
 using BlackCat.Core.Services;
 using BlackCat.Shared.Models;
-using MahApps.Metro.Controls;
+
 
 namespace BlackCat.UI;
 
-public partial class SettingsWindow : MetroWindow
+public partial class SettingsWindow : Window
 {
     private readonly FirewallCoordinator? _coordinator;
     private readonly BlackIDService _blackIDService;
@@ -388,4 +388,7 @@ BlackCat Firewall - MQE Quantum-Resistant Encryption
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
+
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
 }

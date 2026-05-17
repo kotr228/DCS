@@ -1,5 +1,5 @@
 using BlackCat.Core.Data;
-using MahApps.Metro.Controls;
+
 using System;
 using System.Diagnostics;
 using System.Security.Principal;
@@ -9,7 +9,7 @@ using System.Windows.Media;
 
 namespace BlackCat.UI;
 
-public partial class StartupWindow : MetroWindow
+public partial class StartupWindow : Window
 {
     private bool _isAdmin = false;
     private bool _dbReady = false;

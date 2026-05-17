@@ -9,7 +9,7 @@
         WindowStartupLocation="Manual"
         Loaded="Window_Loaded">
 
-    <Border Background="#1E1E1E" BorderBrush="#4EC9B0" BorderThickness="2"
+    <Border Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="2"
             CornerRadius="8" Padding="16">
         <Border.Effect>
             <DropShadowEffect Color="#000000" BlurRadius="20" Opacity="0.6" ShadowDepth="4"/>
@@ -18,7 +18,7 @@
         <StackPanel>
             <!-- Заголовок -->
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                <Ellipse Width="12" Height="12" Fill="#4EC9B0" Margin="0,0,8,0" VerticalAlignment="Center">
+                <Ellipse Width="12" Height="12" Fill="{StaticResource PrimaryBrush}" Margin="0,0,8,0" VerticalAlignment="Center">
                     <Ellipse.Triggers>
                         <EventTrigger RoutedEvent="Loaded">
                             <BeginStoryboard>
@@ -31,7 +31,7 @@
                         </EventTrigger>
                     </Ellipse.Triggers>
                 </Ellipse>
-                <TextBlock Text="ВХІДНЕ ПІДКЛЮЧЕННЯ" Foreground="#4EC9B0"
+                <TextBlock Text="ВХІДНЕ ПІДКЛЮЧЕННЯ" Foreground="{StaticResource PrimaryBrush}"
                            FontWeight="Bold" FontSize="12"
                            VerticalAlignment="Center"/>
             </StackPanel>
@@ -40,7 +40,7 @@
             <TextBlock Text="Запит від:" Foreground="#808080" FontSize="11" Margin="0,0,0,4"/>
             <Border Background="#252526" CornerRadius="4" Padding="10,8" Margin="0,0,0,8">
                 <TextBlock x:Name="PeerBlackIDText" Text="..."
-                           FontFamily="Consolas" FontSize="14" Foreground="#4EC9B0"
+                           FontFamily="Consolas" FontSize="14" Foreground="{StaticResource PrimaryBrush}"
                            TextWrapping="Wrap"/>
             </Border>
 
@@ -66,41 +66,15 @@
 
                 <Button Grid.Column="0" x:Name="AcceptButton" Content="✓  Прийняти"
                         Height="38" FontSize="14" FontWeight="Bold"
-                        Background="#1E6E3C" Foreground="White" BorderThickness="0"
-                        Cursor="Hand" Click="AcceptButton_Click">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bg" Background="{TemplateBinding Background}"
-                                    CornerRadius="5" Padding="4">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bg" Property="Background" Value="#27A355"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
+                        Style="{StaticResource SuccessButton}"
+                        MinWidth="0" Margin="0"
+                        Click="AcceptButton_Click"/>
 
                 <Button Grid.Column="2" x:Name="RejectButton" Content="✕  Відхилити"
                         Height="38" FontSize="14" FontWeight="Bold"
-                        Background="#7A1E1E" Foreground="White" BorderThickness="0"
-                        Cursor="Hand" Click="RejectButton_Click">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bg" Background="{TemplateBinding Background}"
-                                    CornerRadius="5" Padding="4">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bg" Property="Background" Value="#C0392B"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
+                        Style="{StaticResource DangerButton}"
+                        MinWidth="0" Margin="0"
+                        Click="RejectButton_Click"/>
             </Grid>
         </StackPanel>
     </Border>

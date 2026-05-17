@@ -2,11 +2,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Collections.Generic;
 using System.Linq;
-using MahApps.Metro.Controls;
-
 namespace BlackCat.UI;
 
-public partial class RunningProcessesDialog : MetroWindow
+public partial class RunningProcessesDialog : Window
 {
     public string? SelectedProcessName { get; private set; }
 
@@ -62,6 +60,9 @@ public partial class RunningProcessesDialog : MetroWindow
         DialogResult = false;
         Close();
     }
+
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
+    private void CloseButton_Click(object sender, RoutedEventArgs e) { DialogResult = false; Close(); }
 }
 
 /// <summary>

@@ -1,6 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
-using MahApps.Metro.Controls;
+
 using BlackCat.Core;
 using BlackCat.Shared.Models;
 using BlackCat.Shared.Enums;
@@ -10,7 +10,7 @@ using BlackCat.Core.Services;
 
 namespace BlackCat.UI;
 
-public partial class RulesManagementWindow : MetroWindow
+public partial class RulesManagementWindow : Window
 {
     private readonly FirewallCoordinator? _coordinator;
     private readonly ProcessLookupService _processLookupService;
@@ -369,4 +369,6 @@ public partial class RulesManagementWindow : MetroWindow
     {
         Close();
     }
+
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
 }

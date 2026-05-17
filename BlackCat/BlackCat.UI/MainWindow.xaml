@@ -3,555 +3,515 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:mah="http://metro.mahapps.com/winfx/xaml/controls"
         xmlns:lvc="clr-namespace:LiveCharts.Wpf;assembly=LiveCharts.Wpf"
         mc:Ignorable="d"
-        Title="BlackCat Firewall - Monitor" Height="700" Width="1200"
+        Title="BlackCat Firewall" Height="700" Width="1200"
         WindowStartupLocation="CenterScreen"
-        Background="#1E1E1E">
+        WindowStyle="None" AllowsTransparency="True" ResizeMode="CanResize"
+        Background="Transparent">
 
-    <Window.Resources>
-        <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontSize" Value="14"/>
-        </Style>
-        <Style TargetType="Button">
-            <Setter Property="Background" Value="#2D2D30"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="15,10"/>
-            <Setter Property="Margin" Value="5"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-    </Window.Resources>
+    <Border Background="{StaticResource BackgroundBrush}"
+            BorderBrush="{StaticResource PrimaryBrush}"
+            BorderThickness="2" CornerRadius="0">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- Заголовок -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,20">
-            <TextBlock Text="🐱 BlackCat Firewall" FontSize="28" FontWeight="Bold" Foreground="#4EC9B0"/>
-        </StackPanel>
-
-        <!-- Статистика (цифри) -->
-        <Grid Grid.Row="1" Margin="0,0,0,20">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- Всього пакетів -->
-            <Border Grid.Column="0" Background="#2D2D30" CornerRadius="5" Padding="15" Margin="5">
-                <StackPanel>
-                    <TextBlock Text="Всього пакетів" FontSize="12" Foreground="#808080"/>
-                    <TextBlock x:Name="TotalPacketsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="#4EC9B0"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Дозволено -->
-            <Border Grid.Column="1" Background="#2D2D30" CornerRadius="5" Padding="15" Margin="5">
-                <StackPanel>
-                    <TextBlock Text="Дозволено" FontSize="12" Foreground="#808080"/>
-                    <TextBlock x:Name="AllowedPacketsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="#6A9955"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Заблоковано -->
-            <Border Grid.Column="2" Background="#2D2D30" CornerRadius="5" Padding="15" Margin="5">
-                <StackPanel>
-                    <TextBlock Text="Заблоковано" FontSize="12" Foreground="#808080"/>
-                    <TextBlock x:Name="BlockedPacketsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="#F48771"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Через тунель -->
-            <Border Grid.Column="3" Background="#2D2D30" CornerRadius="5" Padding="15" Margin="5">
-                <StackPanel>
-                    <TextBlock Text="Через тунель" FontSize="12" Foreground="#808080"/>
-                    <TextBlock x:Name="TunneledPacketsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="#569CD6"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Швидкість -->
-            <Border Grid.Column="4" Background="#2D2D30" CornerRadius="5" Padding="15" Margin="5">
-                <StackPanel>
-                    <TextBlock Text="Швидкість" FontSize="12" Foreground="#808080"/>
-                    <TextBlock x:Name="SpeedText" Text="0 KB/s" FontSize="24" FontWeight="Bold" Foreground="#DCDCAA"/>
-                </StackPanel>
-            </Border>
-        </Grid>
-
-        <!-- Вкладки -->
-        <TabControl Grid.Row="2" Background="#252526" BorderThickness="0">
-            <!-- Графіки -->
-            <TabItem Header="📊 Графіки">
-                <Grid Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="7*"/>
-                        <RowDefinition Height="3*"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- Графік пакетів -->
-                    <Border Grid.Row="0" Background="#2D2D30" CornerRadius="5" Padding="10" Margin="5">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-
-                            <Grid Grid.Row="0" Margin="0,0,0,10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Column="0" Text="Мережевий трафік в реальному часі" FontWeight="Bold" VerticalAlignment="Center"/>
-                            </Grid>
-
-                            <lvc:CartesianChart Grid.Row="1" x:Name="PacketsChart" Background="Transparent" LegendLocation="Right">
-                                <lvc:CartesianChart.AxisX>
-                                    <lvc:Axis Title="Час" Foreground="White" FontSize="11" ShowLabels="True">
-                                        <lvc:Axis.Separator>
-                                            <lvc:Separator Step="10" Stroke="#404040" StrokeThickness="1"/>
-                                        </lvc:Axis.Separator>
-                                    </lvc:Axis>
-                                </lvc:CartesianChart.AxisX>
-                                <lvc:CartesianChart.AxisY>
-                                    <lvc:Axis Title="KB/s" Foreground="White" FontSize="11" MinValue="0">
-                                        <lvc:Axis.Separator>
-                                            <lvc:Separator Stroke="#404040" StrokeThickness="1"/>
-                                        </lvc:Axis.Separator>
-                                    </lvc:Axis>
-                                </lvc:CartesianChart.AxisY>
-                            </lvc:CartesianChart>
-                        </Grid>
-                    </Border>
-
-                    <!-- Статус тунелю та статистика процесів -->
-                    <Grid Grid.Row="1" Margin="5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="2*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Статус тунелю -->
-                        <Border Grid.Column="0" Background="#2D2D30" CornerRadius="5" Padding="10" Margin="0,0,5,0">
-                            <StackPanel>
-                                <TextBlock Text="Статус тунелю" FontWeight="Bold" Margin="0,0,0,10"/>
-                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                    <Ellipse x:Name="TunnelStatusIndicator" Width="16" Height="16" Fill="#F48771" Margin="0,0,10,0"/>
-                                    <TextBlock x:Name="TunnelStatusText" Text="Відключено" FontSize="14" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <TextBlock x:Name="UptimeText" Text="Час роботи: 00:00:00" Margin="0,10,0,0" FontSize="11" Foreground="#808080"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Топ процесів за трафіком -->
-                        <Border Grid.Column="1" Background="#2D2D30" CornerRadius="5" Padding="10" Margin="5,0,0,0">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                </Grid.RowDefinitions>
-
-                                <TextBlock Grid.Row="0" Text="Топ процесів за трафіком" FontWeight="Bold" Margin="0,0,0,5"/>
-
-                                <DataGrid Grid.Row="1" x:Name="ProcessStatsDataGrid"
-                                          AutoGenerateColumns="False"
-                                          CanUserAddRows="False"
-                                          CanUserDeleteRows="False"
-                                          IsReadOnly="True"
-                                          SelectionMode="Single"
-                                          Background="Transparent"
-                                          Foreground="White"
-                                          BorderThickness="1"
-                                          BorderBrush="#4EC9B0"
-                                          GridLinesVisibility="All"
-                                          HorizontalGridLinesBrush="#4EC9B0"
-                                          VerticalGridLinesBrush="#4EC9B0"
-                                          HeadersVisibility="Column"
-                                          RowBackground="#252526"
-                                          AlternatingRowBackground="#2D2D30"
-                                          FontSize="11">
-                                    <DataGrid.ColumnHeaderStyle>
-                                        <Style TargetType="DataGridColumnHeader">
-                                            <Setter Property="Background" Value="#2D2D30"/>
-                                            <Setter Property="Foreground" Value="White"/>
-                                            <Setter Property="BorderBrush" Value="#4EC9B0"/>
-                                            <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                                            <Setter Property="Padding" Value="8,5"/>
-                                            <Setter Property="FontWeight" Value="Bold"/>
-                                        </Style>
-                                    </DataGrid.ColumnHeaderStyle>
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Процес" Binding="{Binding ProcessName}" Width="*"/>
-                                        <DataGridTextColumn Header="Пакетів" Binding="{Binding PacketCount}" Width="60"/>
-                                        <DataGridTextColumn Header="Трафік" Binding="{Binding TrafficDisplay}" Width="80"/>
-                                    </DataGrid.Columns>
-                                </DataGrid>
-                            </Grid>
-                        </Border>
-                    </Grid>
+            <!-- Chrome header -->
+            <Border Grid.Row="0" Background="{StaticResource PrimaryDarkBrush}" Padding="14,0"
+                    MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Grid>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Image Source="/Assets/BC.ico" Width="24" Height="24" Margin="0,0,10,0"/>
+                        <TextBlock Text="BlackCat Firewall" FontWeight="Bold" FontSize="14"
+                                   Foreground="{StaticResource PrimaryBrush}" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <!-- Мінімізація -->
+                        <Button Content="—" Width="44" Height="44" FontSize="14" Cursor="Hand"
+                                Click="MinimizeButton_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="border" Background="{TemplateBinding Background}" Width="44" Height="44">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#555555"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <!-- Закриття -->
+                        <Button Content="✕" Width="44" Height="44" FontSize="16" Cursor="Hand"
+                                Click="AppCloseButton_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="border" Background="{TemplateBinding Background}" Width="44" Height="44">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="border" Property="Background" Value="#F44336"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </StackPanel>
                 </Grid>
-            </TabItem>
+            </Border>
 
-            <!-- Правила фільтрації -->
-            <TabItem Header="🛡️ Правила">
-                <Grid Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+            <!-- Main content -->
+            <Grid Grid.Row="1" Margin="20">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                    <Button Grid.Row="0" Content="➕ Додати правило" HorizontalAlignment="Left" Click="AddRuleButton_Click"/>
-
-                    <DataGrid Grid.Row="1" x:Name="RulesDataGrid" Margin="0,10,0,0"
-                              AutoGenerateColumns="False" CanUserAddRows="False"
-                              Background="Transparent" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
-                              GridLinesVisibility="All" HorizontalGridLinesBrush="#4EC9B0" VerticalGridLinesBrush="#4EC9B0"
-                              RowBackground="#252526" AlternatingRowBackground="#2D2D30">
-                        <DataGrid.ColumnHeaderStyle>
-                            <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="#2D2D30"/>
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="BorderBrush" Value="#4EC9B0"/>
-                                <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                                <Setter Property="Padding" Value="8,5"/>
-                                <Setter Property="FontWeight" Value="Bold"/>
-                            </Style>
-                        </DataGrid.ColumnHeaderStyle>
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Назва" Binding="{Binding Name}" Width="*"/>
-                            <DataGridTextColumn Header="IP адреса" Binding="{Binding IPAddress}" Width="150"/>
-                            <DataGridTextColumn Header="Порт" Binding="{Binding Port}" Width="80"/>
-                            <DataGridTextColumn Header="Протокол" Binding="{Binding Protocol}" Width="100"/>
-                            <DataGridTextColumn Header="Дія" Binding="{Binding Action}" Width="100"/>
-                            <DataGridCheckBoxColumn Header="Активно" Binding="{Binding IsEnabled}" Width="80"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
-                </Grid>
-            </TabItem>
-
-            <!-- Тунелі Black-ID -->
-            <TabItem Header="🔐 Тунелі">
-                <Grid Margin="10">
+                <!-- Статистика (цифри) -->
+                <Grid Grid.Row="0" Margin="0,0,0,20">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="2*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
-                    <!-- Список тунелів -->
-                    <Border Grid.Column="0" Background="#2D2D30" CornerRadius="5" Padding="10" Margin="0,0,5,0">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <!-- Мій Black-ID та IP для підключення -->
-                            <StackPanel Grid.Row="0" Margin="0,0,0,5">
-                                <TextBlock Text="Мій Black-ID:" FontWeight="Bold" Margin="0,0,0,3"/>
-                                <Border Background="#1E1E1E" BorderBrush="#4EC9B0" BorderThickness="2"
-                                        CornerRadius="3" Padding="8" Margin="0,0,0,8">
-                                    <TextBlock x:Name="CurrentBlackIDLabel" Text="Не налаштовано"
-                                               FontFamily="Consolas" FontSize="13" Foreground="#4EC9B0" TextWrapping="Wrap"/>
-                                </Border>
-                                <TextBlock Text="Моя IP (поділіться з іншими для підключення):" FontWeight="Bold" Margin="0,0,0,3"/>
-                                <Border Background="#1E1E1E" BorderBrush="#6A9955" BorderThickness="2"
-                                        CornerRadius="3" Padding="8" Margin="0,0,0,5">
-                                    <TextBlock x:Name="MyIPLabel" Text="..."
-                                               FontFamily="Consolas" FontSize="13" Foreground="#6A9955"/>
-                                </Border>
-                            </StackPanel>
-
-                            <!-- Список вузлів (Телефонна книга) -->
-                            <TextBlock Grid.Row="1" Text="Телефонна книга:" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <DataGrid Grid.Row="2" x:Name="TunnelsDataGrid" Margin="0,0,0,0"
-                                      AutoGenerateColumns="False" CanUserAddRows="False"
-                                      Background="Transparent" Foreground="White" BorderThickness="1" BorderBrush="#4EC9B0"
-                                      GridLinesVisibility="All" HorizontalGridLinesBrush="#4EC9B0" VerticalGridLinesBrush="#4EC9B0"
-                                      RowBackground="#252526" AlternatingRowBackground="#2D2D30"
-                                      SelectionChanged="TunnelsDataGrid_SelectionChanged">
-                                <DataGrid.ColumnHeaderStyle>
-                                    <Style TargetType="DataGridColumnHeader">
-                                        <Setter Property="Background" Value="#2D2D30"/>
-                                        <Setter Property="Foreground" Value="White"/>
-                                        <Setter Property="BorderBrush" Value="#4EC9B0"/>
-                                        <Setter Property="BorderThickness" Value="0,0,1,1"/>
-                                        <Setter Property="Padding" Value="8,5"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
-                                    </Style>
-                                </DataGrid.ColumnHeaderStyle>
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Black-ID" Binding="{Binding BlackID}" Width="*"/>
-                                    <DataGridTextColumn Header="Статус" Binding="{Binding StatusDisplay}" Width="80"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
-
-                            <!-- Кнопки керування -->
-                            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
-                                <Button x:Name="AddTunnelButton" Content="➕ Додати" Width="100" Margin="0,0,5,0"
-                                        Click="AddTunnelButton_Click"/>
-                                <Button x:Name="RemoveTunnelButton" Content="🗑️ Видалити" Width="100"
-                                        IsEnabled="False" Click="RemoveTunnelButton_Click"/>
-                            </StackPanel>
-                        </Grid>
+                    <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="15" Margin="5">
+                        <StackPanel>
+                            <TextBlock Text="Всього пакетів" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock x:Name="TotalPacketsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource PrimaryBrush}"/>
+                        </StackPanel>
                     </Border>
 
-                    <!-- Роздільник -->
-                    <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"
-                                  Background="Transparent" ShowsPreview="True"/>
+                    <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="15" Margin="5">
+                        <StackPanel>
+                            <TextBlock Text="Дозволено" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock x:Name="AllowedPacketsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource SuccessBrush}"/>
+                        </StackPanel>
+                    </Border>
 
-                    <!-- Панель деталей і керування -->
-                    <Border Grid.Column="2" Background="#2D2D30" CornerRadius="5" Padding="15" Margin="5,0,0,0">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
+                    <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="15" Margin="5">
+                        <StackPanel>
+                            <TextBlock Text="Заблоковано" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock x:Name="BlockedPacketsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource ErrorBrush}"/>
+                        </StackPanel>
+                    </Border>
 
-                            <!-- Деталі вибраного тунелю -->
-                            <StackPanel Grid.Row="0">
-                                <TextBlock Text="Деталі тунелю" FontSize="18" FontWeight="Bold" Margin="0,0,0,15"/>
+                    <Border Grid.Column="3" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="15" Margin="5">
+                        <StackPanel>
+                            <TextBlock Text="Через тунель" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock x:Name="TunneledPacketsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
+                        </StackPanel>
+                    </Border>
 
-                                <!-- Black-ID -->
-                                <TextBlock Text="Black-ID:" FontWeight="Bold" Margin="0,0,0,5"/>
-                                <TextBox x:Name="TunnelBlackIDTextBox" IsReadOnly="True"
-                                         Background="#1E1E1E" Foreground="White" FontFamily="Consolas"
-                                         Padding="5" Margin="0,0,0,10"/>
+                    <Border Grid.Column="4" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="15" Margin="5">
+                        <StackPanel>
+                            <TextBlock Text="Швидкість" FontSize="12" Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock x:Name="SpeedText" Text="0 KB/s" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextBrush}"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
-                                <!-- IP адреса -->
-                                <TextBlock Text="P2P Endpoint IP:" FontWeight="Bold" Margin="0,0,0,5"/>
-                                <TextBox x:Name="TunnelIPTextBox"
-                                         Background="#1E1E1E" Foreground="White"
-                                         Padding="5" Margin="0,0,0,10"/>
+                <!-- Вкладки -->
+                <TabControl Grid.Row="1" Background="{StaticResource PanelBrush}" BorderThickness="0">
+                    <!-- Графіки -->
+                    <TabItem Header="📊 Графіки">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="7*"/>
+                                <RowDefinition Height="3*"/>
+                            </Grid.RowDefinitions>
 
-                                <!-- Порт -->
-                                <TextBlock Text="P2P Endpoint Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
-                                <TextBox x:Name="TunnelPortTextBox" Text="9999"
-                                         Background="#1E1E1E" Foreground="White"
-                                         Padding="5" Margin="0,0,0,10"/>
-
-                                <!-- Статус -->
-                                <TextBlock Text="Статус:" FontWeight="Bold" Margin="0,0,0,5"/>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                                    <Ellipse x:Name="TunnelConnectionIndicator" Width="12" Height="12"
-                                             Fill="#808080" Margin="0,0,10,0"/>
-                                    <TextBlock x:Name="TunnelConnectionStatus" Text="Не підключено"
-                                               VerticalAlignment="Center"/>
-                                </StackPanel>
-
-                                <!-- Інформація про Handshake -->
-                                <Border Background="#1E1E1E" BorderBrush="#404040" BorderThickness="1"
-                                        CornerRadius="3" Padding="10" Margin="0,0,0,10">
-                                    <StackPanel>
-                                        <TextBlock Text="🔒 Захист:" FontWeight="Bold" Margin="0,0,0,5"/>
-                                        <TextBlock x:Name="TunnelSecurityInfo" TextWrapping="Wrap"
-                                                   Foreground="#808080" FontSize="11"
-                                                   Text="Hardware Fingerprinting активний&#x0a;MQE шифрування увімкнено&#x0a;Stealth Mode захищає від сканування"/>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-
-                            <!-- Статистика з'єднання -->
-                            <Border Grid.Row="1" Background="#1E1E1E" BorderBrush="#404040" BorderThickness="1"
-                                    CornerRadius="3" Padding="10" Margin="0,10,0,10">
+                            <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="10" Margin="5">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto"/>
                                         <RowDefinition Height="*"/>
                                     </Grid.RowDefinitions>
 
-                                    <TextBlock Grid.Row="0" Text="📊 Статистика:" FontWeight="Bold" Margin="0,0,0,10"/>
+                                    <TextBlock Grid.Row="0" Text="Мережевий трафік в реальному часі"
+                                               FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,0,10"/>
 
-                                    <StackPanel Grid.Row="1">
-                                        <Grid Margin="0,0,0,5">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Надіслано:" Foreground="#808080"/>
-                                            <TextBlock Grid.Column="1" x:Name="TunnelSentBytes" Text="0 B"
-                                                       FontFamily="Consolas"/>
-                                        </Grid>
+                                    <lvc:CartesianChart Grid.Row="1" x:Name="PacketsChart" Background="Transparent" LegendLocation="Right">
+                                        <lvc:CartesianChart.AxisX>
+                                            <lvc:Axis Title="Час" Foreground="{StaticResource TextBrush}" FontSize="11" ShowLabels="True">
+                                                <lvc:Axis.Separator>
+                                                    <lvc:Separator Step="10" Stroke="{StaticResource BorderBrush}" StrokeThickness="1"/>
+                                                </lvc:Axis.Separator>
+                                            </lvc:Axis>
+                                        </lvc:CartesianChart.AxisX>
+                                        <lvc:CartesianChart.AxisY>
+                                            <lvc:Axis Title="KB/s" Foreground="{StaticResource TextBrush}" FontSize="11" MinValue="0">
+                                                <lvc:Axis.Separator>
+                                                    <lvc:Separator Stroke="{StaticResource BorderBrush}" StrokeThickness="1"/>
+                                                </lvc:Axis.Separator>
+                                            </lvc:Axis>
+                                        </lvc:CartesianChart.AxisY>
+                                    </lvc:CartesianChart>
+                                </Grid>
+                            </Border>
 
-                                        <Grid Margin="0,0,0,5">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Отримано:" Foreground="#808080"/>
-                                            <TextBlock Grid.Column="1" x:Name="TunnelReceivedBytes" Text="0 B"
-                                                       FontFamily="Consolas"/>
-                                        </Grid>
+                            <Grid Grid.Row="1" Margin="5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="2*"/>
+                                </Grid.ColumnDefinitions>
 
-                                        <Grid Margin="0,0,0,5">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Час з'єднання:" Foreground="#808080"/>
-                                            <TextBlock Grid.Column="1" x:Name="TunnelUptime" Text="00:00:00"
-                                                       FontFamily="Consolas"/>
-                                        </Grid>
+                                <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="10" Margin="0,0,5,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Статус тунелю" FontWeight="Bold" Margin="0,0,0,10"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                            <Ellipse x:Name="TunnelStatusIndicator" Width="16" Height="16" Fill="{StaticResource ErrorBrush}" Margin="0,0,10,0"/>
+                                            <TextBlock x:Name="TunnelStatusText" Text="Відключено" FontSize="14" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <TextBlock x:Name="UptimeText" Text="Час роботи: 00:00:00" Margin="0,10,0,0" FontSize="11" Foreground="{StaticResource TextMutedBrush}"/>
+                                    </StackPanel>
+                                </Border>
 
-                                        <Grid Margin="0,10,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Останній Handshake:" Foreground="#808080"/>
-                                            <TextBlock Grid.Column="1" x:Name="TunnelLastHandshake" Text="Ніколи"
-                                                       FontFamily="Consolas" FontSize="10"/>
-                                        </Grid>
+                                <Border Grid.Column="1" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="10" Margin="5,0,0,0">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Grid.Row="0" Text="Топ процесів за трафіком" FontWeight="Bold" Margin="0,0,0,5"/>
+
+                                        <DataGrid Grid.Row="1" x:Name="ProcessStatsDataGrid"
+                                                  AutoGenerateColumns="False"
+                                                  CanUserAddRows="False"
+                                                  CanUserDeleteRows="False"
+                                                  IsReadOnly="True"
+                                                  SelectionMode="Single"
+                                                  HeadersVisibility="Column"
+                                                  FontSize="11">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Процес" Binding="{Binding ProcessName}" Width="*"/>
+                                                <DataGridTextColumn Header="Пакетів" Binding="{Binding PacketCount}" Width="60"/>
+                                                <DataGridTextColumn Header="Трафік" Binding="{Binding TrafficDisplay}" Width="80"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- Правила фільтрації -->
+                    <TabItem Header="🛡️ Правила">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <Button Grid.Row="0" Content="➕ Додати правило" HorizontalAlignment="Left" Click="AddRuleButton_Click"/>
+
+                            <DataGrid Grid.Row="1" x:Name="RulesDataGrid" Margin="0,10,0,0"
+                                      AutoGenerateColumns="False" CanUserAddRows="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Назва" Binding="{Binding Name}" Width="*"/>
+                                    <DataGridTextColumn Header="IP адреса" Binding="{Binding IPAddress}" Width="150"/>
+                                    <DataGridTextColumn Header="Порт" Binding="{Binding Port}" Width="80"/>
+                                    <DataGridTextColumn Header="Протокол" Binding="{Binding Protocol}" Width="100"/>
+                                    <DataGridTextColumn Header="Дія" Binding="{Binding Action}" Width="100"/>
+                                    <DataGridCheckBoxColumn Header="Активно" Binding="{Binding IsEnabled}" Width="80"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- Тунелі Black-ID -->
+                    <TabItem Header="🔐 Тунелі">
+                        <Grid Margin="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="2*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Список тунелів -->
+                            <Border Grid.Column="0" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="10" Margin="0,0,5,0">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <StackPanel Grid.Row="0" Margin="0,0,0,5">
+                                        <TextBlock Text="Мій Black-ID:" FontWeight="Bold" Margin="0,0,0,3"/>
+                                        <Border Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="2"
+                                                CornerRadius="0" Padding="8" Margin="0,0,0,8">
+                                            <TextBlock x:Name="CurrentBlackIDLabel" Text="Не налаштовано"
+                                                       FontFamily="Consolas" FontSize="13" Foreground="{StaticResource PrimaryBrush}" TextWrapping="Wrap"/>
+                                        </Border>
+                                        <TextBlock Text="Моя IP (поділіться з іншими для підключення):" FontWeight="Bold" Margin="0,0,0,3"/>
+                                        <Border Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource SuccessBrush}" BorderThickness="2"
+                                                CornerRadius="0" Padding="8" Margin="0,0,0,5">
+                                            <TextBlock x:Name="MyIPLabel" Text="..."
+                                                       FontFamily="Consolas" FontSize="13" Foreground="{StaticResource SuccessBrush}"/>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Row="1" Text="Телефонна книга:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                    <DataGrid Grid.Row="2" x:Name="TunnelsDataGrid"
+                                              AutoGenerateColumns="False" CanUserAddRows="False"
+                                              SelectionChanged="TunnelsDataGrid_SelectionChanged">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="Black-ID" Binding="{Binding BlackID}" Width="*"/>
+                                            <DataGridTextColumn Header="Статус" Binding="{Binding StatusDisplay}" Width="80"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+
+                                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
+                                        <Button x:Name="AddTunnelButton" Content="➕ Додати" Width="100" Margin="0,0,5,0"
+                                                Click="AddTunnelButton_Click"/>
+                                        <Button x:Name="RemoveTunnelButton" Content="🗑️ Видалити" Width="100"
+                                                IsEnabled="False" Click="RemoveTunnelButton_Click"/>
                                     </StackPanel>
                                 </Grid>
                             </Border>
 
-                            <!-- Кнопки дій -->
-                            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                                <Button x:Name="ConnectTunnelButton" Content="🕳️ Перепідключити" Width="140"
-                                        Margin="0,0,10,0" Click="ConnectTunnelButton_Click" IsEnabled="False"/>
-                                <Button x:Name="DisconnectTunnelButton" Content="🔌 Від'єднати" Width="120"
-                                        Click="DisconnectTunnelButton_Click" IsEnabled="False"/>
+                            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                                          Background="Transparent" ShowsPreview="True"/>
+
+                            <!-- Панель деталей -->
+                            <Border Grid.Column="2" Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="15" Margin="5,0,0,0">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel Grid.Row="0">
+                                            <TextBlock Text="Деталі тунелю" FontSize="18" FontWeight="Bold" Margin="0,0,0,15"/>
+
+                                            <TextBlock Text="Black-ID:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                            <TextBox x:Name="TunnelBlackIDTextBox" IsReadOnly="True"
+                                                     FontFamily="Consolas" Padding="5" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="P2P Endpoint IP:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                            <TextBox x:Name="TunnelIPTextBox" Padding="5" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="P2P Endpoint Порт:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                            <TextBox x:Name="TunnelPortTextBox" Text="9999" Padding="5" Margin="0,0,0,10"/>
+
+                                            <TextBlock Text="Статус:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
+                                                <Ellipse x:Name="TunnelConnectionIndicator" Width="12" Height="12"
+                                                         Fill="{StaticResource TextMutedBrush}" Margin="0,0,10,0"/>
+                                                <TextBlock x:Name="TunnelConnectionStatus" Text="Не підключено" VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <Border Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                    CornerRadius="0" Padding="10" Margin="0,0,0,10">
+                                                <StackPanel>
+                                                    <TextBlock Text="🔒 Захист:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                                    <TextBlock x:Name="TunnelSecurityInfo" TextWrapping="Wrap"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                                                               Text="Hardware Fingerprinting активний&#x0a;MQE шифрування увімкнено&#x0a;Stealth Mode захищає від сканування"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <Border Grid.Row="1" Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                CornerRadius="0" Padding="10" Margin="0,10,0,10">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                </Grid.RowDefinitions>
+
+                                                <TextBlock Grid.Row="0" Text="📊 Статистика:" FontWeight="Bold" Margin="0,0,0,10"/>
+
+                                                <StackPanel Grid.Row="1">
+                                                    <Grid Margin="0,0,0,5">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Надіслано:" Foreground="{StaticResource TextMutedBrush}"/>
+                                                        <TextBlock Grid.Column="1" x:Name="TunnelSentBytes" Text="0 B" FontFamily="Consolas"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,0,0,5">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Отримано:" Foreground="{StaticResource TextMutedBrush}"/>
+                                                        <TextBlock Grid.Column="1" x:Name="TunnelReceivedBytes" Text="0 B" FontFamily="Consolas"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,0,0,5">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Час з'єднання:" Foreground="{StaticResource TextMutedBrush}"/>
+                                                        <TextBlock Grid.Column="1" x:Name="TunnelUptime" Text="00:00:00" FontFamily="Consolas"/>
+                                                    </Grid>
+                                                    <Grid Margin="0,10,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Останній Handshake:" Foreground="{StaticResource TextMutedBrush}"/>
+                                                        <TextBlock Grid.Column="1" x:Name="TunnelLastHandshake" Text="Ніколи" FontFamily="Consolas" FontSize="10"/>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                                            <Button x:Name="ConnectTunnelButton" Content="🕳️ Перепідключити" Width="140"
+                                                    Margin="0,0,10,0" Click="ConnectTunnelButton_Click" IsEnabled="False"/>
+                                            <Button x:Name="DisconnectTunnelButton" Content="🔌 Від'єднати" Width="120"
+                                                    Click="DisconnectTunnelButton_Click" IsEnabled="False"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- P2P Manual Signaling -->
+                    <TabItem Header="🕳️ P2P">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel Margin="15" MaxWidth="600">
+
+                                <TextBlock Text="Пряме P2P з'єднання" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
+                                <TextBlock Text="Без сервера — обмін кодами через будь-який месенджер"
+                                           Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,0,0,20"/>
+
+                                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="15" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="① Отримай свій код і надішли другу"
+                                                   FontWeight="Bold" Margin="0,0,0,10"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Background="{StaticResource BackgroundBrush}" BorderBrush="{StaticResource PrimaryBrush}"
+                                                    BorderThickness="1" CornerRadius="0" Padding="8" Margin="0,0,8,0">
+                                                <TextBlock x:Name="P2PMyCodeText"
+                                                           Text="Натисни «Отримати код»"
+                                                           FontFamily="Consolas" FontSize="13"
+                                                           Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <Button Grid.Column="1" x:Name="P2PCopyButton" Content="📋"
+                                                    Width="36" Margin="0,0,5,0" IsEnabled="False"
+                                                    Click="P2PCopyButton_Click" ToolTip="Копіювати в буфер"/>
+                                            <Button Grid.Column="2" x:Name="P2PGetCodeButton"
+                                                    Content="🔄 Отримати код" Width="140"
+                                                    Click="P2PGetCodeButton_Click"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="15" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="② Встав код від друга" FontWeight="Bold" Margin="0,0,0,10"/>
+                                        <TextBox x:Name="P2PPeerCodeTextBox"
+                                                 FontFamily="Consolas" FontSize="13"
+                                                 Padding="8"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Background="{StaticResource SurfaceBrush}" CornerRadius="0" Padding="15" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="③ Натисніть «З'єднати» одночасно з другом"
+                                                   FontWeight="Bold" Margin="0,0,0,12"/>
+                                        <Button x:Name="P2PConnectButton"
+                                                Content="🚀 З'єднати (30 сек)"
+                                                Height="38" FontSize="13"
+                                                Click="P2PConnectButton_Click"/>
+                                        <ProgressBar x:Name="P2PProgressBar"
+                                                     Height="6" Margin="0,12,0,4"
+                                                     Minimum="0" Maximum="30" Value="0"/>
+                                        <TextBlock x:Name="P2PStatusText" Text=""
+                                                   Foreground="{StaticResource TextMutedBrush}" FontSize="11"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource SuccessBrush}"
+                                        BorderThickness="1" CornerRadius="0" Padding="12">
+                                    <StackPanel>
+                                        <TextBlock Text="ℹ️ Як це працює" FontWeight="Bold" Margin="0,0,0,6"/>
+                                        <TextBlock Foreground="{StaticResource SuccessBrush}" FontSize="11" TextWrapping="Wrap" LineHeight="18">
+                                            <Run>1. Натисни «Отримати код» — це твій публічний UDP endpoint</Run><LineBreak/>
+                                            <Run>2. Надішли код другу через Telegram / Viber / будь-що</Run><LineBreak/>
+                                            <Run>3. Встав код від друга в поле ②</Run><LineBreak/>
+                                            <Run>4. Обидва натискають «З'єднати» — є 30 секунд</Run><LineBreak/>
+                                            <Run>5. Після успіху — прямий зашифрований MQE-тунель без серверів</Run><LineBreak/>
+                                            <Run Foreground="{StaticResource AccentBrush}">⚠ Може не спрацювати при симетричному NAT (рідко у домашніх мережах)</Run>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+
                             </StackPanel>
-                            </Grid>
                         </ScrollViewer>
-                    </Border>
-                </Grid>
-            </TabItem>
+                    </TabItem>
 
-            <!-- P2P Manual Signaling -->
-            <TabItem Header="🕳️ P2P">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Margin="15" MaxWidth="600">
+                    <!-- Лог -->
+                    <TabItem Header="📋 Лог">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
 
-                        <TextBlock Text="Пряме P2P з'єднання" FontSize="18" FontWeight="Bold" Margin="0,0,0,4"/>
-                        <TextBlock Text="Без сервера — обмін кодами через будь-який месенджер"
-                                   Foreground="#808080" FontSize="12" Margin="0,0,0,20"/>
+                            <Button Grid.Row="0" Content="🗑️ Очистити лог" HorizontalAlignment="Left" Click="ClearLogButton_Click"/>
 
-                        <!-- Крок 1 -->
-                        <Border Background="#2D2D30" CornerRadius="5" Padding="15" Margin="0,0,0,10">
-                            <StackPanel>
-                                <TextBlock Text="① Отримай свій код і надішли другу"
-                                           FontWeight="Bold" Margin="0,0,0,10"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0" Background="#1E1E1E" BorderBrush="#4EC9B0"
-                                            BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,0,8,0">
-                                        <TextBlock x:Name="P2PMyCodeText"
-                                                   Text="Натисни «Отримати код»"
-                                                   FontFamily="Consolas" FontSize="13"
-                                                   Foreground="#808080" VerticalAlignment="Center"/>
-                                    </Border>
-                                    <Button Grid.Column="1" x:Name="P2PCopyButton" Content="📋"
-                                            Width="36" Margin="0,0,5,0" IsEnabled="False"
-                                            Click="P2PCopyButton_Click" ToolTip="Копіювати в буфер"/>
-                                    <Button Grid.Column="2" x:Name="P2PGetCodeButton"
-                                            Content="🔄 Отримати код" Width="140"
-                                            Click="P2PGetCodeButton_Click"/>
-                                </Grid>
-                            </StackPanel>
-                        </Border>
+                            <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto">
+                                <TextBox x:Name="LogTextBox"
+                                         Background="{StaticResource SurfaceBrush}"
+                                         FontFamily="Consolas"
+                                         FontSize="12"
+                                         IsReadOnly="True"
+                                         TextWrapping="Wrap"
+                                         BorderThickness="0"
+                                         Padding="10"/>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
 
-                        <!-- Крок 2 -->
-                        <Border Background="#2D2D30" CornerRadius="5" Padding="15" Margin="0,0,0,10">
-                            <StackPanel>
-                                <TextBlock Text="② Встав код від друга" FontWeight="Bold" Margin="0,0,0,10"/>
-                                <TextBox x:Name="P2PPeerCodeTextBox"
-                                         Background="#1E1E1E" Foreground="White"
-                                         FontFamily="Consolas" FontSize="13"
-                                         BorderBrush="#6A9955" BorderThickness="1"
-                                         Padding="8"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Крок 3 -->
-                        <Border Background="#2D2D30" CornerRadius="5" Padding="15" Margin="0,0,0,10">
-                            <StackPanel>
-                                <TextBlock Text="③ Натисніть «З'єднати» одночасно з другом"
-                                           FontWeight="Bold" Margin="0,0,0,12"/>
-                                <Button x:Name="P2PConnectButton"
-                                        Content="🚀 З'єднати (30 сек)"
-                                        Height="38" FontSize="13"
-                                        Click="P2PConnectButton_Click"/>
-                                <ProgressBar x:Name="P2PProgressBar"
-                                             Height="6" Margin="0,12,0,4"
-                                             Minimum="0" Maximum="30" Value="0"
-                                             Foreground="#4EC9B0" Background="#1E1E1E"/>
-                                <TextBlock x:Name="P2PStatusText" Text=""
-                                           Foreground="#808080" FontSize="11"
-                                           HorizontalAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Підказка -->
-                        <Border Background="#1A2E1A" BorderBrush="#3A7A3A"
-                                BorderThickness="1" CornerRadius="5" Padding="12">
-                            <StackPanel>
-                                <TextBlock Text="ℹ️ Як це працює" FontWeight="Bold" Margin="0,0,0,6"/>
-                                <TextBlock Foreground="#90C890" FontSize="11" TextWrapping="Wrap"
-                                           LineHeight="18">
-                                    <Run>1. Натисни «Отримати код» — це твій публічний UDP endpoint</Run><LineBreak/>
-                                    <Run>2. Надішли код другу через Telegram / Viber / будь-що</Run><LineBreak/>
-                                    <Run>3. Встав код від друга в поле ②</Run><LineBreak/>
-                                    <Run>4. Обидва натискають «З'єднати» — є 30 секунд</Run><LineBreak/>
-                                    <Run>5. Після успіху — прямий зашифрований MQE-тунель без серверів</Run><LineBreak/>
-                                    <Run Foreground="#C8A050">⚠ Може не спрацювати при симетричному NAT (рідко у домашніх мережах)</Run>
-                                </TextBlock>
-                            </StackPanel>
-                        </Border>
-
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- Лог -->
-            <TabItem Header="📋 Лог">
-                <Grid Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <Button Grid.Row="0" Content="🗑️ Очистити лог" HorizontalAlignment="Left" Click="ClearLogButton_Click"/>
-
-                    <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto">
-                        <TextBox x:Name="LogTextBox"
-                                 Background="#2D2D30"
-                                 Foreground="#D4D4D4"
-                                 FontFamily="Consolas"
-                                 FontSize="12"
-                                 IsReadOnly="True"
-                                 TextWrapping="Wrap"
-                                 BorderThickness="0"
-                                 Padding="10"/>
-                    </ScrollViewer>
-                </Grid>
-            </TabItem>
-        </TabControl>
-
-        <!-- Кнопки керування -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-            <Button x:Name="StartButton" Content="▶️ Запустити" Click="StartButton_Click"/>
-            <Button x:Name="StopButton" Content="⏹️ Зупинити" Click="StopButton_Click" IsEnabled="False"/>
-            <Button Content="⚙️ Налаштування" Click="SettingsButton_Click"/>
-        </StackPanel>
-    </Grid>
+                <!-- Кнопки керування -->
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                    <Button x:Name="StartButton" Content="▶️ Запустити" Click="StartButton_Click"/>
+                    <Button x:Name="StopButton" Content="⏹️ Зупинити" Click="StopButton_Click" IsEnabled="False"/>
+                    <Button Content="⚙️ Налаштування" Click="SettingsButton_Click"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
 </Window>
