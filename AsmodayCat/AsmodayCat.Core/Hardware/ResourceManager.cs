@@ -5,7 +5,7 @@ namespace AsmodayCat.Core.Hardware;
 public class ResourceManager
 {
     private readonly Dictionary<string, int> _modelVramUsage = new();
-    private readonly Lock _lock = new();
+    private readonly object _lock = new();
 
     public void RegisterModel(string modelId, int vramMb)
     {
