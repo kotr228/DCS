@@ -8,7 +8,7 @@ using AsmodayCat.Service.Ipc;
 using AsmodayCat.Shared.Interfaces;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Services.UseWindowsService(options =>
+builder.Host.UseWindowsService(options =>
 {
     options.ServiceName = "AsmodayCat";
 });
@@ -16,12 +16,13 @@ builder.Services.UseWindowsService(options =>
 // Core
 builder.Services.AddSingleton<ResourceManager>();
 builder.Services.AddSingleton<IHardwareScanner, HardwareScanner>();
-builder.Services.AddHttpClient<OllamaClient>(client =>
+builder.Services.AddSingleton(_ =>
 {
-    client.BaseAddress = new Uri(
-        builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434");
+    var baseUrl = builder.Configuration["Ollama:BaseUrl"] ?? "http://localhost:11434";
+    return new HttpClient { BaseAddress = new Uri(baseUrl) };
 });
-builder.Services.AddSingleton<ILLMEngine, OllamaClient>();
+builder.Services.AddSingleton<OllamaClient>();
+builder.Services.AddSingleton<ILLMEngine>(sp => sp.GetRequiredService<OllamaClient>());
 
 // Agent
 builder.Services.AddSingleton<AccessManager>();
