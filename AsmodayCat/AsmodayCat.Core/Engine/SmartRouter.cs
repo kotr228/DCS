@@ -25,7 +25,13 @@ public class SmartRouter
     {
         var effectiveDevice = ResolveDevice(request, priority);
 
-        var routed = request with { ExecutionDevice = effectiveDevice };
+        var routed = new LlmRequest
+        {
+            Prompt          = request.Prompt,
+            Context         = request.Context,
+            RequiredVram    = request.RequiredVram,
+            ExecutionDevice = effectiveDevice
+        };
         return await _engine.GenerateAsync(routed, cancellationToken);
     }
 
