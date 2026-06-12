@@ -1,15 +1,18 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RootNamespace>AsmodayCat.Core</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Engine\" />
-    <Folder Include="ResourceMonitor\" />
-    <Folder Include="Prompts\" />
+    <ProjectReference Include="..\ClassLibrary1\AsmodayCat.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
 
 </Project>

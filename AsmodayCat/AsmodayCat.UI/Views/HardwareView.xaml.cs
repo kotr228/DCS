@@ -3,9 +3,9 @@ using AsmodayCat.UI.ViewModels;
 
 namespace AsmodayCat.UI.Views;
 
-public partial class ModelsManagerView : UserControl
+public partial class HardwareView : UserControl
 {
-    public ModelsManagerView(HardwareViewModel vm)
+    public HardwareView(HardwareViewModel vm)
     {
         InitializeComponent();
         DataContext = vm;

@@ -1,12 +1,42 @@
-﻿<Window x:Class="AsmodayCat.UI.MainWindow"
+<Window x:Class="AsmodayCat.UI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:AsmodayCat.UI"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:views="clr-namespace:AsmodayCat.UI.Views"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+        Background="{DynamicResource MaterialDesignPaper}"
+        Title="AsmodayCat — Control Panel"
+        Height="720" Width="1280"
+        WindowStartupLocation="CenterScreen">
     <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="160"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
+        <!-- Sidebar -->
+        <StackPanel Grid.Column="0"
+                    Background="#1A1A2E"
+                    Margin="0">
+            <TextBlock Text="ASMODAYCAT"
+                       FontSize="14" FontWeight="Bold"
+                       Foreground="#B39DDB"
+                       Margin="12,20,12,24"
+                       TextWrapping="Wrap"/>
+            <ListBox x:Name="NavList"
+                     SelectionChanged="NavList_SelectionChanged"
+                     Background="Transparent"
+                     BorderThickness="0">
+                <ListBoxItem Content="Dashboard"   Tag="Dashboard"/>
+                <ListBoxItem Content="Hardware"    Tag="Hardware"/>
+                <ListBoxItem Content="Agent Rules" Tag="AgentRules"/>
+                <ListBoxItem Content="Terminal"    Tag="Terminal"/>
+            </ListBox>
+        </StackPanel>
+
+        <!-- Content area -->
+        <Frame x:Name="ContentFrame"
+               Grid.Column="1"
+               NavigationUIVisibility="Hidden"/>
     </Grid>
 </Window>

@@ -1,15 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RootNamespace>AsmodayCat.Agent</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Pipelines\" />
-    <Folder Include="Watchers\" />
-    <Folder Include="Workspace\" />
+    <ProjectReference Include="..\ClassLibrary1\AsmodayCat.Shared.csproj" />
   </ItemGroup>
 
 </Project>

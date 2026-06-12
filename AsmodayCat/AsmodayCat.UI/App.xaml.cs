@@ -1,14 +1,35 @@
-﻿using System.Configuration;
-using System.Data;
 using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
+using AsmodayCat.UI.Services;
+using AsmodayCat.UI.ViewModels;
+using AsmodayCat.UI.Views;
 
-namespace AsmodayCat.UI
+namespace AsmodayCat.UI;
+
+public partial class App : Application
 {
-    /// <summary>
-    /// Interaction logic for App.xaml
-    /// </summary>
-    public partial class App : Application
-    {
-    }
+    public static IServiceProvider Services { get; private set; } = null!;
 
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        var services = new ServiceCollection();
+
+        services.AddSingleton<IpcClient>();
+
+        services.AddTransient<DashboardViewModel>();
+        services.AddTransient<HardwareViewModel>();
+        services.AddTransient<AgentRulesViewModel>();
+        services.AddTransient<TerminalViewModel>();
+
+        services.AddTransient<DashboardView>();
+        services.AddTransient<HardwareView>();
+        services.AddTransient<AgentRulesView>();
+        services.AddTransient<TerminalView>();
+        services.AddTransient<MainWindow>();
+
+        Services = services.BuildServiceProvider();
+
+        var mainWindow = Services.GetRequiredService<MainWindow>();
+        mainWindow.Show();
+    }
 }

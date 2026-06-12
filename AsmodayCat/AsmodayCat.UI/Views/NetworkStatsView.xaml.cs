@@ -1,27 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
-namespace AsmodayCat.UI.Views
+namespace AsmodayCat.UI.Views;
+
+public partial class NetworkStatsView : UserControl
 {
-    /// <summary>
-    /// Interaction logic for NetworkStatsView.xaml
-    /// </summary>
-    public partial class NetworkStatsView : Window
+    public NetworkStatsView()
     {
-        public NetworkStatsView()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
     }
 }

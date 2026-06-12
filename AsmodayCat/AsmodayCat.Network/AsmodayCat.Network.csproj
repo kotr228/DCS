@@ -1,15 +1,14 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RootNamespace>AsmodayCat.Network</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="CoffeeCatBridge\" />
-    <Folder Include="BlackCatBridge\" />
-    <Folder Include="LoadBalancing\" />
+    <ProjectReference Include="..\ClassLibrary1\AsmodayCat.Shared.csproj" />
   </ItemGroup>
 
 </Project>

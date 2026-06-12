@@ -1,27 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
+using AsmodayCat.UI.ViewModels;
 
-namespace AsmodayCat.UI.Views
+namespace AsmodayCat.UI.Views;
+
+public partial class AgentRulesView : UserControl
 {
-    /// <summary>
-    /// Interaction logic for AgentRulesView.xaml
-    /// </summary>
-    public partial class AgentRulesView : Window
+    public AgentRulesView(AgentRulesViewModel vm)
     {
-        public AgentRulesView()
-        {
-            InitializeComponent();
-        }
+        InitializeComponent();
+        DataContext = vm;
     }
 }
