@@ -28,6 +28,7 @@
                      Background="Transparent"
                      BorderThickness="0">
                 <ListBoxItem Content="Dashboard"   Tag="Dashboard"/>
+                <ListBoxItem Content="Chat"        Tag="Chat"/>
                 <ListBoxItem Content="Hardware"    Tag="Hardware"/>
                 <ListBoxItem Content="Agent Rules" Tag="AgentRules"/>
                 <ListBoxItem Content="Terminal"    Tag="Terminal"/>

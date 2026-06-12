@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ClassLibrary1\AsmodayCat.Shared.csproj" />
+    <ProjectReference Include="..\AsmodayCat.Network\AsmodayCat.Network.csproj" />
   </ItemGroup>
 
 </Project>

@@ -20,12 +20,15 @@ public partial class App : Application
         services.AddTransient<HardwareViewModel>();
         services.AddTransient<AgentRulesViewModel>();
         services.AddTransient<TerminalViewModel>();
+        services.AddTransient<ChatViewModel>();
 
         services.AddTransient<DashboardView>();
         services.AddTransient<HardwareView>();
         services.AddTransient<AgentRulesView>();
         services.AddTransient<TerminalView>();
+        services.AddTransient<ChatView>();
         services.AddTransient<MainWindow>();
+        services.AddTransient<OverlayWindow>();
 
         Services = services.BuildServiceProvider();
 

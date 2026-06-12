@@ -1,16 +1,40 @@
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
+using AsmodayCat.UI.Hotkey;
 using AsmodayCat.UI.Views;
 
 namespace AsmodayCat.UI;
 
 public partial class MainWindow : Window
 {
+    private GlobalHotkeyManager? _hotkey;
+
     public MainWindow()
     {
         InitializeComponent();
         NavList.SelectedIndex = 0;
+    }
+
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        _hotkey = new GlobalHotkeyManager(this);
+        _hotkey.HotkeyPressed += OnGlobalHotkey;
+        _hotkey.Register();
+    }
+
+    private void OnGlobalHotkey()
+    {
+        var overlay = App.Services.GetRequiredService<OverlayWindow>();
+        overlay.Show();
+        overlay.Activate();
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _hotkey?.Dispose();
+        base.OnClosed(e);
     }
 
     private void NavList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -23,6 +47,7 @@ public partial class MainWindow : Window
             "Hardware"   => App.Services.GetRequiredService<HardwareView>(),
             "AgentRules" => App.Services.GetRequiredService<AgentRulesView>(),
             "Terminal"   => App.Services.GetRequiredService<TerminalView>(),
+            "Chat"       => App.Services.GetRequiredService<ChatView>(),
             _            => null
         };
     }

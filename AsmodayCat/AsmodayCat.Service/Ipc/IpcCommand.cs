@@ -7,7 +7,8 @@ public enum IpcCommandType
     StopAgent,
     ChangeHardwareModel,
     GetSystemLoad,
-    KillSwitch
+    KillSwitch,
+    Chat
 }
 
 public class IpcCommand
