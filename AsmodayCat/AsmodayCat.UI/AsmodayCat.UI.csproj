@@ -8,4 +8,14 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Folder Include="Controls\" />
+    <Folder Include="Services\" />
+    <Folder Include="ViewModels\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClassLibrary1\AsmodayCat.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

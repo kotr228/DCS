@@ -10,4 +10,15 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AsmodayCat.Agent\AsmodayCat.Agent.csproj" />
+    <ProjectReference Include="..\AsmodayCat.Core\AsmodayCat.Core.csproj" />
+    <ProjectReference Include="..\AsmodayCat.Network\AsmodayCat.Network.csproj" />
+    <ProjectReference Include="..\ClassLibrary1\AsmodayCat.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="IpcServer\" />
+  </ItemGroup>
 </Project>

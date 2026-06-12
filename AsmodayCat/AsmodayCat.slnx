@@ -1,5 +1,8 @@
 <Solution>
+  <Project Path="AsmodayCat.Agent/AsmodayCat.Agent.csproj" />
   <Project Path="AsmodayCat.Core/AsmodayCat.Core.csproj" />
   <Project Path="AsmodayCat.Network/AsmodayCat.Network.csproj" />
+  <Project Path="AsmodayCat.Service/AsmodayCat.Service.csproj" />
+  <Project Path="AsmodayCat.UI/AsmodayCat.UI.csproj" />
   <Project Path="ClassLibrary1/AsmodayCat.Shared.csproj" />
 </Solution>
