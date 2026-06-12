@@ -29,8 +29,7 @@
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
                         <!-- Outer border drives alignment: User→Right, others→Left -->
-                        <Border HorizontalAlignment="{Binding Role,
-                                    Converter={StaticResource RoleToAlignmentConverter}}"
+                        <Border HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToAlignmentConverter}}"
                                 MaxWidth="680"
                                 Margin="0,4"
                                 Padding="12,8"
@@ -102,8 +101,7 @@
                             <materialDesign:PackIcon Kind="Paperclip" Width="12" Height="12"
                                                      Foreground="#888" VerticalAlignment="Center"
                                                      Margin="0,0,4,0"/>
-                            <TextBlock Text="{Binding, Converter={StaticResource FileNameConverter},
-                                           FallbackValue='file'}"
+                            <TextBlock Text="{Binding Converter={StaticResource FileNameConverter}}"
                                        FontSize="11" Foreground="White" MaxWidth="140"
                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                             <Button Style="{StaticResource MaterialDesignIconButton}"
