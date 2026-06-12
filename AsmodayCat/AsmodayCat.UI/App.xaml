@@ -12,9 +12,11 @@
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign2.Defaults.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
-            <conv:RoleToBrushConverter    x:Key="RoleToBrushConverter"/>
-            <conv:InverseBoolConverter    x:Key="InverseBoolConverter"/>
-            <conv:BoolToVisibilityConverter x:Key="BoolToVisConverter"/>
+            <conv:RoleToBrushConverter         x:Key="RoleToBrushConverter"/>
+            <conv:InverseBoolConverter         x:Key="InverseBoolConverter"/>
+            <conv:BoolToVisibilityConverter    x:Key="BoolToVisConverter"/>
+            <conv:ChatRoleToAlignmentConverter x:Key="RoleToAlignmentConverter"/>
+            <conv:FileNameConverter            x:Key="FileNameConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

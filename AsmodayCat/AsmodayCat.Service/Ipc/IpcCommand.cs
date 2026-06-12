@@ -12,7 +12,8 @@ public enum IpcCommandType
     PullModel,
     GetPullStatus,
     ListModels,
-    GetDashboardStats
+    GetDashboardStats,
+    ClearContext
 }
 
 public class IpcCommand

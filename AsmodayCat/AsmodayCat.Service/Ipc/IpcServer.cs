@@ -13,27 +13,33 @@ public class IpcServer : BackgroundService
 {
     public const string PipeName = "AsmodayCat.Service";
 
-    private readonly IAgentController  _agent;
-    private readonly IHardwareScanner  _hardware;
-    private readonly ResourceManager   _resources;
-    private readonly MetricsCollector  _metrics;
-    private readonly IModelRegistry    _modelRegistry;
-    private readonly PullStatusStore   _pullStatus;
+    private readonly IAgentController   _agent;
+    private readonly IHardwareScanner   _hardware;
+    private readonly ResourceManager    _resources;
+    private readonly MetricsCollector   _metrics;
+    private readonly ILLMEngine         _llmEngine;
+    private readonly ModelSwitcher      _modelSwitcher;
+    private readonly IModelRegistry     _modelRegistry;
+    private readonly PullStatusStore    _pullStatus;
     private readonly ILogger<IpcServer> _logger;
 
     public IpcServer(
-        IAgentController agent,
-        IHardwareScanner hardware,
-        ResourceManager resources,
-        MetricsCollector metrics,
-        IModelRegistry modelRegistry,
-        PullStatusStore pullStatus,
+        IAgentController   agent,
+        IHardwareScanner   hardware,
+        ResourceManager    resources,
+        MetricsCollector   metrics,
+        ILLMEngine         llmEngine,
+        ModelSwitcher      modelSwitcher,
+        IModelRegistry     modelRegistry,
+        PullStatusStore    pullStatus,
         ILogger<IpcServer> logger)
     {
         _agent         = agent;
         _hardware      = hardware;
         _resources     = resources;
         _metrics       = metrics;
+        _llmEngine     = llmEngine;
+        _modelSwitcher = modelSwitcher;
         _modelRegistry = modelRegistry;
         _pullStatus    = pullStatus;
         _logger        = logger;
@@ -62,20 +68,27 @@ public class IpcServer : BackgroundService
         }
     }
 
-    private async Task HandleClientAsync(NamedPipeServerStream pipe, CancellationToken cancellationToken)
+    private async Task HandleClientAsync(NamedPipeServerStream pipe, CancellationToken ct)
     {
         try
         {
-            using var reader = new StreamReader(pipe, leaveOpen: true);
+            using var reader     = new StreamReader(pipe, leaveOpen: true);
             await using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
 
-            var line = await reader.ReadLineAsync(cancellationToken);
+            var line = await reader.ReadLineAsync(ct);
             if (line is null) return;
 
             var command = JsonSerializer.Deserialize<IpcCommand>(line);
             if (command is null) return;
 
-            var response = await DispatchAsync(command, cancellationToken);
+            // Chat uses a multi-line streaming response
+            if (command.Type == IpcCommandType.Chat)
+            {
+                await HandleChatStreamAsync(writer, command, ct);
+                return;
+            }
+
+            var response = await DispatchAsync(command, ct);
             await writer.WriteLineAsync(JsonSerializer.Serialize(response));
         }
         catch (Exception ex)
@@ -84,21 +97,22 @@ public class IpcServer : BackgroundService
         }
     }
 
-    private async Task<IpcResponse> DispatchAsync(IpcCommand cmd, CancellationToken cancellationToken)
+    private async Task<IpcResponse> DispatchAsync(IpcCommand cmd, CancellationToken ct)
     {
         try
         {
             return cmd.Type switch
             {
-                IpcCommandType.GetStatus    => new IpcResponse { Success = true, Payload = new { Status = "Running" } },
-                IpcCommandType.GetSystemLoad => new IpcResponse { Success = true, Payload = _resources.GetCurrentStatus() },
-                IpcCommandType.StartAgent   => await StartAgentAsync(cmd, cancellationToken),
-                IpcCommandType.StopAgent    => await StopAgentAsync(cmd, cancellationToken),
-                IpcCommandType.KillSwitch   => await KillSwitchAsync(),
-                IpcCommandType.ListModels        => await ListModelsAsync(cancellationToken),
+                IpcCommandType.GetStatus         => new IpcResponse { Success = true, Payload = new { Status = "Running" } },
+                IpcCommandType.GetSystemLoad     => new IpcResponse { Success = true, Payload = _resources.GetCurrentStatus() },
+                IpcCommandType.StartAgent        => await StartAgentAsync(cmd, ct),
+                IpcCommandType.StopAgent         => await StopAgentAsync(cmd, ct),
+                IpcCommandType.KillSwitch        => await KillSwitchAsync(),
+                IpcCommandType.ListModels        => await ListModelsAsync(ct),
                 IpcCommandType.PullModel         => PullModelBackground(cmd),
                 IpcCommandType.GetPullStatus     => GetPullStatus(cmd),
                 IpcCommandType.GetDashboardStats => GetDashboardStats(),
+                IpcCommandType.ClearContext      => ClearContextCmd(),
                 _ => new IpcResponse { Success = false, Error = $"Unknown command: {cmd.Type}" }
             };
         }
@@ -108,7 +122,50 @@ public class IpcServer : BackgroundService
         }
     }
 
-    private async Task<IpcResponse> StartAgentAsync(IpcCommand cmd, CancellationToken cancellationToken)
+    // ── Chat streaming (FR-CH1) ───────────────────────────────────────────────
+
+    private async Task HandleChatStreamAsync(StreamWriter writer, IpcCommand cmd, CancellationToken ct)
+    {
+        var message     = cmd.Parameters.GetValueOrDefault("Message", string.Empty);
+        var useVision   = cmd.Parameters.TryGetValue("UseVision", out var uv) && uv == "true";
+        var attachments = cmd.Parameters.TryGetValue("Attachments", out var ap)
+            ? ap.Split(';', StringSplitOptions.RemoveEmptyEntries).ToList()
+            : new List<string>();
+
+        try
+        {
+            // FR-CH7: route to vision model when images are present
+            var taskType = (useVision && attachments.Count > 0)
+                ? ModelTaskType.Vision
+                : ModelTaskType.General;
+
+            await _modelSwitcher.EnsureModelForTaskAsync(taskType, cancellationToken: ct);
+
+            var request = new LlmRequest
+            {
+                Prompt     = message,
+                ImagePaths = attachments
+            };
+
+            await foreach (var token in _llmEngine.GenerateStreamAsync(request, ct))
+            {
+                var chunk = new StreamChunkDto { Chunk = token, Done = false };
+                await writer.WriteLineAsync(JsonSerializer.Serialize(chunk));
+            }
+        }
+        catch (Exception ex)
+        {
+            var errChunk = new StreamChunkDto { Error = ex.Message, Done = true };
+            await writer.WriteLineAsync(JsonSerializer.Serialize(errChunk));
+            return;
+        }
+
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new StreamChunkDto { Done = true }));
+    }
+
+    // ── Standard command handlers ─────────────────────────────────────────────
+
+    private async Task<IpcResponse> StartAgentAsync(IpcCommand cmd, CancellationToken ct)
     {
         var path       = cmd.Parameters.GetValueOrDefault("Path", string.Empty);
         var outputPath = cmd.Parameters.GetValueOrDefault("OutputPath", string.Empty);
@@ -124,14 +181,14 @@ public class IpcServer : BackgroundService
             SystemPrompt = prompt,
             Action       = action
         };
-        await _agent.StartWatching(config, cancellationToken);
+        await _agent.StartWatching(config, ct);
         return new IpcResponse { Success = true };
     }
 
-    private async Task<IpcResponse> StopAgentAsync(IpcCommand cmd, CancellationToken cancellationToken)
+    private async Task<IpcResponse> StopAgentAsync(IpcCommand cmd, CancellationToken ct)
     {
         var path = cmd.Parameters.GetValueOrDefault("Path", string.Empty);
-        await _agent.StopWatching(path, cancellationToken);
+        await _agent.StopWatching(path, ct);
         return new IpcResponse { Success = true };
     }
 
@@ -142,9 +199,9 @@ public class IpcServer : BackgroundService
         return new IpcResponse { Success = true };
     }
 
-    private async Task<IpcResponse> ListModelsAsync(CancellationToken cancellationToken)
+    private async Task<IpcResponse> ListModelsAsync(CancellationToken ct)
     {
-        var local    = await _modelRegistry.GetLocalModelsAsync(cancellationToken);
+        var local    = await _modelRegistry.GetLocalModelsAsync(ct);
         var poolInfo = ModelPoolConfig.DefaultPool.Select(m => new
         {
             m.ModelId,
@@ -156,7 +213,6 @@ public class IpcServer : BackgroundService
         return new IpcResponse { Success = true, Payload = poolInfo };
     }
 
-    // FR8.2: запуск pull у фоні, відповідь миттєва — UI опитує GetPullStatus
     private IpcResponse PullModelBackground(IpcCommand cmd)
     {
         var modelId = cmd.Parameters.GetValueOrDefault("ModelId", string.Empty);
@@ -183,5 +239,11 @@ public class IpcServer : BackgroundService
     {
         var dto = _metrics.GetSnapshot(availableNodes: 0);
         return new IpcResponse { Success = true, Payload = dto };
+    }
+
+    private IpcResponse ClearContextCmd()
+    {
+        _llmEngine.ClearContext();
+        return new IpcResponse { Success = true };
     }
 }

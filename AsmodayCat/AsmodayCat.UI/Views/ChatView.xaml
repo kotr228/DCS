@@ -5,38 +5,67 @@
              xmlns:mdxam="clr-namespace:Markdig.Wpf;assembly=Markdig.Wpf">
     <Grid Margin="20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>   <!-- header -->
+            <RowDefinition Height="*"/>      <!-- messages -->
+            <RowDefinition Height="Auto"/>   <!-- agent state indicator -->
+            <RowDefinition Height="Auto"/>   <!-- pending attachments -->
+            <RowDefinition Height="Auto"/>   <!-- input row -->
         </Grid.RowDefinitions>
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
             <TextBlock Text="CHAT" FontSize="18" FontWeight="Bold"
                        Foreground="#B39DDB" VerticalAlignment="Center"/>
-            <Button Content="CLEAR" Command="{Binding ClearChatCommand}"
+            <Button Content="CLEAR"
+                    Command="{Binding ClearChatCommand}"
                     Style="{StaticResource MaterialDesignOutlinedButton}"
                     Margin="12,0,0,0" Height="28" Padding="8,0"/>
         </StackPanel>
 
-        <!-- Messages list -->
+        <!-- Messages list (FR-CH2: markdown rendering) -->
         <ScrollViewer Grid.Row="1" x:Name="Scroller"
                       VerticalScrollBarVisibility="Auto">
             <ItemsControl ItemsSource="{Binding Messages}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border Margin="0,4" Padding="12,8"
-                                CornerRadius="6"
+                        <!-- Outer border drives alignment: User→Right, others→Left -->
+                        <Border HorizontalAlignment="{Binding Role,
+                                    Converter={StaticResource RoleToAlignmentConverter}}"
+                                MaxWidth="680"
+                                Margin="0,4"
+                                Padding="12,8"
+                                CornerRadius="8"
                                 Background="{Binding Role, Converter={StaticResource RoleToBrushConverter}}">
                             <StackPanel>
-                                <TextBlock Text="{Binding Role}" FontSize="10"
+                                <!-- Role label -->
+                                <TextBlock Text="{Binding Role}"
+                                           FontSize="10" FontWeight="Bold"
                                            Foreground="#888" Margin="0,0,0,4"
-                                           FontWeight="Bold"
                                            Typography.Capitals="AllSmallCaps"/>
-                                <!-- Markdown rendering -->
+
+                                <!-- Attachment chips (for user messages) -->
+                                <ItemsControl ItemsSource="{Binding AttachmentPaths}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#333" CornerRadius="4"
+                                                    Padding="6,2" Margin="0,0,4,4">
+                                                <TextBlock Text="{Binding}" FontSize="10"
+                                                           Foreground="#B39DDB"
+                                                           MaxWidth="160"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- FR-CH2: Markdown viewer for assistant; plain text for user -->
                                 <mdxam:MarkdownViewer Markdown="{Binding Content}"
-                                                       Foreground="White"/>
+                                                      Foreground="White"/>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
@@ -44,40 +73,85 @@
             </ItemsControl>
         </ScrollViewer>
 
-        <!-- Thinking / Tool indicator -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8">
+        <!-- FR-CH3: Agent state indicator -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6"
+                    Visibility="{Binding IsAgentBusy, Converter={StaticResource BoolToVisConverter}}">
             <materialDesign:PackIcon Kind="Robot" Width="16" Height="16"
-                                     Foreground="#B39DDB"
-                                     Visibility="{Binding IsThinking, Converter={StaticResource BoolToVisConverter}}"/>
-            <TextBlock Foreground="#B39DDB" Margin="4,0,0,0" FontStyle="Italic"
-                       Visibility="{Binding IsThinking, Converter={StaticResource BoolToVisConverter}}">
-                <TextBlock.Text>
-                    <MultiBinding StringFormat="{}{0}">
-                        <Binding Path="ActiveToolName"
-                                 StringFormat="Agent using tool: {0}..."
-                                 FallbackValue="Agent is thinking..."/>
-                    </MultiBinding>
-                </TextBlock.Text>
-            </TextBlock>
+                                     Foreground="#B39DDB" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding AgentStateText}"
+                       Foreground="#B39DDB" Margin="6,0,0,0"
+                       FontStyle="Italic" VerticalAlignment="Center"/>
         </StackPanel>
 
-        <!-- Input row -->
-        <Grid Grid.Row="3">
+        <!-- FR-CH6: Pending attachment preview strip -->
+        <ItemsControl Grid.Row="3" ItemsSource="{Binding PendingAttachments}"
+                      Margin="0,0,0,6"
+                      Visibility="{Binding HasPendingAttachments,
+                          Converter={StaticResource BoolToVisConverter}}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Border Background="#2A2A3E" CornerRadius="6"
+                            Padding="8,4" Margin="0,0,6,4"
+                            BorderBrush="#444" BorderThickness="1">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Paperclip" Width="12" Height="12"
+                                                     Foreground="#888" VerticalAlignment="Center"
+                                                     Margin="0,0,4,0"/>
+                            <TextBlock Text="{Binding, Converter={StaticResource FileNameConverter},
+                                           FallbackValue='file'}"
+                                       FontSize="11" Foreground="White" MaxWidth="140"
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                            <Button Style="{StaticResource MaterialDesignIconButton}"
+                                    Width="18" Height="18" Padding="0"
+                                    Margin="6,0,0,0"
+                                    Command="{Binding DataContext.RemoveAttachmentCommand,
+                                        RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}">
+                                <materialDesign:PackIcon Kind="Close" Width="10" Height="10"/>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Input row: [📎] [text box] [SEND] -->
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBox x:Name="InputBox"
-                     materialDesign:HintAssist.Hint="Type a message..."
+
+            <!-- FR-CH5: Attach button -->
+            <Button Grid.Column="0"
+                    Command="{Binding AttachFileCommand}"
+                    Style="{StaticResource MaterialDesignIconButton}"
+                    ToolTip="Attach file"
+                    Margin="0,0,6,0">
+                <materialDesign:PackIcon Kind="Paperclip" Width="20" Height="20"/>
+            </Button>
+
+            <TextBox Grid.Column="1"
+                     x:Name="InputBox"
+                     materialDesign:HintAssist.Hint="Type a message…"
                      Text="{Binding UserInput, UpdateSourceTrigger=PropertyChanged}"
                      AcceptsReturn="False"
                      Style="{StaticResource MaterialDesignOutlinedTextBox}"
                      KeyDown="InputBox_KeyDown"/>
-            <Button Grid.Column="1" Content="SEND"
+
+            <Button Grid.Column="2"
+                    Content="SEND"
                     Command="{Binding SendCommand}"
                     Style="{StaticResource MaterialDesignRaisedButton}"
                     Margin="8,0,0,0"
-                    IsEnabled="{Binding IsThinking, Converter={StaticResource InverseBoolConverter}}"/>
+                    IsEnabled="{Binding IsAgentBusy,
+                        Converter={StaticResource InverseBoolConverter}}"/>
         </Grid>
     </Grid>
 </UserControl>

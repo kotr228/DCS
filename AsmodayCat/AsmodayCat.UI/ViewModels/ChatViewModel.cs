@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 using AsmodayCat.Shared.Models;
 using AsmodayCat.UI.Services;
 
@@ -10,75 +12,132 @@ public partial class ChatViewModel : ObservableObject
 {
     private readonly IpcClient _ipc;
 
-    public ObservableCollection<ChatMessage> Messages { get; } = [];
+    // ── Message list ─────────────────────────────────────────────────────────
+    public ObservableCollection<ChatMessageDto> Messages { get; } = [];
 
-    [ObservableProperty] private string _userInput = string.Empty;
-    [ObservableProperty] private bool _isThinking;
-    [ObservableProperty] private string _activeToolName = string.Empty;
+    // ── Input state ───────────────────────────────────────────────────────────
+    [ObservableProperty] private string _userInput    = string.Empty;
+    [ObservableProperty] private bool   _isAgentBusy;
+    [ObservableProperty] private string _agentStateText = string.Empty;
+
+    // ── Pending attachments (FR-CH5/CH6) ─────────────────────────────────────
+    public ObservableCollection<string> PendingAttachments  { get; } = [];
+    public bool HasPendingAttachments => PendingAttachments.Count > 0;
 
     public ChatViewModel(IpcClient ipc)
     {
         _ipc = ipc;
+        PendingAttachments.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasPendingAttachments));
     }
 
-    [RelayCommand]
+    // ── Send (FR-CH1 streaming) ───────────────────────────────────────────────
+
+    [RelayCommand(CanExecute = nameof(CanSend))]
     private async Task SendAsync()
     {
         var text = UserInput.Trim();
-        if (string.IsNullOrEmpty(text)) return;
+        if (string.IsNullOrWhiteSpace(text) && PendingAttachments.Count == 0) return;
+
+        var attachments = PendingAttachments.ToList();
+        var hasImages   = attachments.Any(IsImagePath);
 
         UserInput = string.Empty;
-        Messages.Add(new ChatMessage { Role = "user", Content = text });
+        PendingAttachments.Clear();
 
-        IsThinking = true;
-        ActiveToolName = string.Empty;
+        // Add user message
+        Messages.Add(new ChatMessageDto
+        {
+            Role            = ChatRole.User,
+            Content         = text,
+            AttachmentPaths = attachments
+        });
+
+        // Placeholder assistant message that grows as tokens arrive
+        var assistantMsg = new ChatMessageDto { Role = ChatRole.Assistant };
+        Messages.Add(assistantMsg);
+
+        IsAgentBusy    = true;
+        AgentStateText = "Agent is thinking...";
 
         try
         {
-            var resp = await _ipc.SendCommandAsync(new IpcCommand
+            var parameters = new Dictionary<string, string>
             {
-                Type = IpcCommandType.Chat,
-                Parameters = { ["Message"] = text }
-            });
+                ["Message"]    = text,
+                ["UseVision"]  = hasImages.ToString().ToLowerInvariant(),
+                ["Attachments"] = string.Join(";", attachments)
+            };
 
-            if (resp?.Success == true && resp.Payload.HasValue)
+            await foreach (var chunk in _ipc.StreamCommandAsync(
+                new IpcCommand { Type = IpcCommandType.Chat, Parameters = parameters }))
             {
-                var content = resp.Payload.Value.TryGetProperty("Content", out var c)
-                    ? c.GetString() ?? string.Empty
-                    : string.Empty;
-
-                var toolUsed = resp.Payload.Value.TryGetProperty("ToolUsed", out var t)
-                    ? t.GetString()
-                    : null;
-
-                if (toolUsed != null)
+                if (!string.IsNullOrEmpty(chunk.Error))
                 {
-                    Messages.Add(new ChatMessage
-                    {
-                        Role     = "tool",
-                        Content  = $"Used tool: {toolUsed}",
-                        ToolName = toolUsed
-                    });
+                    assistantMsg.Content += $"\n[Error: {chunk.Error}]";
+                    break;
                 }
 
-                Messages.Add(new ChatMessage { Role = "assistant", Content = content });
-            }
-            else
-            {
-                Messages.Add(new ChatMessage
-                {
-                    Role    = "assistant",
-                    Content = $"[Service offline or error: {resp?.Error}]"
-                });
+                if (chunk.ToolUsed is not null)
+                    AgentStateText = $"Using tool: {chunk.ToolUsed}…";
+
+                if (!string.IsNullOrEmpty(chunk.Chunk))
+                    assistantMsg.Content += chunk.Chunk;
+
+                if (chunk.Done) break;
             }
         }
         finally
         {
-            IsThinking = false;
-            ActiveToolName = string.Empty;
+            IsAgentBusy    = false;
+            AgentStateText = string.Empty;
+        }
+    }
+
+    private bool CanSend() => !IsAgentBusy;
+
+    // Keep CanExecute in sync when IsAgentBusy changes
+    partial void OnIsAgentBusyChanged(bool value) => SendCommand.NotifyCanExecuteChanged();
+
+    // ── Clear (FR-CH4: clears UI + resets service context) ──────────────────
+
+    [RelayCommand]
+    private async Task ClearChatAsync()
+    {
+        Messages.Clear();
+        await _ipc.SendCommandAsync(new IpcCommand { Type = IpcCommandType.ClearContext });
+    }
+
+    // ── Attach file (FR-CH5/CH6) ─────────────────────────────────────────────
+
+    [RelayCommand]
+    private void AttachFile()
+    {
+        var dlg = new OpenFileDialog
+        {
+            Multiselect = true,
+            Title       = "Attach files",
+            Filter      = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.gif|" +
+                          "Documents|*.txt;*.md;*.csv;*.cs;*.py;*.json;*.xml|" +
+                          "All files|*.*"
+        };
+
+        if (dlg.ShowDialog() != true) return;
+
+        foreach (var path in dlg.FileNames)
+        {
+            if (!PendingAttachments.Contains(path))
+                PendingAttachments.Add(path);
         }
     }
 
     [RelayCommand]
-    private void ClearChat() => Messages.Clear();
+    private void RemoveAttachment(string path) => PendingAttachments.Remove(path);
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private static readonly HashSet<string> ImageExtensions =
+        new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
+
+    private static bool IsImagePath(string path) =>
+        ImageExtensions.Contains(Path.GetExtension(path));
 }
