@@ -6,6 +6,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -34,7 +35,21 @@
             </materialDesign:Card>
         </UniformGrid>
 
-        <Button Grid.Row="2" Content="REFRESH"
+        <!-- Kill Switch (FR6.3) -->
+        <materialDesign:Card Grid.Row="2" Padding="12" Margin="0,0,0,12"
+                             Background="#3E1A1A">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="⬛ KILL SWITCH"
+                        Command="{Binding KillAllCommand}"
+                        Background="#C62828" Foreground="White"
+                        Style="{StaticResource MaterialDesignRaisedButton}"
+                        Margin="0,0,12,0"/>
+                <TextBlock Text="{Binding KillSwitchStatus}"
+                           Foreground="#EF9A9A" VerticalAlignment="Center"/>
+            </StackPanel>
+        </materialDesign:Card>
+
+        <Button Grid.Row="3" Content="REFRESH"
                 Command="{Binding RefreshCommand}"
                 HorizontalAlignment="Left"
                 Style="{StaticResource MaterialDesignRaisedButton}"/>

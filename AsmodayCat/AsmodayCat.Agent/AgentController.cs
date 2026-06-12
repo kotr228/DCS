@@ -47,4 +47,16 @@ public class AgentController : IAgentController
         _active.Remove(folderPath);
         return Task.CompletedTask;
     }
+
+    // FR6.3: Kill Switch — зупиняє всі активні агенти та скасовує всі задачі в чергах
+    public Task CancelAllAsync()
+    {
+        foreach (var (_, entry) in _active)
+        {
+            entry.Cts.Cancel();
+            entry.Observer.Dispose();
+        }
+        _active.Clear();
+        return Task.CompletedTask;
+    }
 }

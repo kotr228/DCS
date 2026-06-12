@@ -1,4 +1,5 @@
 using AsmodayCat.Agent.Watchers;
+using AsmodayCat.Shared.Enums;
 using AsmodayCat.Shared.Interfaces;
 using AsmodayCat.Shared.Models;
 
@@ -27,6 +28,7 @@ public class FilePipelineProcessor
             }
             catch (Exception ex)
             {
+                // NFR2: падіння генерації не крашить сервіс — логуємо помилку в артефакт
                 await WriteErrorArtifact(filePath, ex);
             }
         }
@@ -39,26 +41,47 @@ public class FilePipelineProcessor
 
         var request = new LlmRequest
         {
-            Context = config.SystemPrompt,
+            Context = BuildSystemPrompt(config),
             Prompt = content
         };
 
         var response = await _llm.GenerateAsync(request, cancellationToken);
 
-        var outputPath = BuildOutputPath(filePath);
+        var outputPath = BuildOutputPath(filePath, config);
         await File.WriteAllTextAsync(outputPath, response.Content, cancellationToken);
     }
 
-    private static string BuildOutputPath(string inputPath)
+    // FR3.2: системний промпт формується з Action + SystemPrompt папки
+    private static string BuildSystemPrompt(AgentFolderConfig config)
     {
-        var dir = Path.GetDirectoryName(inputPath) ?? ".";
+        var actionInstruction = config.Action switch
+        {
+            AgentAction.CreateReport => "Analyze the following content and create a structured report.",
+            AgentAction.Translate    => "Translate the following content to English.",
+            AgentAction.Refactor     => "Refactor the following code for clarity and performance.",
+            _                        => "Process the following content."
+        };
+
+        return string.IsNullOrWhiteSpace(config.SystemPrompt)
+            ? actionInstruction
+            : $"{actionInstruction}\n\n{config.SystemPrompt}";
+    }
+
+    private static string BuildOutputPath(string inputPath, AgentFolderConfig config)
+    {
+        var outDir = string.IsNullOrWhiteSpace(config.OutputPath)
+            ? Path.GetDirectoryName(inputPath) ?? "."
+            : config.OutputPath;
+
+        Directory.CreateDirectory(outDir);
+
         var nameWithoutExt = Path.GetFileNameWithoutExtension(inputPath);
-        return Path.Combine(dir, $"{nameWithoutExt}.result.txt");
+        return Path.Combine(outDir, $"{nameWithoutExt}.result.txt");
     }
 
     private static async Task WriteErrorArtifact(string filePath, Exception ex)
     {
-        var outputPath = BuildOutputPath(filePath) + ".error";
-        await File.WriteAllTextAsync(outputPath, ex.ToString());
+        var errorPath = Path.ChangeExtension(filePath, ".error.txt");
+        await File.WriteAllTextAsync(errorPath, ex.ToString());
     }
 }

@@ -16,10 +16,17 @@
         <materialDesign:Card Grid.Row="1" Padding="16" Margin="0,0,0,16">
             <StackPanel>
                 <TextBlock Text="Add Watched Folder" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                <TextBox materialDesign:HintAssist.Hint="Folder path (e.g. C:\CatSuite\Tasks)"
+                <TextBox materialDesign:HintAssist.Hint="Input folder path (e.g. C:\CatSuite\Tasks)"
                          Text="{Binding NewFolderPath, UpdateSourceTrigger=PropertyChanged}"
                          Margin="0,0,0,8"/>
-                <TextBox materialDesign:HintAssist.Hint="System prompt for this folder"
+                <TextBox materialDesign:HintAssist.Hint="Output folder path (leave empty = same as input)"
+                         Text="{Binding NewOutputPath, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="0,0,0,8"/>
+                <ComboBox materialDesign:HintAssist.Hint="Action"
+                          ItemsSource="{Binding AvailableActions}"
+                          SelectedItem="{Binding NewAction}"
+                          Margin="0,0,0,8"/>
+                <TextBox materialDesign:HintAssist.Hint="System prompt override (optional)"
                          Text="{Binding NewSystemPrompt, UpdateSourceTrigger=PropertyChanged}"
                          AcceptsReturn="True" Height="60" TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto"

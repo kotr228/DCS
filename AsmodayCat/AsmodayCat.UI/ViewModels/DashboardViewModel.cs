@@ -13,10 +13,18 @@ public partial class DashboardViewModel : ObservableObject
     [ObservableProperty] private double _ramFreeMb;
     [ObservableProperty] private string _serviceStatus = "Unknown";
     [ObservableProperty] private string _activeModel = "—";
+    [ObservableProperty] private string _killSwitchStatus = string.Empty;
 
     public DashboardViewModel(IpcClient ipc)
     {
         _ipc = ipc;
+    }
+
+    [RelayCommand]
+    private async Task KillAllAsync()
+    {
+        var resp = await _ipc.SendCommandAsync(new IpcCommand { Type = IpcCommandType.KillSwitch });
+        KillSwitchStatus = resp?.Success == true ? "All tasks stopped." : $"Error: {resp?.Error}";
     }
 
     [RelayCommand]

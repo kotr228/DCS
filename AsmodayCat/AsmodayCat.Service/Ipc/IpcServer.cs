@@ -1,6 +1,8 @@
+using System.IO;
 using System.IO.Pipes;
 using System.Text.Json;
 using AsmodayCat.Core.Hardware;
+using AsmodayCat.Shared.Enums;
 using AsmodayCat.Shared.Interfaces;
 using AsmodayCat.Shared.Models;
 
@@ -94,6 +96,8 @@ public class IpcServer : BackgroundService
 
                 IpcCommandType.StopAgent => await StopAgentAsync(cmd, cancellationToken),
 
+                IpcCommandType.KillSwitch => await KillSwitchAsync(),
+
                 _ => new IpcResponse { Success = false, Error = $"Unknown command: {cmd.Type}" }
             };
         }
@@ -105,10 +109,20 @@ public class IpcServer : BackgroundService
 
     private async Task<IpcResponse> StartAgentAsync(IpcCommand cmd, CancellationToken cancellationToken)
     {
-        var path = cmd.Parameters.GetValueOrDefault("Path", string.Empty);
-        var prompt = cmd.Parameters.GetValueOrDefault("SystemPrompt", string.Empty);
+        var path       = cmd.Parameters.GetValueOrDefault("Path", string.Empty);
+        var outputPath = cmd.Parameters.GetValueOrDefault("OutputPath", string.Empty);
+        var prompt     = cmd.Parameters.GetValueOrDefault("SystemPrompt", string.Empty);
+        var actionStr  = cmd.Parameters.GetValueOrDefault("Action", nameof(AgentAction.CreateReport));
 
-        var config = new AgentFolderConfig { Path = path, SystemPrompt = prompt };
+        Enum.TryParse<AgentAction>(actionStr, out var action);
+
+        var config = new AgentFolderConfig
+        {
+            Path         = path,
+            OutputPath   = outputPath,
+            SystemPrompt = prompt,
+            Action       = action
+        };
         await _agent.StartWatching(config, cancellationToken);
         return new IpcResponse { Success = true };
     }
@@ -117,6 +131,13 @@ public class IpcServer : BackgroundService
     {
         var path = cmd.Parameters.GetValueOrDefault("Path", string.Empty);
         await _agent.StopWatching(path, cancellationToken);
+        return new IpcResponse { Success = true };
+    }
+
+    private async Task<IpcResponse> KillSwitchAsync()
+    {
+        _logger.LogWarning("Kill Switch activated — cancelling all tasks");
+        await _agent.CancelAllAsync();
         return new IpcResponse { Success = true };
     }
 }

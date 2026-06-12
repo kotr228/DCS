@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using AsmodayCat.Shared.Enums;
 using AsmodayCat.Shared.Models;
 using AsmodayCat.UI.Services;
 
@@ -11,10 +12,13 @@ public partial class AgentRulesViewModel : ObservableObject
     private readonly IpcClient _ipc;
 
     public ObservableCollection<AgentFolderConfig> WatchedFolders { get; } = [];
+    public IReadOnlyList<AgentAction> AvailableActions { get; } = Enum.GetValues<AgentAction>();
 
     [ObservableProperty] private string _newFolderPath = string.Empty;
+    [ObservableProperty] private string _newOutputPath = string.Empty;
     [ObservableProperty] private string _newSystemPrompt = string.Empty;
     [ObservableProperty] private string _newExtensions = ".txt,.md,.pdf";
+    [ObservableProperty] private AgentAction _newAction = AgentAction.CreateReport;
     [ObservableProperty] private string _statusMessage = string.Empty;
 
     public AgentRulesViewModel(IpcClient ipc)
@@ -32,8 +36,10 @@ public partial class AgentRulesViewModel : ObservableObject
             Type = IpcCommandType.StartAgent,
             Parameters =
             {
-                ["Path"] = NewFolderPath,
-                ["SystemPrompt"] = NewSystemPrompt
+                ["Path"]         = NewFolderPath,
+                ["OutputPath"]   = NewOutputPath,
+                ["SystemPrompt"] = NewSystemPrompt,
+                ["Action"]       = NewAction.ToString()
             }
         });
 
@@ -41,15 +47,18 @@ public partial class AgentRulesViewModel : ObservableObject
         {
             WatchedFolders.Add(new AgentFolderConfig
             {
-                Path = NewFolderPath,
+                Path        = NewFolderPath,
+                OutputPath  = NewOutputPath,
                 SystemPrompt = NewSystemPrompt,
+                Action      = NewAction,
                 FileExtensionsAllowed = NewExtensions
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                     .ToList()
             });
-            NewFolderPath = string.Empty;
+            NewFolderPath  = string.Empty;
+            NewOutputPath  = string.Empty;
             NewSystemPrompt = string.Empty;
-            StatusMessage = "Agent started.";
+            StatusMessage  = "Agent started.";
         }
         else
         {
