@@ -8,7 +8,7 @@ using AsmodayCat.Service.Ipc;
 using AsmodayCat.Shared.Interfaces;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Host.UseWindowsService(options =>
+builder.Services.AddWindowsService(options =>
 {
     options.ServiceName = "AsmodayCat";
 });
