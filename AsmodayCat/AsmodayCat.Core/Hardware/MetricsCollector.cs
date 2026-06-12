@@ -55,7 +55,7 @@ public class MetricsCollector
             CpuLoadPercent   = status.CpuLoad,
             RamFreeMb        = status.RamFree / 1024 / 1024,
             RamTotalMb       = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024,
-            GpuLoadPercent   = _gpuHistory.Last?.Value ?? 0,
+            GpuLoadPercent   = _gpuHistory.Count > 0 ? _gpuHistory.Last.Value : 0,
             VramUsedMb       = _resources.GetTotalVramUsedMb(),
             VramTotalMb      = 8192, // Placeholder — замінюється NVML
             ActiveModelName   = ActiveModelName,
