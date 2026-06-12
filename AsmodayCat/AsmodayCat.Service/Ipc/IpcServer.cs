@@ -1,6 +1,7 @@
 using System.IO;
 using System.IO.Pipes;
 using System.Text.Json;
+using AsmodayCat.Core.Engine;
 using AsmodayCat.Core.Hardware;
 using AsmodayCat.Shared.Enums;
 using AsmodayCat.Shared.Interfaces;
@@ -15,18 +16,24 @@ public class IpcServer : BackgroundService
     private readonly IAgentController _agent;
     private readonly IHardwareScanner _hardware;
     private readonly ResourceManager _resources;
+    private readonly IModelRegistry _modelRegistry;
+    private readonly PullStatusStore _pullStatus;
     private readonly ILogger<IpcServer> _logger;
 
     public IpcServer(
         IAgentController agent,
         IHardwareScanner hardware,
         ResourceManager resources,
+        IModelRegistry modelRegistry,
+        PullStatusStore pullStatus,
         ILogger<IpcServer> logger)
     {
-        _agent = agent;
-        _hardware = hardware;
-        _resources = resources;
-        _logger = logger;
+        _agent         = agent;
+        _hardware      = hardware;
+        _resources     = resources;
+        _modelRegistry = modelRegistry;
+        _pullStatus    = pullStatus;
+        _logger        = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -80,24 +87,14 @@ public class IpcServer : BackgroundService
         {
             return cmd.Type switch
             {
-                IpcCommandType.GetStatus => new IpcResponse
-                {
-                    Success = true,
-                    Payload = new { Status = "Running" }
-                },
-
-                IpcCommandType.GetSystemLoad => new IpcResponse
-                {
-                    Success = true,
-                    Payload = _resources.GetCurrentStatus()
-                },
-
-                IpcCommandType.StartAgent => await StartAgentAsync(cmd, cancellationToken),
-
-                IpcCommandType.StopAgent => await StopAgentAsync(cmd, cancellationToken),
-
-                IpcCommandType.KillSwitch => await KillSwitchAsync(),
-
+                IpcCommandType.GetStatus    => new IpcResponse { Success = true, Payload = new { Status = "Running" } },
+                IpcCommandType.GetSystemLoad => new IpcResponse { Success = true, Payload = _resources.GetCurrentStatus() },
+                IpcCommandType.StartAgent   => await StartAgentAsync(cmd, cancellationToken),
+                IpcCommandType.StopAgent    => await StopAgentAsync(cmd, cancellationToken),
+                IpcCommandType.KillSwitch   => await KillSwitchAsync(),
+                IpcCommandType.ListModels   => await ListModelsAsync(cancellationToken),
+                IpcCommandType.PullModel    => PullModelBackground(cmd),
+                IpcCommandType.GetPullStatus => GetPullStatus(cmd),
                 _ => new IpcResponse { Success = false, Error = $"Unknown command: {cmd.Type}" }
             };
         }
@@ -139,5 +136,42 @@ public class IpcServer : BackgroundService
         _logger.LogWarning("Kill Switch activated — cancelling all tasks");
         await _agent.CancelAllAsync();
         return new IpcResponse { Success = true };
+    }
+
+    private async Task<IpcResponse> ListModelsAsync(CancellationToken cancellationToken)
+    {
+        var local    = await _modelRegistry.GetLocalModelsAsync(cancellationToken);
+        var poolInfo = ModelPoolConfig.DefaultPool.Select(m => new
+        {
+            m.ModelId,
+            m.TaskType,
+            m.RequiredVramMb,
+            m.Description,
+            IsLocal = local.Any(l => l.StartsWith(m.ModelId, StringComparison.OrdinalIgnoreCase))
+        });
+        return new IpcResponse { Success = true, Payload = poolInfo };
+    }
+
+    // FR8.2: запуск pull у фоні, відповідь миттєва — UI опитує GetPullStatus
+    private IpcResponse PullModelBackground(IpcCommand cmd)
+    {
+        var modelId = cmd.Parameters.GetValueOrDefault("ModelId", string.Empty);
+        if (string.IsNullOrEmpty(modelId))
+            return new IpcResponse { Success = false, Error = "ModelId required" };
+
+        var progress = new Progress<ModelPullProgress>(_pullStatus.Update);
+        _ = _modelRegistry.PullModelAsync(modelId, progress);
+
+        return new IpcResponse { Success = true, Payload = new { modelId, status = "pulling" } };
+    }
+
+    private IpcResponse GetPullStatus(IpcCommand cmd)
+    {
+        var modelId = cmd.Parameters.GetValueOrDefault("ModelId", string.Empty);
+
+        if (!string.IsNullOrEmpty(modelId))
+            return new IpcResponse { Success = true, Payload = _pullStatus.Get(modelId) };
+
+        return new IpcResponse { Success = true, Payload = _pullStatus.GetAll() };
     }
 }

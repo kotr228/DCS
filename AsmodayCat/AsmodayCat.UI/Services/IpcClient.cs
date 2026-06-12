@@ -12,7 +12,10 @@ public enum IpcCommandType
     ChangeHardwareModel,
     GetSystemLoad,
     KillSwitch,
-    Chat
+    Chat,
+    PullModel,
+    GetPullStatus,
+    ListModels
 }
 
 public class IpcCommand

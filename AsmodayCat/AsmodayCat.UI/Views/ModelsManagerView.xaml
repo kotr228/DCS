@@ -8,22 +8,53 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="HARDWARE" FontSize="18" FontWeight="Bold"
-                   Foreground="#B39DDB" Margin="0,0,0,16"/>
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
+            <TextBlock Text="MODEL POOL" FontSize="18" FontWeight="Bold"
+                       Foreground="#B39DDB" VerticalAlignment="Center"/>
+            <Button Content="REFRESH" Command="{Binding RefreshCommand}"
+                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                    Margin="12,0,0,0" Height="28" Padding="8,0"/>
+        </StackPanel>
 
-        <materialDesign:Card Grid.Row="1" Padding="16">
-            <StackPanel>
-                <TextBlock Text="Execution Device" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                <ComboBox ItemsSource="{Binding AvailableDevices}"
-                          SelectedItem="{Binding SelectedDevice}"
-                          Margin="0,0,0,12"/>
-                <Button Content="APPLY"
-                        Command="{Binding ApplyDeviceCommand}"
-                        HorizontalAlignment="Left"
-                        Style="{StaticResource MaterialDesignRaisedButton}"/>
-                <TextBlock Text="{Binding StatusMessage}"
-                           Foreground="#A5D6A7" Margin="0,8,0,0"/>
-            </StackPanel>
-        </materialDesign:Card>
+        <!-- Models list -->
+        <DataGrid Grid.Row="1"
+                  ItemsSource="{Binding Models}"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  IsReadOnly="True"
+                  Background="Transparent"
+                  BorderThickness="0">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Model"    Binding="{Binding ModelId}"       Width="180"/>
+                <DataGridTextColumn Header="Task"     Binding="{Binding TaskType}"      Width="140"/>
+                <DataGridTextColumn Header="VRAM MB"  Binding="{Binding RequiredVramMb}" Width="80"/>
+                <DataGridTextColumn Header="Status"   Binding="{Binding Status}"        Width="120"/>
+                <DataGridTemplateColumn Header="Progress" Width="120">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <ProgressBar Value="{Binding PullPercent}" Maximum="100"
+                                         Height="8" Margin="4,0"
+                                         Visibility="{Binding IsLocal, Converter={StaticResource BoolToVisConverter},
+                                                      ConverterParameter=inverse}"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Action" Width="90">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button Content="PULL"
+                                    Command="{Binding DataContext.PullModelCommand,
+                                              RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                    CommandParameter="{Binding}"
+                                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                                    Visibility="{Binding IsLocal, Converter={StaticResource BoolToVisConverter},
+                                                 ConverterParameter=inverse}"
+                                    Height="24" Padding="6,0" FontSize="10"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
     </Grid>
 </UserControl>

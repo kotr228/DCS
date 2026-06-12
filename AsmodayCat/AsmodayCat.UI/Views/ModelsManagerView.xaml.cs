@@ -5,9 +5,10 @@ namespace AsmodayCat.UI.Views;
 
 public partial class ModelsManagerView : UserControl
 {
-    public ModelsManagerView(HardwareViewModel vm)
+    public ModelsManagerView(ModelsManagerViewModel vm)
     {
         InitializeComponent();
         DataContext = vm;
+        _ = vm.RefreshCommand.ExecuteAsync(null);
     }
 }

@@ -48,6 +48,7 @@ public partial class MainWindow : Window
             "AgentRules" => App.Services.GetRequiredService<AgentRulesView>(),
             "Terminal"   => App.Services.GetRequiredService<TerminalView>(),
             "Chat"       => App.Services.GetRequiredService<ChatView>(),
+            "Models"     => App.Services.GetRequiredService<ModelsManagerView>(),
             _            => null
         };
     }

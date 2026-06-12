@@ -23,10 +23,16 @@ builder.Services.AddSingleton(_ =>
 });
 builder.Services.AddSingleton<OllamaClient>();
 builder.Services.AddSingleton<ILLMEngine>(sp => sp.GetRequiredService<OllamaClient>());
+builder.Services.AddSingleton<IModelRegistry, ModelRegistryClient>();
+builder.Services.AddSingleton<ModelSwitcher>();
+builder.Services.AddSingleton<SmartRouter>();
 
 // Agent
 builder.Services.AddSingleton<AccessManager>();
 builder.Services.AddSingleton<IAgentController, AgentController>();
+
+// IPC infrastructure
+builder.Services.AddSingleton<PullStatusStore>();
 
 // Hosted services
 builder.Services.AddHostedService<Worker>();
