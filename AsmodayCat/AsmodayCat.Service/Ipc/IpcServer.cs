@@ -13,17 +13,19 @@ public class IpcServer : BackgroundService
 {
     public const string PipeName = "AsmodayCat.Service";
 
-    private readonly IAgentController _agent;
-    private readonly IHardwareScanner _hardware;
-    private readonly ResourceManager _resources;
-    private readonly IModelRegistry _modelRegistry;
-    private readonly PullStatusStore _pullStatus;
+    private readonly IAgentController  _agent;
+    private readonly IHardwareScanner  _hardware;
+    private readonly ResourceManager   _resources;
+    private readonly MetricsCollector  _metrics;
+    private readonly IModelRegistry    _modelRegistry;
+    private readonly PullStatusStore   _pullStatus;
     private readonly ILogger<IpcServer> _logger;
 
     public IpcServer(
         IAgentController agent,
         IHardwareScanner hardware,
         ResourceManager resources,
+        MetricsCollector metrics,
         IModelRegistry modelRegistry,
         PullStatusStore pullStatus,
         ILogger<IpcServer> logger)
@@ -31,6 +33,7 @@ public class IpcServer : BackgroundService
         _agent         = agent;
         _hardware      = hardware;
         _resources     = resources;
+        _metrics       = metrics;
         _modelRegistry = modelRegistry;
         _pullStatus    = pullStatus;
         _logger        = logger;
@@ -92,9 +95,10 @@ public class IpcServer : BackgroundService
                 IpcCommandType.StartAgent   => await StartAgentAsync(cmd, cancellationToken),
                 IpcCommandType.StopAgent    => await StopAgentAsync(cmd, cancellationToken),
                 IpcCommandType.KillSwitch   => await KillSwitchAsync(),
-                IpcCommandType.ListModels   => await ListModelsAsync(cancellationToken),
-                IpcCommandType.PullModel    => PullModelBackground(cmd),
-                IpcCommandType.GetPullStatus => GetPullStatus(cmd),
+                IpcCommandType.ListModels        => await ListModelsAsync(cancellationToken),
+                IpcCommandType.PullModel         => PullModelBackground(cmd),
+                IpcCommandType.GetPullStatus     => GetPullStatus(cmd),
+                IpcCommandType.GetDashboardStats => GetDashboardStats(),
                 _ => new IpcResponse { Success = false, Error = $"Unknown command: {cmd.Type}" }
             };
         }
@@ -173,5 +177,11 @@ public class IpcServer : BackgroundService
             return new IpcResponse { Success = true, Payload = _pullStatus.Get(modelId) };
 
         return new IpcResponse { Success = true, Payload = _pullStatus.GetAll() };
+    }
+
+    private IpcResponse GetDashboardStats()
+    {
+        var dto = _metrics.GetSnapshot(availableNodes: 0);
+        return new IpcResponse { Success = true, Payload = dto };
     }
 }

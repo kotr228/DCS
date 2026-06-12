@@ -15,6 +15,7 @@ builder.Services.AddWindowsService(options =>
 
 // Core
 builder.Services.AddSingleton<ResourceManager>();
+builder.Services.AddSingleton<MetricsCollector>();
 builder.Services.AddSingleton<IHardwareScanner, HardwareScanner>();
 builder.Services.AddSingleton(_ =>
 {

@@ -11,7 +11,8 @@ public enum IpcCommandType
     Chat,
     PullModel,
     GetPullStatus,
-    ListModels
+    ListModels,
+    GetDashboardStats
 }
 
 public class IpcCommand

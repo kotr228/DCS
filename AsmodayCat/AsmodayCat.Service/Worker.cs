@@ -4,14 +4,20 @@ namespace AsmodayCat.Service;
 
 public class Worker : BackgroundService
 {
-    private readonly ResourceManager _resources;
-    private readonly ILogger<Worker> _logger;
+    private readonly ResourceManager  _resources;
+    private readonly MetricsCollector _metrics;
+    private readonly ILogger<Worker>  _logger;
+
+    private static readonly TimeSpan TickInterval      = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(30);
 
-    public Worker(ResourceManager resources, ILogger<Worker> logger)
+    private int _tickCount;
+
+    public Worker(ResourceManager resources, MetricsCollector metrics, ILogger<Worker> logger)
     {
         _resources = resources;
-        _logger = logger;
+        _metrics   = metrics;
+        _logger    = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -20,14 +26,19 @@ public class Worker : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var status = _resources.GetCurrentStatus();
-            _logger.LogInformation(
-                "Heartbeat | CPU: {Cpu:F1}% | RAM free: {Ram} MB | VRAM used: {Vram} MB",
-                status.CpuLoad,
-                status.RamFree / 1024 / 1024,
-                _resources.GetTotalVramUsedMb());
+            _metrics.Tick();
 
-            await Task.Delay(HeartbeatInterval, stoppingToken);
+            if (++_tickCount % 30 == 0)
+            {
+                var status = _resources.GetCurrentStatus();
+                _logger.LogInformation(
+                    "Heartbeat | CPU: {Cpu:F1}% | RAM free: {Ram} MB | VRAM used: {Vram} MB",
+                    status.CpuLoad,
+                    status.RamFree / 1024 / 1024,
+                    _resources.GetTotalVramUsedMb());
+            }
+
+            await Task.Delay(TickInterval, stoppingToken);
         }
 
         _logger.LogInformation("AsmodayCat Service stopped");
