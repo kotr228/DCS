@@ -1,6 +1,7 @@
 using System.IO;
 using System.IO.Pipes;
 using System.Text.Json;
+using AsmodayCat.Core.Data.Repositories;
 using AsmodayCat.Core.Engine;
 using AsmodayCat.Core.Hardware;
 using AsmodayCat.Shared.Enums;
@@ -21,28 +22,28 @@ public class IpcServer : BackgroundService
     private readonly ILLMEngine          _llmEngine;
     private readonly ModelSwitcher       _modelSwitcher;
     private readonly IModelRegistry      _modelRegistry;
-    private readonly PullStatusStore     _pullStatus;
-    private readonly HardwareConfigStore _hwConfigStore;
-    private readonly AgentRuleStore      _ruleStore;
-    private readonly TerminalLogStore    _logStore;
-    private readonly ILogger<IpcServer>  _logger;
+    private readonly PullStatusStore              _pullStatus;
+    private readonly HardwareSettingsRepository   _hwRepo;
+    private readonly AgentWorkspaceRepository     _workspaceRepo;
+    private readonly TerminalLogStore             _logStore;
+    private readonly ILogger<IpcServer>           _logger;
 
     private static readonly JsonSerializerOptions _jsonOpts =
         new() { PropertyNameCaseInsensitive = true };
 
     public IpcServer(
-        IAgentController    agent,
-        IHardwareScanner    hardware,
-        ResourceManager     resources,
-        MetricsCollector    metrics,
-        ILLMEngine          llmEngine,
-        ModelSwitcher       modelSwitcher,
-        IModelRegistry      modelRegistry,
-        PullStatusStore     pullStatus,
-        HardwareConfigStore hwConfigStore,
-        AgentRuleStore      ruleStore,
-        TerminalLogStore    logStore,
-        ILogger<IpcServer>  logger)
+        IAgentController          agent,
+        IHardwareScanner          hardware,
+        ResourceManager           resources,
+        MetricsCollector          metrics,
+        ILLMEngine                llmEngine,
+        ModelSwitcher             modelSwitcher,
+        IModelRegistry            modelRegistry,
+        PullStatusStore           pullStatus,
+        HardwareSettingsRepository hwRepo,
+        AgentWorkspaceRepository  workspaceRepo,
+        TerminalLogStore          logStore,
+        ILogger<IpcServer>        logger)
     {
         _agent         = agent;
         _hardware      = hardware;
@@ -52,8 +53,8 @@ public class IpcServer : BackgroundService
         _modelSwitcher = modelSwitcher;
         _modelRegistry = modelRegistry;
         _pullStatus    = pullStatus;
-        _hwConfigStore = hwConfigStore;
-        _ruleStore     = ruleStore;
+        _hwRepo        = hwRepo;
+        _workspaceRepo = workspaceRepo;
         _logStore      = logStore;
         _logger        = logger;
     }
@@ -321,10 +322,10 @@ public class IpcServer : BackgroundService
         return new IpcResponse { Success = true };
     }
 
-    // FR-A1..A4: agent rule management
+    // FR-A1..A4: agent rule management (SQLite-backed)
     private IpcResponse GetAgentRules()
     {
-        return new IpcResponse { Success = true, Payload = _ruleStore.GetAll() };
+        return new IpcResponse { Success = true, Payload = _workspaceRepo.GetAll() };
     }
 
     private async Task<IpcResponse> AddAgentRuleAsync(IpcCommand cmd, CancellationToken ct)
@@ -354,7 +355,8 @@ public class IpcServer : BackgroundService
         };
 
         await _agent.StartWatching(config, ct);
-        _ruleStore.Add(rule);
+        rule.IsActive = true;
+        _workspaceRepo.Add(rule);
 
         return new IpcResponse { Success = true, Payload = rule };
     }
@@ -365,11 +367,11 @@ public class IpcServer : BackgroundService
         if (!Guid.TryParse(idStr, out var id))
             return new IpcResponse { Success = false, Error = "Valid Id required" };
 
-        var rule = _ruleStore.Get(id);
+        var rule = _workspaceRepo.Get(id);
         if (rule is not null)
             await _agent.StopWatching(rule.InputPath, ct);
 
-        _ruleStore.Remove(id);
+        _workspaceRepo.Delete(id);
         return new IpcResponse { Success = true };
     }
 
@@ -418,10 +420,10 @@ public class IpcServer : BackgroundService
         return "Terminal buffer cleared.";
     }
 
-    // FR-H5: hardware config persistence
+    // FR-H5: hardware config persistence (SQLite-backed)
     private IpcResponse GetHardwareConfig()
     {
-        return new IpcResponse { Success = true, Payload = _hwConfigStore.Current };
+        return new IpcResponse { Success = true, Payload = _hwRepo.GetConfig() };
     }
 
     private IpcResponse SaveHardwareConfig(IpcCommand cmd)
@@ -434,7 +436,7 @@ public class IpcServer : BackgroundService
         if (config is null)
             return new IpcResponse { Success = false, Error = "Invalid config JSON" };
 
-        _hwConfigStore.Save(config);
+        _hwRepo.SaveConfig(config);
         _llmEngine.Configure(config);
         return new IpcResponse { Success = true };
     }
