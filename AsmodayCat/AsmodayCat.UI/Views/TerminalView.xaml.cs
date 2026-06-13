@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using AsmodayCat.UI.ViewModels;
 
 namespace AsmodayCat.UI.Views;
@@ -14,13 +15,12 @@ public partial class TerminalView : UserControl
         _vm = vm;
         DataContext = vm;
 
-        vm.Lines.CollectionChanged += OnLinesChanged;
+        vm.AllLogs.CollectionChanged += OnLogsChanged;
     }
 
-    private void OnLinesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    private void OnLogsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (!_vm.AutoScroll) return;
-        if (LogList.Items.Count == 0) return;
-        LogList.ScrollIntoView(LogList.Items[^1]);
+        Dispatcher.InvokeAsync(Scroller.ScrollToBottom, DispatcherPriority.Background);
     }
 }

@@ -36,6 +36,8 @@ builder.Services.AddSingleton<IAgentController, AgentController>();
 builder.Services.AddSingleton<PullStatusStore>();
 builder.Services.AddSingleton<HardwareConfigStore>();
 builder.Services.AddSingleton<AgentRuleStore>();
+builder.Services.AddSingleton<TerminalLogStore>();
+builder.Services.AddSingleton<ILoggerProvider, TerminalLoggerProvider>();
 
 // Hosted services
 builder.Services.AddHostedService<Worker>();

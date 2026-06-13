@@ -24,6 +24,7 @@ public class IpcServer : BackgroundService
     private readonly PullStatusStore     _pullStatus;
     private readonly HardwareConfigStore _hwConfigStore;
     private readonly AgentRuleStore      _ruleStore;
+    private readonly TerminalLogStore    _logStore;
     private readonly ILogger<IpcServer>  _logger;
 
     private static readonly JsonSerializerOptions _jsonOpts =
@@ -40,6 +41,7 @@ public class IpcServer : BackgroundService
         PullStatusStore     pullStatus,
         HardwareConfigStore hwConfigStore,
         AgentRuleStore      ruleStore,
+        TerminalLogStore    logStore,
         ILogger<IpcServer>  logger)
     {
         _agent         = agent;
@@ -52,6 +54,7 @@ public class IpcServer : BackgroundService
         _pullStatus    = pullStatus;
         _hwConfigStore = hwConfigStore;
         _ruleStore     = ruleStore;
+        _logStore      = logStore;
         _logger        = logger;
     }
 
@@ -130,6 +133,8 @@ public class IpcServer : BackgroundService
                 IpcCommandType.GetAgentRules      => GetAgentRules(),
                 IpcCommandType.AddAgentRule       => await AddAgentRuleAsync(cmd, ct),
                 IpcCommandType.RemoveAgentRule    => await RemoveAgentRuleAsync(cmd, ct),
+                IpcCommandType.GetLogs            => GetLogs(cmd),
+                IpcCommandType.ExecuteCliCommand  => await ExecuteCliCommandAsync(cmd, ct),
                 _ => new IpcResponse { Success = false, Error = $"Unknown command: {cmd.Type}" }
             };
         }
@@ -366,6 +371,51 @@ public class IpcServer : BackgroundService
 
         _ruleStore.Remove(id);
         return new IpcResponse { Success = true };
+    }
+
+    // FR-T1..T3: terminal log access & CLI
+    private IpcResponse GetLogs(IpcCommand cmd)
+    {
+        int.TryParse(cmd.Parameters.GetValueOrDefault("Offset", "0"), out var offset);
+        return new IpcResponse { Success = true, Payload = _logStore.GetFrom(offset) };
+    }
+
+    private async Task<IpcResponse> ExecuteCliCommandAsync(IpcCommand cmd, CancellationToken ct)
+    {
+        var raw   = cmd.Parameters.GetValueOrDefault("Command", string.Empty).Trim();
+        var input = raw.StartsWith('/') ? raw : "/" + raw;
+        var verb  = input.Split(' ')[0].ToLowerInvariant();
+
+        var response = verb switch
+        {
+            "/ping"     => "PONG — AsmodayCat.Service is alive",
+            "/help"     => "Available: /ping /status /kill_all /clear /help",
+            "/status"   => $"Running | model: {(_metrics.ActiveModelName is { Length: > 0 } m ? m : "none")} | logs: {_logStore.Count}",
+            "/kill_all" => await KillAllCliAsync(ct),
+            "/clear"    => ClearLogsCliAsync(),
+            _           => $"Unknown command '{verb}'. Type /help for usage."
+        };
+
+        _logStore.Add(new Shared.Models.LogEntryDto
+        {
+            Level   = Shared.Models.LogEntryLevel.System,
+            Message = response,
+            Source  = "CLI"
+        });
+
+        return new IpcResponse { Success = true, Payload = new { response } };
+    }
+
+    private async Task<string> KillAllCliAsync(CancellationToken ct)
+    {
+        await _agent.CancelAllAsync();
+        return "All active agents cancelled.";
+    }
+
+    private string ClearLogsCliAsync()
+    {
+        _logStore.Clear();
+        return "Terminal buffer cleared.";
     }
 
     // FR-H5: hardware config persistence

@@ -26,7 +26,9 @@ public enum IpcCommandType
     SaveHardwareConfig,
     GetAgentRules,
     AddAgentRule,
-    RemoveAgentRule
+    RemoveAgentRule,
+    GetLogs,
+    ExecuteCliCommand
 }
 
 public class IpcCommand
