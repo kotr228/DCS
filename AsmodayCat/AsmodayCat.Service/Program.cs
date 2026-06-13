@@ -35,6 +35,7 @@ builder.Services.AddSingleton<IAgentController, AgentController>();
 // IPC infrastructure
 builder.Services.AddSingleton<PullStatusStore>();
 builder.Services.AddSingleton<HardwareConfigStore>();
+builder.Services.AddSingleton<AgentRuleStore>();
 
 // Hosted services
 builder.Services.AddHostedService<Worker>();

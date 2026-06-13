@@ -1,3 +1,4 @@
+using System.Text;
 using AsmodayCat.Agent.Watchers;
 using AsmodayCat.Shared.Enums;
 using AsmodayCat.Shared.Interfaces;
@@ -51,7 +52,7 @@ public class FilePipelineProcessor
         await File.WriteAllTextAsync(outputPath, response.Content, cancellationToken);
     }
 
-    // FR3.2: системний промпт формується з Action + SystemPrompt папки
+    // FR3.2 / FR-A2: системний промпт формується з Action + SystemPrompt + internet access hint
     private static string BuildSystemPrompt(AgentFolderConfig config)
     {
         var actionInstruction = config.Action switch
@@ -62,9 +63,15 @@ public class FilePipelineProcessor
             _                        => "Process the following content."
         };
 
-        return string.IsNullOrWhiteSpace(config.SystemPrompt)
-            ? actionInstruction
-            : $"{actionInstruction}\n\n{config.SystemPrompt}";
+        var sb = new StringBuilder(actionInstruction);
+
+        if (!string.IsNullOrWhiteSpace(config.SystemPrompt))
+            sb.Append($"\n\n{config.SystemPrompt}");
+
+        if (config.AllowInternetAccess)
+            sb.Append("\n\nYou have access to WebSearchTool. Use it to retrieve current information from the internet when needed.");
+
+        return sb.ToString();
     }
 
     private static string BuildOutputPath(string inputPath, AgentFolderConfig config)

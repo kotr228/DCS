@@ -23,6 +23,7 @@ public class IpcServer : BackgroundService
     private readonly IModelRegistry      _modelRegistry;
     private readonly PullStatusStore     _pullStatus;
     private readonly HardwareConfigStore _hwConfigStore;
+    private readonly AgentRuleStore      _ruleStore;
     private readonly ILogger<IpcServer>  _logger;
 
     private static readonly JsonSerializerOptions _jsonOpts =
@@ -38,6 +39,7 @@ public class IpcServer : BackgroundService
         IModelRegistry      modelRegistry,
         PullStatusStore     pullStatus,
         HardwareConfigStore hwConfigStore,
+        AgentRuleStore      ruleStore,
         ILogger<IpcServer>  logger)
     {
         _agent         = agent;
@@ -49,6 +51,7 @@ public class IpcServer : BackgroundService
         _modelRegistry = modelRegistry;
         _pullStatus    = pullStatus;
         _hwConfigStore = hwConfigStore;
+        _ruleStore     = ruleStore;
         _logger        = logger;
     }
 
@@ -122,8 +125,11 @@ public class IpcServer : BackgroundService
                 IpcCommandType.ClearContext      => ClearContextCmd(),
                 IpcCommandType.GetModelPool      => await GetModelPoolAsync(ct),
                 IpcCommandType.UnloadModel       => await UnloadModelAsync(ct),
-                IpcCommandType.GetHardwareConfig => GetHardwareConfig(),
+                IpcCommandType.GetHardwareConfig  => GetHardwareConfig(),
                 IpcCommandType.SaveHardwareConfig => SaveHardwareConfig(cmd),
+                IpcCommandType.GetAgentRules      => GetAgentRules(),
+                IpcCommandType.AddAgentRule       => await AddAgentRuleAsync(cmd, ct),
+                IpcCommandType.RemoveAgentRule    => await RemoveAgentRuleAsync(cmd, ct),
                 _ => new IpcResponse { Success = false, Error = $"Unknown command: {cmd.Type}" }
             };
         }
@@ -307,6 +313,58 @@ public class IpcServer : BackgroundService
         await _llmEngine.UnloadAsync(ct);
         _metrics.ActiveModelName   = string.Empty;
         _metrics.ActiveModelStatus = "Idle";
+        return new IpcResponse { Success = true };
+    }
+
+    // FR-A1..A4: agent rule management
+    private IpcResponse GetAgentRules()
+    {
+        return new IpcResponse { Success = true, Payload = _ruleStore.GetAll() };
+    }
+
+    private async Task<IpcResponse> AddAgentRuleAsync(IpcCommand cmd, CancellationToken ct)
+    {
+        var json = cmd.Parameters.GetValueOrDefault("Rule", string.Empty);
+        if (string.IsNullOrEmpty(json))
+            return new IpcResponse { Success = false, Error = "Rule payload required" };
+
+        var rule = JsonSerializer.Deserialize<AgentRuleDto>(json, _jsonOpts);
+        if (rule is null)
+            return new IpcResponse { Success = false, Error = "Invalid rule JSON" };
+
+        Enum.TryParse<AgentAction>(rule.ActionType, out var action);
+
+        var extList = rule.AllowedExtensions
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+        var config = new AgentFolderConfig
+        {
+            Path                  = rule.InputPath,
+            OutputPath            = rule.OutputPath,
+            SystemPrompt          = rule.SystemPrompt,
+            Action                = action,
+            FileExtensionsAllowed = extList,
+            AllowInternetAccess   = rule.AllowInternetAccess
+        };
+
+        await _agent.StartWatching(config, ct);
+        _ruleStore.Add(rule);
+
+        return new IpcResponse { Success = true, Payload = rule };
+    }
+
+    private async Task<IpcResponse> RemoveAgentRuleAsync(IpcCommand cmd, CancellationToken ct)
+    {
+        var idStr = cmd.Parameters.GetValueOrDefault("Id", string.Empty);
+        if (!Guid.TryParse(idStr, out var id))
+            return new IpcResponse { Success = false, Error = "Valid Id required" };
+
+        var rule = _ruleStore.Get(id);
+        if (rule is not null)
+            await _agent.StopWatching(rule.InputPath, ct);
+
+        _ruleStore.Remove(id);
         return new IpcResponse { Success = true };
     }
 

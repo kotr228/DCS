@@ -9,4 +9,5 @@ public class AgentFolderConfig
     public string SystemPrompt { get; set; } = string.Empty;
     public List<string> FileExtensionsAllowed { get; set; } = [];
     public AgentAction Action { get; set; } = AgentAction.CreateReport;
+    public bool AllowInternetAccess { get; set; }
 }

@@ -23,7 +23,10 @@ public enum IpcCommandType
     GetModelPool,
     UnloadModel,
     GetHardwareConfig,
-    SaveHardwareConfig
+    SaveHardwareConfig,
+    GetAgentRules,
+    AddAgentRule,
+    RemoveAgentRule
 }
 
 public class IpcCommand

@@ -50,6 +50,7 @@ public sealed class FolderObserver : IDisposable
     private bool IsAllowed(string path)
     {
         if (Config.FileExtensionsAllowed.Count == 0) return true;
+        if (Config.FileExtensionsAllowed.Any(e => e is "*.*" or "*")) return true;
         var ext = Path.GetExtension(path);
         return Config.FileExtensionsAllowed.Contains(ext, StringComparer.OrdinalIgnoreCase);
     }
