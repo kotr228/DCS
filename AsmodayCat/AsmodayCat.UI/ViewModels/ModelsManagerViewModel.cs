@@ -1,103 +1,192 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using AsmodayCat.Shared.Models;
 using AsmodayCat.UI.Services;
 
 namespace AsmodayCat.UI.ViewModels;
 
-public partial class ModelEntry : ObservableObject
-{
-    [ObservableProperty] private string _modelId = string.Empty;
-    [ObservableProperty] private string _taskType = string.Empty;
-    [ObservableProperty] private int _requiredVramMb;
-    [ObservableProperty] private bool _isLocal;
-    [ObservableProperty] private string _status = string.Empty;
-    [ObservableProperty] private double _pullPercent;
-}
-
 public partial class ModelsManagerViewModel : ObservableObject
 {
     private readonly IpcClient _ipc;
-    private Timer? _pollTimer;
 
-    public ObservableCollection<ModelEntry> Models { get; } = [];
+    public ObservableCollection<LlmModelDto> ModelPool { get; } = [];
 
-    [ObservableProperty] private string _statusMessage = string.Empty;
+    [ObservableProperty] private string _customModelInput = string.Empty;
+    [ObservableProperty] private string _statusMessage    = string.Empty;
+
+    private DispatcherTimer? _pollTimer;
+
+    private static readonly JsonSerializerOptions _opts =
+        new() { PropertyNameCaseInsensitive = true };
 
     public ModelsManagerViewModel(IpcClient ipc)
     {
         _ipc = ipc;
     }
 
+    // ── Refresh (FR-M1 / FR-M2) ─────────────────────────────────────────────
+
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        var resp = await _ipc.SendCommandAsync(new IpcCommand { Type = IpcCommandType.ListModels });
-        if (resp?.Success != true || resp.Payload is null) return;
+        StatusMessage = "Refreshing…";
+        var resp = await _ipc.SendCommandAsync(
+            new IpcCommand { Type = IpcCommandType.GetModelPool });
 
-        Models.Clear();
-
-        if (resp.Payload.Value.ValueKind == JsonValueKind.Array)
+        if (resp?.Success != true || resp.Payload is null)
         {
-            foreach (var item in resp.Payload.Value.EnumerateArray())
-            {
-                Models.Add(new ModelEntry
-                {
-                    ModelId       = item.TryGetProperty("ModelId",       out var mi) ? mi.GetString() ?? "" : "",
-                    TaskType      = item.TryGetProperty("TaskType",      out var tt) ? tt.GetString() ?? "" : "",
-                    RequiredVramMb = item.TryGetProperty("RequiredVramMb", out var rv) ? rv.GetInt32() : 0,
-                    IsLocal       = item.TryGetProperty("IsLocal",       out var il) && il.GetBoolean(),
-                    Status        = item.TryGetProperty("IsLocal", out var il2) && il2.GetBoolean() ? "Ready" : "Not downloaded"
-                });
-            }
+            StatusMessage = "Service offline";
+            return;
+        }
+
+        var list = resp.Payload.Value.Deserialize<List<LlmModelDto>>(_opts) ?? [];
+
+        // Merge into existing collection: preserve Downloading items so the
+        // progress bar doesn't reset mid-download
+        var downloading = ModelPool
+            .Where(m => m.Status == ModelPoolStatus.Downloading)
+            .Select(m => m.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        ModelPool.Clear();
+        foreach (var dto in list)
+        {
+            if (downloading.Contains(dto.Name))
+                dto.Status = ModelPoolStatus.Downloading;
+            ModelPool.Add(dto);
+        }
+
+        StatusMessage = $"{ModelPool.Count} models • {ModelPool.Count(m => m.Status == ModelPoolStatus.Ready || m.Status == ModelPoolStatus.Loaded)} ready";
+    }
+
+    // ── Action (FR-M3 / FR-M4) — pull or unload based on current status ─────
+
+    [RelayCommand]
+    private async Task ActionAsync(LlmModelDto model)
+    {
+        switch (model.Status)
+        {
+            case ModelPoolStatus.NotInstalled:
+                await BeginPullAsync(model);
+                break;
+            case ModelPoolStatus.Loaded:
+                await UnloadAsync(model);
+                break;
         }
     }
 
-    [RelayCommand]
-    private async Task PullModelAsync(ModelEntry model)
+    // ── Pull (download model) ────────────────────────────────────────────────
+
+    private async Task BeginPullAsync(LlmModelDto model)
     {
-        model.Status      = "Pulling...";
-        model.PullPercent = 0;
+        model.Status          = ModelPoolStatus.Downloading;
+        model.DownloadProgress = 0;
+        StatusMessage         = $"Downloading {model.Name}…";
 
         await _ipc.SendCommandAsync(new IpcCommand
         {
             Type       = IpcCommandType.PullModel,
-            Parameters = { ["ModelId"] = model.ModelId }
+            Parameters = { ["ModelId"] = model.Name }
         });
 
-        StartPolling(model.ModelId);
+        StartPolling(model.Name);
     }
+
+    // FR-M5: pull custom model entered by user
+    [RelayCommand]
+    private async Task PullCustomModelAsync()
+    {
+        var name = CustomModelInput.Trim();
+        if (string.IsNullOrEmpty(name)) return;
+
+        // Check if already in the list; if not, add it
+        var existing = ModelPool.FirstOrDefault(
+            m => m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is null)
+        {
+            existing = new LlmModelDto { Name = name, RecommendedTask = "Custom" };
+            ModelPool.Add(existing);
+        }
+
+        CustomModelInput = string.Empty;
+        await BeginPullAsync(existing);
+    }
+
+    // ── Unload (FR-M4) ───────────────────────────────────────────────────────
+
+    private async Task UnloadAsync(LlmModelDto model)
+    {
+        StatusMessage = $"Unloading {model.Name}…";
+        var resp = await _ipc.SendCommandAsync(
+            new IpcCommand { Type = IpcCommandType.UnloadModel });
+
+        if (resp?.Success == true)
+        {
+            model.Status       = ModelPoolStatus.Ready;
+            model.VramUsageBytes = 0;
+            StatusMessage      = "Model unloaded";
+        }
+        else
+        {
+            StatusMessage = $"Unload failed: {resp?.Error}";
+        }
+    }
+
+    // ── Poll pull progress ────────────────────────────────────────────────────
 
     private void StartPolling(string modelId)
     {
-        _pollTimer?.Dispose();
-        _pollTimer = new Timer(async _ =>
+        StopPolling();
+        _pollTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
-            var resp = await _ipc.SendCommandAsync(new IpcCommand
-            {
-                Type       = IpcCommandType.GetPullStatus,
-                Parameters = { ["ModelId"] = modelId }
-            });
+            Interval = TimeSpan.FromMilliseconds(800)
+        };
+        _pollTimer.Tick += async (_, _) => await PollAsync(modelId);
+        _pollTimer.Start();
+    }
 
-            if (resp?.Payload is null) return;
+    private void StopPolling()
+    {
+        _pollTimer?.Stop();
+        _pollTimer = null;
+    }
 
-            var percent = resp.Payload.Value.TryGetProperty("Percent", out var p) ? p.GetDouble() : 0;
-            var status  = resp.Payload.Value.TryGetProperty("Status",  out var s) ? s.GetString() ?? "" : "";
+    private async Task PollAsync(string modelId)
+    {
+        var resp = await _ipc.SendCommandAsync(new IpcCommand
+        {
+            Type       = IpcCommandType.GetPullStatus,
+            Parameters = { ["ModelId"] = modelId }
+        });
 
-            var entry = Models.FirstOrDefault(m => m.ModelId == modelId);
-            if (entry != null)
-            {
-                entry.PullPercent = percent;
-                entry.Status      = status == "success" ? "Ready" : $"Pulling {percent:F0}%";
-                entry.IsLocal     = status == "success";
-            }
+        if (resp?.Payload is null) return;
 
-            if (status == "success" || status == "error")
-            {
-                _pollTimer?.Dispose();
-                _pollTimer = null;
-            }
-        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+        var progress = resp.Payload.Value.Deserialize<ModelPullProgress>(_opts);
+        if (progress is null) return;
+
+        var item = ModelPool.FirstOrDefault(
+            m => m.Name.Equals(modelId, StringComparison.OrdinalIgnoreCase));
+        if (item is null) return;
+
+        item.DownloadProgress = progress.Percent;
+        StatusMessage         = $"{modelId}: {progress.Status} {progress.Percent:F0}%";
+
+        if (progress.Status == "success")
+        {
+            item.Status           = ModelPoolStatus.Ready;
+            item.DownloadProgress = 100;
+            StatusMessage         = $"{modelId} ready";
+            StopPolling();
+        }
+        else if (progress.Status is "error" or "cancelled")
+        {
+            item.Status = ModelPoolStatus.NotInstalled;
+            StatusMessage = $"{modelId}: {progress.Status}";
+            StopPolling();
+        }
     }
 }

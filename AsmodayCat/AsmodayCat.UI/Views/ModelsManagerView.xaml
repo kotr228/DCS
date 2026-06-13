@@ -4,56 +4,169 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
     <Grid Margin="20">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>  <!-- header + custom pull -->
+            <RowDefinition Height="Auto"/>  <!-- status bar -->
+            <RowDefinition Height="*"/>     <!-- data grid -->
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,16">
-            <TextBlock Text="MODEL POOL" FontSize="18" FontWeight="Bold"
-                       Foreground="#B39DDB" VerticalAlignment="Center"/>
-            <Button Content="REFRESH" Command="{Binding RefreshCommand}"
-                    Style="{StaticResource MaterialDesignOutlinedButton}"
-                    Margin="12,0,0,0" Height="28" Padding="8,0"/>
-        </StackPanel>
+        <!-- Header row: title + REFRESH + custom model pull (FR-M5) -->
+        <Grid Grid.Row="0" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
 
-        <!-- Models list -->
-        <DataGrid Grid.Row="1"
-                  ItemsSource="{Binding Models}"
+            <TextBlock Grid.Column="0" Text="MODEL POOL" FontSize="18" FontWeight="Bold"
+                       Foreground="#B39DDB" VerticalAlignment="Center"/>
+
+            <Button Grid.Column="1" Content="REFRESH"
+                    Command="{Binding RefreshCommand}"
+                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                    Margin="12,0,0,0" Height="32" Padding="10,0"/>
+
+            <!-- FR-M5: custom model input -->
+            <TextBox Grid.Column="3"
+                     materialDesign:HintAssist.Hint="custom-model-name:tag"
+                     Text="{Binding CustomModelInput, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                     Width="220" Height="32" Margin="0,0,8,0"
+                     VerticalAlignment="Center"/>
+
+            <Button Grid.Column="4" Content="PULL CUSTOM"
+                    Command="{Binding PullCustomModelCommand}"
+                    Style="{StaticResource MaterialDesignRaisedButton}"
+                    Height="32" Padding="10,0"/>
+        </Grid>
+
+        <!-- Status bar -->
+        <TextBlock Grid.Row="1" Text="{Binding StatusMessage}"
+                   FontSize="11" Foreground="#888" Margin="0,0,0,8"/>
+
+        <!-- Model pool DataGrid -->
+        <DataGrid Grid.Row="2"
+                  ItemsSource="{Binding ModelPool}"
                   AutoGenerateColumns="False"
                   CanUserAddRows="False"
+                  CanUserResizeRows="False"
                   IsReadOnly="True"
                   Background="Transparent"
-                  BorderThickness="0">
+                  BorderThickness="0"
+                  GridLinesVisibility="Horizontal"
+                  HorizontalGridLinesBrush="#222"
+                  RowBackground="Transparent"
+                  AlternatingRowBackground="#0A0A0A"
+                  ColumnHeaderHeight="36">
+
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Model"    Binding="{Binding ModelId}"       Width="180"/>
-                <DataGridTextColumn Header="Task"     Binding="{Binding TaskType}"      Width="140"/>
-                <DataGridTextColumn Header="VRAM MB"  Binding="{Binding RequiredVramMb}" Width="80"/>
-                <DataGridTextColumn Header="Status"   Binding="{Binding Status}"        Width="120"/>
-                <DataGridTemplateColumn Header="Progress" Width="120">
+
+                <!-- Model name -->
+                <DataGridTextColumn Header="MODEL" Binding="{Binding Name}"
+                                    Width="200" FontFamily="Consolas" FontSize="12"/>
+
+                <!-- Recommended task -->
+                <DataGridTextColumn Header="TASK" Binding="{Binding RecommendedTask}"
+                                    Width="130" FontSize="11"/>
+
+                <!-- VRAM — formatted if Loaded, dash otherwise (FR-M4) -->
+                <DataGridTextColumn Header="VRAM" Binding="{Binding VramDisplayText}"
+                                    Width="80" FontSize="11"/>
+
+                <!-- Status chip with color (FR-M2) -->
+                <DataGridTemplateColumn Header="STATUS" Width="110">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <ProgressBar Value="{Binding PullPercent}" Maximum="100"
-                                         Height="8" Margin="4,0"
-                                         Visibility="{Binding IsLocal, Converter={StaticResource BoolToVisConverter},
-                                                      ConverterParameter=inverse}"/>
+                            <TextBlock x:Name="StatusLabel"
+                                       Text="{Binding Status}"
+                                       FontSize="11" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" Margin="4,0"/>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Status}" Value="NotInstalled">
+                                    <Setter TargetName="StatusLabel" Property="Foreground" Value="#616161"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Status}" Value="Downloading">
+                                    <Setter TargetName="StatusLabel" Property="Foreground" Value="#FFCA28"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Status}" Value="Ready">
+                                    <Setter TargetName="StatusLabel" Property="Foreground" Value="#66BB6A"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Status}" Value="Loaded">
+                                    <Setter TargetName="StatusLabel" Property="Foreground" Value="#B39DDB"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Action" Width="90">
+
+                <!-- Progress bar — visible only while Downloading (FR-M3) -->
+                <DataGridTemplateColumn Header="PROGRESS" Width="130">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <Button Content="PULL"
-                                    Command="{Binding DataContext.PullModelCommand,
-                                              RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                    CommandParameter="{Binding}"
-                                    Style="{StaticResource MaterialDesignOutlinedButton}"
-                                    Visibility="{Binding IsLocal, Converter={StaticResource BoolToVisConverter},
-                                                 ConverterParameter=inverse}"
-                                    Height="24" Padding="6,0" FontSize="10"/>
+                            <StackPanel Margin="4,0">
+                                <ProgressBar x:Name="PBar"
+                                             Value="{Binding DownloadProgress}"
+                                             Maximum="100" Height="6"
+                                             Visibility="Collapsed"/>
+                                <TextBlock x:Name="PText"
+                                           Text="{Binding DownloadProgress, StringFormat={}{0:F0}%}"
+                                           FontSize="10" Foreground="#FFCA28"
+                                           Margin="0,2,0,0" Visibility="Collapsed"/>
+                            </StackPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Status}" Value="Downloading">
+                                    <Setter TargetName="PBar"  Property="Visibility" Value="Visible"/>
+                                    <Setter TargetName="PText" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
+
+                <!-- Action buttons (FR-M3 / FR-M4) -->
+                <DataGridTemplateColumn Header="ACTION" Width="90">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" Margin="2,0">
+                                <!-- Download button for NotInstalled -->
+                                <Button x:Name="BtnDownload"
+                                        Visibility="Collapsed"
+                                        ToolTip="Download"
+                                        Style="{StaticResource MaterialDesignIconButton}"
+                                        Width="28" Height="28"
+                                        Command="{Binding DataContext.ActionCommand,
+                                            RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}">
+                                    <materialDesign:PackIcon Kind="Download" Width="16" Height="16"/>
+                                </Button>
+
+                                <!-- Unload button for Loaded models -->
+                                <Button x:Name="BtnUnload"
+                                        Visibility="Collapsed"
+                                        ToolTip="Unload from VRAM"
+                                        Style="{StaticResource MaterialDesignIconButton}"
+                                        Width="28" Height="28"
+                                        Foreground="#EF5350"
+                                        Command="{Binding DataContext.ActionCommand,
+                                            RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}">
+                                    <materialDesign:PackIcon Kind="Stop" Width="16" Height="16"/>
+                                </Button>
+                            </StackPanel>
+
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Status}" Value="NotInstalled">
+                                    <Setter TargetName="BtnDownload" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Status}" Value="Loaded">
+                                    <Setter TargetName="BtnUnload" Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+
             </DataGrid.Columns>
         </DataGrid>
     </Grid>

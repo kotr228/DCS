@@ -113,6 +113,8 @@ public class IpcServer : BackgroundService
                 IpcCommandType.GetPullStatus     => GetPullStatus(cmd),
                 IpcCommandType.GetDashboardStats => GetDashboardStats(),
                 IpcCommandType.ClearContext      => ClearContextCmd(),
+                IpcCommandType.GetModelPool      => await GetModelPoolAsync(ct),
+                IpcCommandType.UnloadModel       => await UnloadModelAsync(ct),
                 _ => new IpcResponse { Success = false, Error = $"Unknown command: {cmd.Type}" }
             };
         }
@@ -244,6 +246,58 @@ public class IpcServer : BackgroundService
     private IpcResponse ClearContextCmd()
     {
         _llmEngine.ClearContext();
+        return new IpcResponse { Success = true };
+    }
+
+    // FR-M1/M2: merged local + pool matrix
+    private async Task<IpcResponse> GetModelPoolAsync(CancellationToken ct)
+    {
+        var localModels = await _modelRegistry.GetLocalModelsAsync(ct);
+        var localSet    = localModels.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var activeModel = _metrics.ActiveModelName;
+
+        // Pool matrix — always present regardless of install state
+        var pool = ModelPoolConfig.DefaultPool.Select(m =>
+        {
+            var isLocal  = localSet.Any(l => l.StartsWith(m.ModelId, StringComparison.OrdinalIgnoreCase));
+            var isActive = !string.IsNullOrEmpty(activeModel) &&
+                           activeModel.Equals(m.ModelId, StringComparison.OrdinalIgnoreCase);
+            return new LlmModelDto
+            {
+                Name            = m.ModelId,
+                RecommendedTask = m.TaskType.ToString(),
+                VramUsageBytes  = isActive ? _resources.GetTotalVramUsedMb() * 1024L * 1024L : 0L,
+                Status          = isActive ? ModelPoolStatus.Loaded
+                                : isLocal  ? ModelPoolStatus.Ready
+                                :            ModelPoolStatus.NotInstalled
+            };
+        }).ToList();
+
+        // Extra custom models installed locally but not in the pool
+        var poolIds = ModelPoolConfig.DefaultPool
+            .Select(m => m.ModelId.ToLowerInvariant()).ToHashSet();
+        foreach (var local in localSet)
+        {
+            if (!poolIds.Any(p => local.ToLowerInvariant().StartsWith(p)))
+            {
+                pool.Add(new LlmModelDto
+                {
+                    Name            = local,
+                    RecommendedTask = "Custom",
+                    Status          = ModelPoolStatus.Ready
+                });
+            }
+        }
+
+        return new IpcResponse { Success = true, Payload = pool };
+    }
+
+    // FR-M4: unload current model, free VRAM
+    private async Task<IpcResponse> UnloadModelAsync(CancellationToken ct)
+    {
+        await _llmEngine.UnloadAsync(ct);
+        _metrics.ActiveModelName   = string.Empty;
+        _metrics.ActiveModelStatus = "Idle";
         return new IpcResponse { Success = true };
     }
 }
