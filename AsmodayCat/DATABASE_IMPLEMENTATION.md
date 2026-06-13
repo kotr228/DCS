@@ -68,14 +68,17 @@
 
 ### Step 2: Патерн Репозиторіїв (`AsmodayCat.Core/Data/Repositories`)
 Створи класи репозиторіїв, використовуючи сирий SQL (через `SqliteCommand`) або Dapper (якщо він є в залежностях):
-1. **`SettingsRepository`**: Методи `GetSetting(string key)`, `SetSetting(string key, string value)`, `GetHardwareConfig()`, `SaveHardwareConfig(HardwareConfigDto dto)`.
-2. **`AgentWorkspaceRepository`**: Методи `GetAll()`, `GetActive()`, `Add(AgentRuleDto rule)`, `Update(AgentRuleDto rule)`, `Delete(Guid id)`.
-3. **`ChatRepository`**: 
+1. **`HardwareSettingsRepository`**: 
+   * Метод `GetConfig()` -> робить `SELECT * FROM HardwareSettings WHERE Id = 1`. Якщо запису немає — створює дефолтний `INSERT` і повертає його.
+   * Метод `SaveConfig(HardwareConfigDto dto)` -> робить `UPDATE HardwareSettings SET ... WHERE Id = 1`.
+2. **`SettingsRepository`**: Методи `GetSetting(string key)`, `SetSetting(string key, string value)`, `GetHardwareConfig()`, `SaveHardwareConfig(HardwareConfigDto dto)`.
+3. **`AgentWorkspaceRepository`**: Методи `GetAll()`, `GetActive()`, `Add(AgentRuleDto rule)`, `Update(AgentRuleDto rule)`, `Delete(Guid id)`.
+4. **`ChatRepository`**: 
    * `CreateSession(string title)`
    * `GetSessions()`
    * `GetMessagesBySession(Guid sessionId)`
    * `AddMessage(ChatMessageDto message)`
-4. **`ModelPoolRepository`**: Методи `GetKnownModels()`, `AddCustomModel(string name)`.
+5. **`ModelPoolRepository`**: Методи `GetKnownModels()`, `AddCustomModel(string name)`.
 
 ### Step 3: Інтеграція Сервісу (`AsmodayCat.Service`)
 1. Відкрий `Program.cs` в `AsmodayCat.Service`.
