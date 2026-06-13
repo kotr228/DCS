@@ -11,4 +11,6 @@ public interface ILLMEngine
 
     // Default no-op; override in engines that maintain conversation context
     void ClearContext() { }
+
+    void Configure(HardwareConfigDto config) { }
 }

@@ -15,7 +15,9 @@ public enum IpcCommandType
     GetDashboardStats,
     ClearContext,
     GetModelPool,
-    UnloadModel
+    UnloadModel,
+    GetHardwareConfig,
+    SaveHardwareConfig
 }
 
 public class IpcCommand

@@ -6,6 +6,7 @@ using AsmodayCat.Core.Hardware;
 using AsmodayCat.Shared.Enums;
 using AsmodayCat.Shared.Interfaces;
 using AsmodayCat.Shared.Models;
+using AsmodayCat.Service;
 
 namespace AsmodayCat.Service.Ipc;
 
@@ -13,26 +14,31 @@ public class IpcServer : BackgroundService
 {
     public const string PipeName = "AsmodayCat.Service";
 
-    private readonly IAgentController   _agent;
-    private readonly IHardwareScanner   _hardware;
-    private readonly ResourceManager    _resources;
-    private readonly MetricsCollector   _metrics;
-    private readonly ILLMEngine         _llmEngine;
-    private readonly ModelSwitcher      _modelSwitcher;
-    private readonly IModelRegistry     _modelRegistry;
-    private readonly PullStatusStore    _pullStatus;
-    private readonly ILogger<IpcServer> _logger;
+    private readonly IAgentController    _agent;
+    private readonly IHardwareScanner    _hardware;
+    private readonly ResourceManager     _resources;
+    private readonly MetricsCollector    _metrics;
+    private readonly ILLMEngine          _llmEngine;
+    private readonly ModelSwitcher       _modelSwitcher;
+    private readonly IModelRegistry      _modelRegistry;
+    private readonly PullStatusStore     _pullStatus;
+    private readonly HardwareConfigStore _hwConfigStore;
+    private readonly ILogger<IpcServer>  _logger;
+
+    private static readonly JsonSerializerOptions _jsonOpts =
+        new() { PropertyNameCaseInsensitive = true };
 
     public IpcServer(
-        IAgentController   agent,
-        IHardwareScanner   hardware,
-        ResourceManager    resources,
-        MetricsCollector   metrics,
-        ILLMEngine         llmEngine,
-        ModelSwitcher      modelSwitcher,
-        IModelRegistry     modelRegistry,
-        PullStatusStore    pullStatus,
-        ILogger<IpcServer> logger)
+        IAgentController    agent,
+        IHardwareScanner    hardware,
+        ResourceManager     resources,
+        MetricsCollector    metrics,
+        ILLMEngine          llmEngine,
+        ModelSwitcher       modelSwitcher,
+        IModelRegistry      modelRegistry,
+        PullStatusStore     pullStatus,
+        HardwareConfigStore hwConfigStore,
+        ILogger<IpcServer>  logger)
     {
         _agent         = agent;
         _hardware      = hardware;
@@ -42,6 +48,7 @@ public class IpcServer : BackgroundService
         _modelSwitcher = modelSwitcher;
         _modelRegistry = modelRegistry;
         _pullStatus    = pullStatus;
+        _hwConfigStore = hwConfigStore;
         _logger        = logger;
     }
 
@@ -115,6 +122,8 @@ public class IpcServer : BackgroundService
                 IpcCommandType.ClearContext      => ClearContextCmd(),
                 IpcCommandType.GetModelPool      => await GetModelPoolAsync(ct),
                 IpcCommandType.UnloadModel       => await UnloadModelAsync(ct),
+                IpcCommandType.GetHardwareConfig => GetHardwareConfig(),
+                IpcCommandType.SaveHardwareConfig => SaveHardwareConfig(cmd),
                 _ => new IpcResponse { Success = false, Error = $"Unknown command: {cmd.Type}" }
             };
         }
@@ -298,6 +307,27 @@ public class IpcServer : BackgroundService
         await _llmEngine.UnloadAsync(ct);
         _metrics.ActiveModelName   = string.Empty;
         _metrics.ActiveModelStatus = "Idle";
+        return new IpcResponse { Success = true };
+    }
+
+    // FR-H5: hardware config persistence
+    private IpcResponse GetHardwareConfig()
+    {
+        return new IpcResponse { Success = true, Payload = _hwConfigStore.Current };
+    }
+
+    private IpcResponse SaveHardwareConfig(IpcCommand cmd)
+    {
+        var json = cmd.Parameters.GetValueOrDefault("Config", string.Empty);
+        if (string.IsNullOrEmpty(json))
+            return new IpcResponse { Success = false, Error = "Config payload required" };
+
+        var config = JsonSerializer.Deserialize<HardwareConfigDto>(json, _jsonOpts);
+        if (config is null)
+            return new IpcResponse { Success = false, Error = "Invalid config JSON" };
+
+        _hwConfigStore.Save(config);
+        _llmEngine.Configure(config);
         return new IpcResponse { Success = true };
     }
 }

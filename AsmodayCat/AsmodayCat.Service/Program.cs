@@ -34,10 +34,17 @@ builder.Services.AddSingleton<IAgentController, AgentController>();
 
 // IPC infrastructure
 builder.Services.AddSingleton<PullStatusStore>();
+builder.Services.AddSingleton<HardwareConfigStore>();
 
 // Hosted services
 builder.Services.AddHostedService<Worker>();
 builder.Services.AddHostedService<IpcServer>();
 
 var host = builder.Build();
+
+// Apply persisted hardware config to the LLM engine before starting
+var hwStore    = host.Services.GetRequiredService<HardwareConfigStore>();
+var llmEngine  = host.Services.GetRequiredService<ILLMEngine>();
+llmEngine.Configure(hwStore.Load());
+
 host.Run();

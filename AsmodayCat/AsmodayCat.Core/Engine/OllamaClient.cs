@@ -19,6 +19,7 @@ public class OllamaClient : ILLMEngine, IDisposable
     private Timer?  _idleTimer;
     private readonly TimeSpan _idleTimeout;
     private int[]?  _context;   // Ollama conversation context for multi-turn chat
+    private HardwareConfigDto _hwConfig = new();
 
     private static readonly JsonSerializerOptions _jsonOpts = new()
     {
@@ -120,6 +121,8 @@ public class OllamaClient : ILLMEngine, IDisposable
 
     public void ClearContext() => _context = null;
 
+    public void Configure(HardwareConfigDto config) => _hwConfig = config;
+
     public async Task UnloadAsync(CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(_currentModel)) return;
@@ -147,12 +150,26 @@ public class OllamaClient : ILLMEngine, IDisposable
             Timeout.Infinite);
     }
 
-    private static object BuildOptions(ExecutionDevice device) => device switch
+    private object BuildOptions(ExecutionDevice device)
     {
-        ExecutionDevice.GPU_Nvidia => new { num_gpu = 99 },
-        ExecutionDevice.GPU_AMD   => new { num_gpu = 99 },
-        _                         => new { num_gpu = 0 }
-    };
+        var numGpu = device switch
+        {
+            ExecutionDevice.GPU_Nvidia => 99,
+            ExecutionDevice.GPU_AMD   => 99,
+            _                         => 0
+        };
+
+        // Override with HardwareConfig preference
+        if (_hwConfig.PreferredDevice == "GPU")  numGpu = 99;
+        if (_hwConfig.PreferredDevice == "CPU")  numGpu = 0;
+
+        return new
+        {
+            num_gpu    = numGpu,
+            num_ctx    = _hwConfig.ContextWindowSize > 0 ? _hwConfig.ContextWindowSize : 4096,
+            num_thread = _hwConfig.CpuThreads        > 0 ? _hwConfig.CpuThreads        : 4
+        };
+    }
 
     private static async Task<List<string>> EncodeImagesAsync(
         List<string> paths, CancellationToken ct)

@@ -2,28 +2,114 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20" MaxWidth="640">
 
-        <TextBlock Text="HARDWARE" FontSize="18" FontWeight="Bold"
-                   Foreground="#B39DDB" Margin="0,0,0,16"/>
+            <!-- Title -->
+            <TextBlock Text="HARDWARE SETTINGS" FontSize="18" FontWeight="Bold"
+                       Foreground="#B39DDB" Margin="0,0,0,20"/>
 
-        <materialDesign:Card Grid.Row="1" Padding="16">
-            <StackPanel>
-                <TextBlock Text="Execution Device" FontWeight="SemiBold" Margin="0,0,0,8"/>
-                <ComboBox ItemsSource="{Binding AvailableDevices}"
-                          SelectedItem="{Binding SelectedDevice}"
-                          Margin="0,0,0,12"/>
-                <Button Content="APPLY"
-                        Command="{Binding ApplyDeviceCommand}"
-                        HorizontalAlignment="Left"
-                        Style="{StaticResource MaterialDesignRaisedButton}"/>
-                <TextBlock Text="{Binding StatusMessage}"
-                           Foreground="#A5D6A7" Margin="0,8,0,0"/>
-            </StackPanel>
-        </materialDesign:Card>
-    </Grid>
+            <!-- GPU / Inference Card -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,16"
+                                 Background="#1A1A1A">
+                <StackPanel>
+                    <TextBlock Text="GPU &amp; INFERENCE" FontSize="13" FontWeight="Bold"
+                               Foreground="#B39DDB" Margin="0,0,0,16"/>
+
+                    <!-- Device Preference -->
+                    <TextBlock Text="Device Preference" FontSize="12" Margin="0,0,0,6"/>
+                    <ComboBox ItemsSource="{Binding DeviceOptions}"
+                              SelectedItem="{Binding PreferredDevice}"
+                              Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                              Width="200" HorizontalAlignment="Left"
+                              Margin="0,0,0,20"/>
+
+                    <!-- Context Window Size -->
+                    <DockPanel Margin="0,0,0,4">
+                        <TextBlock Text="Context Window Size" FontSize="12" DockPanel.Dock="Left"/>
+                        <TextBlock Text="{Binding ContextWindowSize, StringFormat={}{0:N0} tokens}"
+                                   FontSize="12" Foreground="#B39DDB"
+                                   HorizontalAlignment="Right"/>
+                    </DockPanel>
+                    <Slider Minimum="2048" Maximum="32768" TickFrequency="1024"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding ContextWindowSize}"
+                            Margin="0,0,0,4"
+                            ToolTip="Більший контекст споживає експоненціально більше VRAM"/>
+                    <TextBlock Text="2048" FontSize="10" Foreground="#666" Margin="0,0,0,20"/>
+
+                    <!-- VRAM Cap -->
+                    <DockPanel Margin="0,0,0,4">
+                        <TextBlock Text="Max VRAM Allocation" FontSize="12" DockPanel.Dock="Left"/>
+                        <TextBlock FontSize="12" Foreground="#B39DDB" HorizontalAlignment="Right">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding MaxVramAllocationMb, StringFormat={}{0} MB}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MaxVramAllocationMb}" Value="0">
+                                            <Setter Property="Text" Value="Unlimited"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </DockPanel>
+                    <Slider Minimum="0" Maximum="24576" TickFrequency="512"
+                            IsSnapToTickEnabled="True"
+                            Value="{Binding MaxVramAllocationMb}"
+                            Margin="0,0,0,4"/>
+                    <TextBlock Text="0 = No limit" FontSize="10" Foreground="#666"/>
+
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- CPU Card -->
+            <materialDesign:Card Padding="20" Margin="0,0,0,16"
+                                 Background="#1A1A1A">
+                <StackPanel>
+                    <TextBlock Text="CPU SETTINGS" FontSize="13" FontWeight="Bold"
+                               Foreground="#B39DDB" Margin="0,0,0,16"/>
+
+                    <!-- CPU Threads -->
+                    <DockPanel Margin="0,0,0,4">
+                        <TextBlock Text="CPU Threads" FontSize="12" DockPanel.Dock="Left"/>
+                        <TextBlock Text="{Binding CpuThreads, StringFormat={}{0} threads}"
+                                   FontSize="12" Foreground="#B39DDB"
+                                   HorizontalAlignment="Right"/>
+                    </DockPanel>
+                    <Slider Minimum="1" Maximum="{Binding MaxSystemThreads}"
+                            TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding CpuThreads}"
+                            Margin="0,0,0,4"/>
+                    <TextBlock Text="{Binding MaxSystemThreads, StringFormat=Max: {0} logical cores}"
+                               FontSize="10" Foreground="#666" Margin="0,0,0,20"/>
+
+                    <!-- CPU Fallback Toggle -->
+                    <DockPanel>
+                        <TextBlock Text="Allow CPU Fallback" FontSize="12"
+                                   VerticalAlignment="Center" DockPanel.Dock="Left"/>
+                        <ToggleButton IsChecked="{Binding AllowCpuFallback}"
+                                      HorizontalAlignment="Right"
+                                      Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                      ToolTip="Switch to CPU automatically if VRAM is full"/>
+                    </DockPanel>
+
+                </StackPanel>
+            </materialDesign:Card>
+
+            <!-- Save Button + Status -->
+            <Button Content="SAVE PARAMETERS"
+                    Command="{Binding SaveConfigCommand}"
+                    Style="{StaticResource MaterialDesignRaisedButton}"
+                    Background="#7E57C2" Foreground="White"
+                    Height="42" FontSize="14" FontWeight="Bold"
+                    HorizontalAlignment="Stretch"
+                    Margin="0,0,0,12"/>
+
+            <TextBlock Text="{Binding StatusMessage}"
+                       FontSize="12" Foreground="#A5D6A7"
+                       HorizontalAlignment="Center"/>
+
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>
