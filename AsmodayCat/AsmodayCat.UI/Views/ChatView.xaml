@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:mdxam="clr-namespace:Markdig.Wpf;assembly=Markdig.Wpf">
-    <Grid Margin="20">
+    <Grid Margin="20" Background="{StaticResource BrushBackground}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>   <!-- header -->
             <RowDefinition Height="*"/>      <!-- messages -->

@@ -19,7 +19,7 @@
             <conv:ChatRoleToAlignmentConverter x:Key="RoleToAlignmentConverter"/>
             <conv:FileNameConverter            x:Key="FileNameConverter"/>
 
-            <!-- ── Color Palette ─────────────────────────────────────────── -->
+            <!-- ── Кольорова палітра ────────────────────────────────────────── -->
             <SolidColorBrush x:Key="BrushBackground" Color="#EDCA80"/>
             <SolidColorBrush x:Key="BrushSurface"    Color="#E4D3BD"/>
             <SolidColorBrush x:Key="BrushNav"        Color="#79644D"/>
@@ -29,14 +29,61 @@
             <SolidColorBrush x:Key="BrushDark"       Color="#1F1A17"/>
             <SolidColorBrush x:Key="BrushLight"      Color="#F9F6F0"/>
 
-            <!-- ── Global Button Style (accent gold) ─────────────────────── -->
-            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
-                <Setter Property="Background"   Value="{StaticResource BrushAccent}"/>
-                <Setter Property="Foreground"   Value="{StaticResource BrushLight}"/>
-                <Setter Property="BorderBrush"  Value="{StaticResource BrushAccent}"/>
+            <!-- ── Chrome-кнопки заголовка вікна ────────────────────────────── -->
+            <Style x:Key="ChromeButton" TargetType="Button">
+                <Setter Property="Background"    Value="Transparent"/>
+                <Setter Property="Foreground"    Value="{StaticResource BrushLight}"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="Width"         Value="44"/>
+                <Setter Property="Height"        Value="44"/>
+                <Setter Property="FontSize"      Value="14"/>
+                <Setter Property="Cursor"        Value="Hand"/>
+                <Setter Property="Margin"        Value="0"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                    Width="44" Height="44">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#8C7560"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#6B5B45"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
-            <!-- ── Global Card background ────────────────────────────────── -->
+            <Style x:Key="ChromeCloseButton" TargetType="Button"
+                   BasedOn="{StaticResource ChromeButton}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                    Width="44" Height="44">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#C42B1C"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#8B0000"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- ── Картки (MaterialDesign) ───────────────────────────────────── -->
             <Style TargetType="materialDesign:Card">
                 <Setter Property="Background" Value="{StaticResource BrushSurface}"/>
                 <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>

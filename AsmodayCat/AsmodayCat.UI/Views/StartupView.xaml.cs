@@ -14,9 +14,18 @@ public partial class StartupView : Window
         DataContext = _vm;
         InitializeComponent();
         Loaded += async (_, _) => await _vm.RunChecksAsync();
+
+        // Update status icons when checks complete
+        _vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(StartupViewModel.ServiceStatus))
+                ServiceIcon.Text = _vm.ServiceStatus.Contains("Running") ? "✅" : "⚠";
+            if (e.PropertyName == nameof(StartupViewModel.LlmStatus))
+                LlmIcon.Text = _vm.LlmStatus == "Ready" ? "✅" : "⚠";
+        };
     }
 
-    private void TitleBar_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         => DragMove();
 
     private void MinimizeButton_Click(object sender, RoutedEventArgs e)

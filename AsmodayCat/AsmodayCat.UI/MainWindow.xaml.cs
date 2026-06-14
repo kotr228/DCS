@@ -37,6 +37,27 @@ public partial class MainWindow : Window
         base.OnClosed(e);
     }
 
+    // ── Chrome handlers ───────────────────────────────────────────────────
+
+    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        => DragMove();
+
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
+        MaximizeButton.Content = WindowState == WindowState.Maximized ? "❐" : "□";
+    }
+
+    private void AppCloseButton_Click(object sender, RoutedEventArgs e)
+        => Application.Current.Shutdown();
+
+    // ── Navigation ────────────────────────────────────────────────────────
+
     private void NavList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (NavList.SelectedItem is not ListBoxItem item) return;

@@ -2,21 +2,24 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-        xmlns:views="clr-namespace:AsmodayCat.UI.Views"
         Title="AsmodayCat — Control Panel"
         Icon="pack://application:,,,/Assets/AC.ico"
         Height="720" Width="1280"
-        Background="{StaticResource BrushBackground}"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ResizeMode="CanResize"
+        Background="Transparent">
+
     <Window.Resources>
-        <!-- Nav item style: white text on dark-brown bg, gold hover -->
+        <!-- Nav item: light bg, dark text; gold when selected -->
         <Style x:Key="NavItemStyle" TargetType="ListBoxItem">
-            <Setter Property="Foreground"        Value="{StaticResource BrushLight}"/>
-            <Setter Property="Background"        Value="Transparent"/>
-            <Setter Property="FontSize"          Value="13"/>
-            <Setter Property="Padding"           Value="14,10"/>
-            <Setter Property="BorderThickness"   Value="0"/>
-            <Setter Property="Cursor"            Value="Hand"/>
+            <Setter Property="Foreground"      Value="{StaticResource BrushDark}"/>
+            <Setter Property="Background"      Value="Transparent"/>
+            <Setter Property="FontSize"        Value="13"/>
+            <Setter Property="Padding"         Value="16,11"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor"          Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
@@ -26,10 +29,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#8C7560"/>
+                                <Setter TargetName="Bd" Property="Background" Value="#D9B86A"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
                                 <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushAccent}"/>
+                                <Setter Property="Foreground" Value="{StaticResource BrushLight}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -38,48 +42,91 @@
         </Style>
     </Window.Resources>
 
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="170"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
+    <Border Background="{StaticResource BrushBackground}"
+            BorderBrush="{StaticResource BrushAccent}"
+            BorderThickness="2">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44"/>   <!-- chrome header -->
+                <RowDefinition Height="*"/>    <!-- content      -->
+            </Grid.RowDefinitions>
 
-        <!-- ── Sidebar ─────────────────────────────────────────────── -->
-        <DockPanel Grid.Column="0" Background="{StaticResource BrushNav}">
+            <!-- ── Chrome header ──────────────────────────────────────── -->
+            <Border Grid.Row="0"
+                    Background="{StaticResource BrushNav}"
+                    MouseLeftButtonDown="Header_MouseLeftButtonDown"
+                    Padding="14,0">
+                <Grid>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Image Source="pack://application:,,,/Assets/AC.ico"
+                               Width="22" Height="22" Margin="0,0,10,0"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <TextBlock Text="AsmodayCat" FontWeight="Bold" FontSize="13"
+                                   Foreground="{StaticResource BrushLight}"
+                                   VerticalAlignment="Center" Margin="0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="—" Click="MinimizeButton_Click"
+                                Style="{StaticResource ChromeButton}"/>
+                        <Button x:Name="MaximizeButton" Content="□" Click="MaximizeButton_Click"
+                                Style="{StaticResource ChromeButton}"/>
+                        <Button Content="✕" Click="AppCloseButton_Click"
+                                Style="{StaticResource ChromeCloseButton}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
 
-            <!-- Logo + brand header -->
-            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
-                        Margin="12,18,12,20">
-                <Image Source="pack://application:,,,/Assets/AC.ico" Width="28" Height="28"
-                       VerticalAlignment="Center" Margin="0,0,8,0"
-                       RenderOptions.BitmapScalingMode="HighQuality"/>
-                <TextBlock Text="ASMODAYCAT"
-                           FontSize="13" FontWeight="Bold"
-                           Foreground="{StaticResource BrushLight}"
-                           VerticalAlignment="Center"
-                           TextWrapping="Wrap"/>
-            </StackPanel>
+            <!-- ── Main area: sidebar + content ──────────────────────── -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="170"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-            <!-- Nav links -->
-            <ListBox x:Name="NavList"
-                     DockPanel.Dock="Top"
-                     SelectionChanged="NavList_SelectionChanged"
-                     Background="Transparent"
-                     BorderThickness="0"
-                     ItemContainerStyle="{StaticResource NavItemStyle}">
-                <ListBoxItem Content="Dashboard"   Tag="Dashboard"/>
-                <ListBoxItem Content="Chat"        Tag="Chat"/>
-                <ListBoxItem Content="Models"      Tag="Models"/>
-                <ListBoxItem Content="Hardware"    Tag="Hardware"/>
-                <ListBoxItem Content="Agent Rules" Tag="AgentRules"/>
-                <ListBoxItem Content="Terminal"    Tag="Terminal"/>
-            </ListBox>
-        </DockPanel>
+                <!-- Sidebar — light sand bg, dark text (кольори поміняні) -->
+                <DockPanel Grid.Column="0" Background="{StaticResource BrushBackground}">
 
-        <!-- ── Content area ────────────────────────────────────────── -->
-        <Frame x:Name="ContentFrame"
-               Grid.Column="1"
-               Background="{StaticResource BrushBackground}"
-               NavigationUIVisibility="Hidden"/>
-    </Grid>
+                    <!-- Logo + brand -->
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                                Margin="12,18,12,20">
+                        <Image Source="pack://application:,,,/Assets/AC.ico"
+                               Width="28" Height="28" VerticalAlignment="Center"
+                               Margin="0,0,8,0"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                        <TextBlock Text="ASMODAYCAT"
+                                   FontSize="12" FontWeight="Bold"
+                                   Foreground="{StaticResource BrushNav}"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap" Margin="0"/>
+                    </StackPanel>
+
+                    <!-- Divider -->
+                    <Border DockPanel.Dock="Top" Height="1"
+                            Background="{StaticResource BrushAccent}"
+                            Margin="12,0,12,8" Opacity="0.5"/>
+
+                    <!-- Nav links -->
+                    <ListBox x:Name="NavList"
+                             DockPanel.Dock="Top"
+                             SelectionChanged="NavList_SelectionChanged"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             ItemContainerStyle="{StaticResource NavItemStyle}">
+                        <ListBoxItem Content="Dashboard"   Tag="Dashboard"/>
+                        <ListBoxItem Content="Chat"        Tag="Chat"/>
+                        <ListBoxItem Content="Models"      Tag="Models"/>
+                        <ListBoxItem Content="Hardware"    Tag="Hardware"/>
+                        <ListBoxItem Content="Agent Rules" Tag="AgentRules"/>
+                        <ListBoxItem Content="Terminal"    Tag="Terminal"/>
+                    </ListBox>
+                </DockPanel>
+
+                <!-- Content frame — nav-brown bg; views set their own bg -->
+                <Frame x:Name="ContentFrame"
+                       Grid.Column="1"
+                       Background="{StaticResource BrushNav}"
+                       NavigationUIVisibility="Hidden"/>
+            </Grid>
+        </Grid>
+    </Border>
 </Window>
