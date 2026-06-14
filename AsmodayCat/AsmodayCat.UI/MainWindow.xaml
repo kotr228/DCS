@@ -4,7 +4,7 @@
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:views="clr-namespace:AsmodayCat.UI.Views"
         Title="AsmodayCat — Control Panel"
-        Icon="/Assets/AC.ico"
+        Icon="pack://application:,,,/Assets/AC.ico"
         Height="720" Width="1280"
         Background="{StaticResource BrushBackground}"
         WindowStartupLocation="CenterScreen">
@@ -50,7 +50,7 @@
             <!-- Logo + brand header -->
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
                         Margin="12,18,12,20">
-                <Image Source="/Assets/AC.ico" Width="28" Height="28"
+                <Image Source="pack://application:,,,/Assets/AC.ico" Width="28" Height="28"
                        VerticalAlignment="Center" Margin="0,0,8,0"
                        RenderOptions.BitmapScalingMode="HighQuality"/>
                 <TextBlock Text="ASMODAYCAT"

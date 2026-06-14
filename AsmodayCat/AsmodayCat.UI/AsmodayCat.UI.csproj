@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Explicitly mark the icon as a WPF Resource so pack URIs resolve in XAML -->
+    <Resource Include="Assets\AC.ico"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ClassLibrary1\AsmodayCat.Shared.csproj" />
   </ItemGroup>
 
