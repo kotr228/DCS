@@ -6,17 +6,42 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <materialDesign:BundledTheme BaseTheme="Dark"
-                                             PrimaryColor="DeepPurple"
-                                             SecondaryColor="Lime" />
+                <materialDesign:BundledTheme BaseTheme="Light"
+                                             PrimaryColor="Brown"
+                                             SecondaryColor="Amber" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign2.Defaults.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <!-- Converters -->
             <conv:RoleToBrushConverter         x:Key="RoleToBrushConverter"/>
             <conv:InverseBoolConverter         x:Key="InverseBoolConverter"/>
             <conv:BoolToVisibilityConverter    x:Key="BoolToVisConverter"/>
             <conv:ChatRoleToAlignmentConverter x:Key="RoleToAlignmentConverter"/>
             <conv:FileNameConverter            x:Key="FileNameConverter"/>
+
+            <!-- ── Color Palette ─────────────────────────────────────────── -->
+            <SolidColorBrush x:Key="BrushBackground" Color="#EDCA80"/>
+            <SolidColorBrush x:Key="BrushSurface"    Color="#E4D3BD"/>
+            <SolidColorBrush x:Key="BrushNav"        Color="#79644D"/>
+            <SolidColorBrush x:Key="BrushSuccess"    Color="#5E9D55"/>
+            <SolidColorBrush x:Key="BrushWarning"    Color="#BC907E"/>
+            <SolidColorBrush x:Key="BrushAccent"     Color="#BC8F3C"/>
+            <SolidColorBrush x:Key="BrushDark"       Color="#1F1A17"/>
+            <SolidColorBrush x:Key="BrushLight"      Color="#F9F6F0"/>
+
+            <!-- ── Global Button Style (accent gold) ─────────────────────── -->
+            <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                <Setter Property="Background"   Value="{StaticResource BrushAccent}"/>
+                <Setter Property="Foreground"   Value="{StaticResource BrushLight}"/>
+                <Setter Property="BorderBrush"  Value="{StaticResource BrushAccent}"/>
+            </Style>
+
+            <!-- ── Global Card background ────────────────────────────────── -->
+            <Style TargetType="materialDesign:Card">
+                <Setter Property="Background" Value="{StaticResource BrushSurface}"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+            </Style>
+
         </ResourceDictionary>
     </Application.Resources>
 </Application>

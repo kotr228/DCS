@@ -3,30 +3,70 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:views="clr-namespace:AsmodayCat.UI.Views"
-        TextElement.Foreground="{DynamicResource MaterialDesignBody}"
-        Background="{DynamicResource MaterialDesignPaper}"
         Title="AsmodayCat — Control Panel"
+        Icon="/Assets/AC.ico"
         Height="720" Width="1280"
+        Background="{StaticResource BrushBackground}"
         WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <!-- Nav item style: white text on dark-brown bg, gold hover -->
+        <Style x:Key="NavItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Foreground"        Value="{StaticResource BrushLight}"/>
+            <Setter Property="Background"        Value="Transparent"/>
+            <Setter Property="FontSize"          Value="13"/>
+            <Setter Property="Padding"           Value="14,10"/>
+            <Setter Property="BorderThickness"   Value="0"/>
+            <Setter Property="Cursor"            Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#8C7560"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushAccent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="160"/>
+            <ColumnDefinition Width="170"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Sidebar -->
-        <StackPanel Grid.Column="0"
-                    Background="#1A1A2E"
-                    Margin="0">
-            <TextBlock Text="ASMODAYCAT"
-                       FontSize="14" FontWeight="Bold"
-                       Foreground="#B39DDB"
-                       Margin="12,20,12,24"
-                       TextWrapping="Wrap"/>
+        <!-- ── Sidebar ─────────────────────────────────────────────── -->
+        <DockPanel Grid.Column="0" Background="{StaticResource BrushNav}">
+
+            <!-- Logo + brand header -->
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                        Margin="12,18,12,20">
+                <Image Source="/Assets/AC.ico" Width="28" Height="28"
+                       VerticalAlignment="Center" Margin="0,0,8,0"
+                       RenderOptions.BitmapScalingMode="HighQuality"/>
+                <TextBlock Text="ASMODAYCAT"
+                           FontSize="13" FontWeight="Bold"
+                           Foreground="{StaticResource BrushLight}"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <!-- Nav links -->
             <ListBox x:Name="NavList"
+                     DockPanel.Dock="Top"
                      SelectionChanged="NavList_SelectionChanged"
                      Background="Transparent"
-                     BorderThickness="0">
+                     BorderThickness="0"
+                     ItemContainerStyle="{StaticResource NavItemStyle}">
                 <ListBoxItem Content="Dashboard"   Tag="Dashboard"/>
                 <ListBoxItem Content="Chat"        Tag="Chat"/>
                 <ListBoxItem Content="Models"      Tag="Models"/>
@@ -34,11 +74,12 @@
                 <ListBoxItem Content="Agent Rules" Tag="AgentRules"/>
                 <ListBoxItem Content="Terminal"    Tag="Terminal"/>
             </ListBox>
-        </StackPanel>
+        </DockPanel>
 
-        <!-- Content area -->
+        <!-- ── Content area ────────────────────────────────────────── -->
         <Frame x:Name="ContentFrame"
                Grid.Column="1"
+               Background="{StaticResource BrushBackground}"
                NavigationUIVisibility="Hidden"/>
     </Grid>
 </Window>

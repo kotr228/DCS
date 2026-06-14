@@ -9,11 +9,11 @@ public class RoleToBrushConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
         value?.ToString()?.ToLowerInvariant() switch
         {
-            "user"      => new SolidColorBrush(Color.FromRgb(0x2A, 0x1F, 0x42)),
-            "assistant" => new SolidColorBrush(Color.FromRgb(0x1E, 0x1A, 0x2E)),
-            "tool"      => new SolidColorBrush(Color.FromRgb(0x1A, 0x2E, 0x1A)),
-            "system"    => new SolidColorBrush(Color.FromRgb(0x2E, 0x2A, 0x1A)),
-            _           => new SolidColorBrush(Color.FromRgb(0x1A, 0x1A, 0x1A))
+            "user"      => new SolidColorBrush(Color.FromRgb(0xBC, 0x8F, 0x3C)),  // #BC8F3C gold
+            "assistant" => new SolidColorBrush(Color.FromRgb(0xE4, 0xD3, 0xBD)),  // #E4D3BD beige
+            "tool"      => new SolidColorBrush(Color.FromRgb(0x79, 0x64, 0x4D)),  // #79644D nav brown
+            "system"    => new SolidColorBrush(Color.FromRgb(0xED, 0xCA, 0x80)),  // #EDCA80 background
+            _           => new SolidColorBrush(Color.FromRgb(0xE4, 0xD3, 0xBD))
         };
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>

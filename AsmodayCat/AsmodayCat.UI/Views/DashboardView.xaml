@@ -7,7 +7,7 @@
         <StackPanel Margin="20">
 
             <TextBlock Text="DASHBOARD" FontSize="18" FontWeight="Bold"
-                       Foreground="#B39DDB" Margin="0,0,0,16"/>
+                       Foreground="{StaticResource BrushNav}" Margin="0,0,0,16"/>
 
             <!-- Row 1: Service + Active Model + Kill Switch -->
             <UniformGrid Rows="1" Columns="3" Margin="0,0,0,12">
@@ -15,52 +15,56 @@
                 <materialDesign:Card Padding="16" Margin="0,0,6,0">
                     <StackPanel>
                         <TextBlock Text="SERVICE" FontSize="10" Foreground="#888" Margin="0,0,0,4"/>
-                        <TextBlock Text="{Binding ServiceStatus}" FontSize="22" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding ServiceStatus}" FontSize="22" FontWeight="Bold"
+                                   Foreground="{StaticResource BrushDark}"/>
                     </StackPanel>
                 </materialDesign:Card>
 
-                <!-- FR-D2: Active LLM widget -->
                 <materialDesign:Card Padding="16" Margin="3,0">
                     <StackPanel>
                         <TextBlock Text="ACTIVE MODEL" FontSize="10" Foreground="#888" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding ActiveModelName}" FontSize="16" FontWeight="Bold"
+                                   Foreground="{StaticResource BrushDark}"
                                    TextTrimming="CharacterEllipsis"/>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <TextBlock Text="{Binding ActiveModelStatus}" FontSize="11"
-                                       Foreground="#B39DDB" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                       Foreground="{StaticResource BrushAccent}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
                             <Button Content="UNLOAD"
                                     Command="{Binding UnloadActiveModelCommand}"
                                     Style="{StaticResource MaterialDesignOutlinedButton}"
-                                    BorderBrush="#EF9A9A" Foreground="#EF9A9A"
+                                    BorderBrush="{StaticResource BrushWarning}"
+                                    Foreground="{StaticResource BrushWarning}"
                                     Padding="8,1" Height="22" FontSize="10"/>
                         </StackPanel>
                     </StackPanel>
                 </materialDesign:Card>
 
-                <!-- FR6.3: Kill Switch -->
-                <materialDesign:Card Padding="16" Margin="6,0,0,0" Background="#3E1A1A">
+                <!-- Kill Switch -->
+                <materialDesign:Card Padding="16" Margin="6,0,0,0"
+                                     Background="#BC4A4A">
                     <StackPanel>
-                        <TextBlock Text="EMERGENCY" FontSize="10" Foreground="#888" Margin="0,0,0,4"/>
+                        <TextBlock Text="EMERGENCY" FontSize="10" Foreground="#F9D0D0" Margin="0,0,0,4"/>
                         <Button Content="⬛ KILL SWITCH"
                                 Command="{Binding KillAllCommand}"
-                                Background="#C62828" Foreground="White"
-                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="#8B0000" Foreground="White"
                                 Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding KillSwitchStatus}"
-                                   Foreground="#EF9A9A" FontSize="11" TextWrapping="Wrap"/>
+                                   Foreground="#F9D0D0" FontSize="11" TextWrapping="Wrap"/>
                     </StackPanel>
                 </materialDesign:Card>
 
             </UniformGrid>
 
-            <!-- Row 2: Hardware metrics (FR-D1) -->
+            <!-- Row 2: Hardware metrics -->
             <UniformGrid Rows="1" Columns="4" Margin="0,0,0,12">
 
                 <materialDesign:Card Padding="16" Margin="0,0,6,0">
                     <StackPanel>
                         <TextBlock Text="CPU LOAD" FontSize="10" Foreground="#888" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding CpuLoad, StringFormat={}{0:F1}%}"
-                                   FontSize="26" FontWeight="Bold" Foreground="#B39DDB"/>
+                                   FontSize="26" FontWeight="Bold"
+                                   Foreground="{StaticResource BrushAccent}"/>
                     </StackPanel>
                 </materialDesign:Card>
 
@@ -68,25 +72,26 @@
                     <StackPanel>
                         <TextBlock Text="RAM FREE" FontSize="10" Foreground="#888" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding RamFreeMb, StringFormat={}{0:N0} MB}"
-                                   FontSize="26" FontWeight="Bold" Foreground="#81C784"/>
+                                   FontSize="26" FontWeight="Bold"
+                                   Foreground="{StaticResource BrushSuccess}"/>
                     </StackPanel>
                 </materialDesign:Card>
 
-                <!-- FR-D1: GPU -->
                 <materialDesign:Card Padding="16" Margin="3,0">
                     <StackPanel>
                         <TextBlock Text="GPU LOAD" FontSize="10" Foreground="#888" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding GpuLoad, StringFormat={}{0:F1}%}"
-                                   FontSize="26" FontWeight="Bold" Foreground="#EF5350"/>
+                                   FontSize="26" FontWeight="Bold"
+                                   Foreground="{StaticResource BrushWarning}"/>
                     </StackPanel>
                 </materialDesign:Card>
 
-                <!-- FR-D1: VRAM -->
                 <materialDesign:Card Padding="16" Margin="6,0,0,0">
                     <StackPanel>
                         <TextBlock Text="VRAM USED" FontSize="10" Foreground="#888" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding VramUsedMb, StringFormat={}{0:N0} MB}"
-                                   FontSize="26" FontWeight="Bold" Foreground="#FFB74D"/>
+                                   FontSize="26" FontWeight="Bold"
+                                   Foreground="{StaticResource BrushAccent}"/>
                         <TextBlock Text="{Binding VramTotalMb, StringFormat=of {0:N0} MB}"
                                    FontSize="10" Foreground="#888"/>
                     </StackPanel>
@@ -94,7 +99,7 @@
 
             </UniformGrid>
 
-            <!-- Row 3: Charts (FR-C1 / FR-C2) -->
+            <!-- Row 3: Charts -->
             <Grid Margin="0,0,0,12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -109,14 +114,14 @@
                                            Height="160" DisableAnimations="True"
                                            Hoverable="False" DataTooltip="{x:Null}">
                             <lvc:CartesianChart.AxisY>
-                                <lvc:Axis MinValue="0" MaxValue="100" Foreground="#666" FontSize="10">
+                                <lvc:Axis MinValue="0" MaxValue="100" Foreground="#888" FontSize="10">
                                     <lvc:Axis.Separator>
-                                        <lvc:Separator StrokeThickness="0.5" Stroke="#333"/>
+                                        <lvc:Separator StrokeThickness="0.5" Stroke="#C8B89A"/>
                                     </lvc:Axis.Separator>
                                 </lvc:Axis>
                             </lvc:CartesianChart.AxisY>
                             <lvc:CartesianChart.AxisX>
-                                <lvc:Axis Foreground="#666" FontSize="10" ShowLabels="False">
+                                <lvc:Axis Foreground="#888" FontSize="10" ShowLabels="False">
                                     <lvc:Axis.Separator>
                                         <lvc:Separator StrokeThickness="0"/>
                                     </lvc:Axis.Separator>
@@ -133,14 +138,14 @@
                                            Height="160" DisableAnimations="True"
                                            Hoverable="False" DataTooltip="{x:Null}">
                             <lvc:CartesianChart.AxisY>
-                                <lvc:Axis Foreground="#666" FontSize="10">
+                                <lvc:Axis Foreground="#888" FontSize="10">
                                     <lvc:Axis.Separator>
-                                        <lvc:Separator StrokeThickness="0.5" Stroke="#333"/>
+                                        <lvc:Separator StrokeThickness="0.5" Stroke="#C8B89A"/>
                                     </lvc:Axis.Separator>
                                 </lvc:Axis>
                             </lvc:CartesianChart.AxisY>
                             <lvc:CartesianChart.AxisX>
-                                <lvc:Axis Foreground="#666" FontSize="10" ShowLabels="False">
+                                <lvc:Axis Foreground="#888" FontSize="10" ShowLabels="False">
                                     <lvc:Axis.Separator>
                                         <lvc:Separator StrokeThickness="0"/>
                                     </lvc:Axis.Separator>
@@ -151,7 +156,7 @@
                 </materialDesign:Card>
             </Grid>
 
-            <!-- Row 4: Network + Recent Activity (FR-D3 / FR-D4) -->
+            <!-- Row 4: Network + Recent Activity -->
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -159,19 +164,18 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- FR-D3: Network Nodes -->
                 <materialDesign:Card Grid.Column="0" Padding="16" MinWidth="140">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="NETWORK NODES" FontSize="10" Foreground="#888"
                                    HorizontalAlignment="Center" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding AvailableNodes}" FontSize="40" FontWeight="Bold"
-                                   Foreground="#B39DDB" HorizontalAlignment="Center"/>
+                                   Foreground="{StaticResource BrushAccent}"
+                                   HorizontalAlignment="Center"/>
                         <TextBlock Text="available" FontSize="11" Foreground="#888"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </materialDesign:Card>
 
-                <!-- FR-D4: Recent Activity -->
                 <materialDesign:Card Grid.Column="2" Padding="16">
                     <StackPanel>
                         <TextBlock Text="RECENT ACTIVITY" FontSize="10" Foreground="#888" Margin="0,0,0,8"/>
@@ -186,14 +190,15 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding Timestamp, StringFormat=HH:mm:ss}"
-                                                   FontSize="11" Foreground="#666" FontFamily="Consolas"/>
+                                                   FontSize="11" Foreground="#888" FontFamily="Consolas"/>
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding ActionDescription}"
-                                                   FontSize="12" TextTrimming="CharacterEllipsis"
+                                                   FontSize="12" Foreground="{StaticResource BrushDark}"
+                                                   TextTrimming="CharacterEllipsis"
                                                    Margin="8,0"/>
                                         <TextBlock Grid.Column="2"
                                                    Text="{Binding Status}"
-                                                   FontSize="11" Foreground="#B39DDB"
+                                                   FontSize="11" Foreground="{StaticResource BrushAccent}"
                                                    HorizontalAlignment="Right"/>
                                     </Grid>
                                 </DataTemplate>
@@ -203,11 +208,12 @@
                 </materialDesign:Card>
             </Grid>
 
-            <!-- FR-D5: Manual refresh button -->
             <Button Content="REFRESH NOW"
                     Command="{Binding RefreshCommand}"
                     HorizontalAlignment="Left" Margin="0,12,0,0"
-                    Style="{StaticResource MaterialDesignOutlinedButton}"/>
+                    Style="{StaticResource MaterialDesignOutlinedButton}"
+                    Foreground="{StaticResource BrushDark}"
+                    BorderBrush="{StaticResource BrushNav}"/>
 
         </StackPanel>
     </ScrollViewer>

@@ -5,15 +5,14 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="20" MaxWidth="700">
 
-            <!-- Title -->
             <TextBlock Text="AGENT RULES" FontSize="18" FontWeight="Bold"
-                       Foreground="#B39DDB" Margin="0,0,0,20"/>
+                       Foreground="{StaticResource BrushNav}" Margin="0,0,0,20"/>
 
             <!-- Add Watched Folder form -->
-            <materialDesign:Card Padding="20" Margin="0,0,0,16" Background="#1A1A1A">
+            <materialDesign:Card Padding="20" Margin="0,0,0,16">
                 <StackPanel>
                     <TextBlock Text="Add Watched Folder" FontSize="13" FontWeight="Bold"
-                               Foreground="#B39DDB" Margin="0,0,0,16"/>
+                               Foreground="{StaticResource BrushNav}" Margin="0,0,0,16"/>
 
                     <TextBox materialDesign:HintAssist.Hint="Input folder path (e.g. C:\CatSuite\Tasks)"
                              Text="{Binding NewFolderPath, UpdateSourceTrigger=PropertyChanged}"
@@ -43,45 +42,45 @@
                              Style="{StaticResource MaterialDesignOutlinedTextBox}"
                              Margin="0,0,0,12"/>
 
-                    <!-- FR-A2: Internet Access toggle -->
                     <DockPanel Margin="0,0,0,16">
                         <TextBlock Text="Allow Internet Access for this agent"
-                                   FontSize="12" VerticalAlignment="Center"
-                                   DockPanel.Dock="Left"/>
+                                   FontSize="12" Foreground="{StaticResource BrushDark}"
+                                   VerticalAlignment="Center" DockPanel.Dock="Left"/>
                         <ToggleButton IsChecked="{Binding AllowInternetAccess}"
                                       HorizontalAlignment="Right"
                                       Style="{StaticResource MaterialDesignSwitchToggleButton}"
                                       ToolTip="Agent can call WebSearchTool via BlackCat Bridge"/>
                     </DockPanel>
 
-                    <!-- Status + Add button -->
                     <DockPanel>
                         <TextBlock Text="{Binding StatusMessage}"
-                                   Foreground="#EF9A9A" FontSize="11"
+                                   Foreground="{StaticResource BrushWarning}" FontSize="11"
                                    VerticalAlignment="Center" DockPanel.Dock="Left"/>
                         <Button Content="ADD FOLDER"
                                 Command="{Binding AddRuleCommand}"
-                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Background="{StaticResource BrushAccent}"
+                                Foreground="{StaticResource BrushLight}"
                                 HorizontalAlignment="Right"/>
                     </DockPanel>
                 </StackPanel>
             </materialDesign:Card>
 
-            <!-- FR-A1: Active Workspaces section -->
+            <!-- Active Workspaces section -->
             <DockPanel Margin="0,0,0,10">
                 <TextBlock Text="ACTIVE WORKSPACES" FontSize="13" FontWeight="Bold"
-                           Foreground="#B39DDB" VerticalAlignment="Center"
+                           Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"
                            DockPanel.Dock="Left"/>
                 <Button Content="REFRESH"
                         Command="{Binding LoadRulesCommand}"
                         Style="{StaticResource MaterialDesignOutlinedButton}"
+                        Foreground="{StaticResource BrushDark}"
+                        BorderBrush="{StaticResource BrushNav}"
                         HorizontalAlignment="Right"
                         Height="30" Padding="10,0"/>
             </DockPanel>
 
-            <!-- Empty state -->
             <TextBlock Text="No workspaces configured yet."
-                       Foreground="#555" FontSize="12"
+                       Foreground="#888" FontSize="12"
                        Margin="0,8,0,0">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
@@ -95,12 +94,11 @@
                 </TextBlock.Style>
             </TextBlock>
 
-            <!-- FR-A1: Rules list as material cards -->
+            <!-- Rules list -->
             <ItemsControl ItemsSource="{Binding ActiveRules}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <materialDesign:Card Padding="14" Margin="0,0,0,8"
-                                             Background="#111">
+                        <materialDesign:Card Padding="14" Margin="0,0,0,8">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -109,16 +107,16 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Status dot -->
                                 <Ellipse Grid.Column="0" Width="8" Height="8"
-                                         Fill="#66BB6A" VerticalAlignment="Center"
+                                         Fill="{StaticResource BrushSuccess}"
+                                         VerticalAlignment="Center"
                                          Margin="0,0,10,0"/>
 
-                                <!-- Path + action -->
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding InputPath}"
                                                FontFamily="Consolas" FontSize="12"
-                                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                               FontWeight="SemiBold" Foreground="{StaticResource BrushDark}"
+                                               TextTrimming="CharacterEllipsis"/>
                                     <TextBlock FontSize="11" Foreground="#888" Margin="0,2,0,0">
                                         <Run Text="{Binding ActionType}"/>
                                         <Run Text=" · "/>
@@ -126,27 +124,27 @@
                                     </TextBlock>
                                 </StackPanel>
 
-                                <!-- Internet icon (FR-A2) -->
+                                <!-- Internet icon -->
                                 <materialDesign:PackIcon Grid.Column="2"
                                     Kind="Web" Width="18" Height="18"
                                     VerticalAlignment="Center" Margin="8,0">
                                     <materialDesign:PackIcon.Style>
                                         <Style TargetType="materialDesign:PackIcon">
-                                            <Setter Property="Foreground" Value="#555"/>
+                                            <Setter Property="Foreground" Value="#BBAA99"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding AllowInternetAccess}" Value="True">
-                                                    <Setter Property="Foreground" Value="#42A5F5"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushSuccess}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </materialDesign:PackIcon.Style>
                                 </materialDesign:PackIcon>
 
-                                <!-- Remove button (FR-A4) -->
+                                <!-- Remove button -->
                                 <Button Grid.Column="3"
                                         Style="{StaticResource MaterialDesignIconButton}"
                                         Width="32" Height="32"
-                                        Foreground="#EF5350"
+                                        Foreground="{StaticResource BrushWarning}"
                                         ToolTip="Stop monitoring and remove rule"
                                         Command="{Binding DataContext.RemoveRuleCommand,
                                                   RelativeSource={RelativeSource AncestorType=ItemsControl}}"

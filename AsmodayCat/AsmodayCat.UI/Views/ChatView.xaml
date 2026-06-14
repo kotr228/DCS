@@ -15,20 +15,21 @@
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
             <TextBlock Text="CHAT" FontSize="18" FontWeight="Bold"
-                       Foreground="#B39DDB" VerticalAlignment="Center"/>
+                       Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"/>
             <Button Content="CLEAR"
                     Command="{Binding ClearChatCommand}"
                     Style="{StaticResource MaterialDesignOutlinedButton}"
+                    Foreground="{StaticResource BrushDark}"
+                    BorderBrush="{StaticResource BrushNav}"
                     Margin="12,0,0,0" Height="28" Padding="8,0"/>
         </StackPanel>
 
-        <!-- Messages list (FR-CH2: markdown rendering) -->
+        <!-- Messages list -->
         <ScrollViewer Grid.Row="1" x:Name="Scroller"
                       VerticalScrollBarVisibility="Auto">
             <ItemsControl ItemsSource="{Binding Messages}">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <!-- Outer border drives alignment: User→Right, others→Left -->
                         <Border HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToAlignmentConverter}}"
                                 MaxWidth="680"
                                 Margin="0,4"
@@ -39,10 +40,24 @@
                                 <!-- Role label -->
                                 <TextBlock Text="{Binding Role}"
                                            FontSize="10" FontWeight="Bold"
-                                           Foreground="#888" Margin="0,0,0,4"
-                                           Typography.Capitals="AllSmallCaps"/>
+                                           Margin="0,0,0,4"
+                                           Typography.Capitals="AllSmallCaps">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Role}" Value="user">
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushLight}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Role}" Value="User">
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushLight}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
 
-                                <!-- Attachment chips (for user messages) -->
+                                <!-- Attachment chips -->
                                 <ItemsControl ItemsSource="{Binding AttachmentPaths}">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
@@ -51,10 +66,10 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="#333" CornerRadius="4"
+                                            <Border Background="{StaticResource BrushNav}" CornerRadius="4"
                                                     Padding="6,2" Margin="0,0,4,4">
                                                 <TextBlock Text="{Binding}" FontSize="10"
-                                                           Foreground="#B39DDB"
+                                                           Foreground="{StaticResource BrushLight}"
                                                            MaxWidth="160"
                                                            TextTrimming="CharacterEllipsis"/>
                                             </Border>
@@ -62,9 +77,22 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
-                                <!-- FR-CH2: Markdown viewer for assistant; plain text for user -->
-                                <mdxam:MarkdownViewer Markdown="{Binding Content}"
-                                                      Foreground="White"/>
+                                <!-- Markdown viewer — foreground switches by role -->
+                                <mdxam:MarkdownViewer Markdown="{Binding Content}">
+                                    <mdxam:MarkdownViewer.Style>
+                                        <Style TargetType="mdxam:MarkdownViewer">
+                                            <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Role}" Value="user">
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushLight}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Role}" Value="User">
+                                                    <Setter Property="Foreground" Value="{StaticResource BrushLight}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </mdxam:MarkdownViewer.Style>
+                                </mdxam:MarkdownViewer>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
@@ -72,17 +100,17 @@
             </ItemsControl>
         </ScrollViewer>
 
-        <!-- FR-CH3: Agent state indicator -->
+        <!-- Agent state indicator -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6"
                     Visibility="{Binding IsAgentBusy, Converter={StaticResource BoolToVisConverter}}">
             <materialDesign:PackIcon Kind="Robot" Width="16" Height="16"
-                                     Foreground="#B39DDB" VerticalAlignment="Center"/>
+                                     Foreground="{StaticResource BrushAccent}" VerticalAlignment="Center"/>
             <TextBlock Text="{Binding AgentStateText}"
-                       Foreground="#B39DDB" Margin="6,0,0,0"
+                       Foreground="{StaticResource BrushAccent}" Margin="6,0,0,0"
                        FontStyle="Italic" VerticalAlignment="Center"/>
         </StackPanel>
 
-        <!-- FR-CH6: Pending attachment preview strip -->
+        <!-- Pending attachment preview strip -->
         <ItemsControl Grid.Row="3" ItemsSource="{Binding PendingAttachments}"
                       Margin="0,0,0,6"
                       Visibility="{Binding HasPendingAttachments,
@@ -94,15 +122,15 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Border Background="#2A2A3E" CornerRadius="6"
+                    <Border Background="{StaticResource BrushSurface}" CornerRadius="6"
                             Padding="8,4" Margin="0,0,6,4"
-                            BorderBrush="#444" BorderThickness="1">
+                            BorderBrush="{StaticResource BrushNav}" BorderThickness="1">
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="Paperclip" Width="12" Height="12"
-                                                     Foreground="#888" VerticalAlignment="Center"
+                                                     Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"
                                                      Margin="0,0,4,0"/>
                             <TextBlock Text="{Binding Converter={StaticResource FileNameConverter}}"
-                                       FontSize="11" Foreground="White" MaxWidth="140"
+                                       FontSize="11" Foreground="{StaticResource BrushDark}" MaxWidth="140"
                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                             <Button Style="{StaticResource MaterialDesignIconButton}"
                                     Width="18" Height="18" Padding="0"
@@ -126,10 +154,10 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- FR-CH5: Attach button -->
             <Button Grid.Column="0"
                     Command="{Binding AttachFileCommand}"
                     Style="{StaticResource MaterialDesignIconButton}"
+                    Foreground="{StaticResource BrushNav}"
                     ToolTip="Attach file"
                     Margin="0,0,6,0">
                 <materialDesign:PackIcon Kind="Paperclip" Width="20" Height="20"/>
@@ -146,7 +174,8 @@
             <Button Grid.Column="2"
                     Content="SEND"
                     Command="{Binding SendCommand}"
-                    Style="{StaticResource MaterialDesignRaisedButton}"
+                    Background="{StaticResource BrushAccent}"
+                    Foreground="{StaticResource BrushLight}"
                     Margin="8,0,0,0"
                     IsEnabled="{Binding IsAgentBusy,
                         Converter={StaticResource InverseBoolConverter}}"/>

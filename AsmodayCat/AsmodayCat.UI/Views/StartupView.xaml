@@ -1,0 +1,134 @@
+<Window x:Class="AsmodayCat.UI.Views.StartupView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AsmodayCat"
+        Icon="/Assets/AC.ico"
+        Width="460" Height="360"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        WindowStartupLocation="CenterScreen"
+        Background="Transparent"
+        ResizeMode="NoResize">
+    <Border CornerRadius="12"
+            Background="{StaticResource BrushBackground}"
+            BorderBrush="{StaticResource BrushNav}"
+            BorderThickness="1">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>   <!-- drag bar -->
+                <RowDefinition Height="*"/>      <!-- content -->
+                <RowDefinition Height="Auto"/>   <!-- buttons -->
+            </Grid.RowDefinitions>
+
+            <!-- ── Drag / title bar ──────────────────────────────────── -->
+            <Grid Grid.Row="0" Background="{StaticResource BrushNav}"
+                  MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="AsmodayCat"
+                           FontSize="13" FontWeight="SemiBold"
+                           Foreground="{StaticResource BrushLight}"
+                           VerticalAlignment="Center" Margin="12,8"/>
+                <Button Grid.Column="1"
+                        Content="—"
+                        Click="MinimizeButton_Click"
+                        Style="{StaticResource MaterialDesignFlatButton}"
+                        Foreground="{StaticResource BrushLight}"
+                        Width="36" Height="32" Padding="0"
+                        ToolTip="Minimise"/>
+                <Button Grid.Column="2"
+                        Content="✕"
+                        Click="CloseButton_Click"
+                        Style="{StaticResource MaterialDesignFlatButton}"
+                        Foreground="{StaticResource BrushLight}"
+                        Width="36" Height="32" Padding="0"
+                        ToolTip="Exit"/>
+            </Grid>
+
+            <!-- ── Main content ──────────────────────────────────────── -->
+            <StackPanel Grid.Row="1" VerticalAlignment="Center"
+                        Margin="32,16,32,8">
+
+                <!-- Logo + name -->
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                            Margin="0,0,0,24">
+                    <Image Source="/Assets/AC.ico" Width="48" Height="48"
+                           VerticalAlignment="Center" Margin="0,0,12,0"
+                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="ASMODAYCAT"
+                                   FontSize="26" FontWeight="Bold"
+                                   Foreground="{StaticResource BrushNav}"/>
+                        <TextBlock Text="Local LLM Control Suite"
+                                   FontSize="12"
+                                   Foreground="{StaticResource BrushAccent}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Status rows -->
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="28"/>
+                        <RowDefinition Height="28"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0"
+                               Text="Windows Service"
+                               FontSize="12" Foreground="{StaticResource BrushDark}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="0" Grid.Column="1"
+                               Text="{Binding ServiceStatus}"
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="{Binding ServiceColor}"
+                               VerticalAlignment="Center"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0"
+                               Text="LLM Engine"
+                               FontSize="12" Foreground="{StaticResource BrushDark}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="1" Grid.Column="1"
+                               Text="{Binding LlmStatus}"
+                               FontSize="12" FontWeight="SemiBold"
+                               Foreground="{Binding LlmColor}"
+                               VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Progress -->
+                <ProgressBar IsIndeterminate="True" Height="4"
+                             Foreground="{StaticResource BrushAccent}"
+                             Background="Transparent"
+                             Margin="0,12,0,4"
+                             Visibility="{Binding IsChecking, Converter={StaticResource BoolToVisConverter}}"/>
+
+                <TextBlock Text="{Binding StatusText}"
+                           FontSize="11" Foreground="{StaticResource BrushDark}"
+                           TextWrapping="Wrap" Opacity="0.7"
+                           HorizontalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- ── Action buttons ────────────────────────────────────── -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal"
+                        HorizontalAlignment="Right" Margin="20,8,20,20">
+                <Button Content="EXIT"
+                        Command="{Binding ExitCommand}"
+                        Style="{StaticResource MaterialDesignOutlinedButton}"
+                        Foreground="{StaticResource BrushDark}"
+                        BorderBrush="{StaticResource BrushNav}"
+                        Margin="0,0,8,0" Height="36" Padding="20,0"/>
+                <Button Content="CONTINUE"
+                        Click="ContinueButton_Click"
+                        IsEnabled="{Binding CanContinue}"
+                        Background="{StaticResource BrushAccent}"
+                        Foreground="{StaticResource BrushLight}"
+                        Height="36" Padding="20,0"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

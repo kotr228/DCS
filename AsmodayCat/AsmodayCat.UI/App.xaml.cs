@@ -22,6 +22,7 @@ public partial class App : Application
         services.AddTransient<TerminalViewModel>();
         services.AddTransient<ChatViewModel>();
         services.AddTransient<ModelsManagerViewModel>();
+        services.AddTransient<StartupViewModel>();
 
         services.AddTransient<DashboardView>();
         services.AddTransient<HardwareView>();
@@ -31,10 +32,11 @@ public partial class App : Application
         services.AddTransient<ModelsManagerView>();
         services.AddTransient<MainWindow>();
         services.AddTransient<OverlayWindow>();
+        services.AddTransient<StartupView>();
 
         Services = services.BuildServiceProvider();
 
-        var mainWindow = Services.GetRequiredService<MainWindow>();
-        mainWindow.Show();
+        var startup = Services.GetRequiredService<StartupView>();
+        startup.Show();
     }
 }

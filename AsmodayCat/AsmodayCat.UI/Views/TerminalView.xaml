@@ -10,36 +10,41 @@
             <RowDefinition Height="Auto"/>  <!-- CLI input -->
         </Grid.RowDefinitions>
 
-        <!-- Title row + controls (FR-T2, FR-T4) -->
+        <!-- Title row + controls -->
         <DockPanel Grid.Row="0" Margin="0,0,0,8">
             <TextBlock Text="TERMINAL" FontSize="18" FontWeight="Bold"
-                       Foreground="#B39DDB" VerticalAlignment="Center"
+                       Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"
                        DockPanel.Dock="Left"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="CLEAR"
                         Command="{Binding ClearCommand}"
                         Style="{StaticResource MaterialDesignOutlinedButton}"
+                        Foreground="{StaticResource BrushDark}"
+                        BorderBrush="{StaticResource BrushNav}"
                         Height="28" Padding="10,0" Margin="0,0,6,0"/>
                 <Button Content="EXPORT"
                         Command="{Binding ExportLogsCommand}"
                         Style="{StaticResource MaterialDesignOutlinedButton}"
+                        Foreground="{StaticResource BrushDark}"
+                        BorderBrush="{StaticResource BrushNav}"
                         Height="28" Padding="10,0" Margin="0,0,10,0"/>
                 <CheckBox Content="Auto-scroll"
                           IsChecked="{Binding AutoScroll}"
+                          Foreground="{StaticResource BrushDark}"
                           VerticalAlignment="Center"/>
             </StackPanel>
         </DockPanel>
 
-        <!-- FR-T2: Level filter chips -->
+        <!-- Level filter chips -->
         <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
             <ToggleButton Content="INFO"
                           IsChecked="{Binding ShowInfo}"
                           Style="{StaticResource MaterialDesignFlatToggleButton}"
-                          Foreground="#A5D6A7" Padding="8,2" Margin="0,0,4,0" Height="24"/>
+                          Foreground="#5E9D55" Padding="8,2" Margin="0,0,4,0" Height="24"/>
             <ToggleButton Content="WARN"
                           IsChecked="{Binding ShowWarning}"
                           Style="{StaticResource MaterialDesignFlatToggleButton}"
-                          Foreground="#FFCA28" Padding="8,2" Margin="0,0,4,0" Height="24"/>
+                          Foreground="#BC907E" Padding="8,2" Margin="0,0,4,0" Height="24"/>
             <ToggleButton Content="ERROR"
                           IsChecked="{Binding ShowError}"
                           Style="{StaticResource MaterialDesignFlatToggleButton}"
@@ -47,19 +52,19 @@
             <ToggleButton Content="AGENT"
                           IsChecked="{Binding ShowAgent}"
                           Style="{StaticResource MaterialDesignFlatToggleButton}"
-                          Foreground="#26C6DA" Padding="8,2" Margin="0,0,4,0" Height="24"/>
+                          Foreground="#BC8F3C" Padding="8,2" Margin="0,0,4,0" Height="24"/>
             <ToggleButton Content="SYSTEM"
                           IsChecked="{Binding ShowSystem}"
                           Style="{StaticResource MaterialDesignFlatToggleButton}"
-                          Foreground="#B39DDB" Padding="8,2" Margin="0,0,4,0" Height="24"/>
+                          Foreground="#79644D" Padding="8,2" Margin="0,0,4,0" Height="24"/>
             <ToggleButton Content="NET"
                           IsChecked="{Binding ShowNetwork}"
                           Style="{StaticResource MaterialDesignFlatToggleButton}"
                           Foreground="#42A5F5" Padding="8,2" Height="24"/>
         </WrapPanel>
 
-        <!-- FR-T1: Log area with color-coded entries -->
-        <Border Grid.Row="2" Background="#0A0A12" CornerRadius="4" Padding="6">
+        <!-- Log area -->
+        <Border Grid.Row="2" Background="#2A1F12" CornerRadius="4" Padding="6">
             <ScrollViewer x:Name="Scroller"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Auto"
@@ -72,25 +77,25 @@
                                        TextWrapping="Wrap" Margin="0,1"
                                        Foreground="#A5D6A7">
                                 <Run Text="{Binding Timestamp, StringFormat=HH:mm:ss}"/>
-                                <Run Text=" [" Foreground="#444"/>
-                                <Run Text="{Binding Level}" Foreground="#555"/>
-                                <Run Text="] " Foreground="#444"/>
-                                <Run Text="{Binding Source}" Foreground="#777"/>
+                                <Run Text=" [" Foreground="#6B5B45"/>
+                                <Run Text="{Binding Level}" Foreground="#8C7254"/>
+                                <Run Text="] " Foreground="#6B5B45"/>
+                                <Run Text="{Binding Source}" Foreground="#BC8F3C"/>
                                 <Run Text=": "/>
                                 <Run Text="{Binding Message}"/>
                             </TextBlock>
                             <DataTemplate.Triggers>
                                 <DataTrigger Binding="{Binding Level}" Value="Warning">
-                                    <Setter TargetName="Tb" Property="Foreground" Value="#FFCA28"/>
+                                    <Setter TargetName="Tb" Property="Foreground" Value="#BC907E"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding Level}" Value="Error">
                                     <Setter TargetName="Tb" Property="Foreground" Value="#EF5350"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding Level}" Value="Agent">
-                                    <Setter TargetName="Tb" Property="Foreground" Value="#26C6DA"/>
+                                    <Setter TargetName="Tb" Property="Foreground" Value="#BC8F3C"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding Level}" Value="System">
-                                    <Setter TargetName="Tb" Property="Foreground" Value="#B39DDB"/>
+                                    <Setter TargetName="Tb" Property="Foreground" Value="#79644D"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding Level}" Value="Network">
                                     <Setter TargetName="Tb" Property="Foreground" Value="#42A5F5"/>
@@ -102,8 +107,8 @@
             </ScrollViewer>
         </Border>
 
-        <!-- FR-T3: Interactive CLI input -->
-        <Grid Grid.Row="3" Background="#0A0A12" Margin="0,4,0,0">
+        <!-- CLI input -->
+        <Grid Grid.Row="3" Background="#2A1F12" Margin="0,4,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -112,13 +117,13 @@
 
             <TextBlock Grid.Column="0" Text="&gt;"
                        FontFamily="Consolas" FontSize="13"
-                       Foreground="#B39DDB" VerticalAlignment="Center"
+                       Foreground="{StaticResource BrushAccent}" VerticalAlignment="Center"
                        Margin="8,0,4,0"/>
 
             <TextBox Grid.Column="1"
                      FontFamily="Consolas" FontSize="12"
-                     Background="Transparent" Foreground="#E0E0E0"
-                     CaretBrush="#B39DDB" BorderThickness="0"
+                     Background="Transparent" Foreground="#F9F6F0"
+                     CaretBrush="{StaticResource BrushAccent}" BorderThickness="0"
                      Text="{Binding CurrentCommand, UpdateSourceTrigger=PropertyChanged}"
                      VerticalAlignment="Center" Padding="4,6"
                      materialDesign:HintAssist.Hint="/ping  /status  /help  /kill_all">
@@ -129,8 +134,8 @@
 
             <Button Grid.Column="2" Content="EXECUTE"
                     Command="{Binding SendCommandCommand}"
-                    Style="{StaticResource MaterialDesignRaisedButton}"
-                    Background="#7E57C2" Foreground="White"
+                    Background="{StaticResource BrushAccent}"
+                    Foreground="{StaticResource BrushLight}"
                     Height="32" Margin="4,4" Padding="10,0"/>
         </Grid>
 
