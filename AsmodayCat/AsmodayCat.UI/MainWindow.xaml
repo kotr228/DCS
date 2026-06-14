@@ -53,7 +53,7 @@
 
             <!-- ── Chrome header ──────────────────────────────────────── -->
             <Border Grid.Row="0"
-                    Background="{StaticResource BrushNav}"
+                    Background="{StaticResource BrushBackground}"
                     MouseLeftButtonDown="Header_MouseLeftButtonDown"
                     Padding="14,0">
                 <Grid>
@@ -87,18 +87,7 @@
                 <DockPanel Grid.Column="0" Background="{StaticResource BrushBackground}">
 
                     <!-- Logo + brand -->
-                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
-                                Margin="12,18,12,20">
-                        <Image Source="pack://application:,,,/Assets/AC.ico"
-                               Width="28" Height="28" VerticalAlignment="Center"
-                               Margin="0,0,8,0"
-                               RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="ASMODAYCAT"
-                                   FontSize="12" FontWeight="Bold"
-                                   Foreground="{StaticResource BrushNav}"
-                                   VerticalAlignment="Center"
-                                   TextWrapping="Wrap" Margin="0"/>
-                    </StackPanel>
+                    
 
                     <!-- Divider -->
                     <Border DockPanel.Dock="Top" Height="1"

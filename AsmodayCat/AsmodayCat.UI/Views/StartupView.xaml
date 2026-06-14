@@ -22,7 +22,7 @@
 
             <!-- ── Заголовок ────────────────────────────────────────────── -->
             <Border Grid.Row="0"
-                    Background="{StaticResource BrushNav}"
+                    Background="{StaticResource BrushBackground}"
                     Padding="20,16"
                     MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <Grid>
