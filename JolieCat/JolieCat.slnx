@@ -1,1 +1,6 @@
-<Solution />
+<Solution>
+  <Project Path="JolieCat.Core/JolieCat.Core.csproj" />
+  <Project Path="JolieCat.Service/JolieCat.Service.csproj" />
+  <Project Path="JolieCat.Shared/JolieCat.Shared.csproj" />
+  <Project Path="JolieCat.UI/JolieCat.UI.csproj" />
+</Solution>

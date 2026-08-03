@@ -10,4 +10,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\JolieCat.Core\JolieCat.Core.csproj" />
+    <ProjectReference Include="..\JolieCat.Shared\JolieCat.Shared.csproj" />
+  </ItemGroup>
 </Project>

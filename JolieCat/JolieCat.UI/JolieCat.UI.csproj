@@ -8,4 +8,9 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\JolieCat.Core\JolieCat.Core.csproj" />
+    <ProjectReference Include="..\JolieCat.Shared\JolieCat.Shared.csproj" />
+  </ItemGroup>
+
 </Project>
