@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="Servise/Servise.csproj" />
-  <Project Path="Shared/Shared.csproj" />
-  <Project Path="UI/UI.csproj" />
-</Solution>
