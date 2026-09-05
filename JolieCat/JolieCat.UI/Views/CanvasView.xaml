@@ -4,16 +4,22 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:skia="clr-namespace:SkiaSharp.Views.WPF;assembly=SkiaSharp.Views.WPF"
+             xmlns:converters="clr-namespace:JolieCat.UI.Converters"
              mc:Ignorable="d">
+    <UserControl.Resources>
+        <converters:ToolTypeToCursorConverter x:Key="ToolTypeToCursor" />
+    </UserControl.Resources>
     <Grid>
         <!-- SKGLElement (not the software-rendered SKElement) so the canvas is
              hardware-accelerated via OpenGL/ANGLE. PaintSurface fires on every repaint,
              including on resize, so CanvasRenderer always redraws at the current size.
              Mouse capture is taken on press (see code-behind) so drag gestures - paint
              strokes, marquee drags, panning - keep tracking correctly even if the
-             pointer leaves the control mid-drag. -->
+             pointer leaves the control mid-drag. Cursor follows the active tool so the
+             pointer itself hints at what a click/drag will do. -->
         <skia:SKGLElement x:Name="Surface"
                           Focusable="True"
+                          Cursor="{Binding ActiveToolType, Converter={StaticResource ToolTypeToCursor}}"
                           PaintSurface="OnPaintSurface"
                           MouseLeftButtonDown="Surface_MouseLeftButtonDown"
                           MouseMove="Surface_MouseMove"

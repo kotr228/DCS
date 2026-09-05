@@ -150,6 +150,13 @@
                               Style="{StaticResource PanelToggleButtonStyle}"
                               IsChecked="{Binding IsBottomPanelVisible, Mode=OneWay}"
                               Command="{Binding ToggleBottomPanelCommand}" />
+
+                <Separator Margin="8,2" />
+
+                <!-- The active foreground color: Brush/Pencil/Paint Bucket/Gradient all draw
+                     with it. Lives in the toolbar (not the per-tool Properties panel) since
+                     it's shared across every color-using tool rather than specific to one. -->
+                <views:ColorPickerButton DataContext="{Binding Canvas}" />
             </StackPanel>
         </Border>
 

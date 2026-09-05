@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using JolieCat.Shared.Enums;
 using JolieCat.UI.ViewModels.ToolOptions;
 using SkiaSharp;
@@ -9,12 +12,13 @@ namespace JolieCat.UI.ViewModels
 {
     /// <summary>
     /// Owns the center canvas's interactive state: the in-memory <see cref="SKBitmap"/>
-    /// painted strokes persist on, the pan/zoom transform, and the marquee selection
-    /// overlay. <see cref="Views.CanvasView"/> forwards raw WPF pointer events here (in
-    /// device pixels, already resolved for DPI); this class turns them into the
-    /// per-tool behavior described by <see cref="Core.Tools.ToolCatalog"/> and mutates
-    /// the bitmap or the pan/zoom/marquee state accordingly. <see cref="CanvasRenderer"/>
-    /// then reads that state back out to draw a frame - it owns no state of its own.
+    /// painted strokes persist on, the pan/zoom transform, the marquee selection
+    /// overlay, and the active foreground color. <see cref="Views.CanvasView"/> forwards
+    /// raw WPF pointer events here (in device pixels, already resolved for DPI); this
+    /// class turns them into the per-tool behavior described by
+    /// <see cref="Core.Tools.ToolCatalog"/> and mutates the bitmap or the pan/zoom/
+    /// marquee state accordingly. <see cref="CanvasRenderer"/> then reads that state back
+    /// out to draw a frame - it owns no state of its own.
     /// </summary>
     public partial class CanvasViewModel : ObservableObject, IDisposable
     {
@@ -66,11 +70,52 @@ namespace JolieCat.UI.ViewModels
         [ObservableProperty]
         private double marqueeHeight;
 
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(PrimaryColorBrush))]
+        [NotifyPropertyChangedFor(nameof(RedComponent))]
+        [NotifyPropertyChangedFor(nameof(GreenComponent))]
+        [NotifyPropertyChangedFor(nameof(BlueComponent))]
+        private Color primaryColor = Colors.White;
+
         /// <summary>The persistent drawing surface. Painted strokes live here, not on screen.</summary>
         public SKBitmap Bitmap => _bitmap;
 
-        /// <summary>Foreground color used by every paint/fill/gradient operation until a color picker exists.</summary>
-        public SKColor BrushColor { get; set; } = SKColors.White;
+        /// <summary>
+        /// <see cref="PrimaryColor"/> converted to SkiaSharp's color type - every paint/
+        /// fill/gradient operation draws with this.
+        /// </summary>
+        public SKColor BrushColor => new(PrimaryColor.R, PrimaryColor.G, PrimaryColor.B, PrimaryColor.A);
+
+        /// <summary>Bindable brush for the color-picker swatches (Border/Button.Background
+        /// can't bind directly to a <see cref="Color"/> - there's no built-in converter).</summary>
+        public SolidColorBrush PrimaryColorBrush => new(PrimaryColor);
+
+        /// <summary>0-255 color-channel properties the picker's RGB sliders bind to; each
+        /// reads/writes through <see cref="PrimaryColor"/> since WPF can't two-way bind
+        /// into one field of a value-type property.</summary>
+        public double RedComponent
+        {
+            get => PrimaryColor.R;
+            set => PrimaryColor = Color.FromRgb(ToByte(value), PrimaryColor.G, PrimaryColor.B);
+        }
+
+        public double GreenComponent
+        {
+            get => PrimaryColor.G;
+            set => PrimaryColor = Color.FromRgb(PrimaryColor.R, ToByte(value), PrimaryColor.B);
+        }
+
+        public double BlueComponent
+        {
+            get => PrimaryColor.B;
+            set => PrimaryColor = Color.FromRgb(PrimaryColor.R, PrimaryColor.G, ToByte(value));
+        }
+
+        private static byte ToByte(double value) => (byte)Math.Clamp(Math.Round(value), 0, 255);
+
+        /// <summary>The active tool's type, mirrored from <see cref="ToolboxViewModel.ActiveTool"/>
+        /// so the view can bind the canvas cursor to it without needing the whole toolbox.</summary>
+        public ToolType ActiveToolType => _toolbox.ActiveTool.Type;
 
         /// <summary>Raised after any change the view should repaint for - bitmap content included,
         /// which (unlike pan/zoom/marquee) isn't an observable property the view can react to directly.</summary>
@@ -79,6 +124,7 @@ namespace JolieCat.UI.ViewModels
         public CanvasViewModel(ToolboxViewModel toolbox)
         {
             _toolbox = toolbox ?? throw new ArgumentNullException(nameof(toolbox));
+            _toolbox.PropertyChanged += OnToolboxPropertyChanged;
 
             _bitmap = new SKBitmap(DocumentWidth, DocumentHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
             _bitmapCanvas = new SKCanvas(_bitmap);
@@ -89,6 +135,19 @@ namespace JolieCat.UI.ViewModels
             // centered - true centering needs the viewport's size, which isn't known yet
             // at construction time; a reasonable follow-up once this is in daily use.
             zoom = 0.5;
+        }
+
+        private void OnToolboxPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ToolboxViewModel.ActiveTool))
+                OnPropertyChanged(nameof(ActiveToolType));
+        }
+
+        [RelayCommand]
+        private void SetColorFromHex(string? hex)
+        {
+            if (!string.IsNullOrWhiteSpace(hex) && ColorConverter.ConvertFromString(hex) is Color color)
+                PrimaryColor = color;
         }
 
         public void OnPointerPressed(SKPoint devicePoint)
@@ -217,6 +276,8 @@ namespace JolieCat.UI.ViewModels
             var hardness = options?.Hardness ?? 100;
             var opacityPercent = options?.Opacity ?? 100;
 
+            var alpha = (byte)Math.Clamp(opacityPercent / 100.0 * 255, 0, 255);
+
             var paint = new SKPaint
             {
                 Style = SKPaintStyle.Stroke,
@@ -224,10 +285,12 @@ namespace JolieCat.UI.ViewModels
                 StrokeCap = SKStrokeCap.Round,
                 StrokeJoin = SKStrokeJoin.Round,
                 IsAntialias = !isPencil,
-                BlendMode = isEraser ? SKBlendMode.Clear : SKBlendMode.SrcOver,
-                Color = isEraser
-                    ? SKColors.Black
-                    : BrushColor.WithAlpha((byte)Math.Clamp(opacityPercent / 100.0 * 255, 0, 255)),
+                // DstOut (not Clear) removes destination alpha in proportion to the
+                // source alpha, so the eraser's Opacity slider genuinely does partial
+                // erasing instead of always punching fully through regardless of it.
+                // Color only matters for its alpha channel here - RGB is irrelevant.
+                BlendMode = isEraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+                Color = isEraser ? SKColors.Black.WithAlpha(alpha) : BrushColor.WithAlpha(alpha),
             };
 
             // Softer brushes get a blurred stroke edge; pencil and the eraser stay hard-edged.
@@ -359,6 +422,7 @@ namespace JolieCat.UI.ViewModels
         {
             if (_disposed) return;
 
+            _toolbox.PropertyChanged -= OnToolboxPropertyChanged;
             _bitmapCanvas.Dispose();
             _bitmap.Dispose();
             _disposed = true;
