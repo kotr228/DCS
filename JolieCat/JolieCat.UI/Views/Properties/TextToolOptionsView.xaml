@@ -1,0 +1,23 @@
+<UserControl x:Class="JolieCat.UI.Views.Properties.TextToolOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+             mc:Ignorable="d">
+    <StackPanel Margin="10">
+        <TextBlock Text="Font Family" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+        <ComboBox ItemsSource="{Binding AvailableFontFamilies}" SelectedItem="{Binding FontFamily, Mode=TwoWay}" Margin="0,0,0,10" />
+
+        <controls:LabeledSlider Label="Font Size" Minimum="6" Maximum="288" Suffix="pt" Value="{Binding FontSize, Mode=TwoWay}" />
+
+        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+            <ToggleButton Content="B" Width="28" FontWeight="Bold"
+                          Style="{StaticResource PanelToggleButtonStyle}"
+                          IsChecked="{Binding IsBold, Mode=TwoWay}" Margin="0,0,4,0" />
+            <ToggleButton Content="I" Width="28" FontStyle="Italic"
+                          Style="{StaticResource PanelToggleButtonStyle}"
+                          IsChecked="{Binding IsItalic, Mode=TwoWay}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

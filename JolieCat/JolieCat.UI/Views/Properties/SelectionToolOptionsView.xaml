@@ -1,0 +1,14 @@
+<UserControl x:Class="JolieCat.UI.Views.Properties.SelectionToolOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+             mc:Ignorable="d">
+    <StackPanel Margin="10">
+        <controls:LabeledSlider Label="Feather" Minimum="0" Maximum="250" Suffix="px" Value="{Binding FeatherRadius, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Tolerance" Minimum="0" Maximum="255" Value="{Binding Tolerance, Mode=TwoWay}" />
+        <CheckBox Content="Anti-alias" Foreground="{StaticResource TextPrimaryBrush}"
+                  IsChecked="{Binding AntiAlias, Mode=TwoWay}" Margin="0,4,0,0" />
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,38 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:opts="clr-namespace:JolieCat.UI.ViewModels.ToolOptions"
+                    xmlns:views="clr-namespace:JolieCat.UI.Views.Properties">
+
+    <!-- Implicit DataTemplates: the Properties panel's ContentControl just binds
+         Content to Toolbox.CurrentToolOptions and WPF picks the matching view below
+         based on that object's runtime type - no converter or code-behind needed. -->
+
+    <DataTemplate DataType="{x:Type opts:PaintToolOptionsViewModel}">
+        <views:PaintToolOptionsView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:TextToolOptionsViewModel}">
+        <views:TextToolOptionsView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:SelectionToolOptionsViewModel}">
+        <views:SelectionToolOptionsView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:ShapeToolOptionsViewModel}">
+        <views:ShapeToolOptionsView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:FillToolOptionsViewModel}">
+        <views:FillToolOptionsView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:GradientToolOptionsViewModel}">
+        <views:GradientToolOptionsView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:EmptyToolOptionsViewModel}">
+        <views:EmptyToolOptionsView />
+    </DataTemplate>
+
+</ResourceDictionary>

@@ -1,0 +1,193 @@
+<UserControl x:Class="JolieCat.UI.Views.Timeline.TimelinePanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:JolieCat.UI.ViewModels.Timeline"
+             xmlns:views="clr-namespace:JolieCat.UI.Views.Timeline"
+             xmlns:converters="clr-namespace:JolieCat.UI.Converters"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:TimelineViewModel, IsDesignTimeCreatable=True}"
+             Grid.IsSharedSizeScope="True">
+
+    <UserControl.Resources>
+        <converters:FramesToPixelsConverter x:Key="FramesToPixels" />
+
+        <Style x:Key="TimelineToolButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- Toolbar -->
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,4">
+            <Button Content="+ Track" Command="{Binding AddTrackCommand}" Style="{StaticResource TimelineToolButtonStyle}" />
+            <TextBlock VerticalAlignment="Center" Margin="10,0,0,0" Foreground="{StaticResource TextSecondaryBrush}">
+                <Run Text="Frame " /><Run Text="{Binding CurrentFrame, Mode=OneWay, StringFormat={}{0:0}}" />
+                <Run Text=" / " /><Run Text="{Binding TotalFrames, Mode=OneWay, StringFormat={}{0:0}}" />
+            </TextBlock>
+        </StackPanel>
+
+        <!-- Ruler + tracks. A skeleton simplification: the track-name column scrolls
+             horizontally along with the lanes instead of staying frozen - a real
+             frozen header column is a follow-up once this foundation is in use. -->
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+
+                <!-- Ruler row -->
+                <Grid Height="24">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" SharedSizeGroup="TrackHeader" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" MinWidth="140" Background="{StaticResource PanelAltBackgroundBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,1" />
+
+                    <Border Grid.Column="1" Background="{StaticResource PanelAltBackgroundBrush}"
+                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                        <Canvas Width="{Binding TimelineWidth}">
+                            <ItemsControl ItemsSource="{Binding RulerTicks}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Canvas.Left" Value="{Binding PixelOffset}" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:TimelineRulerTick}">
+                                        <StackPanel>
+                                            <Rectangle Width="1" Height="6" Fill="{StaticResource BorderBrush}" />
+                                            <TextBlock Text="{Binding Label}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Playhead: drag to scrub. -->
+                            <Thumb x:Name="PlayheadThumb" Width="2" Height="24" Cursor="SizeWE"
+                                   DragDelta="PlayheadThumb_DragDelta">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Rectangle Width="2" Fill="{StaticResource AccentBrush}" />
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                                <Canvas.Left>
+                                    <MultiBinding Converter="{StaticResource FramesToPixels}">
+                                        <Binding Path="CurrentFrame" />
+                                        <Binding Path="PixelsPerFrame" />
+                                    </MultiBinding>
+                                </Canvas.Left>
+                            </Thumb>
+                        </Canvas>
+                    </Border>
+                </Grid>
+
+                <!-- Track rows -->
+                <ItemsControl ItemsSource="{Binding Tracks}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:TimelineTrackViewModel}">
+                            <Grid Height="40">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="TrackHeader" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Track header: name + per-track "add" actions. -->
+                                <Border Grid.Column="0" MinWidth="140" Background="{StaticResource PanelBackgroundBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,1">
+                                    <DockPanel Margin="6,0">
+                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Button Content="+K" ToolTip="Add keyframe at playhead"
+                                                    Command="{Binding AddKeyframeAtPlayheadCommand}"
+                                                    Style="{StaticResource TimelineToolButtonStyle}" />
+                                            <Button Content="+C" ToolTip="Add clip at playhead"
+                                                    Command="{Binding AddClipAtPlayheadCommand}"
+                                                    Style="{StaticResource TimelineToolButtonStyle}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" FontSize="11" />
+                                    </DockPanel>
+                                </Border>
+
+                                <!-- Track lane: clips + keyframe markers, positioned by frame. -->
+                                <Border Grid.Column="1" Background="{StaticResource PanelBackgroundBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                                    <Canvas Width="{Binding DataContext.TimelineWidth, RelativeSource={RelativeSource AncestorType=views:TimelinePanelView}}">
+
+                                        <ItemsControl ItemsSource="{Binding Clips}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Canvas.Top" Value="4" />
+                                                    <Setter Property="Canvas.Left">
+                                                        <Setter.Value>
+                                                            <MultiBinding Converter="{StaticResource FramesToPixels}">
+                                                                <Binding Path="StartFrame" />
+                                                                <Binding Path="PixelsPerFrame" />
+                                                            </MultiBinding>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:TimelineClipViewModel}">
+                                                    <views:TimelineClipControl Height="32">
+                                                        <views:TimelineClipControl.Width>
+                                                            <MultiBinding Converter="{StaticResource FramesToPixels}">
+                                                                <Binding Path="LengthFrames" />
+                                                                <Binding Path="PixelsPerFrame" />
+                                                            </MultiBinding>
+                                                        </views:TimelineClipControl.Width>
+                                                    </views:TimelineClipControl>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <ItemsControl ItemsSource="{Binding Keyframes}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <Canvas />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Canvas.Top" Value="14" />
+                                                    <Setter Property="Canvas.Left">
+                                                        <Setter.Value>
+                                                            <MultiBinding Converter="{StaticResource FramesToPixels}">
+                                                                <Binding Path="Frame" />
+                                                                <Binding Path="PixelsPerFrame" />
+                                                            </MultiBinding>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:KeyframeViewModel}">
+                                                    <Path Data="M4,0 L8,4 L4,8 L0,4 Z" Fill="{StaticResource AccentBrush}"
+                                                          Stroke="{StaticResource WindowBackgroundBrush}" StrokeThickness="0.5"
+                                                          ToolTip="Keyframe" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </Canvas>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

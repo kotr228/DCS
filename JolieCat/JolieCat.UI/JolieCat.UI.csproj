@@ -2,7 +2,11 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
+    <!-- Explicit Windows SDK version (not bare net8.0-windows, which normalizes to the
+         Windows 7.0 API level) - SkiaSharp.Views.WPF requires net8.0-windows10.0.19041;
+         without this, NuGet can't match it and silently falls back to a .NET Framework
+         4.6.2 compatibility shim instead of the real .NET 8 assembly (see NU1701). -->
+    <TargetFramework>net8.0-windows10.0.19041</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -13,6 +17,10 @@
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- Pinned to the last release that ships a net8.0-windows build (4.x moved on to
+         net9.0-windows/net10.0-windows only). -->
+    <PackageReference Include="SkiaSharp" Version="3.116.1" />
+    <PackageReference Include="SkiaSharp.Views.WPF" Version="3.116.1" />
   </ItemGroup>
 
   <ItemGroup>

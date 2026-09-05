@@ -5,6 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:JolieCat.UI"
         xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
+        xmlns:views="clr-namespace:JolieCat.UI.Views"
+        xmlns:timeline="clr-namespace:JolieCat.UI.Views.Timeline"
         mc:Ignorable="d"
         Title="JolieCat" Height="720" Width="1280" MinHeight="480" MinWidth="720"
         WindowStartupLocation="CenterScreen"
@@ -59,8 +61,8 @@
 
         <!-- Row that hosts the Bottom panel (Timeline): collapses to zero height when hidden. -->
         <Style x:Key="BottomPanelRowStyle" TargetType="RowDefinition">
-            <Setter Property="Height" Value="220" />
-            <Setter Property="MinHeight" Value="90" />
+            <Setter Property="Height" Value="260" />
+            <Setter Property="MinHeight" Value="120" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsBottomPanelVisible}" Value="False">
                     <Setter Property="Height" Value="0" />
@@ -90,6 +92,37 @@
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="8,6" />
+        </Style>
+
+        <!-- Category header inside the Tools panel (smaller/dimmer than a zone's own header). -->
+        <Style x:Key="ToolCategoryHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource PanelHeaderStyle}">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Margin" Value="8,4,8,2" />
+        </Style>
+
+        <!-- Flat ListBoxItem style for tool entries: no default chrome, accent highlight
+             on the active tool, subtle hover otherwise. -->
+        <Style x:Key="ToolListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -135,26 +168,54 @@
                     Visibility="{Binding IsLeftPanelVisible, Converter={StaticResource BoolToVisibility}}">
                 <DockPanel>
                     <TextBlock Text="TOOLS" DockPanel.Dock="Top" Style="{StaticResource PanelHeaderStyle}" />
-                    <ListBox Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextPrimaryBrush}" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding Toolbox.ToolsByCategory}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,0,4">
+                                        <TextBlock Text="{Binding Key}" Style="{StaticResource ToolCategoryHeaderStyle}" />
+                                        <ListBox ItemsSource="{Binding}"
+                                                 Background="Transparent" BorderThickness="0"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                                 ItemContainerStyle="{StaticResource ToolListBoxItemStyle}"
+                                                 SelectedItem="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Toolbox.ActiveTool, Mode=TwoWay}">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" Margin="4,3">
+                                                        <Border Width="22" Height="22" Margin="0,0,8,0"
+                                                                Background="{StaticResource PanelAltBackgroundBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                                            <TextBlock Text="{Binding Glyph}" FontSize="9"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                                                        </Border>
+                                                        <TextBlock Text="{Binding DisplayName}" FontSize="11" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </DockPanel>
             </Border>
 
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
                           Visibility="{Binding IsLeftPanelVisible, Converter={StaticResource BoolToVisibility}}" />
 
-            <!-- Center: Canvas placeholder (future SkiaSharp render surface) -->
+            <!-- Center: Canvas (hardware-accelerated Skia render surface) -->
             <Border Grid.Column="2" Style="{StaticResource DockPanelBorderStyle}">
-                <Grid>
-                    <TextBlock Text="Canvas (SkiaSharp render surface goes here)"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center" />
-                </Grid>
+                <views:CanvasView DataContext="{Binding Canvas}" />
             </Border>
 
             <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch"
                           Visibility="{Binding IsRightPanelVisible, Converter={StaticResource BoolToVisibility}}" />
 
-            <!-- Right: Properties (top) / Layers (bottom) -->
+            <!-- Right: Properties (top, dynamic per active tool) / Layers (bottom) -->
             <Grid Grid.Column="4"
                   Visibility="{Binding IsRightPanelVisible, Converter={StaticResource BoolToVisibility}}">
                 <Grid.RowDefinitions>
@@ -165,7 +226,10 @@
 
                 <Border Grid.Row="0" Style="{StaticResource DockPanelBorderStyle}">
                     <DockPanel>
-                        <TextBlock Text="PROPERTIES" DockPanel.Dock="Top" Style="{StaticResource PanelHeaderStyle}" />
+                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHeaderStyle}">
+                            <Run Text="PROPERTIES" /><Run Text=" - " /><Run Text="{Binding Toolbox.ActiveTool.DisplayName, Mode=OneWay}" />
+                        </TextBlock>
+                        <ContentControl Content="{Binding Toolbox.CurrentToolOptions}" />
                     </DockPanel>
                 </Border>
 
@@ -186,9 +250,7 @@
 
         <Border Grid.Row="3" Style="{StaticResource DockPanelBorderStyle}"
                 Visibility="{Binding IsBottomPanelVisible, Converter={StaticResource BoolToVisibility}}">
-            <DockPanel>
-                <TextBlock Text="TIMELINE" DockPanel.Dock="Top" Style="{StaticResource PanelHeaderStyle}" />
-            </DockPanel>
+            <timeline:TimelinePanelView DataContext="{Binding Timeline}" />
         </Border>
     </Grid>
 </Window>

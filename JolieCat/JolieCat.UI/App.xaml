@@ -5,6 +5,9 @@
              StartupUri="MainWindow.xaml">
     <Application.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Resources/ToolOptionsTemplates.xaml" />
+            </ResourceDictionary.MergedDictionaries>
 
             <!-- ================= Dark Theme Palette ================= -->
             <!-- Flat, solid-color brushes only - no gradients, no theme packages. -->
