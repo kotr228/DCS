@@ -79,6 +79,17 @@ namespace JolieCat.UI.Views
         private void Surface_MouseWheel(object sender, MouseWheelEventArgs e)
         {
             ViewModel?.OnMouseWheel(ToDevicePixels(e.GetPosition(Surface)), e.Delta);
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// Capture can be lost without a matching MouseLeftButtonUp - e.g. a dialog or
+        /// another window steals it mid-drag. Without this, a gesture flag could get
+        /// stuck true, making later mouse moves keep painting/panning with no button held.
+        /// </summary>
+        private void Surface_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            ViewModel?.CancelInteraction();
         }
 
         private SKPoint ToDevicePixels(Point point) =>

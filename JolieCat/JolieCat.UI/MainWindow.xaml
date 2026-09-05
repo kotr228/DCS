@@ -13,8 +13,6 @@
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel, IsDesignTimeCreatable=True}">
 
     <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
-
         <!-- Column that hosts the Left panel: collapses to zero width when the panel is hidden. -->
         <Style x:Key="LeftPanelColumnStyle" TargetType="ColumnDefinition">
             <Setter Property="Width" Value="260" />
@@ -150,13 +148,6 @@
                               Style="{StaticResource PanelToggleButtonStyle}"
                               IsChecked="{Binding IsBottomPanelVisible, Mode=OneWay}"
                               Command="{Binding ToggleBottomPanelCommand}" />
-
-                <Separator Margin="8,2" />
-
-                <!-- The active foreground color: Brush/Pencil/Paint Bucket/Gradient all draw
-                     with it. Lives in the toolbar (not the per-tool Properties panel) since
-                     it's shared across every color-using tool rather than specific to one. -->
-                <views:ColorPickerButton DataContext="{Binding Canvas}" />
             </StackPanel>
         </Border>
 

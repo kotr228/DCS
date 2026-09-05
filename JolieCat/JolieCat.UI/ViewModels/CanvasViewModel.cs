@@ -227,13 +227,25 @@ namespace JolieCat.UI.ViewModels
                 OnPointerMoved(devicePoint);
             }
 
-            _isPainting = false;
-            _isPanning = false;
-            _isDraggingMarquee = false;
+            CancelInteraction();
 
             // IsMarqueeActive deliberately stays true: the dashed rectangle remains as
             // "the current selection" until a new marquee drag starts, same as a real
             // selection tool - there's no Escape/deselect action yet to clear it early.
+        }
+
+        /// <summary>
+        /// Ends any in-progress drag/paint/pan gesture without finalizing it (no final
+        /// paint segment, no capture release - the view handles that). Used when mouse
+        /// capture is lost unexpectedly (e.g. a dialog steals it mid-drag) so a gesture
+        /// flag can't get stuck true forever, which would otherwise make later mouse
+        /// moves keep painting/panning even with no button held.
+        /// </summary>
+        public void CancelInteraction()
+        {
+            _isPainting = false;
+            _isPanning = false;
+            _isDraggingMarquee = false;
         }
 
         /// <summary>Zooms in/out by one wheel notch, keeping the document point under the
@@ -327,45 +339,70 @@ namespace JolieCat.UI.ViewModels
             var height = _bitmap.Height;
             var pixels = _bitmap.Pixels;
             var targetColor = pixels[y0 * width + x0];
+            var fillColor = BrushColor;
 
-            if (ColorsClose(targetColor, BrushColor, 0))
+            if (ColorsClose(targetColor, fillColor, 0))
                 return;
 
             if (contiguous)
-            {
-                var stack = new Stack<(int X, int Y)>();
-                stack.Push((x0, y0));
-                var visited = new bool[width * height];
-
-                while (stack.Count > 0)
-                {
-                    var (x, y) = stack.Pop();
-                    if (x < 0 || x >= width || y < 0 || y >= height)
-                        continue;
-
-                    var index = y * width + x;
-                    if (visited[index] || !ColorsClose(pixels[index], targetColor, tolerance))
-                        continue;
-
-                    visited[index] = true;
-                    pixels[index] = BrushColor;
-
-                    stack.Push((x + 1, y));
-                    stack.Push((x - 1, y));
-                    stack.Push((x, y + 1));
-                    stack.Push((x, y - 1));
-                }
-            }
+                FloodFillContiguous(pixels, width, height, x0, y0, targetColor, fillColor, tolerance);
             else
-            {
-                for (var i = 0; i < pixels.Length; i++)
-                {
-                    if (ColorsClose(pixels[i], targetColor, tolerance))
-                        pixels[i] = BrushColor;
-                }
-            }
+                FloodFillGlobal(pixels, targetColor, fillColor, tolerance);
 
             _bitmap.Pixels = pixels;
+        }
+
+        /// <summary>
+        /// Stack-based flood fill, seeded from (x0, y0). Each pixel is marked visited
+        /// the moment it's pushed - not when it's popped - so it can only ever enter the
+        /// stack once. The earlier version checked "already visited?" only after
+        /// popping, which let up to 4 duplicate entries pile up per pixel before being
+        /// discarded; on a large uniform region (a fresh, blank 1600x1200 canvas is
+        /// exactly that) the stack could balloon into the tens of millions of entries,
+        /// a real, noticeable freeze that looked like the tool wasn't working at all.
+        /// </summary>
+        private static void FloodFillContiguous(
+            SKColor[] pixels, int width, int height, int x0, int y0,
+            SKColor targetColor, SKColor fillColor, float tolerance)
+        {
+            var visited = new bool[width * height];
+            var stack = new Stack<(int X, int Y)>();
+
+            visited[y0 * width + x0] = true;
+            stack.Push((x0, y0));
+
+            while (stack.Count > 0)
+            {
+                var (x, y) = stack.Pop();
+                pixels[y * width + x] = fillColor;
+
+                TryVisit(x + 1, y);
+                TryVisit(x - 1, y);
+                TryVisit(x, y + 1);
+                TryVisit(x, y - 1);
+            }
+
+            void TryVisit(int x, int y)
+            {
+                if (x < 0 || x >= width || y < 0 || y >= height)
+                    return;
+
+                var index = y * width + x;
+                if (visited[index] || !ColorsClose(pixels[index], targetColor, tolerance))
+                    return;
+
+                visited[index] = true;
+                stack.Push((x, y));
+            }
+        }
+
+        private static void FloodFillGlobal(SKColor[] pixels, SKColor targetColor, SKColor fillColor, float tolerance)
+        {
+            for (var i = 0; i < pixels.Length; i++)
+            {
+                if (ColorsClose(pixels[i], targetColor, tolerance))
+                    pixels[i] = fillColor;
+            }
         }
 
         private static bool ColorsClose(SKColor a, SKColor b, float tolerance)

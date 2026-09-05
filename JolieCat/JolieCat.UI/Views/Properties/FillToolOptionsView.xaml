@@ -4,10 +4,15 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+             xmlns:views="clr-namespace:JolieCat.UI.Views"
              mc:Ignorable="d">
     <StackPanel Margin="10">
         <controls:LabeledSlider Label="Tolerance" Minimum="0" Maximum="255" Value="{Binding Tolerance, Mode=TwoWay}" />
         <CheckBox Content="Contiguous" Foreground="{StaticResource TextPrimaryBrush}"
-                  IsChecked="{Binding Contiguous, Mode=TwoWay}" Margin="0,4,0,0" />
+                  IsChecked="{Binding Contiguous, Mode=TwoWay}" Margin="0,4,0,8" />
+
+        <!-- Paint Bucket always fills with the foreground color, so the picker is
+             unconditional here (unlike the shared brush-tools view). -->
+        <views:ColorPickerPanel DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Canvas}" />
     </StackPanel>
 </UserControl>

@@ -4,10 +4,20 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+             xmlns:views="clr-namespace:JolieCat.UI.Views"
              mc:Ignorable="d">
     <StackPanel Margin="10">
         <controls:LabeledSlider Label="Size" Minimum="1" Maximum="500" Suffix="px" Value="{Binding Size, Mode=TwoWay}" />
         <controls:LabeledSlider Label="Hardness" Minimum="0" Maximum="100" Suffix="%" Value="{Binding Hardness, Mode=TwoWay}" />
         <controls:LabeledSlider Label="Opacity" Minimum="0" Maximum="100" Suffix="%" Value="{Binding Opacity, Mode=TwoWay}" />
+
+        <!-- Only Brush/Pencil paint with the foreground color (Eraser and the retouching
+             tools that share this view don't), so ShowColorPicker gates it per tool.
+             Visibility is bound here, against this view's own DataContext (the options
+             VM) - the DataContext override on ColorPickerPanel itself (reaching up to
+             the shared CanvasViewModel) only applies to that inner element. -->
+        <Border Visibility="{Binding ShowColorPicker, Converter={StaticResource BoolToVisibility}}">
+            <views:ColorPickerPanel DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Canvas}" />
+        </Border>
     </StackPanel>
 </UserControl>

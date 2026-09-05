@@ -47,9 +47,13 @@ namespace JolieCat.UI.ViewModels
 
         private static object CreateOptions(ToolType type) => type switch
         {
-            ToolType.Brush or ToolType.Pencil or ToolType.Eraser or ToolType.CloneStamp or
-                ToolType.HealingBrush or ToolType.Blur or ToolType.Sharpen or ToolType.Sponge or
-                ToolType.Dodge or ToolType.Burn => new PaintToolOptionsViewModel(),
+            // Brush/Pencil paint with the foreground color; Eraser and the retouching
+            // tools don't, so their shared Properties view hides the color picker for them.
+            ToolType.Brush or ToolType.Pencil => new PaintToolOptionsViewModel(showColorPicker: true),
+
+            ToolType.Eraser or ToolType.CloneStamp or ToolType.HealingBrush or ToolType.Blur or
+                ToolType.Sharpen or ToolType.Sponge or ToolType.Dodge or ToolType.Burn =>
+                new PaintToolOptionsViewModel(showColorPicker: false),
 
             ToolType.TextHorizontal or ToolType.TextVertical => new TextToolOptionsViewModel(),
 

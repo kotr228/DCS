@@ -9,6 +9,13 @@
                 <ResourceDictionary Source="Resources/ToolOptionsTemplates.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <!-- Application-wide so every view can reference it, not just MainWindow -
+                 several Properties-panel views (e.g. the color picker's conditional
+                 visibility) need it too, and a resource declared only in a Window's own
+                 Resources isn't guaranteed reachable by StaticResource from a separately-
+                 compiled UserControl's XAML. -->
+            <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
             <!-- ================= Dark Theme Palette ================= -->
             <!-- Flat, solid-color brushes only - no gradients, no theme packages. -->
 
@@ -38,21 +45,6 @@
             <Style TargetType="{x:Type GridSplitter}">
                 <Setter Property="Background" Value="{StaticResource BorderBrush}" />
                 <Setter Property="ShowsPreview" Value="False" />
-            </Style>
-
-            <!-- Flat vertical rule for the toolbar, replacing WPF's default 3D-bevel
-                 Separator look (which reads as a bright groove on a dark background). -->
-            <Style TargetType="{x:Type Separator}">
-                <Setter Property="Background" Value="{StaticResource BorderBrush}" />
-                <Setter Property="Width" Value="1" />
-                <Setter Property="Margin" Value="4,4" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="{x:Type Separator}">
-                            <Border Background="{TemplateBinding Background}" Width="{TemplateBinding Width}" />
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
             </Style>
 
             <!-- Clean, flat default Button style: solid background, no rounded corners,
