@@ -8,6 +8,8 @@
              mc:Ignorable="d">
     <UserControl.Resources>
         <converters:ToolTypeToCursorConverter x:Key="ToolTypeToCursor" />
+        <converters:BoolToFontWeightConverter x:Key="BoolToFontWeight" />
+        <converters:BoolToFontStyleConverter x:Key="BoolToFontStyle" />
     </UserControl.Resources>
     <Grid>
         <!-- SKGLElement (not the software-rendered SKElement) so the canvas is
@@ -26,5 +28,27 @@
                           MouseLeftButtonUp="Surface_MouseLeftButtonUp"
                           MouseWheel="Surface_MouseWheel"
                           LostMouseCapture="Surface_LostMouseCapture" />
+
+        <!-- Inline text-input overlay for the Horizontal/Vertical Text tools: a plain
+             multi-line WPF textbox, positioned in code-behind (see PositionTextEditOverlay)
+             directly over the clicked document point - converting the view model's
+             screen-space anchor back to DIPs via the same DPI scale pointer events use in
+             reverse. Hidden until IsTextEditing is set; its font/color preview the active
+             Text tool's own Properties-panel settings (FontFamily/FontSize/Bold/Italic)
+             and the current primary color, though the actual pixels only get drawn once
+             CommitTextEdit runs - see the code-behind's key handlers for Enter/Escape. -->
+        <TextBox x:Name="TextEditBox"
+                 Visibility="Collapsed"
+                 HorizontalAlignment="Left" VerticalAlignment="Top"
+                 MinWidth="140" MinHeight="28" Padding="2"
+                 AcceptsReturn="True" TextWrapping="NoWrap"
+                 Background="#CC1B1B1C" Foreground="{Binding PrimaryColorBrush}"
+                 BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
+                 FontFamily="{Binding Toolbox.CurrentToolOptions.FontFamily}"
+                 FontSize="{Binding Toolbox.CurrentToolOptions.FontSize}"
+                 FontWeight="{Binding Toolbox.CurrentToolOptions.IsBold, Converter={StaticResource BoolToFontWeight}}"
+                 FontStyle="{Binding Toolbox.CurrentToolOptions.IsItalic, Converter={StaticResource BoolToFontStyle}}"
+                 Text="{Binding TextEditContent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                 PreviewKeyDown="TextEditBox_PreviewKeyDown" />
     </Grid>
 </UserControl>

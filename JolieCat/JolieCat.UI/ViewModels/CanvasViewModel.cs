@@ -55,6 +55,16 @@ namespace JolieCat.UI.ViewModels
         private readonly List<SKPoint> _polygonVertices = new();
         private SKPoint _polygonHoverPoint;
 
+        /// <summary>Document-space anchor of the in-progress text edit - where its first
+        /// character/line gets drawn once committed.</summary>
+        private SKPoint _textEditOrigin;
+
+        /// <summary>True if the in-progress text edit was started with Vertical Text
+        /// rather than Horizontal Text - captured at click time, since the tool could in
+        /// principle change while <see cref="IsTextEditing"/> is still true (it doesn't
+        /// in practice: switching tools commits first, see <see cref="OnToolboxPropertyChanged"/>).</summary>
+        private bool _isVerticalTextEdit;
+
         private bool _disposed;
 
         [ObservableProperty]
@@ -96,9 +106,35 @@ namespace JolieCat.UI.ViewModels
         /// vice versa) is a one-way push while this is true, not a round trip.</summary>
         private bool _isSyncingColor;
 
+        /// <summary>True while the Horizontal/Vertical Text tool has an inline text-input
+        /// overlay open on the canvas (see <see cref="Views.CanvasView"/>'s TextEditBox).</summary>
+        [ObservableProperty]
+        private bool isTextEditing;
+
+        /// <summary>The in-progress text edit's content, bound two-way to the overlay
+        /// textbox - not yet drawn onto any layer until <see cref="CommitTextEdit"/> runs.</summary>
+        [ObservableProperty]
+        private string textEditContent = string.Empty;
+
         /// <summary>The document's layer stack - what tools paint onto and what
         /// <see cref="CanvasRenderer"/> composites.</summary>
         public LayersViewModel Layers { get; }
+
+        /// <summary>The shared tool palette - exposed here (rather than kept purely
+        /// private) only so the text-edit overlay in <see cref="Views.CanvasView"/> can
+        /// bind its live preview font straight to whichever Text tool's FontFamily/
+        /// FontSize/Bold/Italic options are current, without a fragile reach-up to the
+        /// Window's DataContext.</summary>
+        public ToolboxViewModel Toolbox => _toolbox;
+
+        /// <summary>Screen-space (the canvas surface's own device-pixel space, same as
+        /// every <c>OnPointer*</c> parameter) position of the text-edit overlay's anchor
+        /// point - recomputed from <see cref="_textEditOrigin"/> whenever <see cref="Zoom"/>
+        /// or pan changes (see the partial On*Changed methods), so the overlay tracks its
+        /// anchored document position live if the user pans or zooms mid-edit.</summary>
+        public double TextEditScreenX => _textEditOrigin.X * Zoom + PanX;
+
+        public double TextEditScreenY => _textEditOrigin.Y * Zoom + PanY;
 
         /// <summary>
         /// The in-progress selection outline while a marquee/lasso/polygon is being
@@ -218,6 +254,11 @@ namespace JolieCat.UI.ViewModels
         {
             if (e.PropertyName != nameof(ToolboxViewModel.ActiveTool)) return;
 
+            // An in-progress text edit is finalized (drawn to the layer), not discarded -
+            // unlike every other gesture below, it holds real typed content the user
+            // would not expect to vanish just from clicking a different tool.
+            CommitTextEdit();
+
             // Switching tools mid-gesture (e.g. clicking Brush while a polygon is only
             // half-drawn) abandons that gesture rather than leaving it to silently
             // resume - and silently resume it would: Polygonal Lasso's vertices survive
@@ -296,6 +337,21 @@ namespace JolieCat.UI.ViewModels
                 case ToolType.Eyedropper:
                     if (activeLayer is not null)
                         SampleColor(activeLayer, doc);
+                    break;
+
+                case ToolType.TextHorizontal:
+                case ToolType.TextVertical:
+                    if (activeLayer is null || activeLayer.IsLocked) break;
+
+                    // A previous edit still open (the user clicked a second spot with a
+                    // Text tool still active, without pressing Enter or switching tools
+                    // first) is finalized before starting the new one at the new point.
+                    CommitTextEdit();
+
+                    _textEditOrigin = doc;
+                    _isVerticalTextEdit = _toolbox.ActiveTool.Type == ToolType.TextVertical;
+                    TextEditContent = string.Empty;
+                    IsTextEditing = true;
                     break;
 
                 case ToolType.Hand:
@@ -559,6 +615,100 @@ namespace JolieCat.UI.ViewModels
             PrimaryColor = Color.FromArgb(sampled.Alpha, sampled.Red, sampled.Green, sampled.Blue);
         }
 
+        // ================= Text =================
+
+        /// <summary>Rasterizes the in-progress text edit onto the active layer at its
+        /// anchor point, then ends the edit - the Horizontal/Vertical Text tools' commit
+        /// step. A no-op if nothing is being edited; empty typed content ends the edit
+        /// without drawing anything, so an accidental click-then-click-away leaves no
+        /// debris on the layer.</summary>
+        public void CommitTextEdit()
+        {
+            if (!IsTextEditing) return;
+
+            var text = TextEditContent;
+            var layer = Layers.ActiveLayer?.Model;
+            if (!string.IsNullOrEmpty(text) && layer is not null && !layer.IsLocked)
+                DrawTextOnLayer(layer, text);
+
+            EndTextEdit();
+        }
+
+        /// <summary>Ends the in-progress text edit without drawing anything - Escape's behavior.</summary>
+        public void CancelTextEdit() => EndTextEdit();
+
+        private void EndTextEdit()
+        {
+            IsTextEditing = false;
+            TextEditContent = string.Empty;
+        }
+
+        /// <summary>Draws <paramref name="text"/> onto <paramref name="layer"/> at
+        /// <see cref="_textEditOrigin"/>, using the active Text tool's FontFamily/
+        /// FontSize/Bold/Italic options and the current <see cref="PrimaryColor"/> -
+        /// clipped to the selection like every other paint operation.</summary>
+        private void DrawTextOnLayer(Core.Documents.Layer layer, string text)
+        {
+            var options = _toolbox.CurrentToolOptions as TextToolOptionsViewModel;
+            var fontFamily = options?.FontFamily ?? "Segoe UI";
+            var fontSize = (float)(options?.FontSize ?? 24);
+            var weight = options?.IsBold == true ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal;
+            var slant = options?.IsItalic == true ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright;
+
+            using var typeface = SKTypeface.FromFamilyName(fontFamily, weight, SKFontStyleWidth.Normal, slant);
+            using var font = new SKFont(typeface, fontSize, 1f, 0f);
+            using var paint = new SKPaint { Color = BrushColor, IsAntialias = true };
+
+            // A literal newline (Shift+Enter in the overlay) starts a new line for
+            // Horizontal Text, or a new column for Vertical Text - see DrawVerticalText.
+            var lines = text.Replace("\r\n", "\n").Split('\n');
+
+            WithSelectionClip(layer.Canvas, canvas =>
+            {
+                if (_isVerticalTextEdit)
+                    DrawVerticalText(canvas, lines, font, paint);
+                else
+                    DrawHorizontalText(canvas, lines, font, paint);
+            });
+        }
+
+        private void DrawHorizontalText(SKCanvas canvas, string[] lines, SKFont font, SKPaint paint)
+        {
+            // Ascent is negative (distance above the baseline) in Skia's convention, so
+            // subtracting it moves the first line's baseline down by that distance -
+            // placing the anchor point at the text's top-left, matching where the user
+            // actually clicked rather than where the first baseline would otherwise fall.
+            var firstBaseline = _textEditOrigin.Y - font.Metrics.Ascent;
+
+            for (var i = 0; i < lines.Length; i++)
+                canvas.DrawText(lines[i], _textEditOrigin.X, firstBaseline + i * font.Spacing, font, paint);
+        }
+
+        /// <summary>
+        /// A real, working vertical layout - not true CJK vertical typesetting (no
+        /// glyph rotation or script-aware spacing rules), but genuinely renders each
+        /// character stacked top-to-bottom rather than faking the tool with a horizontal
+        /// fallback. Each Shift+Enter-delimited "line" becomes its own column, columns
+        /// advancing left-to-right by one line's spacing.
+        /// </summary>
+        private void DrawVerticalText(SKCanvas canvas, string[] lines, SKFont font, SKPaint paint)
+        {
+            var firstBaseline = _textEditOrigin.Y - font.Metrics.Ascent;
+            var columnWidth = font.Spacing;
+
+            for (var column = 0; column < lines.Length; column++)
+            {
+                var x = _textEditOrigin.X + column * columnWidth;
+                var y = firstBaseline;
+
+                foreach (var character in lines[column])
+                {
+                    canvas.DrawText(character.ToString(), x, y, font, paint);
+                    y += font.Spacing;
+                }
+            }
+        }
+
         // ================= Painting =================
 
         /// <summary>Runs <paramref name="draw"/> against <paramref name="canvas"/>,
@@ -751,11 +901,24 @@ namespace JolieCat.UI.ViewModels
 
         private void RaiseInvalidate() => InvalidateRequested?.Invoke(this, EventArgs.Empty);
 
-        partial void OnPanXChanged(double value) => RaiseInvalidate();
+        partial void OnPanXChanged(double value)
+        {
+            RaiseInvalidate();
+            OnPropertyChanged(nameof(TextEditScreenX));
+        }
 
-        partial void OnPanYChanged(double value) => RaiseInvalidate();
+        partial void OnPanYChanged(double value)
+        {
+            RaiseInvalidate();
+            OnPropertyChanged(nameof(TextEditScreenY));
+        }
 
-        partial void OnZoomChanged(double value) => RaiseInvalidate();
+        partial void OnZoomChanged(double value)
+        {
+            RaiseInvalidate();
+            OnPropertyChanged(nameof(TextEditScreenX));
+            OnPropertyChanged(nameof(TextEditScreenY));
+        }
 
         public void Dispose()
         {

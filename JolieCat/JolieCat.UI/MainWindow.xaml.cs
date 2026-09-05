@@ -37,11 +37,15 @@ namespace JolieCat.UI
 
         /// <summary>
         /// Enter commits the new name and exits edit mode; Escape exits without
-        /// committing. The textbox's Text binding uses TextBox's default
-        /// UpdateSourceTrigger (LostFocus), so simply hiding it on Escape discards
-        /// whatever was typed - the bound <see cref="LayerViewModel.Name"/> (and the
-        /// underlying layer) was never touched. Enter forces that same binding to commit
-        /// early, since we're not actually moving focus away.
+        /// committing. Enter forces the textbox's Text binding (TextBox's default
+        /// UpdateSourceTrigger is LostFocus, so it wouldn't otherwise fire here) to commit
+        /// early, since we're not actually moving focus away. Escape instead resets the
+        /// textbox's Text back to the layer's actual name before hiding it - collapsing a
+        /// focused control's Visibility (which IsEditingName's own binding does next)
+        /// makes WPF move focus away on its own, which would trigger that same
+        /// LostFocus-triggered binding to commit whatever was typed anyway; feeding it
+        /// back its own current value first makes that commit a no-op instead of a silent
+        /// save of the discarded edit.
         /// </summary>
         private void LayerNameEditBox_KeyDown(object sender, KeyEventArgs e)
         {
@@ -50,6 +54,8 @@ namespace JolieCat.UI
 
             if (e.Key == Key.Enter)
                 textBox.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+            else
+                textBox.Text = layer.Name;
 
             layer.IsEditingName = false;
             e.Handled = true;

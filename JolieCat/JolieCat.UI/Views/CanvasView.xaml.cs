@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -32,13 +33,61 @@ namespace JolieCat.UI.Views
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
         {
             if (e.OldValue is CanvasViewModel oldViewModel)
+            {
                 oldViewModel.InvalidateRequested -= OnInvalidateRequested;
+                oldViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            }
 
             if (e.NewValue is CanvasViewModel newViewModel)
+            {
                 newViewModel.InvalidateRequested += OnInvalidateRequested;
+                newViewModel.PropertyChanged += OnViewModelPropertyChanged;
+            }
         }
 
         private void OnInvalidateRequested(object? sender, EventArgs e) => Surface.InvalidateVisual();
+
+        /// <summary>Drives the text-edit overlay purely from view model state changes -
+        /// the same event-driven pattern as <see cref="OnInvalidateRequested"/> - rather
+        /// than XAML bindings, since positioning it correctly needs the DPI scale
+        /// (<see cref="_dpiScaleX"/>/<see cref="_dpiScaleY"/>), which only this
+        /// code-behind knows.</summary>
+        private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (ViewModel is not { } viewModel) return;
+
+            switch (e.PropertyName)
+            {
+                case nameof(CanvasViewModel.IsTextEditing):
+                    if (viewModel.IsTextEditing)
+                    {
+                        PositionTextEditOverlay(viewModel);
+                        TextEditBox.Visibility = Visibility.Visible;
+                        TextEditBox.Focus();
+                    }
+                    else
+                    {
+                        TextEditBox.Visibility = Visibility.Collapsed;
+                    }
+                    break;
+
+                case nameof(CanvasViewModel.TextEditScreenX):
+                case nameof(CanvasViewModel.TextEditScreenY):
+                    if (viewModel.IsTextEditing)
+                        PositionTextEditOverlay(viewModel);
+                    break;
+            }
+        }
+
+        /// <summary>Converts the view model's screen-space (canvas surface device-pixel)
+        /// anchor back to DIPs - the inverse of <see cref="ToDevicePixels"/> - so the
+        /// overlay lines up with the document point that was actually clicked.</summary>
+        private void PositionTextEditOverlay(CanvasViewModel viewModel)
+        {
+            var left = viewModel.TextEditScreenX / _dpiScaleX;
+            var top = viewModel.TextEditScreenY / _dpiScaleY;
+            TextEditBox.Margin = new Thickness(left, top, 0, 0);
+        }
 
         private void OnPaintSurface(object? sender, SKPaintGLSurfaceEventArgs e)
         {
@@ -95,5 +144,25 @@ namespace JolieCat.UI.Views
 
         private SKPoint ToDevicePixels(Point point) =>
             new((float)(point.X * _dpiScaleX), (float)(point.Y * _dpiScaleY));
+
+        /// <summary>Enter (without Shift) commits the text-edit overlay - drawing it onto
+        /// the active layer; Shift+Enter inserts a literal newline instead (multi-line
+        /// text), since AcceptsReturn would otherwise treat every Enter the same way.
+        /// Escape discards the edit without drawing anything.</summary>
+        private void TextEditBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (ViewModel is not { } viewModel) return;
+
+            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
+            {
+                viewModel.CommitTextEdit();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                viewModel.CancelTextEdit();
+                e.Handled = true;
+            }
+        }
     }
 }
