@@ -14,6 +14,13 @@
         WindowStartupLocation="CenterScreen"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel, IsDesignTimeCreatable=True}">
 
+    <Window.InputBindings>
+        <KeyBinding Key="Z" Modifiers="Control" Command="{Binding UndoCommand}" />
+        <KeyBinding Key="Y" Modifiers="Control" Command="{Binding RedoCommand}" />
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveProjectCommand}" />
+        <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenProjectCommand}" />
+    </Window.InputBindings>
+
     <Window.Resources>
         <!-- Column that hosts the Left panel: collapses to zero width when the panel is hidden. -->
         <Style x:Key="LeftPanelColumnStyle" TargetType="ColumnDefinition">
@@ -217,6 +224,20 @@
                               Style="{StaticResource PanelToggleButtonStyle}"
                               IsChecked="{Binding IsBottomPanelVisible, Mode=OneWay}"
                               Command="{Binding ToggleBottomPanelCommand}" />
+
+                <Border Width="1" Margin="8,2" Background="{StaticResource BorderBrush}" />
+
+                <Button Content="Open" Width="60" Margin="2,0" ToolTip="Open a .jolie project (Ctrl+O)"
+                        Command="{Binding OpenProjectCommand}" />
+                <Button Content="Save" Width="60" Margin="2,0" ToolTip="Save this project as .jolie (Ctrl+S)"
+                        Command="{Binding SaveProjectCommand}" />
+
+                <Border Width="1" Margin="8,2" Background="{StaticResource BorderBrush}" />
+
+                <Button Content="Undo" Width="60" Margin="2,0" ToolTip="Undo (Ctrl+Z)"
+                        Command="{Binding UndoCommand}" />
+                <Button Content="Redo" Width="60" Margin="2,0" ToolTip="Redo (Ctrl+Y)"
+                        Command="{Binding RedoCommand}" />
             </StackPanel>
         </Border>
 

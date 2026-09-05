@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using JolieCat.Core.History;
 using SkiaSharp;
 
 namespace JolieCat.Core.Documents
@@ -119,6 +121,55 @@ namespace JolieCat.Core.Documents
             }
 
             return RemoveLayer(layer);
+        }
+
+        /// <summary>Freezes every layer's metadata and pixel content - the History
+        /// system's before/after state for a structural change (see
+        /// <see cref="History.SceneStructuralCommand"/>).</summary>
+        public IReadOnlyList<LayerSnapshot> CaptureLayers() => _layers
+            .Select(layer => new LayerSnapshot(
+                layer.Name, layer.Bitmap.Width, layer.Bitmap.Height, layer.Type,
+                layer.IsVisible, layer.IsLocked, layer.Opacity, layer.BlendMode, layer.Bitmap.Pixels))
+            .ToList();
+
+        /// <summary>
+        /// Replaces every layer with fresh ones reconstructed from <paramref name="snapshot"/> -
+        /// the History system's structural undo/redo (see <see cref="History.SceneStructuralCommand"/>).
+        /// Always disposes the current layers and builds brand new <see cref="Layer"/>
+        /// instances from the snapshot rather than trying to resurrect exactly the ones
+        /// that existed before - a deleted layer's bitmap/canvas are already gone by the
+        /// time an undo could run, so there's nothing to resurrect; reconstructing an
+        /// equivalent layer from its frozen pixels is the only option, and is
+        /// indistinguishable to the user (its Id is new, but nothing outside a single
+        /// Undo/Redo call keeps a Layer's Id across a structural change anyway).
+        /// </summary>
+        /// <param name="activeIndex">Index into <paramref name="snapshot"/> (and so, after
+        /// reconstruction, into <see cref="Layers"/>) that should become active; out-of-range
+        /// falls back to the new topmost layer.</param>
+        public void RestoreLayers(IReadOnlyList<LayerSnapshot> snapshot, int activeIndex)
+        {
+            ArgumentNullException.ThrowIfNull(snapshot);
+
+            foreach (var layer in _layers)
+                layer.Dispose();
+            _layers.Clear();
+
+            foreach (var entry in snapshot)
+            {
+                var layer = new Layer(entry.Name, entry.Width, entry.Height, entry.Type)
+                {
+                    IsVisible = entry.IsVisible,
+                    IsLocked = entry.IsLocked,
+                    Opacity = entry.Opacity,
+                    BlendMode = entry.BlendMode,
+                };
+                layer.Bitmap.Pixels = entry.Pixels;
+                _layers.Add(layer);
+            }
+
+            ActiveLayer = activeIndex >= 0 && activeIndex < _layers.Count
+                ? _layers[activeIndex]
+                : _layers.Count > 0 ? _layers[^1] : null;
         }
     }
 }

@@ -1,8 +1,14 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using JolieCat.Core.Serialization;
 using JolieCat.Core.Tools;
 using JolieCat.UI.ViewModels.Layers;
 using JolieCat.UI.ViewModels.Timeline;
+using Microsoft.Win32;
 
 namespace JolieCat.UI.ViewModels
 {
@@ -10,7 +16,9 @@ namespace JolieCat.UI.ViewModels
     /// View model for <see cref="MainWindow"/>: owns the visibility of the four docking
     /// zones (Left/Right/Bottom) around the central canvas, and composes the panels'
     /// own view models (toolbox, layers, canvas, timeline) rather than flattening their
-    /// state in here as the editor grows more panels.
+    /// state in here as the editor grows more panels. Also owns the two things that cut
+    /// across every panel: undo/redo (delegating to <see cref="LayersViewModel.History"/>,
+    /// the document's single shared history) and whole-project Save/Open.
     /// </summary>
     public partial class MainViewModel : ObservableObject
     {
@@ -37,6 +45,16 @@ namespace JolieCat.UI.ViewModels
             Layers = new LayersViewModel();
             Canvas = new CanvasViewModel(Toolbox, Layers);
             Timeline = new TimelineViewModel();
+
+            // Undo/Redo's enabled state (bound from MainWindow's Edit menu/toolbar, if
+            // any, and implicitly from the Ctrl+Z/Ctrl+Y key bindings' own CanExecute
+            // gate) needs to track the shared history regardless of which panel actually
+            // pushed the command that changed it.
+            Layers.History.Changed += (_, _) =>
+            {
+                UndoCommand.NotifyCanExecuteChanged();
+                RedoCommand.NotifyCanExecuteChanged();
+            };
         }
 
         [RelayCommand]
@@ -55,5 +73,75 @@ namespace JolieCat.UI.ViewModels
         /// </summary>
         [RelayCommand]
         private void SelectTool(ToolDefinition? tool) => Toolbox.SelectToolCommand.Execute(tool);
+
+        [RelayCommand(CanExecute = nameof(CanUndo))]
+        private void Undo() => Layers.History.Undo();
+
+        private bool CanUndo() => Layers.History.CanUndo;
+
+        [RelayCommand(CanExecute = nameof(CanRedo))]
+        private void Redo() => Layers.History.Redo();
+
+        private bool CanRedo() => Layers.History.CanRedo;
+
+        /// <summary>Prompts for a destination and writes the whole open project - every
+        /// layer's pixels and metadata, plus the timeline's tracks/clips/keyframes - as a
+        /// single <c>.jolie</c> file (see <see cref="ProjectSerializer.Save"/>).</summary>
+        [RelayCommand]
+        private void SaveProject()
+        {
+            var dialog = new SaveFileDialog
+            {
+                Filter = "JolieCat Project (*.jolie)|*.jolie",
+                DefaultExt = ".jolie",
+                FileName = "Untitled.jolie",
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            try
+            {
+                ProjectSerializer.Save(dialog.FileName, Layers.Scene, BuildTimelineData(), Timeline.TotalFrames, Timeline.FrameRate);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Couldn't save the project:\n{ex.Message}", "Save Project", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>Prompts for a <c>.jolie</c> file and replaces the open document (layers
+        /// and timeline alike) with what it contains (see <see cref="ProjectSerializer.Load"/>).</summary>
+        [RelayCommand]
+        private void OpenProject()
+        {
+            var dialog = new OpenFileDialog { Filter = "JolieCat Project (*.jolie)|*.jolie" };
+            if (dialog.ShowDialog() != true) return;
+
+            try
+            {
+                var result = ProjectSerializer.Load(dialog.FileName);
+                Layers.LoadScene(result.Scene, Path.GetFileNameWithoutExtension(dialog.FileName));
+                Timeline.LoadTracks(result.TimelineTracks, result.TimelineTotalFrames, result.TimelineFrameRate);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Couldn't open '{dialog.FileName}':\n{ex.Message}", "Open Project", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>Maps the Timeline panel's view models to the plain, UI-agnostic data
+        /// <see cref="ProjectSerializer"/> actually writes - this mapping (not the Core
+        /// serializer) is what keeps <c>JolieCat.Core</c> from needing to reference
+        /// <c>JolieCat.UI</c>'s timeline view models at all.</summary>
+        private TimelineTrackData[] BuildTimelineData() => Timeline.Tracks.Select(track => new TimelineTrackData
+        {
+            Name = track.Name,
+            Clips = track.Clips.Select(clip => new TimelineClipData
+            {
+                Name = clip.Name,
+                StartFrame = clip.StartFrame,
+                LengthFrames = clip.LengthFrames,
+            }).ToList(),
+            KeyframeFrames = track.Keyframes.Select(keyframe => keyframe.Frame).ToList(),
+        }).ToArray();
     }
 }

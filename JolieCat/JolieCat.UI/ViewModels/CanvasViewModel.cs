@@ -5,6 +5,7 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JolieCat.Core.Documents;
+using JolieCat.Core.History;
 using JolieCat.Shared.Enums;
 using JolieCat.UI.Media;
 using JolieCat.UI.ViewModels.Layers;
@@ -39,6 +40,19 @@ namespace JolieCat.UI.ViewModels
 
         private bool _isPainting;
         private SKPoint _lastPaintPoint;
+
+        /// <summary>Distance (device pixels) still to travel along the current stroke
+        /// before the next Brush/Eraser dab is stamped - carried across PaintLineTo calls
+        /// so spacing stays even across mouse-move samples, not just within one. Reset by
+        /// PaintDot at the start of every new stroke.</summary>
+        private float _distanceUntilNextDab;
+
+        /// <summary>The layer a Brush/Pencil/Eraser stroke is currently painting onto, and
+        /// its pixel content from right before the stroke began - <see cref="Layers.History"/>'s
+        /// "before" half of the stroke's undo entry, pushed once the stroke ends (see
+        /// <see cref="CommitStrokeHistory"/>). Null whenever no stroke is in progress.</summary>
+        private Core.Documents.Layer? _strokeLayer;
+        private SKColor[]? _strokeBeforePixels;
 
         private bool _isPanning;
         private SKPoint _panDragStart;
@@ -297,6 +311,8 @@ namespace JolieCat.UI.ViewModels
 
                     _isPainting = true;
                     _lastPaintPoint = doc;
+                    _strokeLayer = activeLayer;
+                    _strokeBeforePixels = activeLayer.Bitmap.Pixels;
                     PaintDot(activeLayer, doc);
                     RaiseInvalidate();
                     break;
@@ -364,14 +380,18 @@ namespace JolieCat.UI.ViewModels
                 case ToolType.PaintBucket:
                     if (activeLayer is null || activeLayer.IsLocked) break;
 
+                    var beforeFill = activeLayer.Bitmap.Pixels;
                     FloodFill(activeLayer, doc);
+                    Layers.History.Push(new LayerPixelsCommand(activeLayer, beforeFill, activeLayer.Bitmap.Pixels));
                     RaiseInvalidate();
                     break;
 
                 case ToolType.Gradient:
                     if (activeLayer is null || activeLayer.IsLocked) break;
 
+                    var beforeGradient = activeLayer.Bitmap.Pixels;
                     ApplyGradient(activeLayer, doc);
+                    Layers.History.Push(new LayerPixelsCommand(activeLayer, beforeGradient, activeLayer.Bitmap.Pixels));
                     RaiseInvalidate();
                     break;
 
@@ -426,7 +446,10 @@ namespace JolieCat.UI.ViewModels
         public void OnPointerReleased(SKPoint devicePoint)
         {
             if (_isPainting)
+            {
                 OnPointerMoved(devicePoint);
+                CommitStrokeHistory();
+            }
 
             if (_isDraggingMarquee)
                 CommitLiveSelection();
@@ -448,6 +471,20 @@ namespace JolieCat.UI.ViewModels
             // single drag - see HandlePolygonClick.
         }
 
+        /// <summary>Pushes the just-finished Brush/Pencil/Eraser stroke's before/after
+        /// pixel snapshots as one undo entry, if a stroke was actually in progress - a
+        /// no-op otherwise (including when called a second time, since the fields it
+        /// reads are cleared after the first call).</summary>
+        private void CommitStrokeHistory()
+        {
+            if (_strokeLayer is null || _strokeBeforePixels is null) return;
+
+            Layers.History.Push(new LayerPixelsCommand(_strokeLayer, _strokeBeforePixels, _strokeLayer.Bitmap.Pixels));
+
+            _strokeLayer = null;
+            _strokeBeforePixels = null;
+        }
+
         /// <summary>
         /// Ends any in-progress drag/paint/pan/selection gesture without finalizing it.
         /// Used when mouse capture is lost unexpectedly (e.g. a dialog steals it
@@ -457,6 +494,12 @@ namespace JolieCat.UI.ViewModels
         /// </summary>
         public void CancelInteraction()
         {
+            // A stroke already painted real pixels before capture was lost - that's not
+            // discarded along with the rest of the gesture state below, it's finalized
+            // into history exactly as a normal mouse-up would.
+            if (_isPainting)
+                CommitStrokeHistory();
+
             _isPainting = false;
             _isPanning = false;
             _isDraggingMarquee = false;
@@ -635,7 +678,9 @@ namespace JolieCat.UI.ViewModels
             var layer = Layers.ActiveLayer?.Model;
             if (!string.IsNullOrEmpty(text) && layer is not null && !layer.IsLocked)
             {
+                var before = layer.Bitmap.Pixels;
                 DrawTextOnLayer(layer, text);
+                Layers.History.Push(new LayerPixelsCommand(layer, before, layer.Bitmap.Pixels));
                 RaiseInvalidate();
             }
 
@@ -744,55 +789,161 @@ namespace JolieCat.UI.ViewModels
             canvas.Restore();
         }
 
+        /// <summary>Brush/Eraser paint with a single circular "dab", stamped once at the
+        /// pointer-down point - the stroke's first mark, before any spacing has a
+        /// previous dab to measure from. Pencil instead keeps its plain hard-edged single
+        /// pixel (<c>DrawPoint</c>), matching its established always-aliased behavior.</summary>
         private void PaintDot(Core.Documents.Layer layer, SKPoint point)
         {
-            using var paint = CreatePaintForActiveTool();
-            WithSelectionClip(layer.Canvas, canvas => canvas.DrawPoint(point, paint));
+            if (_toolbox.ActiveTool.Type == ToolType.Pencil)
+            {
+                using var pencilPaint = CreatePencilPaint();
+                WithSelectionClip(layer.Canvas, canvas => canvas.DrawPoint(point, pencilPaint));
+                return;
+            }
+
+            var size = Math.Max(1f, (float)((_toolbox.CurrentToolOptions as PaintToolOptionsViewModel)?.Size ?? 24));
+            var radius = size / 2f;
+
+            using var dabPaint = CreateDabPaint(radius);
+            WithSelectionClip(layer.Canvas, canvas => DrawDab(canvas, point, radius, dabPaint));
+
+            // The next dab (from the first PaintLineTo call of this stroke) should land
+            // one full spacing interval past this one.
+            _distanceUntilNextDab = ComputeDabSpacing(size);
         }
 
+        /// <summary>Brush/Eraser paint between two consecutive pointer-move samples: not
+        /// a single stroked line (which can't vary its edge across its own width the way
+        /// a soft brush needs to), but a series of circular dabs stamped at even
+        /// intervals along the segment - <see cref="_distanceUntilNextDab"/> carries any
+        /// leftover distance from one segment into the next so spacing stays even across
+        /// the whole stroke, not just within one mouse-move sample. Pencil keeps its
+        /// plain hard-edged <c>DrawLine</c>.</summary>
         private void PaintLineTo(Core.Documents.Layer layer, SKPoint from, SKPoint to)
         {
-            using var paint = CreatePaintForActiveTool();
-            WithSelectionClip(layer.Canvas, canvas => canvas.DrawLine(from, to, paint));
+            if (_toolbox.ActiveTool.Type == ToolType.Pencil)
+            {
+                using var pencilPaint = CreatePencilPaint();
+                WithSelectionClip(layer.Canvas, canvas => canvas.DrawLine(from, to, pencilPaint));
+                return;
+            }
+
+            var size = Math.Max(1f, (float)((_toolbox.CurrentToolOptions as PaintToolOptionsViewModel)?.Size ?? 24));
+            var radius = size / 2f;
+            var stepDistance = ComputeDabSpacing(size);
+
+            var dx = to.X - from.X;
+            var dy = to.Y - from.Y;
+            var segmentLength = MathF.Sqrt(dx * dx + dy * dy);
+            if (segmentLength <= 0f) return;
+
+            using var dabPaint = CreateDabPaint(radius);
+
+            WithSelectionClip(layer.Canvas, canvas =>
+            {
+                var nextDabAt = _distanceUntilNextDab;
+                while (nextDabAt <= segmentLength)
+                {
+                    var t = nextDabAt / segmentLength;
+                    DrawDab(canvas, new SKPoint(from.X + dx * t, from.Y + dy * t), radius, dabPaint);
+                    nextDabAt += stepDistance;
+                }
+
+                _distanceUntilNextDab = nextDabAt - segmentLength;
+            });
         }
 
-        private SKPaint CreatePaintForActiveTool()
+        /// <summary>Stamps one dab centered at <paramref name="center"/>. Translates the
+        /// canvas rather than rebuilding <paramref name="dabPaint"/>'s shader per dab
+        /// position - <see cref="CreateDabPaint"/>'s radial gradient is centered at the
+        /// local origin once, and reused (via this translate) for every dab in a stroke.</summary>
+        private static void DrawDab(SKCanvas canvas, SKPoint center, float radius, SKPaint dabPaint)
         {
-            var toolType = _toolbox.ActiveTool.Type;
-            var isEraser = toolType == ToolType.Eraser;
-            var isPencil = toolType == ToolType.Pencil;
+            canvas.Save();
+            canvas.Translate(center.X, center.Y);
+            canvas.DrawCircle(0, 0, radius, dabPaint);
+            canvas.Restore();
+        }
 
+        /// <summary>Distance (in pixels) between consecutive dabs - Spacing is a percentage
+        /// of the brush's own diameter, matching how Spacing is conventionally expressed
+        /// (100% spacing = dabs just touching; well under 100% = a smooth continuous
+        /// stroke; well over 100% = a visibly dotted/dashed one).</summary>
+        private float ComputeDabSpacing(float size)
+        {
             var options = _toolbox.CurrentToolOptions as PaintToolOptionsViewModel;
-            var size = (float)(options?.Size ?? 24);
-            var hardness = options?.Hardness ?? 100;
-            var opacityPercent = options?.Opacity ?? 100;
+            var spacingPercent = Math.Clamp(options?.Spacing ?? 20, 1, 500);
+            return Math.Max(1f, size * (float)(spacingPercent / 100.0));
+        }
 
+        /// <summary>One circular dab's fill paint: solid out to Hardness% of its radius,
+        /// then fading linearly to fully transparent at the edge - a real soft/hard brush
+        /// edge via a radial-gradient alpha falloff, rather than a flat hard-edged circle
+        /// with no Hardness control at all. Hardness 100 skips the gradient entirely (a
+        /// plain solid fill) since a fade ending exactly at the edge is indistinguishable
+        /// from none, and the eraser gets the same falloff (through its established
+        /// DstOut blend mode) so it can un-paint just as softly as the brush paints.</summary>
+        private SKPaint CreateDabPaint(float radius)
+        {
+            var isEraser = _toolbox.ActiveTool.Type == ToolType.Eraser;
+            var options = _toolbox.CurrentToolOptions as PaintToolOptionsViewModel;
+            var hardness = Math.Clamp(options?.Hardness ?? 100, 0, 100);
+            var opacityPercent = options?.Opacity ?? 100;
             var alpha = (byte)Math.Clamp(opacityPercent / 100.0 * 255, 0, 255);
 
+            // Color only matters for its alpha channel when erasing - DstOut (not Clear)
+            // removes destination alpha in proportion to the source's, so the eraser's
+            // Opacity slider genuinely does partial erasing instead of always punching
+            // fully through regardless of it; RGB is irrelevant. See PaintDot/PaintLineTo's
+            // callers for why this is shared with the brush's own coloring.
+            var color = isEraser ? SKColors.Black.WithAlpha(alpha) : BrushColor.WithAlpha(alpha);
+
             var paint = new SKPaint
+            {
+                Style = SKPaintStyle.Fill,
+                IsAntialias = true,
+                BlendMode = isEraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+            };
+
+            if (hardness >= 100 || radius <= 0f)
+            {
+                paint.Color = color;
+            }
+            else
+            {
+                // Centered at the local origin (0,0), not the dab's actual canvas
+                // position - DrawDab translates the canvas per dab instead of rebuilding
+                // this shader for every dab's position.
+                paint.Shader = SKShader.CreateRadialGradient(
+                    new SKPoint(0, 0), radius,
+                    new[] { color, color, color.WithAlpha(0) },
+                    new[] { 0f, (float)(hardness / 100.0), 1f },
+                    SKShaderTileMode.Clamp);
+            }
+
+            return paint;
+        }
+
+        /// <summary>Pencil's plain hard-edged, non-antialiased stroke paint - unaffected
+        /// by Hardness/Spacing, which only apply to the Brush/Eraser's dab-based painting.</summary>
+        private SKPaint CreatePencilPaint()
+        {
+            var options = _toolbox.CurrentToolOptions as PaintToolOptionsViewModel;
+            var size = (float)(options?.Size ?? 24);
+            var opacityPercent = options?.Opacity ?? 100;
+            var alpha = (byte)Math.Clamp(opacityPercent / 100.0 * 255, 0, 255);
+
+            return new SKPaint
             {
                 Style = SKPaintStyle.Stroke,
                 StrokeWidth = Math.Max(1f, size),
                 StrokeCap = SKStrokeCap.Round,
                 StrokeJoin = SKStrokeJoin.Round,
-                IsAntialias = !isPencil,
-                // DstOut (not Clear) removes destination alpha in proportion to the
-                // source alpha, so the eraser's Opacity slider genuinely does partial
-                // erasing instead of always punching fully through regardless of it.
-                // Color only matters for its alpha channel here - RGB is irrelevant.
-                BlendMode = isEraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
-                Color = isEraser ? SKColors.Black.WithAlpha(alpha) : BrushColor.WithAlpha(alpha),
+                IsAntialias = false,
+                BlendMode = SKBlendMode.SrcOver,
+                Color = BrushColor.WithAlpha(alpha),
             };
-
-            // Softer brushes get a blurred stroke edge; pencil and the eraser stay hard-edged.
-            if (!isEraser && !isPencil && hardness < 100)
-            {
-                var blurRadius = (float)((100 - hardness) / 100.0 * size * 0.35);
-                if (blurRadius > 0.1f)
-                    paint.MaskFilter = SKMaskFilter.CreateBlur(SKBlurStyle.Normal, blurRadius);
-            }
-
-            return paint;
         }
 
         private void FloodFill(Core.Documents.Layer layer, SKPoint point)

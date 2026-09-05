@@ -9,6 +9,7 @@
     <StackPanel Margin="10">
         <controls:LabeledSlider Label="Size" Minimum="1" Maximum="500" Suffix="px" Value="{Binding Size, Mode=TwoWay}" />
         <controls:LabeledSlider Label="Hardness" Minimum="0" Maximum="100" Suffix="%" Value="{Binding Hardness, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Spacing" Minimum="1" Maximum="200" Suffix="%" Value="{Binding Spacing, Mode=TwoWay}" />
         <controls:LabeledSlider Label="Opacity" Minimum="0" Maximum="100" Suffix="%" Value="{Binding Opacity, Mode=TwoWay}" />
 
         <!-- Only Brush/Pencil paint with the foreground color (Eraser and the retouching

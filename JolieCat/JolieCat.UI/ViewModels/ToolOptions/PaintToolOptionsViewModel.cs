@@ -17,6 +17,13 @@ namespace JolieCat.UI.ViewModels.ToolOptions
         [ObservableProperty]
         private double opacity = 100;
 
+        /// <summary>Distance between consecutive Brush/Eraser dabs, as a percentage of
+        /// the brush's own diameter - low values (well under 100) read as a smooth
+        /// continuous stroke; high values (well over 100) read as a dotted/dashed one.
+        /// Doesn't affect Pencil, which always draws a plain continuous hard-edged line.</summary>
+        [ObservableProperty]
+        private double spacing = 20;
+
         /// <summary>
         /// Whether this tool draws with the foreground color, so its Properties panel
         /// should show the color picker. True for Brush/Pencil; false for Eraser (which

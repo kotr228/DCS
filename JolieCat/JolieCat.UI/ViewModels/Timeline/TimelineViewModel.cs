@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using JolieCat.Core.Serialization;
 
 namespace JolieCat.UI.ViewModels.Timeline
 {
@@ -62,6 +63,32 @@ namespace JolieCat.UI.ViewModels.Timeline
         /// <summary>Moves the playhead, from a scrub-drag gesture measured in pixels.</summary>
         public void ScrubPlayheadBy(double pixelDelta) =>
             CurrentFrame = Math.Clamp(CurrentFrame + pixelDelta / PixelsPerFrame, 0, TotalFrames);
+
+        /// <summary>Replaces every track with ones reconstructed from a loaded <c>.jolie</c>
+        /// project's plain-data timeline (see <c>ProjectSerializer.Load</c>) - the reverse
+        /// of the mapping <c>MainViewModel</c>'s save path builds from these same view
+        /// models.</summary>
+        public void LoadTracks(IReadOnlyList<TimelineTrackData> tracks, double totalFrames, double frameRate)
+        {
+            Tracks.Clear();
+
+            foreach (var trackData in tracks)
+            {
+                var track = new TimelineTrackViewModel(this, trackData.Name);
+
+                foreach (var clip in trackData.Clips)
+                    track.AddClip(clip.Name, clip.StartFrame, clip.LengthFrames);
+
+                foreach (var frame in trackData.KeyframeFrames)
+                    track.Keyframes.Add(new KeyframeViewModel(this, frame));
+
+                Tracks.Add(track);
+            }
+
+            TotalFrames = totalFrames;
+            FrameRate = frameRate;
+            CurrentFrame = 0;
+        }
 
         private List<TimelineRulerTick> BuildRulerTicks()
         {
