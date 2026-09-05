@@ -8,20 +8,30 @@ namespace JolieCat.Core.Documents
     /// A <see cref="Scene"/>'s current selection: an arbitrary pixel region built from a
     /// rectangle, ellipse, freehand/polygon path, or flood-selected pixels, that
     /// constrains where painting, erasing, and filling can affect the active layer.
-    /// Backed by an <see cref="SKRegion"/> (Skia's own clip/region type) rather than a
-    /// hand-rolled boolean mask, so the same value both drives
-    /// <c>SKCanvas.ClipRegion</c> for canvas-based drawing and answers direct
-    /// <see cref="Contains"/> point tests for pixel-array operations like flood fill.
+    /// Backed by both an <see cref="SKRegion"/> and an equivalent <see cref="SKPath"/> -
+    /// built together from the same shape whenever the selection changes - so callers
+    /// can pick whichever fits: <see cref="Path"/> drives <c>SKCanvas.ClipPath</c> (with
+    /// anti-aliased edges) for canvas-based drawing tools, while <see cref="Region"/>
+    /// answers fast <see cref="Contains"/> point tests for pixel-array operations like
+    /// flood fill, where a per-pixel path hit-test would be far more expensive.
     /// </summary>
     public sealed class Selection
     {
         private SKRegion? _region;
+        private SKPath? _path;
 
         /// <summary>False when nothing is selected - painting/filling/erasing then affects the whole layer.</summary>
         public bool HasSelection => _region is { IsEmpty: false };
 
-        /// <summary>The selected region, or null when there's no active selection.</summary>
+        /// <summary>The selected region, or null when there's no active selection. Used
+        /// for fast per-pixel <see cref="Contains"/> tests.</summary>
         public SKRegion? Region => _region;
+
+        /// <summary>The selected area as a path, or null when there's no active
+        /// selection. Used to clip canvas drawing (<c>SKCanvas.ClipPath</c>) so painting,
+        /// erasing, and fills stop exactly at the selection's edge - with anti-aliasing,
+        /// unlike a region-based clip.</summary>
+        public SKPath? Path => _path;
 
         /// <summary>Selects an axis-aligned rectangle (Rectangular Marquee).</summary>
         public void SetRect(SKRectI rect)
@@ -29,11 +39,17 @@ namespace JolieCat.Core.Documents
             var region = new SKRegion();
             region.SetRect(rect);
             _region = region;
+
+            var path = new SKPath();
+            path.AddRect(SKRect.Create(rect.Left, rect.Top, rect.Width, rect.Height));
+            _path = path;
         }
 
         /// <summary>Rasterizes an arbitrary closed path - an elliptical marquee, a
         /// freehand lasso, or a clicked-vertex polygon - into the selection, bounded to
-        /// the document.</summary>
+        /// the document. The path itself becomes <see cref="Path"/> directly, so the
+        /// clip mask matches the drawn shape exactly rather than the region's
+        /// integer-aligned approximation of it.</summary>
         public void SetPath(SKPath path, int documentWidth, int documentHeight)
         {
             using var bounds = new SKRegion();
@@ -42,12 +58,22 @@ namespace JolieCat.Core.Documents
             var region = new SKRegion();
             region.SetPath(path, bounds);
             _region = region;
+            _path = path;
         }
 
-        /// <summary>Adopts an already-built region directly (Magic Wand/Quick Selection).</summary>
-        public void SetRegion(SKRegion region) => _region = region;
+        /// <summary>Adopts an already-built region directly (Magic Wand/Quick
+        /// Selection), deriving its equivalent clip path from the region's own boundary.</summary>
+        public void SetRegion(SKRegion region)
+        {
+            _region = region;
+            _path = region.GetBoundaryPath();
+        }
 
-        public void Clear() => _region = null;
+        public void Clear()
+        {
+            _region = null;
+            _path = null;
+        }
 
         /// <summary>
         /// True if (x, y) is selected - or if there's no active selection at all, since

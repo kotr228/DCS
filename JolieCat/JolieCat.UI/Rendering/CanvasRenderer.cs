@@ -84,7 +84,9 @@ namespace JolieCat.UI.Rendering
         /// a marquee/lasso/polygon is still being drawn, that's <see cref="CanvasViewModel.LiveSelectionPath"/>;
         /// once committed (including Magic Wand/Quick Selection's region-based result,
         /// which was never a simple path to begin with), it's the committed
-        /// <c>Scene.Selection</c>'s own boundary, via <c>SKRegion.GetBoundaryPath</c>.
+        /// <c>Scene.Selection</c>'s own <see cref="Selection.Path"/> - the same path
+        /// <see cref="CanvasViewModel"/> clips painting to, so the outline always matches
+        /// exactly what the selection actually constrains.
         /// </summary>
         private static void DrawSelectionOverlay(SKCanvas canvas, CanvasViewModel viewModel)
         {
@@ -92,10 +94,9 @@ namespace JolieCat.UI.Rendering
 
             if (path is null)
             {
-                var region = viewModel.Layers.Scene.Selection.Region;
-                if (region is null || region.IsEmpty) return;
-
-                path = region.GetBoundaryPath();
+                if (!viewModel.Layers.Scene.Selection.HasSelection) return;
+                path = viewModel.Layers.Scene.Selection.Path;
+                if (path is null) return;
             }
 
             // Stroke width and dash length are scaled down by zoom so the outline reads

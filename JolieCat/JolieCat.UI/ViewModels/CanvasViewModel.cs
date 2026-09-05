@@ -474,18 +474,21 @@ namespace JolieCat.UI.ViewModels
         /// Wand/Quick Selection actually constrain painting, erasing, and gradients to
         /// the selected pixels rather than just drawing a decorative overlay. Clipping
         /// (unlike the DstOut/DstIn masking tricks) applies uniformly regardless of the
-        /// paint's own blend mode, so this works correctly for the eraser too.</summary>
+        /// paint's own blend mode, so this works correctly for the eraser too. Clips by
+        /// <see cref="Core.Documents.Selection.Path"/> (not the region) so the mask gets
+        /// the same anti-aliased edge as everything else drawn on the layer, rather than
+        /// the region's hard-edged, integer-aligned approximation of the same shape.</summary>
         private void WithSelectionClip(SKCanvas canvas, Action<SKCanvas> draw)
         {
             var selection = Layers.Scene.Selection;
-            if (!selection.HasSelection)
+            if (!selection.HasSelection || selection.Path is not { } clipPath)
             {
                 draw(canvas);
                 return;
             }
 
             canvas.Save();
-            canvas.ClipRegion(selection.Region!, SKClipOperation.Intersect);
+            canvas.ClipPath(clipPath, SKClipOperation.Intersect, antialias: true);
             draw(canvas);
             canvas.Restore();
         }
