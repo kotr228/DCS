@@ -1,0 +1,18 @@
+<UserControl x:Class="JolieCat.UI.Views.Properties.EyedropperToolOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:views="clr-namespace:JolieCat.UI.Views"
+             mc:Ignorable="d">
+    <StackPanel Margin="10">
+        <TextBlock Text="Click anywhere on the canvas to sample its color."
+                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,10" />
+
+        <!-- Same DataContext hop as the other color-driving tools' Properties views:
+             this view's own DataContext is the (empty) EyedropperToolOptionsViewModel,
+             but the color picker always reflects the shared CanvasViewModel's primary
+             color - the one the Eyedropper just wrote into. -->
+        <views:ColorPickerPanel DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Canvas}" />
+    </StackPanel>
+</UserControl>

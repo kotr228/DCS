@@ -1,6 +1,7 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using JolieCat.Core.Documents;
+using JolieCat.Shared.Enums;
 
 namespace JolieCat.UI.ViewModels.Layers
 {
@@ -8,8 +9,10 @@ namespace JolieCat.UI.ViewModels.Layers
     /// Bindable wrapper around a single <see cref="Core.Documents.Layer"/> for the Layers
     /// panel: <see cref="Core.Documents.Layer"/> itself is a plain Core domain object (no
     /// INotifyPropertyChanged), so this is what the ListBox's Name text, visibility/lock
-    /// toggles, and opacity slider actually bind to. Every property reads/writes straight
-    /// through to <see cref="Model"/> - this class holds no state of its own.
+    /// toggles, blend mode, and opacity slider actually bind to. Every property reads/
+    /// writes straight through to <see cref="Model"/> - this class holds no state of its
+    /// own beyond <see cref="IsEditingName"/>, which is purely this panel's inline-rename
+    /// UI state and has no Core equivalent.
     /// </summary>
     public partial class LayerViewModel : ObservableObject
     {
@@ -19,6 +22,19 @@ namespace JolieCat.UI.ViewModels.Layers
         /// <summary>Raised whenever a change here should trigger a canvas repaint (visibility,
         /// opacity, or blend mode - anything that affects composited pixels, not just the name).</summary>
         public event EventHandler? VisualStateChanged;
+
+        /// <summary>True while the Layers panel is showing this layer's inline rename
+        /// textbox instead of its plain name label - set by the view's double-click
+        /// handler, not by anything in Core.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsNotEditingName))]
+        private bool isEditingName;
+
+        /// <summary>Inverse of <see cref="IsEditingName"/>, for the plain name label's own
+        /// Visibility binding - <see cref="System.Windows.Data.IValueConverter"/>s in this
+        /// app take no parameters, so a real property is simpler than adding one just to
+        /// invert a bool.</summary>
+        public bool IsNotEditingName => !IsEditingName;
 
         public LayerViewModel(Layer model)
         {
@@ -69,6 +85,20 @@ namespace JolieCat.UI.ViewModels.Layers
                 var clamped = Math.Clamp(value, 0.0, 100.0) / 100.0;
                 if (Math.Abs(Model.Opacity - clamped) < 0.0001) return;
                 Model.Opacity = clamped;
+                OnPropertyChanged();
+                VisualStateChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>Compositing mode used when this layer is drawn over the ones beneath
+        /// it - the Layers panel's Blend Mode dropdown.</summary>
+        public BlendMode BlendMode
+        {
+            get => Model.BlendMode;
+            set
+            {
+                if (Model.BlendMode == value) return;
+                Model.BlendMode = value;
                 OnPropertyChanged();
                 VisualStateChanged?.Invoke(this, EventArgs.Empty);
             }

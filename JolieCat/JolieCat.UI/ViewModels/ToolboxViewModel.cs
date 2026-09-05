@@ -19,9 +19,13 @@ namespace JolieCat.UI.ViewModels
         /// <summary>Every tool, in catalog order.</summary>
         public IReadOnlyList<ToolDefinition> Tools { get; } = ToolCatalog.All;
 
-        /// <summary>Tools grouped by <see cref="ToolCategory"/> for the Tools panel's sections.</summary>
-        public IReadOnlyList<IGrouping<ToolCategory, ToolDefinition>> ToolsByCategory { get; } =
-            ToolCatalog.All.GroupBy(tool => tool.Category).ToList();
+        /// <summary>Tools grouped by <see cref="ToolCategory"/> for the Tools panel's
+        /// collapsible sections, in catalog order.</summary>
+        public IReadOnlyList<ToolCategoryGroupViewModel> ToolsByCategory { get; } =
+            ToolCatalog.All
+                .GroupBy(tool => tool.Category)
+                .Select(group => new ToolCategoryGroupViewModel(group.Key, group.ToList()))
+                .ToList();
 
         [ObservableProperty]
         private ToolDefinition activeTool;
@@ -66,6 +70,8 @@ namespace JolieCat.UI.ViewModels
             ToolType.PaintBucket => new FillToolOptionsViewModel(),
 
             ToolType.Gradient => new GradientToolOptionsViewModel(),
+
+            ToolType.Eyedropper => new EyedropperToolOptionsViewModel(),
 
             _ => new EmptyToolOptionsViewModel(),
         };

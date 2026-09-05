@@ -65,6 +65,10 @@ namespace JolieCat.Core.Tools
             new(ToolType.Gradient, ToolCategory.Painting, "Gradient",
                 "M6,18 L8,20 L20,8 L18,6 Z M3.5,18 A2.5,2.5 0 1 1 8.5,18 A2.5,2.5 0 1 1 3.5,18 Z M17,4 H21 V8 H17 Z", "G"),
 
+            new(ToolType.Eyedropper, ToolCategory.Painting, "Eyedropper",
+                "M20.7,3.3 C21.9,4.5 21.9,6.4 20.7,7.6 L19.4,8.9 L15.1,4.6 L16.4,3.3 C17.6,2.1 19.5,2.1 20.7,3.3 Z " +
+                "M13.7,6 L18,10.3 L8.4,19.9 L4,21 L5.1,16.6 Z", "I"),
+
             // Retouching
             new(ToolType.CloneStamp, ToolCategory.Retouching, "Clone Stamp",
                 "M6,16 L18,16 L16,20 L8,20 Z M9,10 H15 V16 H9 Z M9,7 A3,3 0 1 1 15,7 A3,3 0 1 1 9,7 Z", "S"),

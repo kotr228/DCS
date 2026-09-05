@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JolieCat.Core.Documents;
 using JolieCat.Shared.Enums;
+using JolieCat.UI.Media;
 using JolieCat.UI.ViewModels.Layers;
 using JolieCat.UI.ViewModels.ToolOptions;
 using SkiaSharp;
@@ -67,10 +68,33 @@ namespace JolieCat.UI.ViewModels
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(PrimaryColorBrush))]
-        [NotifyPropertyChangedFor(nameof(RedComponent))]
-        [NotifyPropertyChangedFor(nameof(GreenComponent))]
-        [NotifyPropertyChangedFor(nameof(BlueComponent))]
+        [NotifyPropertyChangedFor(nameof(HexCode))]
         private Color primaryColor = Colors.White;
+
+        /// <summary>The color picker's own copy of <see cref="PrimaryColor"/>'s hue, kept
+        /// as a separate 0-360 value (rather than always re-deriving it from RGB) so a
+        /// desaturated color (S=0, where hue is mathematically undefined) doesn't reset
+        /// the Hue slider back to red every time <see cref="Saturation"/> hits zero.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(HueBrush))]
+        private double hue;
+
+        /// <summary>0-1. Together with <see cref="Hue"/> and <see cref="Brightness"/>,
+        /// the color picker's own state - kept in sync with <see cref="PrimaryColor"/>
+        /// both ways via <see cref="_isSyncingColor"/>.</summary>
+        [ObservableProperty]
+        private double saturation;
+
+        /// <summary>0-1 ("Value" in HSV terms - named Brightness here to read clearly
+        /// next to <see cref="Saturation"/> rather than colliding with the generic
+        /// "value" every generated property setter parameter is already named).</summary>
+        [ObservableProperty]
+        private double brightness = 1.0;
+
+        /// <summary>Guards <see cref="OnPrimaryColorChanged"/> and <see cref="SyncColorFromHsv"/>
+        /// against re-driving each other: setting <see cref="PrimaryColor"/> from HSV (or
+        /// vice versa) is a one-way push while this is true, not a round trip.</summary>
+        private bool _isSyncingColor;
 
         /// <summary>The document's layer stack - what tools paint onto and what
         /// <see cref="CanvasRenderer"/> composites.</summary>
@@ -94,28 +118,77 @@ namespace JolieCat.UI.ViewModels
         /// can't bind directly to a <see cref="Color"/> - there's no built-in converter).</summary>
         public SolidColorBrush PrimaryColorBrush => new(PrimaryColor);
 
-        /// <summary>0-255 color-channel properties the picker's RGB sliders bind to; each
-        /// reads/writes through <see cref="PrimaryColor"/> since WPF can't two-way bind
-        /// into one field of a value-type property.</summary>
-        public double RedComponent
+        /// <summary>The pure hue at full saturation/brightness (S=1, V=1) - what the SV
+        /// box's tinted base layer should show regardless of the actual color's own
+        /// saturation/brightness.</summary>
+        public SolidColorBrush HueBrush
         {
-            get => PrimaryColor.R;
-            set => PrimaryColor = Color.FromRgb(ToByte(value), PrimaryColor.G, PrimaryColor.B);
+            get
+            {
+                var (r, g, b) = HsvColor.ToRgb(Hue, 1.0, 1.0);
+                return new SolidColorBrush(Color.FromRgb(r, g, b));
+            }
         }
 
-        public double GreenComponent
+        /// <summary>"#RRGGBB" view of <see cref="PrimaryColor"/> for the picker's hex
+        /// textbox. Setting it parses the text and, only if it's a valid color, adopts
+        /// its RGB (keeping the current alpha) - an invalid or still-being-typed value is
+        /// silently ignored rather than throwing, so the box just doesn't commit yet.</summary>
+        public string HexCode
         {
-            get => PrimaryColor.G;
-            set => PrimaryColor = Color.FromRgb(PrimaryColor.R, ToByte(value), PrimaryColor.B);
+            get => $"#{PrimaryColor.R:X2}{PrimaryColor.G:X2}{PrimaryColor.B:X2}";
+            set
+            {
+                var hex = value?.Trim();
+                if (string.IsNullOrEmpty(hex)) return;
+                if (!hex.StartsWith('#')) hex = "#" + hex;
+
+                try
+                {
+                    if (ColorConverter.ConvertFromString(hex) is Color parsed)
+                        PrimaryColor = Color.FromArgb(PrimaryColor.A, parsed.R, parsed.G, parsed.B);
+                }
+                catch (FormatException)
+                {
+                    // Not a complete/valid hex color yet (e.g. still mid-typing) - ignored.
+                }
+            }
         }
 
-        public double BlueComponent
+        /// <summary>Keeps <see cref="Hue"/>/<see cref="Saturation"/>/<see cref="Brightness"/>
+        /// in step whenever <see cref="PrimaryColor"/> changes from anywhere other than
+        /// the HSV picker itself (a quick-pick swatch, the hex box, the Eyedropper) -
+        /// guarded by <see cref="_isSyncingColor"/> so this doesn't fight with
+        /// <see cref="SyncColorFromHsv"/> driving <see cref="PrimaryColor"/> the other way.</summary>
+        partial void OnPrimaryColorChanged(Color value)
         {
-            get => PrimaryColor.B;
-            set => PrimaryColor = Color.FromRgb(PrimaryColor.R, PrimaryColor.G, ToByte(value));
+            if (_isSyncingColor) return;
+
+            var (h, s, v) = HsvColor.FromRgb(value.R, value.G, value.B);
+            _isSyncingColor = true;
+            Hue = h;
+            Saturation = s;
+            Brightness = v;
+            _isSyncingColor = false;
         }
 
-        private static byte ToByte(double value) => (byte)Math.Clamp(Math.Round(value), 0, 255);
+        partial void OnHueChanged(double value) => SyncColorFromHsv();
+
+        partial void OnSaturationChanged(double value) => SyncColorFromHsv();
+
+        partial void OnBrightnessChanged(double value) => SyncColorFromHsv();
+
+        /// <summary>Pushes the current Hue/Saturation/Brightness into <see cref="PrimaryColor"/>
+        /// as RGB - the SV box and Hue strip's side of the two-way sync with <see cref="OnPrimaryColorChanged"/>.</summary>
+        private void SyncColorFromHsv()
+        {
+            if (_isSyncingColor) return;
+
+            _isSyncingColor = true;
+            var (r, g, b) = HsvColor.ToRgb(Hue, Saturation, Brightness);
+            PrimaryColor = Color.FromArgb(PrimaryColor.A, r, g, b);
+            _isSyncingColor = false;
+        }
 
         /// <summary>The active tool's type, mirrored from <see cref="ToolboxViewModel.ActiveTool"/>
         /// so the view can bind the canvas cursor to it without needing the whole toolbox.</summary>
@@ -218,6 +291,11 @@ namespace JolieCat.UI.ViewModels
                 case ToolType.QuickSelection:
                     if (activeLayer is not null)
                         SelectByColor(activeLayer, doc);
+                    break;
+
+                case ToolType.Eyedropper:
+                    if (activeLayer is not null)
+                        SampleColor(activeLayer, doc);
                     break;
 
                 case ToolType.Hand:
@@ -464,6 +542,21 @@ namespace JolieCat.UI.ViewModels
             var region = Selection.CreateRegionFromColorFlood(layer.Bitmap, (int)point.X, (int)point.Y, tolerance);
             Layers.Scene.Selection.SetRegion(region);
             RaiseInvalidate();
+        }
+
+        /// <summary>Eyedropper: reads the active layer's pixel at <paramref name="point"/>
+        /// and adopts it (alpha included) as <see cref="PrimaryColor"/>. A click outside
+        /// the document bounds is ignored rather than clamped, since there's no pixel
+        /// there to sample.</summary>
+        private void SampleColor(Core.Documents.Layer layer, SKPoint point)
+        {
+            var bitmap = layer.Bitmap;
+            var x = (int)point.X;
+            var y = (int)point.Y;
+            if (x < 0 || y < 0 || x >= bitmap.Width || y >= bitmap.Height) return;
+
+            var sampled = bitmap.GetPixel(x, y);
+            PrimaryColor = Color.FromArgb(sampled.Alpha, sampled.Red, sampled.Green, sampled.Blue);
         }
 
         // ================= Painting =================

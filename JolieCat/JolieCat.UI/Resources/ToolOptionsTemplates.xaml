@@ -31,6 +31,10 @@
         <views:GradientToolOptionsView />
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type opts:EyedropperToolOptionsViewModel}">
+        <views:EyedropperToolOptionsView />
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type opts:EmptyToolOptionsViewModel}">
         <views:EmptyToolOptionsView />
     </DataTemplate>

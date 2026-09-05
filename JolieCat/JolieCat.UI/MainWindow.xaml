@@ -7,6 +7,8 @@
         xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
         xmlns:views="clr-namespace:JolieCat.UI.Views"
         xmlns:timeline="clr-namespace:JolieCat.UI.Views.Timeline"
+        xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+        xmlns:layers="clr-namespace:JolieCat.UI.ViewModels.Layers"
         mc:Ignorable="d"
         Title="JolieCat" Height="720" Width="1280" MinHeight="480" MinWidth="720"
         WindowStartupLocation="CenterScreen"
@@ -92,11 +94,6 @@
             <Setter Property="Margin" Value="8,6" />
         </Style>
 
-        <!-- Category header inside the Tools panel (smaller/dimmer than a zone's own header). -->
-        <Style x:Key="ToolCategoryHeaderStyle" TargetType="TextBlock" BasedOn="{StaticResource PanelHeaderStyle}">
-            <Setter Property="FontSize" Value="10" />
-            <Setter Property="Margin" Value="8,4,8,2" />
-        </Style>
 
         <!-- Flat ListBoxItem style for tool entries: no default chrome, accent highlight
              on the active tool, subtle hover otherwise. -->
@@ -129,6 +126,70 @@
             <Setter Property="FontSize" Value="11" />
             <Setter Property="MinWidth" Value="26" />
             <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
+
+        <!-- Wrapping tool tile: an icon-only square, name shown only as a tooltip - this
+             (rather than the old full-width icon+label row) is what lets the ListBox's
+             WrapPanel actually flow tools into more than one column as the Tools panel
+             gets wider, instead of every tile filling the whole row by itself. -->
+        <Style x:Key="ToolTileStyle" TargetType="Border">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Margin" Value="3" />
+            <Setter Property="Background" Value="{StaticResource PanelAltBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <!-- Collapsible category section in the Tools panel: a flat chevron+title header
+             (no default Expander bubble/arrow chrome, which doesn't match this app's flat
+             dark theme) toggling a ContentPresenter below it. -->
+        <Style x:Key="ToolCategoryExpanderStyle" TargetType="Expander">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Expander">
+                        <DockPanel>
+                            <ToggleButton DockPanel.Dock="Top" Cursor="Hand" Focusable="False"
+                                          IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                <ToggleButton.Style>
+                                    <Style TargetType="ToggleButton">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ToggleButton">
+                                                    <Border Background="Transparent" Padding="8,4,8,2">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock x:Name="Chevron" Text="&#x25BE;" Width="12" FontSize="9"
+                                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                                       VerticalAlignment="Center" />
+                                                            <ContentPresenter ContentSource="Content" Margin="4,0,0,0"
+                                                                               TextBlock.FontSize="10" TextBlock.FontWeight="SemiBold"
+                                                                               TextBlock.Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsChecked" Value="False">
+                                                            <Setter TargetName="Chevron" Property="Text" Value="&#x25B8;" />
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Setter Property="Content" Value="{Binding Header, RelativeSource={RelativeSource AncestorType=Expander}}" />
+                                    </Style>
+                                </ToggleButton.Style>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="Body" Visibility="Collapsed" />
+                        </DockPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="Body" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
@@ -169,7 +230,10 @@
                 <ColumnDefinition Style="{StaticResource RightPanelColumnStyle}" />
             </Grid.ColumnDefinitions>
 
-            <!-- Left: Tools -->
+            <!-- Left: Tools - each category is an independently collapsible Expander;
+                 inside one, a WrapPanel-backed ListBox flows icon tiles into as many
+                 columns as the panel's current width allows (drag the splitter wider to
+                 see more columns per row), rather than one tool per full-width row. -->
             <Border Grid.Column="0" Style="{StaticResource DockPanelBorderStyle}"
                     Visibility="{Binding IsLeftPanelVisible, Converter={StaticResource BoolToVisibility}}">
                 <DockPanel>
@@ -178,33 +242,32 @@
                         <ItemsControl ItemsSource="{Binding Toolbox.ToolsByCategory}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Margin="0,0,0,4">
-                                        <TextBlock Text="{Binding Key}" Style="{StaticResource ToolCategoryHeaderStyle}" />
-                                        <ListBox ItemsSource="{Binding}"
+                                    <Expander Header="{Binding DisplayName}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                              Style="{StaticResource ToolCategoryExpanderStyle}" Margin="0,0,0,2">
+                                        <ListBox ItemsSource="{Binding Tools}"
                                                  Background="Transparent" BorderThickness="0"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                                  ItemContainerStyle="{StaticResource ToolListBoxItemStyle}"
                                                  SelectedItem="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Toolbox.ActiveTool, Mode=TwoWay}">
+                                            <ListBox.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ListBox.ItemsPanel>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
-                                                    <StackPanel Orientation="Horizontal" Margin="4,3">
-                                                        <Border Width="22" Height="22" Margin="0,0,8,0"
-                                                                Background="{StaticResource PanelAltBackgroundBrush}"
-                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                                            <!-- EvenOdd is the mini-language's default fill rule, which several icons
-                                                                 (marquees, zoom lens, canvas-rotate ring) rely on to punch a hole. -->
-                                                            <Path Data="{Binding IconData}" Fill="{StaticResource TextPrimaryBrush}"
-                                                                  Stretch="Uniform" Width="14" Height="14"
-                                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                                        </Border>
-                                                        <TextBlock Text="{Binding DisplayName}" FontSize="11" VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextPrimaryBrush}" />
-                                                    </StackPanel>
+                                                    <Border Style="{StaticResource ToolTileStyle}" ToolTip="{Binding DisplayName}">
+                                                        <!-- EvenOdd is the mini-language's default fill rule, which several icons
+                                                             (marquees, zoom lens, canvas-rotate ring) rely on to punch a hole. -->
+                                                        <Path Data="{Binding IconData}" Fill="{StaticResource TextPrimaryBrush}"
+                                                              Stretch="Uniform" Width="16" Height="16"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Border>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
-                                    </StackPanel>
+                                    </Expander>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
@@ -260,6 +323,18 @@
                                     Command="{Binding Layers.MergeDownCommand}" />
                         </StackPanel>
 
+                        <!-- Blend Mode + Opacity apply to whichever layer is currently
+                             active, shown once here rather than duplicated into every row
+                             below - the same layout Photoshop's own Layers panel uses. -->
+                        <StackPanel DockPanel.Dock="Top" Margin="8,0,8,8">
+                            <ComboBox ItemsSource="{x:Static layers:BlendModeOption.All}"
+                                      DisplayMemberPath="DisplayName" SelectedValuePath="Value"
+                                      SelectedValue="{Binding Layers.ActiveLayer.BlendMode, Mode=TwoWay}"
+                                      ToolTip="Blend mode" Margin="0,0,0,6" />
+                            <controls:LabeledSlider Label="Opacity" Minimum="0" Maximum="100" Suffix="%"
+                                                     Value="{Binding Layers.ActiveLayer.OpacityPercent, Mode=TwoWay}" />
+                        </StackPanel>
+
                         <!-- Layers.Items is already front-to-back (topmost/foreground layer
                              first), matching how this list reads top-to-bottom. -->
                         <ListBox ItemsSource="{Binding Layers.Items}" SelectedItem="{Binding Layers.ActiveLayer, Mode=TwoWay}"
@@ -272,8 +347,19 @@
                                                   VerticalAlignment="Center" Margin="0,0,6,0" />
                                         <CheckBox IsChecked="{Binding IsLocked, Mode=TwoWay}" ToolTip="Locked"
                                                   VerticalAlignment="Center" Margin="0,0,8,0" />
+
+                                        <!-- Plain label normally; double-clicking it swaps in the
+                                             textbox below for an inline rename (see MainWindow's
+                                             code-behind for the edit/commit/cancel handlers). -->
                                         <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center"
-                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   Visibility="{Binding IsNotEditingName, Converter={StaticResource BoolToVisibility}}"
+                                                   MouseLeftButtonDown="LayerName_MouseLeftButtonDown" />
+                                        <TextBox Text="{Binding Name, Mode=TwoWay}" FontSize="11" Width="120"
+                                                 Visibility="{Binding IsEditingName, Converter={StaticResource BoolToVisibility}}"
+                                                 Loaded="LayerNameEditBox_Loaded"
+                                                 KeyDown="LayerNameEditBox_KeyDown"
+                                                 LostFocus="LayerNameEditBox_LostFocus" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>

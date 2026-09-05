@@ -1,0 +1,70 @@
+<UserControl x:Class="JolieCat.UI.Controls.HsvColorPicker"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d" x:Name="Root">
+    <StackPanel>
+        <!-- Saturation/Brightness square: a solid fill of the pure hue color (set in
+             code-behind whenever Hue changes), a white-to-transparent gradient
+             left-to-right desaturates it, and a transparent-to-black gradient
+             top-to-bottom darkens it - the standard three-layer SV box. -->
+        <Border x:Name="SvBox" Height="130" ClipToBounds="True"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                MouseLeftButtonDown="SvBox_MouseLeftButtonDown"
+                MouseMove="SvBox_MouseMove"
+                MouseLeftButtonUp="SvBox_MouseLeftButtonUp"
+                Cursor="Cross">
+            <Grid>
+                <Rectangle x:Name="HueLayer" />
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#FFFFFFFF" Offset="0" />
+                            <GradientStop Color="#00FFFFFF" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#00000000" Offset="0" />
+                            <GradientStop Color="#FF000000" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+
+                <Canvas IsHitTestVisible="False">
+                    <Ellipse x:Name="SvThumb" Width="10" Height="10" Stroke="White" StrokeThickness="1.5" />
+                </Canvas>
+            </Grid>
+        </Border>
+
+        <!-- Hue strip: a fixed 6-stop rainbow the thumb slides across. -->
+        <Border x:Name="HueSlider" Height="16" Margin="0,8,0,0" ClipToBounds="True"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                MouseLeftButtonDown="HueSlider_MouseLeftButtonDown"
+                MouseMove="HueSlider_MouseMove"
+                MouseLeftButtonUp="HueSlider_MouseLeftButtonUp"
+                Cursor="Hand">
+            <Grid>
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#FFFF0000" Offset="0" />
+                            <GradientStop Color="#FFFFFF00" Offset="0.1667" />
+                            <GradientStop Color="#FF00FF00" Offset="0.3333" />
+                            <GradientStop Color="#FF00FFFF" Offset="0.5" />
+                            <GradientStop Color="#FF0000FF" Offset="0.6667" />
+                            <GradientStop Color="#FFFF00FF" Offset="0.8333" />
+                            <GradientStop Color="#FFFF0000" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Canvas IsHitTestVisible="False">
+                    <Rectangle x:Name="HueThumb" Width="3" Height="16" Fill="White" />
+                </Canvas>
+            </Grid>
+        </Border>
+    </StackPanel>
+</UserControl>

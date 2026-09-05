@@ -27,6 +27,7 @@ namespace JolieCat.Shared.Enums
         Eraser,
         PaintBucket,
         Gradient,
+        Eyedropper,
 
         // Retouching
         CloneStamp,

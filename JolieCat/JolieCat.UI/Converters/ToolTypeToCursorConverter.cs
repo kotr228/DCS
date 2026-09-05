@@ -26,7 +26,7 @@ namespace JolieCat.UI.Converters
 
                 ToolType.RectangularMarquee or ToolType.EllipticalMarquee or ToolType.Lasso or
                     ToolType.PolygonalLasso or ToolType.MagneticLasso or ToolType.QuickSelection or
-                    ToolType.MagicWand => Cursors.Cross,
+                    ToolType.MagicWand or ToolType.Eyedropper => Cursors.Cross,
 
                 ToolType.Brush or ToolType.Pencil or ToolType.Eraser or ToolType.CloneStamp or
                     ToolType.HealingBrush or ToolType.Blur or ToolType.Sharpen or ToolType.Sponge or

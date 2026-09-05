@@ -30,11 +30,27 @@
         <TextBlock Text="COLOR" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4"
                    Foreground="{StaticResource TextSecondaryBrush}" />
 
+        <!-- Photoshop-style Saturation/Brightness square + Hue strip - the primary way
+             to pick a color; the preview swatch, hex box, and quick-pick palette below
+             are the fast paths for a color you already know. -->
+        <controls:HsvColorPicker Hue="{Binding Hue, Mode=TwoWay}"
+                                  Saturation="{Binding Saturation, Mode=TwoWay}"
+                                  Brightness="{Binding Brightness, Mode=TwoWay}"
+                                  Margin="0,0,0,6" />
+
         <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
             <!-- Active color preview -->
             <Border Width="30" Height="30" Margin="0,0,8,0" Background="{Binding PrimaryColorBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" ToolTip="Foreground color" />
 
+            <!-- Hex code - commits on Enter/focus-loss (TextBox.Text's default
+                 UpdateSourceTrigger), so a color typed mid-edit doesn't fail to parse
+                 and get silently dropped keystroke by keystroke. -->
+            <TextBox Text="{Binding HexCode, Mode=TwoWay}" Width="72" VerticalAlignment="Center"
+                     VerticalContentAlignment="Center" ToolTip="Hex color code" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
             <!-- Quick-pick palette, 10 columns x 2 rows -->
             <UniformGrid Columns="10" Rows="2" Width="180">
                 <Button Style="{StaticResource SwatchButtonStyle}" Background="#000000" ToolTip="Black"
@@ -80,10 +96,5 @@
                         Command="{Binding SetColorFromHexCommand}" CommandParameter="#FF5722" />
             </UniformGrid>
         </StackPanel>
-
-        <!-- Minimalist RGB sliders - no popup, no extra chrome, just the three rows. -->
-        <controls:LabeledSlider Label="R" Minimum="0" Maximum="255" Value="{Binding RedComponent, Mode=TwoWay}" />
-        <controls:LabeledSlider Label="G" Minimum="0" Maximum="255" Value="{Binding GreenComponent, Mode=TwoWay}" />
-        <controls:LabeledSlider Label="B" Minimum="0" Maximum="255" Value="{Binding BlueComponent, Mode=TwoWay}" />
     </StackPanel>
 </UserControl>
