@@ -10,11 +10,6 @@ namespace JolieCat.Shared.Enums
         // Selection
         RectangularMarquee,
         EllipticalMarquee,
-        Lasso,
-        PolygonalLasso,
-        MagneticLasso,
-        QuickSelection,
-        MagicWand,
 
         // Navigation
         Hand,

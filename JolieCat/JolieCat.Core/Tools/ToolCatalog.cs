@@ -20,23 +20,6 @@ namespace JolieCat.Core.Tools
             new(ToolType.EllipticalMarquee, ToolCategory.Selection, "Elliptical Marquee",
                 "M2,12 A10,10 0 1 1 22,12 A10,10 0 1 1 2,12 Z M5,12 A7,7 0 1 1 19,12 A7,7 0 1 1 5,12 Z", "M"),
 
-            new(ToolType.Lasso, ToolCategory.Selection, "Lasso",
-                "M4,14 C4,8 9,4 14,5 C19,6 21,11 18,15 C16,18 10,19 7,17 C5,16 4,15 4,14 Z", "L"),
-
-            new(ToolType.PolygonalLasso, ToolCategory.Selection, "Polygonal Lasso",
-                "M4,16 L8,6 L14,4 L20,10 L18,18 L10,20 Z", "L"),
-
-            new(ToolType.MagneticLasso, ToolCategory.Selection, "Magnetic Lasso",
-                "M4,16 L8,6 L14,4 L20,10 L18,18 L10,20 Z M7,15 L9,8 L14,7 L17,11 L16,16 L11,17 Z " +
-                "M12.5,4 A1.5,1.5 0 1 1 15.5,4 A1.5,1.5 0 1 1 12.5,4 Z", "L"),
-
-            new(ToolType.QuickSelection, ToolCategory.Selection, "Quick Selection",
-                "M4,9 A5,5 0 1 1 14,9 A5,5 0 1 1 4,9 Z M10,9 A5,5 0 1 1 20,9 A5,5 0 1 1 10,9 Z " +
-                "M7,14 A5,5 0 1 1 17,14 A5,5 0 1 1 7,14 Z", "W"),
-
-            new(ToolType.MagicWand, ToolCategory.Selection, "Magic Wand",
-                "M12,2 L14,10 L22,12 L14,14 L12,22 L10,14 L2,12 L10,10 Z", "W"),
-
             // Navigation
             new(ToolType.Hand, ToolCategory.Navigation, "Hand (Pan)",
                 "M12,2 L15,7 L13,7 L13,10 L16,10 L16,8 L21,12 L16,16 L16,14 L13,14 L13,17 L15,17 L12,22 " +
