@@ -7,6 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- A Layer owns its pixel buffer (SKBitmap) and composites onto the layer below it
+         (Scene.MergeLayerDown), so Core needs SkiaSharp directly rather than leaving all
+         pixel work to the UI project. Plain SkiaSharp only (no .Views.WPF) - this stays
+         framework-agnostic, just like JolieCat.UI.csproj pins the version that still
+         ships a net8.0 build. -->
+    <PackageReference Include="SkiaSharp" Version="3.116.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\JolieCat.Shared\JolieCat.Shared.csproj" />
   </ItemGroup>
 

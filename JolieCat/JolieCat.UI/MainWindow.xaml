@@ -122,6 +122,14 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Compact toolbar button for the Layers panel's add/delete/reorder/merge row. -->
+        <Style x:Key="LayerToolButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="MinWidth" Value="26" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
     </Window.Resources>
 
     <Grid Background="{StaticResource WindowBackgroundBrush}">
@@ -238,7 +246,38 @@
                 <Border Grid.Row="2" Style="{StaticResource DockPanelBorderStyle}">
                     <DockPanel>
                         <TextBlock Text="LAYERS" DockPanel.Dock="Top" Style="{StaticResource PanelHeaderStyle}" />
-                        <ListBox Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextPrimaryBrush}" />
+
+                        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="8,0,8,6">
+                            <Button Content="+" ToolTip="Add layer" Style="{StaticResource LayerToolButtonStyle}"
+                                    Command="{Binding Layers.AddLayerCommand}" />
+                            <Button Content="&#x2212;" ToolTip="Delete layer" Style="{StaticResource LayerToolButtonStyle}"
+                                    Command="{Binding Layers.DeleteLayerCommand}" />
+                            <Button Content="&#x25B2;" ToolTip="Move layer up" Style="{StaticResource LayerToolButtonStyle}"
+                                    Command="{Binding Layers.MoveLayerUpCommand}" />
+                            <Button Content="&#x25BC;" ToolTip="Move layer down" Style="{StaticResource LayerToolButtonStyle}"
+                                    Command="{Binding Layers.MoveLayerDownCommand}" />
+                            <Button Content="Merge" ToolTip="Merge down onto the layer below" Style="{StaticResource LayerToolButtonStyle}"
+                                    Command="{Binding Layers.MergeDownCommand}" />
+                        </StackPanel>
+
+                        <!-- Layers.Items is already front-to-back (topmost/foreground layer
+                             first), matching how this list reads top-to-bottom. -->
+                        <ListBox ItemsSource="{Binding Layers.Items}" SelectedItem="{Binding Layers.ActiveLayer, Mode=TwoWay}"
+                                 Background="Transparent" BorderThickness="0"
+                                 ItemContainerStyle="{StaticResource ToolListBoxItemStyle}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="6,4">
+                                        <CheckBox IsChecked="{Binding IsVisible, Mode=TwoWay}" ToolTip="Visible"
+                                                  VerticalAlignment="Center" Margin="0,0,6,0" />
+                                        <CheckBox IsChecked="{Binding IsLocked, Mode=TwoWay}" ToolTip="Locked"
+                                                  VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </DockPanel>
                 </Border>
             </Grid>

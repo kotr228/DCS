@@ -5,33 +5,29 @@ using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JolieCat.Shared.Enums;
+using JolieCat.UI.ViewModels.Layers;
 using JolieCat.UI.ViewModels.ToolOptions;
 using SkiaSharp;
 
 namespace JolieCat.UI.ViewModels
 {
     /// <summary>
-    /// Owns the center canvas's interactive state: the in-memory <see cref="SKBitmap"/>
-    /// painted strokes persist on, the pan/zoom transform, the marquee selection
-    /// overlay, and the active foreground color. <see cref="Views.CanvasView"/> forwards
-    /// raw WPF pointer events here (in device pixels, already resolved for DPI); this
-    /// class turns them into the per-tool behavior described by
-    /// <see cref="Core.Tools.ToolCatalog"/> and mutates the bitmap or the pan/zoom/
-    /// marquee state accordingly. <see cref="CanvasRenderer"/> then reads that state back
-    /// out to draw a frame - it owns no state of its own.
+    /// Owns the center canvas's interactive state: the pan/zoom transform, the marquee
+    /// selection overlay, and the active foreground color. <see cref="Views.CanvasView"/>
+    /// forwards raw WPF pointer events here (in device pixels, already resolved for DPI);
+    /// this class turns them into the per-tool behavior described by
+    /// <see cref="Core.Tools.ToolCatalog"/>. Painting tools draw onto whichever layer
+    /// <see cref="Layers"/> currently has active - not a bitmap of its own -
+    /// <see cref="CanvasRenderer"/> then composites every visible layer and reads the
+    /// pan/zoom/marquee state back out to draw a frame.
     /// </summary>
     public partial class CanvasViewModel : ObservableObject, IDisposable
     {
-        public const int DocumentWidth = 1600;
-        public const int DocumentHeight = 1200;
-
         private const double MinZoom = 0.1;
         private const double MaxZoom = 8.0;
         private const double ZoomWheelFactor = 1.1;
 
         private readonly ToolboxViewModel _toolbox;
-        private readonly SKBitmap _bitmap;
-        private readonly SKCanvas _bitmapCanvas;
 
         private bool _isPainting;
         private SKPoint _lastPaintPoint;
@@ -77,8 +73,9 @@ namespace JolieCat.UI.ViewModels
         [NotifyPropertyChangedFor(nameof(BlueComponent))]
         private Color primaryColor = Colors.White;
 
-        /// <summary>The persistent drawing surface. Painted strokes live here, not on screen.</summary>
-        public SKBitmap Bitmap => _bitmap;
+        /// <summary>The document's layer stack - what tools paint onto and what
+        /// <see cref="CanvasRenderer"/> composites.</summary>
+        public LayersViewModel Layers { get; }
 
         /// <summary>
         /// <see cref="PrimaryColor"/> converted to SkiaSharp's color type - every paint/
@@ -117,18 +114,18 @@ namespace JolieCat.UI.ViewModels
         /// so the view can bind the canvas cursor to it without needing the whole toolbox.</summary>
         public ToolType ActiveToolType => _toolbox.ActiveTool.Type;
 
-        /// <summary>Raised after any change the view should repaint for - bitmap content included,
-        /// which (unlike pan/zoom/marquee) isn't an observable property the view can react to directly.</summary>
+        /// <summary>Raised after any change the view should repaint for - layer pixel
+        /// content included, which (unlike pan/zoom/marquee) isn't an observable property
+        /// the view can react to directly.</summary>
         public event EventHandler? InvalidateRequested;
 
-        public CanvasViewModel(ToolboxViewModel toolbox)
+        public CanvasViewModel(ToolboxViewModel toolbox, LayersViewModel layers)
         {
             _toolbox = toolbox ?? throw new ArgumentNullException(nameof(toolbox));
             _toolbox.PropertyChanged += OnToolboxPropertyChanged;
 
-            _bitmap = new SKBitmap(DocumentWidth, DocumentHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
-            _bitmapCanvas = new SKCanvas(_bitmap);
-            _bitmapCanvas.Clear(SKColors.Transparent);
+            Layers = layers ?? throw new ArgumentNullException(nameof(layers));
+            Layers.InvalidateRequested += OnLayersInvalidateRequested;
 
             // Zoomed out a little so the whole document tends to fit in a typical canvas
             // panel at startup. Anchored at the top-left (pan starts at 0,0) rather than
@@ -143,6 +140,8 @@ namespace JolieCat.UI.ViewModels
                 OnPropertyChanged(nameof(ActiveToolType));
         }
 
+        private void OnLayersInvalidateRequested(object? sender, EventArgs e) => RaiseInvalidate();
+
         [RelayCommand]
         private void SetColorFromHex(string? hex)
         {
@@ -153,15 +152,18 @@ namespace JolieCat.UI.ViewModels
         public void OnPointerPressed(SKPoint devicePoint)
         {
             var doc = ToDocumentSpace(devicePoint);
+            var activeLayer = Layers.ActiveLayer?.Model;
 
             switch (_toolbox.ActiveTool.Type)
             {
                 case ToolType.Brush:
                 case ToolType.Pencil:
                 case ToolType.Eraser:
+                    if (activeLayer is null || activeLayer.IsLocked) break;
+
                     _isPainting = true;
                     _lastPaintPoint = doc;
-                    PaintDot(doc);
+                    PaintDot(activeLayer, doc);
                     RaiseInvalidate();
                     break;
 
@@ -181,12 +183,16 @@ namespace JolieCat.UI.ViewModels
                     break;
 
                 case ToolType.PaintBucket:
-                    FloodFill(doc);
+                    if (activeLayer is null || activeLayer.IsLocked) break;
+
+                    FloodFill(activeLayer, doc);
                     RaiseInvalidate();
                     break;
 
                 case ToolType.Gradient:
-                    ApplyGradient(doc);
+                    if (activeLayer is null || activeLayer.IsLocked) break;
+
+                    ApplyGradient(activeLayer, doc);
                     RaiseInvalidate();
                     break;
 
@@ -205,7 +211,14 @@ namespace JolieCat.UI.ViewModels
 
             if (_isPainting)
             {
-                PaintLineTo(_lastPaintPoint, doc);
+                var activeLayer = Layers.ActiveLayer?.Model;
+                if (activeLayer is null || activeLayer.IsLocked)
+                {
+                    _isPainting = false;
+                    return;
+                }
+
+                PaintLineTo(activeLayer, _lastPaintPoint, doc);
                 _lastPaintPoint = doc;
                 RaiseInvalidate();
             }
@@ -265,16 +278,16 @@ namespace JolieCat.UI.ViewModels
             (float)((devicePoint.X - PanX) / Zoom),
             (float)((devicePoint.Y - PanY) / Zoom));
 
-        private void PaintDot(SKPoint point)
+        private void PaintDot(Core.Documents.Layer layer, SKPoint point)
         {
             using var paint = CreatePaintForActiveTool();
-            _bitmapCanvas.DrawPoint(point, paint);
+            layer.Canvas.DrawPoint(point, paint);
         }
 
-        private void PaintLineTo(SKPoint from, SKPoint to)
+        private void PaintLineTo(Core.Documents.Layer layer, SKPoint from, SKPoint to)
         {
             using var paint = CreatePaintForActiveTool();
-            _bitmapCanvas.DrawLine(from, to, paint);
+            layer.Canvas.DrawLine(from, to, paint);
         }
 
         private SKPaint CreatePaintForActiveTool()
@@ -324,20 +337,21 @@ namespace JolieCat.UI.ViewModels
             MarqueeHeight = Math.Abs(current.Y - _marqueeStart.Y);
         }
 
-        private void FloodFill(SKPoint point)
+        private void FloodFill(Core.Documents.Layer layer, SKPoint point)
         {
+            var bitmap = layer.Bitmap;
             var x0 = (int)point.X;
             var y0 = (int)point.Y;
-            if (x0 < 0 || y0 < 0 || x0 >= _bitmap.Width || y0 >= _bitmap.Height)
+            if (x0 < 0 || y0 < 0 || x0 >= bitmap.Width || y0 >= bitmap.Height)
                 return;
 
             var options = _toolbox.CurrentToolOptions as FillToolOptionsViewModel;
             var tolerance = (float)(options?.Tolerance ?? 32);
             var contiguous = options?.Contiguous ?? true;
 
-            var width = _bitmap.Width;
-            var height = _bitmap.Height;
-            var pixels = _bitmap.Pixels;
+            var width = bitmap.Width;
+            var height = bitmap.Height;
+            var pixels = bitmap.Pixels;
             var targetColor = pixels[y0 * width + x0];
             var fillColor = BrushColor;
 
@@ -349,17 +363,15 @@ namespace JolieCat.UI.ViewModels
             else
                 FloodFillGlobal(pixels, targetColor, fillColor, tolerance);
 
-            _bitmap.Pixels = pixels;
+            bitmap.Pixels = pixels;
         }
 
         /// <summary>
         /// Stack-based flood fill, seeded from (x0, y0). Each pixel is marked visited
         /// the moment it's pushed - not when it's popped - so it can only ever enter the
-        /// stack once. The earlier version checked "already visited?" only after
-        /// popping, which let up to 4 duplicate entries pile up per pixel before being
-        /// discarded; on a large uniform region (a fresh, blank 1600x1200 canvas is
-        /// exactly that) the stack could balloon into the tens of millions of entries,
-        /// a real, noticeable freeze that looked like the tool wasn't working at all.
+        /// stack once, bounding the stack to one entry per pixel instead of letting
+        /// duplicates pile up on a large uniform region (a fresh, blank layer is exactly
+        /// that).
         /// </summary>
         private static void FloodFillContiguous(
             SKColor[] pixels, int width, int height, int x0, int y0,
@@ -414,7 +426,7 @@ namespace JolieCat.UI.ViewModels
             return Math.Sqrt(dr * dr + dg * dg + db * db + da * da) <= tolerance;
         }
 
-        private void ApplyGradient(SKPoint point)
+        private void ApplyGradient(Core.Documents.Layer layer, SKPoint point)
         {
             var options = _toolbox.CurrentToolOptions as GradientToolOptionsViewModel;
             var angleDegrees = options?.Angle ?? 90;
@@ -426,7 +438,7 @@ namespace JolieCat.UI.ViewModels
             var radians = angleDegrees * Math.PI / 180.0;
             var directionX = (float)Math.Cos(radians);
             var directionY = (float)Math.Sin(radians);
-            var reach = Math.Max(_bitmap.Width, _bitmap.Height);
+            var reach = Math.Max(layer.Bitmap.Width, layer.Bitmap.Height);
 
             var start = new SKPoint(point.X - directionX * reach, point.Y - directionY * reach);
             var end = new SKPoint(point.X + directionX * reach, point.Y + directionY * reach);
@@ -434,7 +446,7 @@ namespace JolieCat.UI.ViewModels
             using var shader = SKShader.CreateLinearGradient(start, end, new[] { startColor, endColor }, null, SKShaderTileMode.Clamp);
             using var paint = new SKPaint { Shader = shader };
 
-            _bitmapCanvas.DrawRect(new SKRect(0, 0, _bitmap.Width, _bitmap.Height), paint);
+            layer.Canvas.DrawRect(new SKRect(0, 0, layer.Bitmap.Width, layer.Bitmap.Height), paint);
         }
 
         private void RaiseInvalidate() => InvalidateRequested?.Invoke(this, EventArgs.Empty);
@@ -460,8 +472,7 @@ namespace JolieCat.UI.ViewModels
             if (_disposed) return;
 
             _toolbox.PropertyChanged -= OnToolboxPropertyChanged;
-            _bitmapCanvas.Dispose();
-            _bitmap.Dispose();
+            Layers.InvalidateRequested -= OnLayersInvalidateRequested;
             _disposed = true;
         }
     }

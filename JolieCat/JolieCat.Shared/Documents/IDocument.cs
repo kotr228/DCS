@@ -5,6 +5,11 @@ namespace JolieCat.Shared.Documents
     /// <summary>
     /// A single open <c>.jolie</c> project: its identity, backing file, and root scene.
     /// </summary>
+    /// <remarks>
+    /// Not currently implemented by <c>JolieCat.Core.Documents.Document</c> - see that
+    /// class's remarks for why. Kept here as the contract a second implementation (e.g.
+    /// a serialized-project loader) would conform to.
+    /// </remarks>
     public interface IDocument
     {
         Guid Id { get; }

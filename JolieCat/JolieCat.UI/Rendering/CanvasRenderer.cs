@@ -1,15 +1,18 @@
+using System;
+using JolieCat.Core.Documents;
 using JolieCat.UI.ViewModels;
+using JolieCat.UI.ViewModels.Layers;
 using SkiaSharp;
 
 namespace JolieCat.UI.Rendering
 {
     /// <summary>
-    /// Draws one frame of the center canvas from <see cref="CanvasViewModel"/>'s state:
-    /// a checkerboard "transparency" backdrop clipped to the document bounds, the
-    /// persistent painted bitmap on top of it, and the marching-ants marquee overlay
-    /// when a selection is active - all inside the pan/zoom transform so they move and
-    /// scale together. This class owns no state of its own; it only reads the view
-    /// model and paints.
+    /// Draws one frame of the center canvas from <see cref="CanvasViewModel"/>'s state: a
+    /// checkerboard "transparency" backdrop clipped to the document bounds, every visible
+    /// layer composited back-to-front with its own opacity and blend mode, and the
+    /// marching-ants marquee overlay when a selection is active - all inside the pan/zoom
+    /// transform so they move and scale together. This class owns no state of its own; it
+    /// only reads the view model and paints.
     /// </summary>
     public static class CanvasRenderer
     {
@@ -29,16 +32,33 @@ namespace JolieCat.UI.Rendering
             canvas.Translate((float)viewModel.PanX, (float)viewModel.PanY);
             canvas.Scale((float)viewModel.Zoom);
 
-            var bitmap = viewModel.Bitmap;
-            var documentRect = new SKRect(0, 0, bitmap.Width, bitmap.Height);
+            var documentRect = new SKRect(0, 0, LayersViewModel.DocumentWidth, LayersViewModel.DocumentHeight);
 
             DrawCheckerboard(canvas, documentRect);
-            canvas.DrawBitmap(bitmap, 0, 0);
+            DrawLayers(canvas, viewModel.Layers.Scene);
 
             if (viewModel.IsMarqueeActive)
                 DrawMarquee(canvas, viewModel);
 
             canvas.Restore();
+        }
+
+        private static void DrawLayers(SKCanvas canvas, Scene scene)
+        {
+            // Scene.Layers is already back-to-front, so drawing in list order composites
+            // correctly with no extra sorting.
+            foreach (var layer in scene.Layers)
+            {
+                if (!layer.IsVisible) continue;
+
+                using var paint = new SKPaint
+                {
+                    Color = SKColors.White.WithAlpha((byte)Math.Clamp(layer.Opacity * 255.0, 0, 255)),
+                    BlendMode = Layer.ToSkiaBlendMode(layer.BlendMode),
+                };
+
+                canvas.DrawBitmap(layer.Bitmap, 0, 0, paint);
+            }
         }
 
         private static void DrawCheckerboard(SKCanvas canvas, SKRect documentRect)

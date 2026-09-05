@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JolieCat.Core.Tools;
+using JolieCat.UI.ViewModels.Layers;
 using JolieCat.UI.ViewModels.Timeline;
 
 namespace JolieCat.UI.ViewModels
@@ -8,8 +9,8 @@ namespace JolieCat.UI.ViewModels
     /// <summary>
     /// View model for <see cref="MainWindow"/>: owns the visibility of the four docking
     /// zones (Left/Right/Bottom) around the central canvas, and composes the panels'
-    /// own view models (toolbox, canvas, timeline) rather than flattening their state
-    /// in here as the editor grows more panels.
+    /// own view models (toolbox, layers, canvas, timeline) rather than flattening their
+    /// state in here as the editor grows more panels.
     /// </summary>
     public partial class MainViewModel : ObservableObject
     {
@@ -24,6 +25,8 @@ namespace JolieCat.UI.ViewModels
 
         public ToolboxViewModel Toolbox { get; }
 
+        public LayersViewModel Layers { get; }
+
         public CanvasViewModel Canvas { get; }
 
         public TimelineViewModel Timeline { get; }
@@ -31,7 +34,8 @@ namespace JolieCat.UI.ViewModels
         public MainViewModel()
         {
             Toolbox = new ToolboxViewModel();
-            Canvas = new CanvasViewModel(Toolbox);
+            Layers = new LayersViewModel();
+            Canvas = new CanvasViewModel(Toolbox, Layers);
             Timeline = new TimelineViewModel();
         }
 
