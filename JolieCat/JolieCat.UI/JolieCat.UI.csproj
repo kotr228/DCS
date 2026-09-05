@@ -6,7 +6,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Lets the WPF client be restored/compiled (not run) from a non-Windows dev
+         machine or a Linux CI runner, since the studio's tooling spans Windows and Linux. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\JolieCat.Core\JolieCat.Core.csproj" />

@@ -1,5 +1,3 @@
-﻿using System.Configuration;
-using System.Data;
 using System.Windows;
 
 namespace JolieCat.UI
@@ -10,5 +8,4 @@ namespace JolieCat.UI
     public partial class App : Application
     {
     }
-
 }
