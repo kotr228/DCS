@@ -231,6 +231,9 @@
                         Command="{Binding OpenProjectCommand}" />
                 <Button Content="Save" Width="60" Margin="2,0" ToolTip="Save this project as .jolie (Ctrl+S)"
                         Command="{Binding SaveProjectCommand}" />
+                <Button Content="Import..." Width="70" Margin="2,0"
+                        ToolTip="Import image files (PNG/JPG/BMP/WEBP) as new layers - or just drag them onto the canvas"
+                        Command="{Binding ImportImageCommand}" />
 
                 <Border Width="1" Margin="8,2" Background="{StaticResource BorderBrush}" />
 

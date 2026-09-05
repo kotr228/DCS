@@ -164,5 +164,26 @@ namespace JolieCat.UI.Views
                 e.Handled = true;
             }
         }
+
+        /// <summary>Shows a copy cursor only while the thing being dragged over the
+        /// canvas is actually a file drop - anything else (dragged text, a dragged
+        /// color swatch from elsewhere in the app, etc.) gets no drop affordance here.</summary>
+        private void Surface_DragEnterOrOver(object sender, DragEventArgs e)
+        {
+            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        /// <summary>Importing dropped files is exactly file-dialog import (see
+        /// <c>MainViewModel.ImportImageCommand</c>) with the paths coming from the OS's
+        /// drag-and-drop payload instead of an Open dialog - both funnel into
+        /// <see cref="CanvasViewModel.ImportImageFiles"/>.</summary>
+        private void Surface_Drop(object sender, DragEventArgs e)
+        {
+            if (ViewModel is not { } viewModel) return;
+            if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
+
+            viewModel.ImportImageFiles(paths);
+        }
     }
 }

@@ -32,7 +32,7 @@ namespace JolieCat.UI.Rendering
             canvas.Translate((float)viewModel.PanX, (float)viewModel.PanY);
             canvas.Scale((float)viewModel.Zoom);
 
-            var documentRect = new SKRect(0, 0, LayersViewModel.DocumentWidth, LayersViewModel.DocumentHeight);
+            var documentRect = new SKRect(0, 0, viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight);
 
             DrawCheckerboard(canvas, documentRect);
             DrawLayers(canvas, viewModel.Layers.Scene);

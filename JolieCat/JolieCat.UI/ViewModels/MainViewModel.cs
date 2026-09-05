@@ -128,6 +128,23 @@ namespace JolieCat.UI.ViewModels
             }
         }
 
+        /// <summary>Prompts for one or more image files (PNG/JPG/JPEG/BMP/WEBP) and
+        /// imports each as its own new layer - the file-dialog counterpart to dropping
+        /// images directly onto the canvas (see <see cref="CanvasViewModel.ImportImageFiles"/>,
+        /// which both paths funnel through).</summary>
+        [RelayCommand]
+        private void ImportImage()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Image files (*.png;*.jpg;*.jpeg;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.webp|All files (*.*)|*.*",
+                Multiselect = true,
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            Canvas.ImportImageFiles(dialog.FileNames);
+        }
+
         /// <summary>Maps the Timeline panel's view models to the plain, UI-agnostic data
         /// <see cref="ProjectSerializer"/> actually writes - this mapping (not the Core
         /// serializer) is what keeps <c>JolieCat.Core</c> from needing to reference

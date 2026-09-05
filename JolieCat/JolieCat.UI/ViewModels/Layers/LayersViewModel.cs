@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JolieCat.Core.Documents;
 using JolieCat.Core.History;
+using SkiaSharp;
 
 namespace JolieCat.UI.ViewModels.Layers
 {
@@ -17,10 +18,22 @@ namespace JolieCat.UI.ViewModels.Layers
     /// </summary>
     public partial class LayersViewModel : ObservableObject
     {
-        public const int DocumentWidth = 1600;
-        public const int DocumentHeight = 1200;
+        /// <summary>Starting canvas size for a brand new document - only used before the
+        /// first layer exists (after that, <see cref="DocumentWidth"/>/<see cref="DocumentHeight"/>
+        /// are read from it directly, so they can never drift out of sync with the
+        /// scene's actual layers, including across a canvas-resize undo/redo).</summary>
+        private const int DefaultDocumentWidth = 1600;
+        private const int DefaultDocumentHeight = 1200;
 
         private Document _document;
+
+        /// <summary>The open document's canvas size - every layer's bitmap is exactly
+        /// this size. Computed from the first layer rather than tracked separately, so a
+        /// canvas resize (see <see cref="ResizeDocument"/>) - including undoing/redoing
+        /// one - can never leave this reporting a stale size.</summary>
+        public int DocumentWidth => Scene.Layers.Count > 0 ? Scene.Layers[0].Bitmap.Width : DefaultDocumentWidth;
+
+        public int DocumentHeight => Scene.Layers.Count > 0 ? Scene.Layers[0].Bitmap.Height : DefaultDocumentHeight;
 
         /// <summary>The layers panel's list, front-to-back (topmost/foreground layer
         /// first) - the reverse of <see cref="Core.Documents.Scene.Layers"/>' back-to-
@@ -115,6 +128,74 @@ namespace JolieCat.UI.ViewModels.Layers
 
             var layer = ActiveLayer.Model;
             ExecuteStructuralChange(() => Scene.MergeLayerDown(layer));
+        }
+
+        /// <summary>Resizes the whole document's canvas to (<paramref name="newWidth"/>,
+        /// <paramref name="newHeight"/>) - every existing layer's content is preserved,
+        /// anchored at its top-left corner (cropped if shrinking, padded with
+        /// transparency if growing; see <see cref="Scene.ResizeLayers"/>). A no-op if the
+        /// document is already that size. Recorded as one undo/redo entry like any other
+        /// layer-list operation.</summary>
+        public void ResizeDocument(int newWidth, int newHeight)
+        {
+            if (newWidth == DocumentWidth && newHeight == DocumentHeight) return;
+
+            ExecuteStructuralChange(() => Scene.ResizeLayers(newWidth, newHeight));
+        }
+
+        /// <summary>Imports a decoded image as a new topmost raster layer named <paramref name="name"/>,
+        /// then makes it the active layer. If <paramref name="bitmap"/> doesn't already
+        /// match the document's size, either the whole document is resized to the
+        /// image's own size first (<paramref name="resizeDocumentToMatch"/> true), or the
+        /// image is scaled down/up to fit within the document's current bounds -
+        /// preserving its aspect ratio and centered, never stretched - onto a layer at
+        /// the document's own size (false). Either way, every layer in the scene stays
+        /// the same size as every other, the invariant the renderer and every painting
+        /// tool assume.</summary>
+        public void ImportImage(SKBitmap bitmap, string name, bool resizeDocumentToMatch)
+        {
+            ArgumentNullException.ThrowIfNull(bitmap);
+
+            // The resize (if any) and the new layer are one single undo/redo entry, not
+            // two - ExecuteStructuralChange's PushStructural clears existing history on
+            // every call, so calling it twice here (once via ResizeDocument, once for the
+            // layer add) would silently discard the resize's own history entry the
+            // moment the layer-add's PushStructural ran right after it.
+            ExecuteStructuralChange(() =>
+            {
+                if (resizeDocumentToMatch)
+                    Scene.ResizeLayers(bitmap.Width, bitmap.Height);
+
+                var layer = Scene.AddLayer(name, DocumentWidth, DocumentHeight);
+                DrawImageIntoLayer(layer, bitmap);
+                Scene.ActiveLayer = layer;
+            });
+        }
+
+        /// <summary>Blits <paramref name="bitmap"/> into <paramref name="layer"/>'s
+        /// buffer - directly at (0,0) if it's already exactly the layer's size (the
+        /// common case once <see cref="ImportImage"/> has resized the document to
+        /// match), otherwise scaled down/up to fit within the layer's bounds, preserving
+        /// aspect ratio and centered rather than stretched.</summary>
+        private static void DrawImageIntoLayer(Layer layer, SKBitmap bitmap)
+        {
+            if (bitmap.Width == layer.Bitmap.Width && bitmap.Height == layer.Bitmap.Height)
+            {
+                layer.Canvas.DrawBitmap(bitmap, 0, 0);
+                return;
+            }
+
+            var scale = Math.Min((float)layer.Bitmap.Width / bitmap.Width, (float)layer.Bitmap.Height / bitmap.Height);
+            var scaledWidth = bitmap.Width * scale;
+            var scaledHeight = bitmap.Height * scale;
+            var dest = SKRect.Create(
+                (layer.Bitmap.Width - scaledWidth) / 2f,
+                (layer.Bitmap.Height - scaledHeight) / 2f,
+                scaledWidth, scaledHeight);
+
+            using var image = SKImage.FromBitmap(bitmap);
+            using var paint = new SKPaint { IsAntialias = true };
+            layer.Canvas.DrawImage(image, dest, new SKSamplingOptions(SKFilterMode.Linear), paint);
         }
 
         /// <summary>Replaces the open document with <paramref name="scene"/> - used when

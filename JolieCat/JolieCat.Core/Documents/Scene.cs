@@ -123,6 +123,43 @@ namespace JolieCat.Core.Documents
             return RemoveLayer(layer);
         }
 
+        /// <summary>
+        /// Resizes every layer's bitmap to (<paramref name="newWidth"/>, <paramref name="newHeight"/>),
+        /// preserving each layer's existing content anchored at its top-left corner -
+        /// cropped if shrinking, padded with transparency if growing. Used when the
+        /// document's own canvas size changes (e.g. importing an image and resizing the
+        /// canvas to match it - see <c>JolieCat.UI.ViewModels.Layers.LayersViewModel.ResizeDocument</c>).
+        /// Rebuilds a fresh <see cref="Layer"/> per resized layer (disposing the old one)
+        /// rather than resizing a bitmap in place - <see cref="SKBitmap"/> has no resize-
+        /// in-place operation, and this keeps every layer's identity-churn-on-structural-
+        /// change behavior consistent with <see cref="RestoreLayers"/>.
+        /// </summary>
+        public void ResizeLayers(int newWidth, int newHeight)
+        {
+            if (newWidth <= 0) throw new ArgumentOutOfRangeException(nameof(newWidth));
+            if (newHeight <= 0) throw new ArgumentOutOfRangeException(nameof(newHeight));
+
+            for (var i = 0; i < _layers.Count; i++)
+            {
+                var old = _layers[i];
+                if (old.Bitmap.Width == newWidth && old.Bitmap.Height == newHeight) continue;
+
+                var resized = new Layer(old.Name, newWidth, newHeight, old.Type)
+                {
+                    IsVisible = old.IsVisible,
+                    IsLocked = old.IsLocked,
+                    Opacity = old.Opacity,
+                    BlendMode = old.BlendMode,
+                };
+                resized.Canvas.DrawBitmap(old.Bitmap, 0, 0);
+
+                _layers[i] = resized;
+                if (ActiveLayer == old) ActiveLayer = resized;
+
+                old.Dispose();
+            }
+        }
+
         /// <summary>Freezes every layer's metadata and pixel content - the History
         /// system's before/after state for a structural change (see
         /// <see cref="History.SceneStructuralCommand"/>).</summary>
