@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using JolieCat.Core.Documents;
 using JolieCat.Shared.Enums;
 using JolieCat.UI.ViewModels.Layers;
 using JolieCat.UI.ViewModels.ToolOptions;
@@ -12,14 +13,15 @@ using SkiaSharp;
 namespace JolieCat.UI.ViewModels
 {
     /// <summary>
-    /// Owns the center canvas's interactive state: the pan/zoom transform, the marquee
-    /// selection overlay, and the active foreground color. <see cref="Views.CanvasView"/>
-    /// forwards raw WPF pointer events here (in device pixels, already resolved for DPI);
-    /// this class turns them into the per-tool behavior described by
-    /// <see cref="Core.Tools.ToolCatalog"/>. Painting tools draw onto whichever layer
-    /// <see cref="Layers"/> currently has active - not a bitmap of its own -
-    /// <see cref="CanvasRenderer"/> then composites every visible layer and reads the
-    /// pan/zoom/marquee state back out to draw a frame.
+    /// Owns the center canvas's interactive state: the pan/zoom transform, the current
+    /// selection tool's in-progress drag/path, and the active foreground color.
+    /// <see cref="Views.CanvasView"/> forwards raw WPF pointer events here (in device
+    /// pixels, already resolved for DPI); this class turns them into the per-tool
+    /// behavior described by <see cref="Core.Tools.ToolCatalog"/>. Painting tools draw
+    /// onto whichever layer <see cref="Layers"/> currently has active - not a bitmap of
+    /// its own - constrained to <see cref="Core.Documents.Scene.Selection"/> when one is
+    /// active. <see cref="CanvasRenderer"/> then composites every visible layer and reads
+    /// the pan/zoom/selection state back out to draw a frame.
     /// </summary>
     public partial class CanvasViewModel : ObservableObject, IDisposable
     {
@@ -27,18 +29,30 @@ namespace JolieCat.UI.ViewModels
         private const double MaxZoom = 8.0;
         private const double ZoomWheelFactor = 1.1;
 
+        /// <summary>Below this frame-space distance, a marquee/lasso drag is treated as a
+        /// click rather than a drag - it clears the selection instead of setting a
+        /// near-zero-area one, giving click-to-deselect for free.</summary>
+        private const float MinSelectionExtent = 2f;
+
         private readonly ToolboxViewModel _toolbox;
 
         private bool _isPainting;
         private SKPoint _lastPaintPoint;
 
-        private bool _isDraggingMarquee;
-        private SKPoint _marqueeStart;
-
         private bool _isPanning;
         private SKPoint _panDragStart;
         private double _panStartX;
         private double _panStartY;
+
+        private bool _isDraggingMarquee;
+        private SKPoint _marqueeStart;
+
+        private bool _isDrawingLasso;
+        private SKPath? _lassoPath;
+
+        private bool _isDrawingPolygon;
+        private readonly List<SKPoint> _polygonVertices = new();
+        private SKPoint _polygonHoverPoint;
 
         private bool _disposed;
 
@@ -52,21 +66,6 @@ namespace JolieCat.UI.ViewModels
         private double panY;
 
         [ObservableProperty]
-        private bool isMarqueeActive;
-
-        [ObservableProperty]
-        private double marqueeX;
-
-        [ObservableProperty]
-        private double marqueeY;
-
-        [ObservableProperty]
-        private double marqueeWidth;
-
-        [ObservableProperty]
-        private double marqueeHeight;
-
-        [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(PrimaryColorBrush))]
         [NotifyPropertyChangedFor(nameof(RedComponent))]
         [NotifyPropertyChangedFor(nameof(GreenComponent))]
@@ -76,6 +75,14 @@ namespace JolieCat.UI.ViewModels
         /// <summary>The document's layer stack - what tools paint onto and what
         /// <see cref="CanvasRenderer"/> composites.</summary>
         public LayersViewModel Layers { get; }
+
+        /// <summary>
+        /// The in-progress selection outline while a marquee/lasso/polygon is being
+        /// drawn - not yet committed to <see cref="Core.Documents.Scene.Selection"/>.
+        /// Null once nothing is being drawn, at which point <see cref="CanvasRenderer"/>
+        /// falls back to drawing the committed selection's own outline instead.
+        /// </summary>
+        public SKPath? LiveSelectionPath { get; private set; }
 
         /// <summary>
         /// <see cref="PrimaryColor"/> converted to SkiaSharp's color type - every paint/
@@ -115,8 +122,8 @@ namespace JolieCat.UI.ViewModels
         public ToolType ActiveToolType => _toolbox.ActiveTool.Type;
 
         /// <summary>Raised after any change the view should repaint for - layer pixel
-        /// content included, which (unlike pan/zoom/marquee) isn't an observable property
-        /// the view can react to directly.</summary>
+        /// content and selection state included, neither of which is an observable
+        /// property the view can react to directly.</summary>
         public event EventHandler? InvalidateRequested;
 
         public CanvasViewModel(ToolboxViewModel toolbox, LayersViewModel layers)
@@ -136,8 +143,18 @@ namespace JolieCat.UI.ViewModels
 
         private void OnToolboxPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(ToolboxViewModel.ActiveTool))
-                OnPropertyChanged(nameof(ActiveToolType));
+            if (e.PropertyName != nameof(ToolboxViewModel.ActiveTool)) return;
+
+            // Switching tools mid-gesture (e.g. clicking Brush while a polygon is only
+            // half-drawn) abandons that gesture rather than leaving it to silently
+            // resume - and silently resume it would: Polygonal Lasso's vertices survive
+            // across individual clicks by design (see HandlePolygonClick), so without
+            // this, switching away and back would append new clicks to the stale
+            // in-progress shape. This never touches the *committed* selection - that's
+            // meant to persist across tool switches (select with Lasso, then paint with
+            // Brush inside it).
+            CancelInteraction();
+            OnPropertyChanged(nameof(ActiveToolType));
         }
 
         private void OnLayersInvalidateRequested(object? sender, EventArgs e) => RaiseInvalidate();
@@ -149,7 +166,10 @@ namespace JolieCat.UI.ViewModels
                 PrimaryColor = color;
         }
 
-        public void OnPointerPressed(SKPoint devicePoint)
+        /// <param name="isDoubleClick">True for the second click of a double-click (WPF's
+        /// <c>MouseButtonEventArgs.ClickCount == 2</c>) - Polygonal Lasso's "close the
+        /// polygon" gesture.</param>
+        public void OnPointerPressed(SKPoint devicePoint, bool isDoubleClick = false)
         {
             var doc = ToDocumentSpace(devicePoint);
             var activeLayer = Layers.ActiveLayer?.Model;
@@ -171,8 +191,33 @@ namespace JolieCat.UI.ViewModels
                 case ToolType.EllipticalMarquee:
                     _isDraggingMarquee = true;
                     _marqueeStart = doc;
-                    IsMarqueeActive = true;
-                    UpdateMarqueeRect(doc);
+                    UpdateLiveMarqueePath(doc);
+                    break;
+
+                // Magnetic Lasso behaves as a plain freehand lasso here - true edge-
+                // snapping (tracing high-contrast edges under the cursor, a la Sobel/
+                // Canny) is a real image-analysis feature and a reasonable follow-up;
+                // this gives it working selection behavior now rather than none.
+                case ToolType.Lasso:
+                case ToolType.MagneticLasso:
+                    _isDrawingLasso = true;
+                    _lassoPath = new SKPath();
+                    _lassoPath.MoveTo(doc);
+                    LiveSelectionPath = _lassoPath;
+                    RaiseInvalidate();
+                    break;
+
+                case ToolType.PolygonalLasso:
+                    HandlePolygonClick(doc, isDoubleClick);
+                    break;
+
+                // Quick Selection behaves as click-to-flood-select here, identical to
+                // Magic Wand - true "paint to grow an adaptive region" is a reasonable
+                // follow-up; this gives it working selection behavior now rather than none.
+                case ToolType.MagicWand:
+                case ToolType.QuickSelection:
+                    if (activeLayer is not null)
+                        SelectByColor(activeLayer, doc);
                     break;
 
                 case ToolType.Hand:
@@ -197,10 +242,10 @@ namespace JolieCat.UI.ViewModels
                     break;
 
                 default:
-                    // Every other tool (the remaining retouching tools, the other
-                    // selection tools, vector/text tools, canvas rotate) has a Properties
-                    // panel and an icon but no canvas interaction implemented yet - a
-                    // deliberate foundation-stage gap rather than a fake stand-in.
+                    // Every other tool (the remaining retouching tools, vector/text
+                    // tools, canvas rotate) has a Properties panel and an icon but no
+                    // canvas interaction implemented yet - a deliberate foundation-stage
+                    // gap rather than a fake stand-in.
                     break;
             }
         }
@@ -224,7 +269,18 @@ namespace JolieCat.UI.ViewModels
             }
             else if (_isDraggingMarquee)
             {
-                UpdateMarqueeRect(doc);
+                UpdateLiveMarqueePath(doc);
+            }
+            else if (_isDrawingLasso && _lassoPath is not null)
+            {
+                _lassoPath.LineTo(doc);
+                LiveSelectionPath = _lassoPath;
+                RaiseInvalidate();
+            }
+            else if (_isDrawingPolygon)
+            {
+                _polygonHoverPoint = doc;
+                RebuildPolygonPreviewPath();
             }
             else if (_isPanning)
             {
@@ -236,29 +292,45 @@ namespace JolieCat.UI.ViewModels
         public void OnPointerReleased(SKPoint devicePoint)
         {
             if (_isPainting)
-            {
                 OnPointerMoved(devicePoint);
+
+            if (_isDraggingMarquee)
+                CommitLiveSelection();
+
+            if (_isDrawingLasso)
+            {
+                _lassoPath?.Close();
+                CommitLiveSelection();
             }
 
-            CancelInteraction();
+            _isPainting = false;
+            _isPanning = false;
+            _isDraggingMarquee = false;
+            _isDrawingLasso = false;
+            _lassoPath = null;
 
-            // IsMarqueeActive deliberately stays true: the dashed rectangle remains as
-            // "the current selection" until a new marquee drag starts, same as a real
-            // selection tool - there's no Escape/deselect action yet to clear it early.
+            // Polygonal Lasso's _isDrawingPolygon deliberately survives a mouse-up: it's
+            // a multi-click gesture (click each vertex, double-click to close), not a
+            // single drag - see HandlePolygonClick.
         }
 
         /// <summary>
-        /// Ends any in-progress drag/paint/pan gesture without finalizing it (no final
-        /// paint segment, no capture release - the view handles that). Used when mouse
-        /// capture is lost unexpectedly (e.g. a dialog steals it mid-drag) so a gesture
-        /// flag can't get stuck true forever, which would otherwise make later mouse
-        /// moves keep painting/panning even with no button held.
+        /// Ends any in-progress drag/paint/pan/selection gesture without finalizing it.
+        /// Used when mouse capture is lost unexpectedly (e.g. a dialog steals it
+        /// mid-drag) so a gesture flag can't get stuck true forever, which would
+        /// otherwise make later mouse moves keep painting/panning/selecting with no
+        /// button held.
         /// </summary>
         public void CancelInteraction()
         {
             _isPainting = false;
             _isPanning = false;
             _isDraggingMarquee = false;
+            _isDrawingLasso = false;
+            _lassoPath = null;
+            _isDrawingPolygon = false;
+            _polygonVertices.Clear();
+            LiveSelectionPath = null;
         }
 
         /// <summary>Zooms in/out by one wheel notch, keeping the document point under the
@@ -278,16 +350,156 @@ namespace JolieCat.UI.ViewModels
             (float)((devicePoint.X - PanX) / Zoom),
             (float)((devicePoint.Y - PanY) / Zoom));
 
+        // ================= Marquee / Lasso / Polygon selection =================
+
+        private void UpdateLiveMarqueePath(SKPoint current)
+        {
+            var x = Math.Min(_marqueeStart.X, current.X);
+            var y = Math.Min(_marqueeStart.Y, current.Y);
+            var width = Math.Abs(current.X - _marqueeStart.X);
+            var height = Math.Abs(current.Y - _marqueeStart.Y);
+            var rect = new SKRect(x, y, x + width, y + height);
+
+            var path = new SKPath();
+            if (_toolbox.ActiveTool.Type == ToolType.EllipticalMarquee)
+                path.AddOval(rect);
+            else
+                path.AddRect(rect);
+
+            LiveSelectionPath = path;
+            RaiseInvalidate();
+        }
+
+        /// <summary>Commits <see cref="LiveSelectionPath"/> (a finished marquee drag or
+        /// lasso stroke) to the scene's selection - or clears the selection instead if
+        /// the drag was smaller than <see cref="MinSelectionExtent"/> (a click, not a
+        /// drag), giving click-to-deselect for free.</summary>
+        private void CommitLiveSelection()
+        {
+            var path = LiveSelectionPath;
+            LiveSelectionPath = null;
+
+            var selection = Layers.Scene.Selection;
+            var bounds = path?.Bounds ?? SKRect.Empty;
+
+            if (path is null || bounds.Width < MinSelectionExtent || bounds.Height < MinSelectionExtent)
+                selection.Clear();
+            else
+                selection.SetPath(path, LayersViewModel.DocumentWidth, LayersViewModel.DocumentHeight);
+
+            RaiseInvalidate();
+        }
+
+        private void HandlePolygonClick(SKPoint doc, bool isDoubleClick)
+        {
+            if (isDoubleClick)
+            {
+                if (_polygonVertices.Count >= 3)
+                    CommitPolygonSelection();
+                else
+                    CancelPolygonSelection();
+                return;
+            }
+
+            if (!_isDrawingPolygon)
+            {
+                _isDrawingPolygon = true;
+                _polygonVertices.Clear();
+            }
+
+            _polygonVertices.Add(doc);
+            _polygonHoverPoint = doc;
+            RebuildPolygonPreviewPath();
+        }
+
+        private void RebuildPolygonPreviewPath()
+        {
+            if (_polygonVertices.Count == 0)
+            {
+                LiveSelectionPath = null;
+                return;
+            }
+
+            var path = new SKPath();
+            path.MoveTo(_polygonVertices[0]);
+            for (var i = 1; i < _polygonVertices.Count; i++)
+                path.LineTo(_polygonVertices[i]);
+            path.LineTo(_polygonHoverPoint); // rubber-band segment to the current pointer position
+
+            LiveSelectionPath = path;
+            RaiseInvalidate();
+        }
+
+        private void CommitPolygonSelection()
+        {
+            var path = new SKPath();
+            path.MoveTo(_polygonVertices[0]);
+            for (var i = 1; i < _polygonVertices.Count; i++)
+                path.LineTo(_polygonVertices[i]);
+            path.Close();
+
+            LiveSelectionPath = path;
+            CommitLiveSelection();
+
+            _isDrawingPolygon = false;
+            _polygonVertices.Clear();
+        }
+
+        private void CancelPolygonSelection()
+        {
+            _isDrawingPolygon = false;
+            _polygonVertices.Clear();
+            LiveSelectionPath = null;
+            RaiseInvalidate();
+        }
+
+        /// <summary>Magic Wand/Quick Selection: replaces the scene's selection with every
+        /// pixel reachable from <paramref name="point"/> within the active tool's
+        /// Tolerance.</summary>
+        private void SelectByColor(Core.Documents.Layer layer, SKPoint point)
+        {
+            var options = _toolbox.CurrentToolOptions as SelectionToolOptionsViewModel;
+            var tolerance = (float)(options?.Tolerance ?? 32);
+
+            var region = Selection.CreateRegionFromColorFlood(layer.Bitmap, (int)point.X, (int)point.Y, tolerance);
+            Layers.Scene.Selection.SetRegion(region);
+            RaiseInvalidate();
+        }
+
+        // ================= Painting =================
+
+        /// <summary>Runs <paramref name="draw"/> against <paramref name="canvas"/>,
+        /// clipped to the scene's current selection if one is active - the mechanism
+        /// that makes Rectangular/Elliptical Marquee, Lasso, Polygonal Lasso, and Magic
+        /// Wand/Quick Selection actually constrain painting, erasing, and gradients to
+        /// the selected pixels rather than just drawing a decorative overlay. Clipping
+        /// (unlike the DstOut/DstIn masking tricks) applies uniformly regardless of the
+        /// paint's own blend mode, so this works correctly for the eraser too.</summary>
+        private void WithSelectionClip(SKCanvas canvas, Action<SKCanvas> draw)
+        {
+            var selection = Layers.Scene.Selection;
+            if (!selection.HasSelection)
+            {
+                draw(canvas);
+                return;
+            }
+
+            canvas.Save();
+            canvas.ClipRegion(selection.Region!, SKClipOperation.Intersect);
+            draw(canvas);
+            canvas.Restore();
+        }
+
         private void PaintDot(Core.Documents.Layer layer, SKPoint point)
         {
             using var paint = CreatePaintForActiveTool();
-            layer.Canvas.DrawPoint(point, paint);
+            WithSelectionClip(layer.Canvas, canvas => canvas.DrawPoint(point, paint));
         }
 
         private void PaintLineTo(Core.Documents.Layer layer, SKPoint from, SKPoint to)
         {
             using var paint = CreatePaintForActiveTool();
-            layer.Canvas.DrawLine(from, to, paint);
+            WithSelectionClip(layer.Canvas, canvas => canvas.DrawLine(from, to, paint));
         }
 
         private SKPaint CreatePaintForActiveTool()
@@ -329,20 +541,16 @@ namespace JolieCat.UI.ViewModels
             return paint;
         }
 
-        private void UpdateMarqueeRect(SKPoint current)
-        {
-            MarqueeX = Math.Min(_marqueeStart.X, current.X);
-            MarqueeY = Math.Min(_marqueeStart.Y, current.Y);
-            MarqueeWidth = Math.Abs(current.X - _marqueeStart.X);
-            MarqueeHeight = Math.Abs(current.Y - _marqueeStart.Y);
-        }
-
         private void FloodFill(Core.Documents.Layer layer, SKPoint point)
         {
             var bitmap = layer.Bitmap;
             var x0 = (int)point.X;
             var y0 = (int)point.Y;
             if (x0 < 0 || y0 < 0 || x0 >= bitmap.Width || y0 >= bitmap.Height)
+                return;
+
+            var selection = Layers.Scene.Selection;
+            if (!selection.Contains(x0, y0))
                 return;
 
             var options = _toolbox.CurrentToolOptions as FillToolOptionsViewModel;
@@ -355,13 +563,13 @@ namespace JolieCat.UI.ViewModels
             var targetColor = pixels[y0 * width + x0];
             var fillColor = BrushColor;
 
-            if (ColorsClose(targetColor, fillColor, 0))
+            if (ColorTolerance.IsWithin(targetColor, fillColor, 0))
                 return;
 
             if (contiguous)
-                FloodFillContiguous(pixels, width, height, x0, y0, targetColor, fillColor, tolerance);
+                FloodFillContiguous(pixels, width, height, x0, y0, targetColor, fillColor, tolerance, selection);
             else
-                FloodFillGlobal(pixels, targetColor, fillColor, tolerance);
+                FloodFillGlobal(pixels, width, height, targetColor, fillColor, tolerance, selection);
 
             bitmap.Pixels = pixels;
         }
@@ -375,7 +583,7 @@ namespace JolieCat.UI.ViewModels
         /// </summary>
         private static void FloodFillContiguous(
             SKColor[] pixels, int width, int height, int x0, int y0,
-            SKColor targetColor, SKColor fillColor, float tolerance)
+            SKColor targetColor, SKColor fillColor, float tolerance, Selection selection)
         {
             var visited = new bool[width * height];
             var stack = new Stack<(int X, int Y)>();
@@ -400,7 +608,7 @@ namespace JolieCat.UI.ViewModels
                     return;
 
                 var index = y * width + x;
-                if (visited[index] || !ColorsClose(pixels[index], targetColor, tolerance))
+                if (visited[index] || !selection.Contains(x, y) || !ColorTolerance.IsWithin(pixels[index], targetColor, tolerance))
                     return;
 
                 visited[index] = true;
@@ -408,22 +616,17 @@ namespace JolieCat.UI.ViewModels
             }
         }
 
-        private static void FloodFillGlobal(SKColor[] pixels, SKColor targetColor, SKColor fillColor, float tolerance)
+        private static void FloodFillGlobal(SKColor[] pixels, int width, int height, SKColor targetColor, SKColor fillColor, float tolerance, Selection selection)
         {
-            for (var i = 0; i < pixels.Length; i++)
+            for (var y = 0; y < height; y++)
             {
-                if (ColorsClose(pixels[i], targetColor, tolerance))
-                    pixels[i] = fillColor;
+                for (var x = 0; x < width; x++)
+                {
+                    var index = y * width + x;
+                    if (selection.Contains(x, y) && ColorTolerance.IsWithin(pixels[index], targetColor, tolerance))
+                        pixels[index] = fillColor;
+                }
             }
-        }
-
-        private static bool ColorsClose(SKColor a, SKColor b, float tolerance)
-        {
-            var dr = a.Red - b.Red;
-            var dg = a.Green - b.Green;
-            var db = a.Blue - b.Blue;
-            var da = a.Alpha - b.Alpha;
-            return Math.Sqrt(dr * dr + dg * dg + db * db + da * da) <= tolerance;
         }
 
         private void ApplyGradient(Core.Documents.Layer layer, SKPoint point)
@@ -446,7 +649,8 @@ namespace JolieCat.UI.ViewModels
             using var shader = SKShader.CreateLinearGradient(start, end, new[] { startColor, endColor }, null, SKShaderTileMode.Clamp);
             using var paint = new SKPaint { Shader = shader };
 
-            layer.Canvas.DrawRect(new SKRect(0, 0, layer.Bitmap.Width, layer.Bitmap.Height), paint);
+            WithSelectionClip(layer.Canvas, canvas =>
+                canvas.DrawRect(new SKRect(0, 0, layer.Bitmap.Width, layer.Bitmap.Height), paint));
         }
 
         private void RaiseInvalidate() => InvalidateRequested?.Invoke(this, EventArgs.Empty);
@@ -456,16 +660,6 @@ namespace JolieCat.UI.ViewModels
         partial void OnPanYChanged(double value) => RaiseInvalidate();
 
         partial void OnZoomChanged(double value) => RaiseInvalidate();
-
-        partial void OnIsMarqueeActiveChanged(bool value) => RaiseInvalidate();
-
-        partial void OnMarqueeXChanged(double value) => RaiseInvalidate();
-
-        partial void OnMarqueeYChanged(double value) => RaiseInvalidate();
-
-        partial void OnMarqueeWidthChanged(double value) => RaiseInvalidate();
-
-        partial void OnMarqueeHeightChanged(double value) => RaiseInvalidate();
 
         public void Dispose()
         {

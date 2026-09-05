@@ -36,9 +36,7 @@ namespace JolieCat.UI.Rendering
 
             DrawCheckerboard(canvas, documentRect);
             DrawLayers(canvas, viewModel.Layers.Scene);
-
-            if (viewModel.IsMarqueeActive)
-                DrawMarquee(canvas, viewModel);
+            DrawSelectionOverlay(canvas, viewModel);
 
             canvas.Restore();
         }
@@ -81,9 +79,26 @@ namespace JolieCat.UI.Rendering
             canvas.Restore();
         }
 
-        private static void DrawMarquee(SKCanvas canvas, CanvasViewModel viewModel)
+        /// <summary>
+        /// One dashed "marching ants" outline, uniform across every selection tool: while
+        /// a marquee/lasso/polygon is still being drawn, that's <see cref="CanvasViewModel.LiveSelectionPath"/>;
+        /// once committed (including Magic Wand/Quick Selection's region-based result,
+        /// which was never a simple path to begin with), it's the committed
+        /// <c>Scene.Selection</c>'s own boundary, via <c>SKRegion.GetBoundaryPath</c>.
+        /// </summary>
+        private static void DrawSelectionOverlay(SKCanvas canvas, CanvasViewModel viewModel)
         {
-            // Stroke width and dash length are scaled down by zoom so the marquee reads
+            var path = viewModel.LiveSelectionPath;
+
+            if (path is null)
+            {
+                var region = viewModel.Layers.Scene.Selection.Region;
+                if (region is null || region.IsEmpty) return;
+
+                path = region.GetBoundaryPath();
+            }
+
+            // Stroke width and dash length are scaled down by zoom so the outline reads
             // as a crisp ~1px dashed line on screen at any zoom level, matching how a
             // real selection outline behaves rather than zooming with the pixels.
             var onScreenScale = 1f / (float)viewModel.Zoom;
@@ -97,13 +112,7 @@ namespace JolieCat.UI.Rendering
                 PathEffect = SKPathEffect.CreateDash(new[] { 4f * onScreenScale, 4f * onScreenScale }, 0),
             };
 
-            var rect = new SKRect(
-                (float)viewModel.MarqueeX,
-                (float)viewModel.MarqueeY,
-                (float)(viewModel.MarqueeX + viewModel.MarqueeWidth),
-                (float)(viewModel.MarqueeY + viewModel.MarqueeHeight));
-
-            canvas.DrawRect(rect, paint);
+            canvas.DrawPath(path, paint);
         }
     }
 }

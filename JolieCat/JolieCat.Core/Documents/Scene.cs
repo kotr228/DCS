@@ -33,6 +33,11 @@ namespace JolieCat.Core.Documents
         /// <summary>The layer painting tools draw onto. Null only when the scene has no layers.</summary>
         public Layer? ActiveLayer { get; set; }
 
+        /// <summary>The scene's current selection - constrains where painting, erasing,
+        /// and filling can affect <see cref="ActiveLayer"/>. Always present (starts with
+        /// no selection, not null) so callers never need a null check before reading it.</summary>
+        public Selection Selection { get; } = new();
+
         public Scene(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Scene name cannot be empty.", nameof(name));

@@ -57,7 +57,9 @@ namespace JolieCat.UI.ViewModels
 
             ToolType.TextHorizontal or ToolType.TextVertical => new TextToolOptionsViewModel(),
 
-            ToolType.RectangularMarquee or ToolType.EllipticalMarquee => new SelectionToolOptionsViewModel(),
+            ToolType.RectangularMarquee or ToolType.EllipticalMarquee or ToolType.Lasso or
+                ToolType.PolygonalLasso or ToolType.MagneticLasso or ToolType.QuickSelection or
+                ToolType.MagicWand => new SelectionToolOptionsViewModel(),
 
             ToolType.Pen or ToolType.Shape => new ShapeToolOptionsViewModel(),
 

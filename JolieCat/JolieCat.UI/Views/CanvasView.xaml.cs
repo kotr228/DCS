@@ -60,7 +60,8 @@ namespace JolieCat.UI.Views
 
             Surface.Focus();
             Surface.CaptureMouse();
-            viewModel.OnPointerPressed(ToDevicePixels(e.GetPosition(Surface)));
+            // ClickCount == 2 is Polygonal Lasso's "close the polygon" gesture.
+            viewModel.OnPointerPressed(ToDevicePixels(e.GetPosition(Surface)), e.ClickCount == 2);
         }
 
         private void Surface_MouseMove(object sender, MouseEventArgs e)
