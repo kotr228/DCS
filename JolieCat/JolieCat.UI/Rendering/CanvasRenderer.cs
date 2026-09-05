@@ -1,14 +1,15 @@
-using System;
+using JolieCat.UI.ViewModels;
 using SkiaSharp;
 
 namespace JolieCat.UI.Rendering
 {
     /// <summary>
-    /// Draws the canvas surface content. For now that's a test pattern - a checkerboard
-    /// "transparency" backdrop plus a handful of sample vector shapes - proving the Skia
-    /// render pipeline works end-to-end and scales correctly with the control's size.
-    /// This is a placeholder: the real per-document render pipeline (layers, brush
-    /// strokes, vector paths, driven by <c>JolieCat.Core</c>'s scene graph) replaces it.
+    /// Draws one frame of the center canvas from <see cref="CanvasViewModel"/>'s state:
+    /// a checkerboard "transparency" backdrop clipped to the document bounds, the
+    /// persistent painted bitmap on top of it, and the marching-ants marquee overlay
+    /// when a selection is active - all inside the pan/zoom transform so they move and
+    /// scale together. This class owns no state of its own; it only reads the view
+    /// model and paints.
     /// </summary>
     public static class CanvasRenderer
     {
@@ -16,70 +17,73 @@ namespace JolieCat.UI.Rendering
 
         private static readonly SKColor CheckerLight = new(0x3A, 0x3A, 0x3D);
         private static readonly SKColor CheckerDark = new(0x2A, 0x2A, 0x2C);
-        private static readonly SKColor AccentStroke = new(0x3D, 0x8B, 0xFD);
-        private static readonly SKColor AccentFill = new(0x3D, 0x8B, 0xFD, 0x40);
+        private static readonly SKColor OutsideDocumentColor = new(0x12, 0x12, 0x13);
 
-        public static void Render(SKCanvas canvas, SKImageInfo info)
+        public static void Render(SKCanvas canvas, SKImageInfo info, CanvasViewModel viewModel)
         {
-            canvas.Clear(SKColors.Black);
-            DrawCheckerboard(canvas, info);
-            DrawSampleVectors(canvas, info);
+            // Solid fill for the area outside the document bounds - distinguishes the
+            // "desk" from the canvas itself, like the gray surround in Photoshop.
+            canvas.Clear(OutsideDocumentColor);
+
+            canvas.Save();
+            canvas.Translate((float)viewModel.PanX, (float)viewModel.PanY);
+            canvas.Scale((float)viewModel.Zoom);
+
+            var bitmap = viewModel.Bitmap;
+            var documentRect = new SKRect(0, 0, bitmap.Width, bitmap.Height);
+
+            DrawCheckerboard(canvas, documentRect);
+            canvas.DrawBitmap(bitmap, 0, 0);
+
+            if (viewModel.IsMarqueeActive)
+                DrawMarquee(canvas, viewModel);
+
+            canvas.Restore();
         }
 
-        private static void DrawCheckerboard(SKCanvas canvas, SKImageInfo info)
+        private static void DrawCheckerboard(SKCanvas canvas, SKRect documentRect)
         {
             using var lightPaint = new SKPaint { Color = CheckerLight, Style = SKPaintStyle.Fill };
             using var darkPaint = new SKPaint { Color = CheckerDark, Style = SKPaintStyle.Fill };
 
-            for (var y = 0; y < info.Height; y += CheckerSize)
+            canvas.Save();
+            canvas.ClipRect(documentRect);
+
+            for (var y = 0; y < documentRect.Height; y += CheckerSize)
             {
-                for (var x = 0; x < info.Width; x += CheckerSize)
+                for (var x = 0; x < documentRect.Width; x += CheckerSize)
                 {
                     var isLight = (x / CheckerSize + y / CheckerSize) % 2 == 0;
                     canvas.DrawRect(x, y, CheckerSize, CheckerSize, isLight ? lightPaint : darkPaint);
                 }
             }
+
+            canvas.Restore();
         }
 
-        private static void DrawSampleVectors(SKCanvas canvas, SKImageInfo info)
+        private static void DrawMarquee(SKCanvas canvas, CanvasViewModel viewModel)
         {
-            var centerX = info.Width / 2f;
-            var centerY = info.Height / 2f;
-            var extent = Math.Min(info.Width, info.Height) * 0.3f;
+            // Stroke width and dash length are scaled down by zoom so the marquee reads
+            // as a crisp ~1px dashed line on screen at any zoom level, matching how a
+            // real selection outline behaves rather than zooming with the pixels.
+            var onScreenScale = 1f / (float)viewModel.Zoom;
 
-            using var strokePaint = new SKPaint
+            using var paint = new SKPaint
             {
-                Color = AccentStroke,
+                Color = SKColors.White,
                 Style = SKPaintStyle.Stroke,
-                StrokeWidth = 3,
-                IsAntialias = true,
+                StrokeWidth = onScreenScale,
+                IsAntialias = false,
+                PathEffect = SKPathEffect.CreateDash(new[] { 4f * onScreenScale, 4f * onScreenScale }, 0),
             };
 
-            using var fillPaint = new SKPaint
-            {
-                Color = AccentFill,
-                Style = SKPaintStyle.Fill,
-                IsAntialias = true,
-            };
+            var rect = new SKRect(
+                (float)viewModel.MarqueeX,
+                (float)viewModel.MarqueeY,
+                (float)(viewModel.MarqueeX + viewModel.MarqueeWidth),
+                (float)(viewModel.MarqueeY + viewModel.MarqueeHeight));
 
-            // Sample rectangle (top-left quadrant of the sample cluster).
-            var rect = new SKRect(centerX - extent, centerY - extent, centerX, centerY);
-            canvas.DrawRect(rect, fillPaint);
-            canvas.DrawRect(rect, strokePaint);
-
-            // Sample ellipse (top-right quadrant).
-            var oval = new SKRect(centerX, centerY - extent, centerX + extent, centerY);
-            canvas.DrawOval(oval, fillPaint);
-            canvas.DrawOval(oval, strokePaint);
-
-            // Sample vector path - a triangle - proves path rendering alongside primitives.
-            using var path = new SKPath();
-            path.MoveTo(centerX - extent / 2, centerY + extent);
-            path.LineTo(centerX + extent / 2, centerY + extent);
-            path.LineTo(centerX, centerY + extent / 2);
-            path.Close();
-            canvas.DrawPath(path, fillPaint);
-            canvas.DrawPath(path, strokePaint);
+            canvas.DrawRect(rect, paint);
         }
     }
 }

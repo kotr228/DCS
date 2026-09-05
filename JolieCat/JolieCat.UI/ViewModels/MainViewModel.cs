@@ -31,7 +31,7 @@ namespace JolieCat.UI.ViewModels
         public MainViewModel()
         {
             Toolbox = new ToolboxViewModel();
-            Canvas = new CanvasViewModel();
+            Canvas = new CanvasViewModel(Toolbox);
             Timeline = new TimelineViewModel();
         }
 

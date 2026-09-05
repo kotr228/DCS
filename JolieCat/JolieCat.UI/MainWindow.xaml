@@ -186,9 +186,11 @@
                                                         <Border Width="22" Height="22" Margin="0,0,8,0"
                                                                 Background="{StaticResource PanelAltBackgroundBrush}"
                                                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                                            <TextBlock Text="{Binding Glyph}" FontSize="9"
-                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                       Foreground="{StaticResource TextPrimaryBrush}" />
+                                                            <!-- EvenOdd is the mini-language's default fill rule, which several icons
+                                                                 (marquees, zoom lens, canvas-rotate ring) rely on to punch a hole. -->
+                                                            <Path Data="{Binding IconData}" Fill="{StaticResource TextPrimaryBrush}"
+                                                                  Stretch="Uniform" Width="14" Height="14"
+                                                                  HorizontalAlignment="Center" VerticalAlignment="Center" />
                                                         </Border>
                                                         <TextBlock Text="{Binding DisplayName}" FontSize="11" VerticalAlignment="Center"
                                                                    Foreground="{StaticResource TextPrimaryBrush}" />

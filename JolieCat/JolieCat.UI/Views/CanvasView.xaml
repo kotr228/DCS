@@ -8,7 +8,16 @@
     <Grid>
         <!-- SKGLElement (not the software-rendered SKElement) so the canvas is
              hardware-accelerated via OpenGL/ANGLE. PaintSurface fires on every repaint,
-             including on resize, so CanvasRenderer always redraws at the current size. -->
-        <skia:SKGLElement x:Name="Surface" PaintSurface="OnPaintSurface" />
+             including on resize, so CanvasRenderer always redraws at the current size.
+             Mouse capture is taken on press (see code-behind) so drag gestures - paint
+             strokes, marquee drags, panning - keep tracking correctly even if the
+             pointer leaves the control mid-drag. -->
+        <skia:SKGLElement x:Name="Surface"
+                          Focusable="True"
+                          PaintSurface="OnPaintSurface"
+                          MouseLeftButtonDown="Surface_MouseLeftButtonDown"
+                          MouseMove="Surface_MouseMove"
+                          MouseLeftButtonUp="Surface_MouseLeftButtonUp"
+                          MouseWheel="Surface_MouseWheel" />
     </Grid>
 </UserControl>
