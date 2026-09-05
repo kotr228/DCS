@@ -33,6 +33,12 @@ namespace JolieCat.UI.ViewModels
         private const double MaxZoom = 8.0;
         private const double ZoomWheelFactor = 1.1;
 
+        /// <summary>Zoomed out a little so the whole document tends to fit in a typical
+        /// canvas panel - the startup view, and also what a freshly loaded project resets
+        /// to (see <see cref="ResetView"/>) rather than inheriting whatever view the
+        /// previously open document happened to be left at.</summary>
+        private const double DefaultZoom = 0.5;
+
         /// <summary>Below this frame-space distance, a marquee/lasso drag is treated as a
         /// click rather than a drag - it clears the selection instead of setting a
         /// near-zero-area one, giving click-to-deselect for free.</summary>
@@ -259,11 +265,24 @@ namespace JolieCat.UI.ViewModels
             Layers = layers ?? throw new ArgumentNullException(nameof(layers));
             Layers.InvalidateRequested += OnLayersInvalidateRequested;
 
-            // Zoomed out a little so the whole document tends to fit in a typical canvas
-            // panel at startup. Anchored at the top-left (pan starts at 0,0) rather than
-            // centered - true centering needs the viewport's size, which isn't known yet
-            // at construction time; a reasonable follow-up once this is in daily use.
-            zoom = 0.5;
+            // Anchored at the top-left (pan starts at 0,0) rather than centered - true
+            // centering needs the viewport's size, which isn't known yet at construction
+            // time; a reasonable follow-up once this is in daily use.
+            zoom = DefaultZoom;
+        }
+
+        /// <summary>Resets pan/zoom back to their startup defaults - called after loading
+        /// a project (see <c>MainViewModel.OpenProject</c>) so a newly opened document
+        /// always appears at a consistent, predictable view instead of wherever the
+        /// previously open document happened to be panned/zoomed to. Without this, a
+        /// document reopened after the user had panned/zoomed around the last one reads
+        /// as its content having shifted, even though every pixel loaded back exactly
+        /// where it was saved.</summary>
+        public void ResetView()
+        {
+            Zoom = DefaultZoom;
+            PanX = 0;
+            PanY = 0;
         }
 
         private void OnToolboxPropertyChanged(object? sender, PropertyChangedEventArgs e)

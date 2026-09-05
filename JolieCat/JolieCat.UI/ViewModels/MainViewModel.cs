@@ -121,6 +121,7 @@ namespace JolieCat.UI.ViewModels
                 var result = ProjectSerializer.Load(dialog.FileName);
                 Layers.LoadScene(result.Scene, Path.GetFileNameWithoutExtension(dialog.FileName));
                 Timeline.LoadTracks(result.TimelineTracks, result.TimelineTotalFrames, result.TimelineFrameRate);
+                Canvas.ResetView();
             }
             catch (Exception ex)
             {

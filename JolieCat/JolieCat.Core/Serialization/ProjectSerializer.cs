@@ -45,6 +45,24 @@ namespace JolieCat.Core.Serialization
                 TimelineTracks = timelineTracks.ToList(),
             };
 
+            // Every layer is expected to be exactly the document's size (the same
+            // invariant the renderer and every painting/selection tool already assume -
+            // see Scene.ResizeLayers/AddLayer) - verified here, before writing a single
+            // byte, rather than silently trusting it. A layer that violated it would
+            // still get written at its own (wrong) size, and Load would have no way to
+            // tell that size was wrong versus intentional - exactly the kind of
+            // inconsistency that reads as a layer's content having shifted or been
+            // clipped on reopen.
+            for (var i = 1; i < scene.Layers.Count; i++)
+            {
+                var layer = scene.Layers[i];
+                if (layer.Bitmap.Width != manifest.DocumentWidth || layer.Bitmap.Height != manifest.DocumentHeight)
+                    throw new InvalidOperationException(
+                        $"Layer '{layer.Name}' is {layer.Bitmap.Width}x{layer.Bitmap.Height}, but the document is " +
+                        $"{manifest.DocumentWidth}x{manifest.DocumentHeight} - every layer must match the document's " +
+                        "size to save correctly.");
+            }
+
             using var fileStream = new FileStream(path, FileMode.Create, FileAccess.Write);
             using var archive = new ZipArchive(fileStream, ZipArchiveMode.Create);
 
@@ -101,14 +119,29 @@ namespace JolieCat.Core.Serialization
                     ?? throw new InvalidDataException($"'{path}' has an unreadable layer bitmap '{layerEntry.BitmapEntryName}'.");
 
                 var type = Enum.TryParse<LayerType>(layerEntry.Type, out var parsedType) ? parsedType : LayerType.Raster;
-                var layer = new Layer(layerEntry.Name, decoded.Width, decoded.Height, type)
+
+                // Built at the manifest's own declared document size, not decoded.Width/
+                // Height - every layer is supposed to already be exactly that size (see
+                // Save's own check before writing), but trusting each PNG's own reported
+                // size instead of the document's would let a mismatched layer (a
+                // corrupted file, one hand-edited outside this app, or a project saved
+                // by some future/older version that didn't enforce the invariant) come
+                // back sized differently from the rest of the scene - which the renderer
+                // and every painting tool assume never happens, and which reads as that
+                // layer's content having shifted toward the top-left corner (the corner
+                // every layer bitmap is always drawn from) or been clipped.
+                var layer = new Layer(layerEntry.Name, manifest.DocumentWidth, manifest.DocumentHeight, type)
                 {
                     IsVisible = layerEntry.IsVisible,
                     IsLocked = layerEntry.IsLocked,
                     Opacity = layerEntry.Opacity,
                     BlendMode = Enum.TryParse<BlendMode>(layerEntry.BlendMode, out var parsedBlend) ? parsedBlend : BlendMode.Normal,
                 };
-                layer.Bitmap.Pixels = decoded.Pixels;
+
+                if (decoded.Width == manifest.DocumentWidth && decoded.Height == manifest.DocumentHeight)
+                    layer.Bitmap.Pixels = decoded.Pixels;
+                else
+                    layer.Canvas.DrawBitmap(decoded, 0, 0);
 
                 scene.AddLayer(layer);
             }
