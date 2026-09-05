@@ -621,7 +621,12 @@ namespace JolieCat.UI.ViewModels
         /// anchor point, then ends the edit - the Horizontal/Vertical Text tools' commit
         /// step. A no-op if nothing is being edited; empty typed content ends the edit
         /// without drawing anything, so an accidental click-then-click-away leaves no
-        /// debris on the layer.</summary>
+        /// debris on the layer. Explicitly repaints afterward - unlike every other paint
+        /// operation, this one isn't invoked from <see cref="OnPointerPressed"/> or
+        /// <see cref="OnPointerMoved"/> (which already repaint themselves after calling
+        /// into a paint method), so without this the text would be written to the
+        /// bitmap correctly but never actually appear until some unrelated action (a pan,
+        /// a zoom, another stroke) happened to trigger a redraw.</summary>
         public void CommitTextEdit()
         {
             if (!IsTextEditing) return;
@@ -629,7 +634,10 @@ namespace JolieCat.UI.ViewModels
             var text = TextEditContent;
             var layer = Layers.ActiveLayer?.Model;
             if (!string.IsNullOrEmpty(text) && layer is not null && !layer.IsLocked)
+            {
                 DrawTextOnLayer(layer, text);
+                RaiseInvalidate();
+            }
 
             EndTextEdit();
         }
