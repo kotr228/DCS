@@ -21,7 +21,7 @@
              distribution - see LevelsViewModel's own remarks for why it's computed
              once at open time and never recomputed as the sliders move. Stretched
              to fill from its own fixed 0-255 x 0-100 coordinate space. -->
-        <Border Grid.Row="0" Height="120" Background="#FF1B1B1C" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,12">
+        <Border Grid.Row="0" Height="120" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,12">
             <Viewbox Stretch="Fill">
                 <Canvas Width="255" Height="100">
                     <Polygon Points="{Binding HistogramPoints}" Fill="{StaticResource TextSecondaryBrush}" />

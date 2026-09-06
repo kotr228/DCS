@@ -43,7 +43,7 @@
              directly to an input/output value 0-255 with only a Y-flip (see
              CurvePointViewModel.CanvasTop) - no separate pixel-to-data scale
              conversion needed anywhere in the code-behind. -->
-        <Border Grid.Row="1" Background="#FF1B1B1C" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+        <Border Grid.Row="1" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
             <Viewbox Stretch="Uniform">
                 <Grid Width="256" Height="256">
                     <Canvas x:Name="GraphCanvas" Width="256" Height="256" Background="Transparent"

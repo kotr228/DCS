@@ -13,7 +13,21 @@
     <!-- Lets the WPF client be restored/compiled (not run) from a non-Windows dev
          machine or a Linux CI runner, since the studio's tooling spans Windows and Linux. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- The published .exe's own file/taskbar icon (a native PE resource, separate
+         from Window.Icon below, which only sets the small icon shown in a running
+         window's own title bar/Alt-Tab entry). -->
+    <ApplicationIcon>Assets\JolieCatLogo.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Embeds both as WPF "Resource" build-action pack-URI content, so MainWindow's
+         own Icon="/Assets/JolieCatLogo.ico" and SplashScreenWindow's
+         Image Source="/Assets/JolieCatLogo.png" can actually resolve them at runtime -
+         ApplicationIcon above only covers the compiled .exe's own file icon, a
+         separate mechanism that doesn't make the file reachable from XAML at all. -->
+    <Resource Include="Assets\JolieCatLogo.ico" />
+    <Resource Include="Assets\JolieCatLogo.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />

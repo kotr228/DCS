@@ -1,8 +1,7 @@
 <Application x:Class="JolieCat.UI.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:JolieCat.UI"
-             StartupUri="MainWindow.xaml">
+             xmlns:local="clr-namespace:JolieCat.UI">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -16,18 +15,60 @@
                  compiled UserControl's XAML. -->
             <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
-            <!-- ================= Dark Theme Palette ================= -->
-            <!-- Flat, solid-color brushes only - no gradients, no theme packages. -->
+            <!-- ================= Warm "JolieCat" Theme Palette ================= -->
+            <!-- Flat, solid-color brushes only - no gradients, no theme packages.
+                 Derived from the logo's own five brand colors (see JolieCatLogo.ico/.png):
+                     Main Background / Canvas Framing - #E6BA7C (Warm Tan / Beige)
+                     Panels & Toolbars                - #6B6770 (Muted Warm Gray-Brown) / #3D3A42 (Deep Charcoal)
+                     Accents & Highlights              - #C29B58 (Golden Ochre)
+                     Active Toggles / Indicators        - #5DA453 (Emerald Green, the logo's own "cat eyes")
+                     Text & Off-white elements          - #F9F6F0 (Warm Milky White)
+                 A few further brushes below (BorderBrush, AccentHoverBrush,
+                 HoverBackgroundBrush, TextSecondaryBrush) aren't named in that five-color
+                 list - each is a tint/shade mixed from the same five rather than an
+                 unrelated color, so the whole app still reads as one warm, cohesive
+                 palette rather than five brand colors plus unrelated old leftovers. -->
 
-            <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FF1B1B1C" />
-            <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FF232324" />
-            <SolidColorBrush x:Key="PanelAltBackgroundBrush" Color="#FF2A2A2C" />
-            <SolidColorBrush x:Key="BorderBrush" Color="#FF3A3A3D" />
-            <SolidColorBrush x:Key="AccentBrush" Color="#FF3D8BFD" />
-            <SolidColorBrush x:Key="AccentHoverBrush" Color="#FF5C9EFF" />
-            <SolidColorBrush x:Key="HoverBackgroundBrush" Color="#FF34343A" />
-            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFEDEDED" />
-            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FF9A9A9E" />
+            <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFE6BA7C" />
+
+            <!-- The two "Panels & Toolbars" colors: the lighter Gray-Brown for a
+                 panel's own body (Layers/Properties/Timeline content), the darker
+                 Charcoal for its toolbar/header strip and the document tab strip -
+                 giving every docked panel the same two-tier depth its dark-theme
+                 predecessor had, just in the new warm register. -->
+            <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FF6B6770" />
+            <SolidColorBrush x:Key="PanelAltBackgroundBrush" Color="#FF3D3A42" />
+
+            <!-- A shade darker than Deep Charcoal - no single hex was specified for
+                 borders, so this is mixed from the palette's own darkest color rather
+                 than reusing an unrelated gray, keeping every divider/outline in the
+                 same warm-neutral family as the panels it separates. -->
+            <SolidColorBrush x:Key="BorderBrush" Color="#FF2E2B32" />
+
+            <SolidColorBrush x:Key="AccentBrush" Color="#FFC29B58" />
+            <!-- A lighter tint of Golden Ochre for hover - no separate hover hex was
+                 specified, so this is Golden Ochre itself lightened, the same
+                 relationship the old theme's own Accent/AccentHover pair had. -->
+            <SolidColorBrush x:Key="AccentHoverBrush" Color="#FFD8B87A" />
+
+            <!-- A lighter tint of the Muted Warm Gray-Brown panel color - a neutral
+                 hover highlight distinct from both the golden Accent (used for
+                 pressed/selected states) and the green Active Indicator below. -->
+            <SolidColorBrush x:Key="HoverBackgroundBrush" Color="#FF7D7982" />
+
+            <!-- "Active Toggles / Indicators" - the logo's own cat-eye green. Reserved
+                 for a persistent on/active state specifically (a checked toggle button,
+                 the selected tool, a layer's mask as the active paint target) - not a
+                 general highlight, which stays the golden Accent above. -->
+            <SolidColorBrush x:Key="ActiveIndicatorBrush" Color="#FF5DA453" />
+
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFF9F6F0" />
+            <!-- A muted, darkened tint of the Warm Milky White - no separate secondary-
+                 text hex was specified, so this dims that same color rather than
+                 reusing an unrelated gray, keeping secondary text in the same warm
+                 family as primary text while still reading as clearly de-emphasized
+                 against it. -->
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FFC9C2B8" />
 
             <!-- ================= Base Styles ================= -->
 
@@ -100,7 +141,10 @@
             </Style>
 
             <!-- Toggle button used on the top toolbar to show/hide a docking zone;
-                 renders with the accent color while its panel is visible. -->
+                 renders with the Active Indicator (cat-eye) green while its panel is
+                 visible - this is exactly the "active toggle" the warm palette
+                 reserves that color for, distinct from the golden Accent used for a
+                 plain momentary press elsewhere. -->
             <Style x:Key="PanelToggleButtonStyle" TargetType="{x:Type ToggleButton}">
                 <Setter Property="Background" Value="{StaticResource PanelAltBackgroundBrush}" />
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
@@ -125,7 +169,7 @@
                                     <Setter TargetName="ToggleBorder" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
                                 </Trigger>
                                 <Trigger Property="IsChecked" Value="True">
-                                    <Setter TargetName="ToggleBorder" Property="Background" Value="{StaticResource AccentBrush}" />
+                                    <Setter TargetName="ToggleBorder" Property="Background" Value="{StaticResource ActiveIndicatorBrush}" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>

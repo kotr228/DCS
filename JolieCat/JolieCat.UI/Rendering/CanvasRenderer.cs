@@ -20,11 +20,17 @@ namespace JolieCat.UI.Rendering
     {
         private const int CheckerSize = 16;
 
+        // Left as a neutral dark checkerboard, not re-themed to the new warm palette -
+        // every raster editor's own universal "no pixel data here" convention, which a
+        // checkerboard only reads as at a glance if it stays a plain neutral gray
+        // regardless of the app's own current theme.
         private static readonly SKColor CheckerLight = new(0x3A, 0x3A, 0x3D);
         private static readonly SKColor CheckerDark = new(0x2A, 0x2A, 0x2C);
-        private static readonly SKColor OutsideDocumentColor = new(0x12, 0x12, 0x13);
+
+        // "Main Background / Canvas Framing" - matches App.xaml's WindowBackgroundBrush.
+        private static readonly SKColor OutsideDocumentColor = new(0xE6, 0xBA, 0x7C);
         private static readonly SKColor CropDarkenColor = new(0, 0, 0, 160);
-        private static readonly SKColor HandleBorderColor = new(0x3D, 0x8B, 0xFD); // matches AccentBrush
+        private static readonly SKColor HandleBorderColor = new(0xC2, 0x9B, 0x58); // matches AccentBrush (Golden Ochre)
 
         public static void Render(SKCanvas canvas, SKImageInfo info, CanvasViewModel viewModel)
         {

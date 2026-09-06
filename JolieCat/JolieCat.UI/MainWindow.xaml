@@ -11,6 +11,7 @@
         xmlns:layers="clr-namespace:JolieCat.UI.ViewModels.Layers"
         mc:Ignorable="d"
         Title="JolieCat" Height="720" Width="1280" MinHeight="480" MinWidth="720"
+        Icon="/Assets/JolieCatLogo.ico"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel, IsDesignTimeCreatable=True}">
@@ -101,7 +102,10 @@
                                 <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource AccentBrush}" />
+                                <!-- The active/selected tool - an "active indicator" in
+                                     the warm palette's own terms, so it gets the cat-eye
+                                     green rather than the golden Accent. -->
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource ActiveIndicatorBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -515,7 +519,10 @@
                                                     <Setter Property="Background" Value="Transparent" />
                                                     <Style.Triggers>
                                                         <Trigger Property="IsChecked" Value="True">
-                                                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                            <!-- This layer's mask is the active paint
+                                                                 target - another "active toggle", so it
+                                                                 gets the cat-eye green too. -->
+                                                            <Setter Property="BorderBrush" Value="{StaticResource ActiveIndicatorBrush}" />
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>

@@ -49,13 +49,18 @@
              reverse. Hidden until IsTextEditing is set; its font/color preview the active
              Text tool's own Properties-panel settings (FontFamily/FontSize/Bold/Italic)
              and the current primary color, though the actual pixels only get drawn once
-             CommitTextEdit runs - see the code-behind's key handlers for Enter/Escape. -->
+             CommitTextEdit runs - see the code-behind's key handlers for Enter/Escape.
+             Background is semi-transparent Deep Charcoal (PanelAltBackgroundBrush's own
+             color at ~80% opacity - hardcoded rather than referencing that brush
+             directly, since it needs a custom alpha the brush's own full-opacity value
+             doesn't have) - a dark backdrop is what keeps an arbitrary typed
+             PrimaryColor legible here, regardless of theme. -->
         <TextBox x:Name="TextEditBox"
                  Visibility="Collapsed"
                  HorizontalAlignment="Left" VerticalAlignment="Top"
                  MinWidth="140" MinHeight="28" Padding="2"
                  AcceptsReturn="True" TextWrapping="NoWrap"
-                 Background="#CC1B1B1C" Foreground="{Binding PrimaryColorBrush}"
+                 Background="#CC3D3A42" Foreground="{Binding PrimaryColorBrush}"
                  BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
                  FontFamily="{Binding Toolbox.CurrentToolOptions.FontFamily}"
                  FontSize="{Binding Toolbox.CurrentToolOptions.FontSize}"
