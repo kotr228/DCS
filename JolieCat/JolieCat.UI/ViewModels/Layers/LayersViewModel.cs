@@ -258,6 +258,18 @@ namespace JolieCat.UI.ViewModels.Layers
 
         private void RebuildFromScene()
         {
+            // DocumentWidth/DocumentHeight are computed from Scene.Layers[0], not
+            // fields, so replacing the scene wholesale (LoadScene) or resizing/adding/
+            // removing its first layer (including via undo/redo) never touches a
+            // setter that would otherwise raise this - every path that can change
+            // either value runs through this method (directly from LoadScene, or via
+            // History.Changed after ExecuteStructuralChange/undo/redo), so this is the
+            // one place both need to be (re-)announced from. A no-op for a viewer that
+            // isn't bound to either, so it's raised unconditionally rather than only
+            // when the value actually changed.
+            OnPropertyChanged(nameof(DocumentWidth));
+            OnPropertyChanged(nameof(DocumentHeight));
+
             // A pixel-only undo/redo (a paint stroke, fill, or text commit - pushed via
             // History.Push, not PushStructural) never touches the layer list or its
             // order at all - History's Changed event fires the same way regardless, so
