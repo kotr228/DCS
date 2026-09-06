@@ -11,7 +11,7 @@
         <converters:BoolToFontWeightConverter x:Key="BoolToFontWeight" />
         <converters:BoolToFontStyleConverter x:Key="BoolToFontStyle" />
     </UserControl.Resources>
-    <Grid>
+    <Grid SnapsToDevicePixels="True" UseLayoutRounding="True">
         <!-- SKElement (not the GPU/OpenGL-backed SKGLElement) - see CanvasView.xaml.cs's
              class remarks for why: SKGLElement's framebuffer is hosted via the
              third-party GLWpfControl, which flips it to reconcile OpenGL's bottom-left
@@ -29,6 +29,7 @@
         <skia:SKElement x:Name="Surface"
                         Focusable="True"
                         AllowDrop="True"
+                        SnapsToDevicePixels="True" UseLayoutRounding="True"
                         Cursor="{Binding ActiveToolType, Converter={StaticResource ToolTypeToCursor}}"
                         PaintSurface="OnPaintSurface"
                         MouseLeftButtonDown="Surface_MouseLeftButtonDown"

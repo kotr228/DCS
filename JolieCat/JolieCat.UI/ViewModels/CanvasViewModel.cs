@@ -459,8 +459,12 @@ namespace JolieCat.UI.ViewModels
             }
             else if (_isPanning)
             {
-                PanX = _panStartX + (devicePoint.X - _panDragStart.X);
-                PanY = _panStartY + (devicePoint.Y - _panDragStart.Y);
+                // Snapped to whole device pixels - see SnapToPixel's own remarks for why
+                // an unsnapped Pan here would misalign the *entire* composited frame
+                // (checkerboard and every layer alike) against the device-pixel grid for
+                // as long as the pan lasts, not just this one gesture's own drawing.
+                PanX = SnapToPixel(_panStartX + (devicePoint.X - _panDragStart.X));
+                PanY = SnapToPixel(_panStartY + (devicePoint.Y - _panDragStart.Y));
             }
         }
 
@@ -539,10 +543,26 @@ namespace JolieCat.UI.ViewModels
             var newZoom = Math.Clamp(Zoom * factor, MinZoom, MaxZoom);
 
             var doc = ToDocumentSpace(devicePoint);
-            PanX = devicePoint.X - doc.X * newZoom;
-            PanY = devicePoint.Y - doc.Y * newZoom;
+            PanX = SnapToPixel(devicePoint.X - doc.X * newZoom);
+            PanY = SnapToPixel(devicePoint.Y - doc.Y * newZoom);
             Zoom = newZoom;
         }
+
+        /// <summary>
+        /// Rounds a pan offset to the nearest whole device pixel. PanX/PanY feed
+        /// straight into CanvasRenderer's canvas.Translate(PanX, PanY) - the very first
+        /// thing applied to the whole frame, before the checkerboard or a single layer
+        /// is drawn - so a fractional value here doesn't just shift one thing a
+        /// sub-pixel amount, it misaligns the *entire* composited document (every edge
+        /// of the checkerboard and every layer alike) against the device-pixel grid for
+        /// as long as that pan/zoom lasts. Skia then has to antialias/blend right at
+        /// that boundary instead of drawing a crisp edge, which reads as a faint
+        /// "bleeding" seam - most visible at whichever edge has the strongest contrast
+        /// against OutsideDocumentColor. Both gestures that set Pan (drag with the Hand
+        /// tool, and the mouse-wheel zoom-anchor math) produce essentially-never-integer
+        /// values on their own, so this is applied at both, not left to chance.
+        /// </summary>
+        private static double SnapToPixel(double value) => Math.Round(value, MidpointRounding.AwayFromZero);
 
         private SKPoint ToDocumentSpace(SKPoint devicePoint) => new(
             (float)((devicePoint.X - PanX) / Zoom),
