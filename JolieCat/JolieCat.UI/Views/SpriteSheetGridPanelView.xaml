@@ -1,0 +1,33 @@
+<UserControl x:Class="JolieCat.UI.Views.SpriteSheetGridPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+             xmlns:layers="clr-namespace:JolieCat.UI.ViewModels.Layers"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=layers:LayersViewModel, IsDesignTimeCreatable=True}">
+    <!-- DataContext is the active document's LayersViewModel (bound from MainWindow.xaml)
+         - the same object that owns SpriteSheetColumns/Rows/Padding/Margin/
+         SnapToSpriteSheetGrid (see its own remarks for why they live there rather than
+         on a separate view model). "Slice & Export Frames" is a MainViewModel command
+         instead, so it reaches up to the Window's own DataContext - the same rebind
+         PenToolOptionsView's action buttons already use to reach CanvasViewModel. -->
+    <StackPanel Margin="8">
+        <TextBlock Text="SPRITE SHEET GRID" Style="{StaticResource PanelHeaderStyle}" Margin="0,0,0,8" />
+
+        <controls:LabeledSlider Label="Columns" Minimum="1" Maximum="64" Value="{Binding SpriteSheetColumns, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Rows" Minimum="1" Maximum="64" Value="{Binding SpriteSheetRows, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Padding X" Minimum="0" Maximum="100" Suffix="px" Value="{Binding SpriteSheetPaddingX, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Padding Y" Minimum="0" Maximum="100" Suffix="px" Value="{Binding SpriteSheetPaddingY, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Margin X" Minimum="0" Maximum="100" Suffix="px" Value="{Binding SpriteSheetMarginX, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Margin Y" Minimum="0" Maximum="100" Suffix="px" Value="{Binding SpriteSheetMarginY, Mode=TwoWay}" />
+
+        <CheckBox Content="Snap Marquee to Grid" Foreground="{StaticResource TextPrimaryBrush}"
+                  IsChecked="{Binding SnapToSpriteSheetGrid, Mode=TwoWay}" Margin="0,8,0,10" />
+
+        <Button Content="Slice &amp; Export Frames..." Padding="4"
+                ToolTip="Flattens the document and writes one image file per grid cell into a folder you choose"
+                Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.SliceSpriteSheetCommand}" />
+    </StackPanel>
+</UserControl>

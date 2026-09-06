@@ -51,6 +51,7 @@ namespace JolieCat.UI.Rendering
             using var previewBitmap = viewModel.BuildLivePreviewBitmap();
             SceneCompositor.DrawLayers(canvas, viewModel.Layers.Scene, viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight, previewLayer, previewBitmap);
 
+            DrawSpriteSheetGridOverlay(canvas, viewModel);
             DrawSelectionOverlay(canvas, viewModel);
             DrawCropOverlay(canvas, viewModel);
             DrawTransformOverlay(canvas, viewModel);
@@ -115,6 +116,29 @@ namespace JolieCat.UI.Rendering
             };
 
             canvas.DrawPath(path, paint);
+        }
+
+        /// <summary>Draws the Sprite Sheet slicing grid's cell boundaries over the
+        /// composited document - a no-op unless the active document is a SpriteSheet
+        /// project (<see cref="CanvasViewModel.SpriteSheetGrid"/> null). A thin dashed
+        /// line (rather than solid, like the selection marching ants) so it reads as a
+        /// guide overlay distinct from an actual selection outline.</summary>
+        private static void DrawSpriteSheetGridOverlay(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.SpriteSheetGrid is not { } grid) return;
+
+            var onScreenScale = 1f / (float)viewModel.Zoom;
+            using var paint = new SKPaint
+            {
+                Color = new SKColor(0x00, 0xD8, 0xFF, 200),
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = onScreenScale,
+                IsAntialias = false,
+                PathEffect = SKPathEffect.CreateDash(new[] { 4f * onScreenScale, 4f * onScreenScale }, 0),
+            };
+
+            foreach (var (_, _, rect) in grid.EnumerateCells(viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight))
+                canvas.DrawRect(rect, paint);
         }
 
         /// <summary>Darkens everything outside the live crop rectangle, draws rule-of-

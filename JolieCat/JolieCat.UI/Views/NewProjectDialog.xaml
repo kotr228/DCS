@@ -1,0 +1,43 @@
+<Window x:Class="JolieCat.UI.Views.NewProjectDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        mc:Ignorable="d"
+        Title="New Project" Height="330" Width="380"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ShowInTaskbar="False">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="Choose a project type:" Margin="0,0,0,12" Foreground="{StaticResource TextPrimaryBrush}" />
+
+            <RadioButton x:Name="StandardImageOption" Content="Standard Image" GroupName="ProjectType" IsChecked="True"
+                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
+            <TextBlock Text="A plain raster/vector canvas - the ordinary editor, with none of the below."
+                       FontSize="10" Margin="20,0,0,12" TextWrapping="Wrap"
+                       Foreground="{StaticResource TextSecondaryBrush}" />
+
+            <RadioButton x:Name="SpriteSheetOption" Content="Sprite Sheet" GroupName="ProjectType"
+                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
+            <TextBlock Text="Adds a configurable slicing grid overlay on the canvas, plus a panel to slice and export each cell as its own frame."
+                       FontSize="10" Margin="20,0,0,12" TextWrapping="Wrap"
+                       Foreground="{StaticResource TextSecondaryBrush}" />
+
+            <RadioButton x:Name="ClipbarAnimationOption" Content="Clipbar Animation" GroupName="ProjectType"
+                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
+            <TextBlock Text="Opens straight into a dedicated, full-workspace Timeline tab with playback transport controls, instead of the plain canvas."
+                       FontSize="10" Margin="20,0,0,0" TextWrapping="Wrap"
+                       Foreground="{StaticResource TextSecondaryBrush}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <Button Content="Create" Width="80" IsDefault="True" Click="Create_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

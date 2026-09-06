@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using JolieCat.Core.Documents;
 using JolieCat.Core.History;
+using JolieCat.Shared.Enums;
 using SkiaSharp;
 
 namespace JolieCat.UI.ViewModels.Layers
@@ -69,11 +70,106 @@ namespace JolieCat.UI.ViewModels.Layers
         /// opacity).</summary>
         public event EventHandler? InvalidateRequested;
 
-        public LayersViewModel()
+        /// <summary>Chosen once when the document was created (or loaded) - see
+        /// <see cref="Shared.Enums.ProjectType"/>'s own remarks for what each mode
+        /// changes about the workspace. Never changes afterward, so this needs no
+        /// change notification of its own - only <see cref="LoadScene"/> (a whole new
+        /// <see cref="Document"/>) or the constructor ever sets it.</summary>
+        public ProjectType ProjectType => _document.ProjectType;
+
+        public bool IsSpriteSheetProject => ProjectType == ProjectType.SpriteSheet;
+
+        public bool IsClipbarAnimationProject => ProjectType == ProjectType.ClipbarAnimation;
+
+        /// <summary>This project's Sprite Sheet slicing grid (see <see cref="Core.Documents.SpriteSheetGrid"/>) -
+        /// present regardless of <see cref="ProjectType"/>, meaningful only for
+        /// <see cref="IsSpriteSheetProject"/>. Consumed directly (not through the
+        /// bindable <see cref="SpriteSheetColumns"/>-and-friends mirror below) by
+        /// <see cref="Rendering.CanvasRenderer"/>'s overlay and by the "Slice &amp;
+        /// Export Frames" command's call into <c>ImageExportService.ExportSpriteSheetCellsAsync</c>.</summary>
+        public Core.Documents.SpriteSheetGrid SpriteSheetGrid => _document.SpriteSheetGrid;
+
+        /// <summary>Whether the Rectangular/Elliptical Marquee tools snap their drag to
+        /// the Sprite Sheet grid's own lines (see <see cref="Core.Documents.SpriteSheetGrid.SnapPoint"/>) -
+        /// a plain per-session toggle, not persisted, meaningful only for
+        /// <see cref="IsSpriteSheetProject"/>.</summary>
+        [ObservableProperty]
+        private bool snapToSpriteSheetGrid;
+
+        // ================= Sprite Sheet grid - bindable mirror =================
+        //
+        // Core.Documents.SpriteSheetGrid is a plain data/math class (no property-
+        // changed notifications of its own, so CanvasRenderer/ImageExportService can
+        // consume it with no WPF dependency) - these six properties are this class's
+        // own bindable front for editing it from the Sprite Sheet panel, writing
+        // straight through to SpriteSheetGrid on every change and requesting a
+        // repaint, the same "thin ObservableObject mirror over a plain Core model"
+        // pattern CanvasViewModel's Hue/Saturation/Brightness already use for
+        // PrimaryColor. _isSyncingSpriteSheetGrid guards SyncSpriteSheetGridFields
+        // (loading a project) from redundantly writing the just-loaded values back
+        // into the very same SpriteSheetGrid instance they came from.
+
+        private bool _isSyncingSpriteSheetGrid;
+
+        [ObservableProperty]
+        private int spriteSheetColumns = 4;
+
+        [ObservableProperty]
+        private int spriteSheetRows = 4;
+
+        [ObservableProperty]
+        private int spriteSheetPaddingX;
+
+        [ObservableProperty]
+        private int spriteSheetPaddingY;
+
+        [ObservableProperty]
+        private int spriteSheetMarginX;
+
+        [ObservableProperty]
+        private int spriteSheetMarginY;
+
+        partial void OnSpriteSheetColumnsChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.Columns = Math.Max(1, value));
+        partial void OnSpriteSheetRowsChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.Rows = Math.Max(1, value));
+        partial void OnSpriteSheetPaddingXChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.PaddingX = Math.Max(0, value));
+        partial void OnSpriteSheetPaddingYChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.PaddingY = Math.Max(0, value));
+        partial void OnSpriteSheetMarginXChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.MarginX = Math.Max(0, value));
+        partial void OnSpriteSheetMarginYChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.MarginY = Math.Max(0, value));
+
+        private void PushSpriteSheetGridField(Action apply)
         {
-            _document = new Document("Untitled");
+            if (_isSyncingSpriteSheetGrid) return;
+
+            apply();
+            RaiseInvalidate();
+        }
+
+        /// <summary>Mirrors <see cref="SpriteSheetGrid"/>'s current values into the six
+        /// bindable properties above - called once up front and again whenever
+        /// <see cref="_document"/> is replaced wholesale (<see cref="LoadScene"/>), so
+        /// the Sprite Sheet panel always reflects whichever document is actually open
+        /// rather than the previous one's settings.</summary>
+        private void SyncSpriteSheetGridFields()
+        {
+            _isSyncingSpriteSheetGrid = true;
+
+            var grid = SpriteSheetGrid;
+            SpriteSheetColumns = grid.Columns;
+            SpriteSheetRows = grid.Rows;
+            SpriteSheetPaddingX = grid.PaddingX;
+            SpriteSheetPaddingY = grid.PaddingY;
+            SpriteSheetMarginX = grid.MarginX;
+            SpriteSheetMarginY = grid.MarginY;
+
+            _isSyncingSpriteSheetGrid = false;
+        }
+
+        public LayersViewModel(ProjectType projectType = ProjectType.StandardImage)
+        {
+            _document = new Document("Untitled") { ProjectType = projectType };
             Scene.AddLayer("Background", DocumentWidth, DocumentHeight);
             RebuildFromScene();
+            SyncSpriteSheetGridFields();
 
             // Undo/redo (of either kind - see History's own remarks) needs the Layers
             // list rebuilt and the canvas repainted exactly like a fresh structural
@@ -292,14 +388,25 @@ namespace JolieCat.UI.ViewModels.Layers
         /// loading a <c>.jolie</c> project (see <c>ProjectSerializer.Load</c>). The old
         /// history no longer describes anything meaningful (its commands reference layer
         /// objects belonging to the document being replaced), so it's discarded rather
-        /// than carried over.</summary>
-        public void LoadScene(Scene scene, string documentName)
+        /// than carried over. <paramref name="projectType"/>/<paramref name="spriteSheetGrid"/>
+        /// default to a plain <see cref="Shared.Enums.ProjectType.StandardImage"/>
+        /// project's own defaults - the right choice for a caller that isn't restoring
+        /// a saved project's own settings at all (e.g. opening a Smart Object layer's
+        /// embedded scene for "Edit Contents" - see <c>MainViewModel.EditSmartObjectContents</c>,
+        /// which never wants that embedded editing session mistaken for a Sprite Sheet
+        /// or Clipbar Animation project just because the parent project happened to be
+        /// one).</summary>
+        public void LoadScene(Scene scene, string documentName, ProjectType projectType = ProjectType.StandardImage, Core.Documents.SpriteSheetGrid? spriteSheetGrid = null)
         {
             ArgumentNullException.ThrowIfNull(scene);
 
-            _document = new Document(documentName, scene);
+            _document = new Document(documentName, scene) { ProjectType = projectType };
+            if (spriteSheetGrid is not null)
+                _document.SpriteSheetGrid = spriteSheetGrid;
+
             History.Clear();
             RebuildFromScene();
+            SyncSpriteSheetGridFields();
             RaiseInvalidate();
         }
 

@@ -11,6 +11,7 @@ using JolieCat.Core.Documents;
 using JolieCat.Core.Export;
 using JolieCat.Core.Serialization;
 using JolieCat.Core.Tools;
+using JolieCat.Shared.Enums;
 using JolieCat.UI.ViewModels.Layers;
 using JolieCat.UI.ViewModels.Timeline;
 using JolieCat.UI.Views;
@@ -63,9 +64,6 @@ namespace JolieCat.UI.ViewModels
 
         [ObservableProperty]
         private bool isRightPanelVisible = true;
-
-        [ObservableProperty]
-        private bool isBottomPanelVisible = true;
 
         /// <summary>True for exactly the duration of an in-flight save - drives the
         /// full-workspace overlay (see MainWindow.xaml) that blocks further edits while
@@ -238,9 +236,6 @@ namespace JolieCat.UI.ViewModels
         [RelayCommand]
         private void ToggleRightPanel() => IsRightPanelVisible = !IsRightPanelVisible;
 
-        [RelayCommand]
-        private void ToggleBottomPanel() => IsBottomPanelVisible = !IsBottomPanelVisible;
-
         /// <summary>
         /// Thin pass-through so tool selection can also be driven from MainViewModel
         /// (e.g. future keyboard shortcuts), in addition to the Tools panel's own list
@@ -249,12 +244,17 @@ namespace JolieCat.UI.ViewModels
         [RelayCommand]
         private void SelectTool(ToolDefinition? tool) => Toolbox.SelectToolCommand.Execute(tool);
 
-        /// <summary>Opens a brand new, empty document as its own tab and makes it
-        /// active - the tab strip's "+"/File-New action.</summary>
+        /// <summary>Prompts for one of the three project types (see
+        /// <see cref="NewProjectDialog"/>/<see cref="ProjectType"/>), then opens a
+        /// brand new, empty document of that type as its own tab and makes it active -
+        /// the tab strip's "+"/File-New action. Cancelling the dialog opens nothing.</summary>
         [RelayCommand]
         private void NewDocument()
         {
-            var document = new DocumentViewModel(Toolbox, $"Untitled {Documents.Count + 1}");
+            var dialog = new NewProjectDialog { Owner = Application.Current.MainWindow };
+            if (dialog.ShowDialog() != true) return;
+
+            var document = new DocumentViewModel(Toolbox, $"Untitled {Documents.Count + 1}", dialog.SelectedProjectType);
             RegisterDocument(document);
             Documents.Add(document);
             ActiveDocument = document;
@@ -427,7 +427,8 @@ namespace JolieCat.UI.ViewModels
 
             try
             {
-                await ProjectSerializer.SaveAsync(dialog.FileName, activeDocument.Layers.Scene, BuildTimelineData(activeDocument), activeDocument.Timeline.TotalFrames, activeDocument.Timeline.FrameRate);
+                await ProjectSerializer.SaveAsync(dialog.FileName, activeDocument.Layers.Scene, BuildTimelineData(activeDocument), activeDocument.Timeline.TotalFrames, activeDocument.Timeline.FrameRate,
+                    activeDocument.ProjectType, activeDocument.Layers.SpriteSheetGrid);
 
                 activeDocument.Title = Path.GetFileNameWithoutExtension(dialog.FileName);
                 activeDocument.FilePath = dialog.FileName;
@@ -486,9 +487,9 @@ namespace JolieCat.UI.ViewModels
                 var result = ProjectSerializer.Load(dialog.FileName);
                 var name = Path.GetFileNameWithoutExtension(dialog.FileName);
 
-                var document = new DocumentViewModel(Toolbox, name) { FilePath = dialog.FileName };
+                var document = new DocumentViewModel(Toolbox, name, result.ProjectType) { FilePath = dialog.FileName };
                 RegisterDocument(document);
-                document.Layers.LoadScene(result.Scene, name);
+                document.Layers.LoadScene(result.Scene, name, result.ProjectType, result.SpriteSheetGrid);
                 document.Timeline.LoadTracks(result.TimelineTracks, result.TimelineTotalFrames, result.TimelineFrameRate);
 
                 Documents.Add(document);
@@ -586,6 +587,59 @@ namespace JolieCat.UI.ViewModels
             Documents.Add(document);
             ActiveDocument = document;
             Canvas.ResetView();
+        }
+
+        /// <summary>Switches the active document's own workspace content between the
+        /// plain canvas and the dedicated Timeline workspace (see
+        /// <see cref="DocumentViewModel.WorkspaceMode"/>) - MainWindow.xaml only shows
+        /// the switch itself for a <see cref="ProjectType.ClipbarAnimation"/> project,
+        /// but this applies unconditionally like every other simple setter-command in
+        /// this class, since there is nothing unsafe about a document of any other type
+        /// having a WorkspaceMode that just happens to never be shown.</summary>
+        [RelayCommand]
+        private void SetWorkspaceMode(WorkspaceMode mode)
+        {
+            if (ActiveDocument is { } document) document.WorkspaceMode = mode;
+        }
+
+        /// <summary>"Slice &amp; Export Frames": prompts for a destination folder and
+        /// writes one PNG per cell of the active document's Sprite Sheet grid (see
+        /// <see cref="LayersViewModel.SpriteSheetGrid"/>/<see cref="ImageExportService.ExportSpriteSheetCellsAsync"/>),
+        /// named after the active document's own tab title. A no-op if the active
+        /// document isn't a <see cref="ProjectType.SpriteSheet"/> project at all - the
+        /// Sprite Sheet panel that exposes this command already only shows for one, but
+        /// this guards it independently in case that ever changes.</summary>
+        [RelayCommand]
+        private async Task SliceSpriteSheetAsync()
+        {
+            if (IsSaving) return;
+            if (Layers.ProjectType != ProjectType.SpriteSheet) return;
+
+            var folderDialog = new OpenFolderDialog { Title = "Choose a folder for the sliced frames" };
+            if (folderDialog.ShowDialog() != true) return;
+
+            IsSaving = true;
+            SaveStatusMessage = "Slicing Sprite Sheet frames...";
+
+            try
+            {
+                var baseName = ActiveDocument?.Title ?? "frame";
+                var written = await ImageExportService.ExportSpriteSheetCellsAsync(
+                    Layers.Scene, Layers.DocumentWidth, Layers.DocumentHeight, Layers.SpriteSheetGrid,
+                    folderDialog.FolderName, baseName, ImageExportFormat.Png, 100);
+
+                SaveStatusMessage = $"✓ Exported {written.Count} frame(s)";
+                _ = ClearSaveStatusAfterDelayAsync(SaveStatusMessage);
+            }
+            catch (Exception ex)
+            {
+                SaveStatusMessage = string.Empty;
+                MessageBox.Show($"Couldn't slice the Sprite Sheet:\n{ex.Message}", "Slice Sprite Sheet", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsSaving = false;
+            }
         }
 
         /// <summary>Exports the active document's flattened composite (or a single

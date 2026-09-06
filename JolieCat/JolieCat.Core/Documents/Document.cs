@@ -1,4 +1,5 @@
 using System;
+using JolieCat.Shared.Enums;
 
 namespace JolieCat.Core.Documents
 {
@@ -22,6 +23,19 @@ namespace JolieCat.Core.Documents
         public string? FilePath { get; set; }
 
         public Scene Scene { get; }
+
+        /// <summary>Chosen once, at creation, and persisted alongside the project (see
+        /// <c>Serialization.ProjectManifest.ProjectType</c>) - see
+        /// <see cref="Shared.Enums.ProjectType"/>'s own remarks for what each mode
+        /// changes about the workspace.</summary>
+        public ProjectType ProjectType { get; set; } = ProjectType.StandardImage;
+
+        /// <summary>This project's Sprite Sheet slicing grid - present (never null) on
+        /// every document regardless of <see cref="ProjectType"/>, exactly like
+        /// <see cref="Scene"/>'s own timeline data is always present even for a project
+        /// that never uses it; only meaningful (and only ever shown/edited) when
+        /// <see cref="ProjectType"/> is <see cref="Shared.Enums.ProjectType.SpriteSheet"/>.</summary>
+        public SpriteSheetGrid SpriteSheetGrid { get; set; } = new();
 
         /// <summary>True when there are unsaved changes.</summary>
         public bool IsDirty { get; set; }

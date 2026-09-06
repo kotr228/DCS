@@ -13,6 +13,17 @@ namespace JolieCat.Core.Serialization
     {
         public string SceneName { get; set; } = string.Empty;
 
+        /// <summary><see cref="Shared.Enums.ProjectType"/>'s name, kept as a string for
+        /// the same reason as <see cref="LayerManifestEntry.Type"/>: the manifest stays
+        /// readable and doesn't hard-code the enum's underlying integer values into the
+        /// file format.</summary>
+        public string ProjectType { get; set; } = "StandardImage";
+
+        /// <summary>The Sprite Sheet slicing grid - present in every manifest
+        /// regardless of <see cref="ProjectType"/> (matching <see cref="Documents.Document.SpriteSheetGrid"/>
+        /// always being present too), only meaningful when it's "SpriteSheet".</summary>
+        public SpriteSheetGridData SpriteSheetGrid { get; set; } = new();
+
         public int DocumentWidth { get; set; }
 
         public int DocumentHeight { get; set; }
@@ -85,5 +96,24 @@ namespace JolieCat.Core.Serialization
         public double StartFrame { get; set; }
 
         public double LengthFrames { get; set; }
+    }
+
+    /// <summary>Plain-data mirror of <see cref="Documents.SpriteSheetGrid"/>'s own
+    /// settings - kept separate (rather than serializing that class directly) for the
+    /// same reason every other manifest type in this file is a plain record: so the
+    /// project file's JSON shape stays independent of that class's internal API.</summary>
+    public sealed class SpriteSheetGridData
+    {
+        public int Columns { get; set; } = 4;
+
+        public int Rows { get; set; } = 4;
+
+        public int PaddingX { get; set; }
+
+        public int PaddingY { get; set; }
+
+        public int MarginX { get; set; }
+
+        public int MarginY { get; set; }
     }
 }

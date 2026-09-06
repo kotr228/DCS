@@ -1,0 +1,72 @@
+<UserControl x:Class="JolieCat.UI.Views.Timeline.TimelineWorkspaceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:JolieCat.UI.ViewModels.Timeline"
+             xmlns:views="clr-namespace:JolieCat.UI.Views.Timeline"
+             xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:TimelineViewModel, IsDesignTimeCreatable=True}">
+
+    <UserControl.Resources>
+        <Style x:Key="TransportButtonStyle" TargetType="ButtonBase" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- Playback transport bar - the "dedicated, full-fledged workspace" chrome a
+             small bottom-docked panel never had room for: play/pause, step-by-frame,
+             jump to start/end, and the frame-rate/total-frames settings, all given
+             their own full-width row instead of squeezed next to a "+Track" button. -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource PanelAltBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="10,8">
+                <Button Content="&#x23EE;" ToolTip="Go to start" Style="{StaticResource TransportButtonStyle}"
+                        Command="{Binding GoToStartCommand}" />
+                <Button Content="&#x23EA;" ToolTip="Previous frame" Style="{StaticResource TransportButtonStyle}"
+                        Command="{Binding StepBackwardCommand}" />
+                <ToggleButton IsChecked="{Binding IsPlaying, Mode=OneWay}"
+                              Command="{Binding TogglePlaybackCommand}" ToolTip="Play/Pause">
+                    <ToggleButton.Style>
+                        <Style TargetType="ToggleButton" BasedOn="{StaticResource TransportButtonStyle}">
+                            <Setter Property="Content" Value="&#x25B6;" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                    <Setter Property="Content" Value="&#x23F8;" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ToggleButton.Style>
+                </ToggleButton>
+                <Button Content="&#x23E9;" ToolTip="Next frame" Style="{StaticResource TransportButtonStyle}"
+                        Command="{Binding StepForwardCommand}" />
+                <Button Content="&#x23ED;" ToolTip="Go to end" Style="{StaticResource TransportButtonStyle}"
+                        Command="{Binding GoToEndCommand}" />
+
+                <Border Width="1" Margin="10,2" Background="{StaticResource BorderBrush}" />
+
+                <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12">
+                    <Run Text="Frame " /><Run Text="{Binding CurrentFrame, Mode=OneWay, StringFormat={}{0:0}}" />
+                    <Run Text=" / " /><Run Text="{Binding TotalFrames, Mode=OneWay, StringFormat={}{0:0}}" />
+                </TextBlock>
+
+                <Border Width="1" Margin="10,2" Background="{StaticResource BorderBrush}" />
+
+                <controls:LabeledSlider Label="Total Frames" Minimum="1" Maximum="2000" Width="220"
+                                         Value="{Binding TotalFrames, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Frame Rate" Minimum="1" Maximum="120" Suffix=" fps" Width="200" Margin="12,0,0,0"
+                                         Value="{Binding FrameRate, Mode=TwoWay}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Reuses the same ruler + track-lane visuals as the bottom-docked panel (see
+             TimelinePanelView) - now given this workspace's own full height instead of
+             a small fixed-height strip, with the transport bar above taking the place
+             of clipping frame-by-frame navigation out of the layout entirely. -->
+        <views:TimelinePanelView />
+    </DockPanel>
+</UserControl>

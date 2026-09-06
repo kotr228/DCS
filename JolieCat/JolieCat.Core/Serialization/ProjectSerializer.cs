@@ -29,7 +29,9 @@ namespace JolieCat.Core.Serialization
             Scene scene,
             IReadOnlyList<TimelineTrackData> timelineTracks,
             double timelineTotalFrames,
-            double timelineFrameRate)
+            double timelineFrameRate,
+            ProjectType projectType = ProjectType.StandardImage,
+            Documents.SpriteSheetGrid? spriteSheetGrid = null)
         {
             ArgumentNullException.ThrowIfNull(scene);
             if (scene.Layers.Count == 0)
@@ -38,6 +40,18 @@ namespace JolieCat.Core.Serialization
             var manifest = new ProjectManifest
             {
                 SceneName = scene.Name,
+                ProjectType = projectType.ToString(),
+                SpriteSheetGrid = spriteSheetGrid is null
+                    ? new SpriteSheetGridData()
+                    : new SpriteSheetGridData
+                    {
+                        Columns = spriteSheetGrid.Columns,
+                        Rows = spriteSheetGrid.Rows,
+                        PaddingX = spriteSheetGrid.PaddingX,
+                        PaddingY = spriteSheetGrid.PaddingY,
+                        MarginX = spriteSheetGrid.MarginX,
+                        MarginY = spriteSheetGrid.MarginY,
+                    },
                 DocumentWidth = scene.Layers[0].Bitmap.Width,
                 DocumentHeight = scene.Layers[0].Bitmap.Height,
                 ActiveLayerIndex = scene.ActiveLayer is null ? -1 : IndexOf(scene, scene.ActiveLayer),
@@ -116,8 +130,10 @@ namespace JolieCat.Core.Serialization
             Scene scene,
             IReadOnlyList<TimelineTrackData> timelineTracks,
             double timelineTotalFrames,
-            double timelineFrameRate) =>
-            Task.Run(() => Save(path, scene, timelineTracks, timelineTotalFrames, timelineFrameRate));
+            double timelineFrameRate,
+            ProjectType projectType = ProjectType.StandardImage,
+            Documents.SpriteSheetGrid? spriteSheetGrid = null) =>
+            Task.Run(() => Save(path, scene, timelineTracks, timelineTotalFrames, timelineFrameRate, projectType, spriteSheetGrid));
 
         public static ProjectLoadResult Load(string path)
         {
@@ -214,7 +230,21 @@ namespace JolieCat.Core.Serialization
             if (manifest.ActiveLayerIndex >= 0 && manifest.ActiveLayerIndex < scene.Layers.Count)
                 scene.ActiveLayer = scene.Layers[manifest.ActiveLayerIndex];
 
-            return new ProjectLoadResult(scene, manifest.TimelineTracks, manifest.TimelineTotalFrames, manifest.TimelineFrameRate);
+            var projectType = Enum.TryParse<ProjectType>(manifest.ProjectType, out var parsedProjectType)
+                ? parsedProjectType
+                : ProjectType.StandardImage;
+
+            var spriteSheetGrid = new Documents.SpriteSheetGrid
+            {
+                Columns = manifest.SpriteSheetGrid.Columns,
+                Rows = manifest.SpriteSheetGrid.Rows,
+                PaddingX = manifest.SpriteSheetGrid.PaddingX,
+                PaddingY = manifest.SpriteSheetGrid.PaddingY,
+                MarginX = manifest.SpriteSheetGrid.MarginX,
+                MarginY = manifest.SpriteSheetGrid.MarginY,
+            };
+
+            return new ProjectLoadResult(scene, manifest.TimelineTracks, manifest.TimelineTotalFrames, manifest.TimelineFrameRate, projectType, spriteSheetGrid);
         }
 
         private static int IndexOf(Scene scene, Layer layer)
@@ -234,5 +264,7 @@ namespace JolieCat.Core.Serialization
         Scene Scene,
         IReadOnlyList<TimelineTrackData> TimelineTracks,
         double TimelineTotalFrames,
-        double TimelineFrameRate);
+        double TimelineFrameRate,
+        ProjectType ProjectType,
+        Documents.SpriteSheetGrid SpriteSheetGrid);
 }

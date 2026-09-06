@@ -267,6 +267,14 @@ namespace JolieCat.UI.ViewModels
         /// </summary>
         public SKPath? LiveSelectionPath { get; private set; }
 
+        /// <summary>The active document's Sprite Sheet slicing grid - non-null only for
+        /// a <see cref="Shared.Enums.ProjectType.SpriteSheet"/> project, so
+        /// <see cref="Rendering.CanvasRenderer"/>'s overlay can gate on this one
+        /// property alone rather than separately checking <see cref="Layers"/>'
+        /// <see cref="Layers.ProjectType"/> itself.</summary>
+        public Core.Documents.SpriteSheetGrid? SpriteSheetGrid =>
+            Layers.ProjectType == ProjectType.SpriteSheet ? Layers.SpriteSheetGrid : null;
+
         /// <summary>
         /// <see cref="PrimaryColor"/> converted to SkiaSharp's color type - every paint/
         /// fill/gradient operation draws with this.
@@ -804,10 +812,24 @@ namespace JolieCat.UI.ViewModels
 
         private void UpdateLiveMarqueePath(SKPoint current)
         {
-            var x = Math.Min(_marqueeStart.X, current.X);
-            var y = Math.Min(_marqueeStart.Y, current.Y);
-            var width = Math.Abs(current.X - _marqueeStart.X);
-            var height = Math.Abs(current.Y - _marqueeStart.Y);
+            var start = _marqueeStart;
+
+            // Sprite Sheet grid snapping: both the drag's start and current points snap
+            // independently to the nearest grid line, so a marquee drawn anywhere near a
+            // cell's edges lands exactly on them - the "snap selections to the grid
+            // intersections" behavior for a SpriteSheet project, gated on both the
+            // project type and the panel's own toggle (see LayersViewModel.SnapToSpriteSheetGrid).
+            if (Layers.IsSpriteSheetProject && Layers.SnapToSpriteSheetGrid)
+            {
+                var grid = Layers.SpriteSheetGrid;
+                start = grid.SnapPoint(start, Layers.DocumentWidth, Layers.DocumentHeight);
+                current = grid.SnapPoint(current, Layers.DocumentWidth, Layers.DocumentHeight);
+            }
+
+            var x = Math.Min(start.X, current.X);
+            var y = Math.Min(start.Y, current.Y);
+            var width = Math.Abs(current.X - start.X);
+            var height = Math.Abs(current.Y - start.Y);
             var rect = new SKRect(x, y, x + width, y + height);
 
             var path = new SKPath();

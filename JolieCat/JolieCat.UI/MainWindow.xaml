@@ -76,27 +76,6 @@
             </Style.Triggers>
         </Style>
 
-        <!-- Row that hosts the Bottom panel (Timeline): collapses to zero height when hidden. -->
-        <Style x:Key="BottomPanelRowStyle" TargetType="RowDefinition">
-            <Setter Property="Height" Value="260" />
-            <Setter Property="MinHeight" Value="120" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsBottomPanelVisible}" Value="False">
-                    <Setter Property="Height" Value="0" />
-                    <Setter Property="MinHeight" Value="0" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- Splitter row above the Bottom panel: collapses along with it. -->
-        <Style x:Key="BottomSplitterRowStyle" TargetType="RowDefinition">
-            <Setter Property="Height" Value="Auto" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsBottomPanelVisible}" Value="False">
-                    <Setter Property="Height" Value="0" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
 
         <!-- Shared look for the four docking zone containers. -->
         <Style x:Key="DockPanelBorderStyle" TargetType="Border">
@@ -214,8 +193,6 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" /> <!-- Top toolbar -->
             <RowDefinition Height="*" MinHeight="150" /> <!-- Left / Center / Right -->
-            <RowDefinition Style="{StaticResource BottomSplitterRowStyle}" />
-            <RowDefinition Style="{StaticResource BottomPanelRowStyle}" /> <!-- Bottom: Timeline -->
             <RowDefinition Height="Auto" /> <!-- Status bar -->
         </Grid.RowDefinitions>
 
@@ -231,11 +208,6 @@
                               Style="{StaticResource PanelToggleButtonStyle}"
                               IsChecked="{Binding IsRightPanelVisible, Mode=OneWay}"
                               Command="{Binding ToggleRightPanelCommand}" />
-                <ToggleButton Content="Timeline" Width="80" Margin="2,0"
-                              Style="{StaticResource PanelToggleButtonStyle}"
-                              IsChecked="{Binding IsBottomPanelVisible, Mode=OneWay}"
-                              Command="{Binding ToggleBottomPanelCommand}" />
-
                 <Border Width="1" Margin="8,2" Background="{StaticResource BorderBrush}" />
 
                 <Button Content="Open" Width="60" Margin="2,0" ToolTip="Open a .jolie project (Ctrl+O)"
@@ -346,8 +318,10 @@
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
                           Visibility="{Binding IsLeftPanelVisible, Converter={StaticResource BoolToVisibility}}" />
 
-            <!-- Center: document tabs (top) + Canvas (below). Each tab is its own
-                 independent Scene/layer stack/zoom-pan/history/undo-redo (see
+            <!-- Center: document tabs (top), an optional Design/Timeline workspace-mode
+                 switch (Clipbar Animation projects only), then either the plain Canvas
+                 or the dedicated Timeline workspace. Each tab is its own independent
+                 Scene/layer stack/zoom-pan/history/undo-redo/workspace-mode (see
                  DocumentViewModel) - MainViewModel.Layers/Canvas/Timeline all forward
                  to whichever DocumentViewModel is ActiveDocument, so every other
                  binding in this window (including CanvasView below) keeps working
@@ -355,7 +329,8 @@
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" /> <!-- Document tab strip -->
-                    <RowDefinition Height="*" /> <!-- Canvas -->
+                    <RowDefinition Height="Auto" /> <!-- Design/Timeline workspace switch -->
+                    <RowDefinition Height="*" /> <!-- Canvas or Timeline workspace -->
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0" Background="{StaticResource PanelAltBackgroundBrush}"
@@ -393,14 +368,39 @@
                     </DockPanel>
                 </Border>
 
+                <!-- Only a Clipbar Animation project shows this - every other project
+                     type stays exactly the plain canvas view below, uncluttered by a
+                     switch it would have no second mode to switch to. -->
+                <Border Grid.Row="1" Background="{StaticResource PanelAltBackgroundBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                        Visibility="{Binding Layers.IsClipbarAnimationProject, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel Orientation="Horizontal" Margin="8,4">
+                        <ToggleButton Content="Design" Width="70" Margin="0,0,4,0"
+                                      Style="{StaticResource PanelToggleButtonStyle}"
+                                      IsChecked="{Binding ActiveDocument.IsDesignMode, Mode=OneWay}"
+                                      Command="{Binding SetWorkspaceModeCommand}" CommandParameter="{x:Static vm:WorkspaceMode.Design}" />
+                        <ToggleButton Content="Timeline" Width="70"
+                                      Style="{StaticResource PanelToggleButtonStyle}"
+                                      IsChecked="{Binding ActiveDocument.IsTimelineMode, Mode=OneWay}"
+                                      Command="{Binding SetWorkspaceModeCommand}" CommandParameter="{x:Static vm:WorkspaceMode.Timeline}" />
+                    </StackPanel>
+                </Border>
+
                 <!-- SnapsToDevicePixels explicitly repeated here (on top of the
                      Window's own UseLayoutRounding/SnapsToDevicePixels) so this
                      Border's own background - a different color than the canvas's
                      OutsideDocumentColor - can never show through as a hairline seam
                      at the SKElement's edge from a sub-pixel layout mismatch between
-                     the two. -->
-                <Border Grid.Row="1" Style="{StaticResource DockPanelBorderStyle}" SnapsToDevicePixels="True">
+                     the two. Hidden (not just covered) while the Timeline workspace
+                     shows instead, so a hidden SKElement isn't still costing repaints. -->
+                <Border Grid.Row="2" Style="{StaticResource DockPanelBorderStyle}" SnapsToDevicePixels="True"
+                        Visibility="{Binding ActiveDocument.IsDesignMode, Converter={StaticResource BoolToVisibility}}">
                     <views:CanvasView DataContext="{Binding Canvas}" SnapsToDevicePixels="True" />
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource DockPanelBorderStyle}"
+                        Visibility="{Binding ActiveDocument.IsTimelineMode, Converter={StaticResource BoolToVisibility}}">
+                    <timeline:TimelineWorkspaceView DataContext="{Binding Timeline}" />
                 </Border>
             </Grid>
 
@@ -421,6 +421,16 @@
                         <TextBlock DockPanel.Dock="Top" Style="{StaticResource PanelHeaderStyle}">
                             <Run Text="PROPERTIES" /><Run Text=" - " /><Run Text="{Binding Toolbox.ActiveTool.DisplayName, Mode=OneWay}" />
                         </TextBlock>
+
+                        <!-- Only a SpriteSheet project shows this, above whichever
+                             tool's own options follow - the grid is a project-wide
+                             setting, not a per-tool one, so it isn't gated by which
+                             tool happens to be active. -->
+                        <Border DockPanel.Dock="Top" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                                Visibility="{Binding Layers.IsSpriteSheetProject, Converter={StaticResource BoolToVisibility}}">
+                            <views:SpriteSheetGridPanelView DataContext="{Binding Layers}" />
+                        </Border>
+
                         <ContentControl Content="{Binding Toolbox.CurrentToolOptions}" />
                     </DockPanel>
                 </Border>
@@ -533,20 +543,11 @@
             </Grid>
         </Grid>
 
-        <!-- ================= Bottom: Timeline ================= -->
-        <GridSplitter Grid.Row="2" Height="4" HorizontalAlignment="Stretch"
-                      Visibility="{Binding IsBottomPanelVisible, Converter={StaticResource BoolToVisibility}}" />
-
-        <Border Grid.Row="3" Style="{StaticResource DockPanelBorderStyle}"
-                Visibility="{Binding IsBottomPanelVisible, Converter={StaticResource BoolToVisibility}}">
-            <timeline:TimelinePanelView DataContext="{Binding Timeline}" />
-        </Border>
-
         <!-- ================= Status Bar ================= -->
         <!-- Always present (unlike the docking zones above) rather than collapsing when
              idle - a conventional status bar's own footprint stays stable regardless of
              whether it currently has anything to say. -->
-        <Border Grid.Row="4" Background="{StaticResource PanelAltBackgroundBrush}"
+        <Border Grid.Row="2" Background="{StaticResource PanelAltBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
           <Grid>
             <Grid.ColumnDefinitions>

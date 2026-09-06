@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using JolieCat.Core.Documents;
@@ -91,5 +92,101 @@ namespace JolieCat.Core.Export
         /// encodes and writes.</summary>
         public static Task ExportAsync(string path, SKBitmap bitmap, ImageExportFormat format, int quality) =>
             Task.Run(() => Export(path, bitmap, format, quality));
+
+        /// <summary>Crops a rectangular region out of <paramref name="source"/> into a
+        /// brand new, same-region-sized bitmap - a Sprite Sheet grid cell's own "export
+        /// as a separate frame" step. Draws the whole source shifted so
+        /// <paramref name="region"/>'s top-left lands at (0,0) rather than reading
+        /// pixels out of it directly, so a region that runs past the source's own edges
+        /// (an oversized last row/column from a margin/padding configuration that
+        /// doesn't divide the document evenly) is simply clipped by the destination
+        /// bitmap's own bounds instead of throwing - the same trick <c>Scene.CropLayers</c>'s
+        /// own rotate-and-crop helper already uses. Caller owns the result and must
+        /// dispose it.</summary>
+        public static SKBitmap CropRegion(SKBitmap source, SKRectI region)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            if (region.Width <= 0 || region.Height <= 0)
+                throw new ArgumentOutOfRangeException(nameof(region));
+
+            var result = new SKBitmap(region.Width, region.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using var canvas = new SKCanvas(result);
+            canvas.Clear(SKColors.Transparent);
+            canvas.DrawBitmap(source, -region.Left, -region.Top);
+            return result;
+        }
+
+        /// <summary>Slices <paramref name="scene"/>'s flattened composite into one file
+        /// per <paramref name="grid"/> cell, row-major (matching <see cref="Documents.SpriteSheetGrid.EnumerateCells"/>'s
+        /// own order) - <c>"{baseFileName}_000.png"</c>, <c>"_001"</c>, and so on -
+        /// under <paramref name="folderPath"/> (created if it doesn't already exist).
+        /// Flattens the scene once up front rather than per cell, since every cell comes
+        /// from the exact same composite. A cell whose configured rectangle has
+        /// collapsed to nothing (an odd margin/padding/column-count combination) is
+        /// skipped, not written as a zero-size file - but still counts toward each
+        /// filename's own frame index, so a later cell's number always matches its
+        /// position in the grid regardless of any earlier ones skipped this way.
+        /// Returns every file path actually written.</summary>
+        public static IReadOnlyList<string> ExportSpriteSheetCells(
+            Scene scene,
+            int documentWidth,
+            int documentHeight,
+            Documents.SpriteSheetGrid grid,
+            string folderPath,
+            string baseFileName,
+            ImageExportFormat format,
+            int quality)
+        {
+            ArgumentNullException.ThrowIfNull(scene);
+            ArgumentNullException.ThrowIfNull(grid);
+            if (string.IsNullOrWhiteSpace(folderPath)) throw new ArgumentException("Folder path cannot be empty.", nameof(folderPath));
+            if (string.IsNullOrWhiteSpace(baseFileName)) baseFileName = "frame";
+
+            Directory.CreateDirectory(folderPath);
+
+            var extension = format switch
+            {
+                ImageExportFormat.Png => "png",
+                ImageExportFormat.Jpeg => "jpg",
+                ImageExportFormat.WebP => "webp",
+                _ => "png",
+            };
+
+            using var flattened = FlattenScene(scene, documentWidth, documentHeight);
+
+            var written = new List<string>();
+            var frameIndex = 0;
+
+            foreach (var (_, _, rect) in grid.EnumerateCells(documentWidth, documentHeight))
+            {
+                var cellRegion = SKRectI.Round(rect);
+                if (cellRegion.Width > 0 && cellRegion.Height > 0)
+                {
+                    using var cell = CropRegion(flattened, cellRegion);
+                    var path = Path.Combine(folderPath, $"{baseFileName}_{frameIndex:D3}.{extension}");
+                    Export(path, cell, format, quality);
+                    written.Add(path);
+                }
+
+                frameIndex++;
+            }
+
+            return written;
+        }
+
+        /// <summary>Runs <see cref="ExportSpriteSheetCells"/> on a background thread
+        /// pool thread, so a UI-thread caller can <c>await</c> it without freezing
+        /// while every cell encodes and writes - mirrors <see cref="ExportAsync"/>'s own
+        /// reasoning.</summary>
+        public static Task<IReadOnlyList<string>> ExportSpriteSheetCellsAsync(
+            Scene scene,
+            int documentWidth,
+            int documentHeight,
+            Documents.SpriteSheetGrid grid,
+            string folderPath,
+            string baseFileName,
+            ImageExportFormat format,
+            int quality) =>
+            Task.Run(() => ExportSpriteSheetCells(scene, documentWidth, documentHeight, grid, folderPath, baseFileName, format, quality));
     }
 }

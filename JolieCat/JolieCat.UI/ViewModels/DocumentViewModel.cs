@@ -1,6 +1,7 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using JolieCat.Core.Documents;
+using JolieCat.Shared.Enums;
 using JolieCat.UI.ViewModels.Layers;
 using JolieCat.UI.ViewModels.Timeline;
 
@@ -49,15 +50,40 @@ namespace JolieCat.UI.ViewModels
         /// because of this - see its own remarks.</summary>
         public Layer? SmartObjectHostLayer { get; init; }
 
-        public DocumentViewModel(ToolboxViewModel toolbox, string title)
+        /// <summary>Mirrors <see cref="Layers"/>' own <see cref="Layers.ProjectType"/> -
+        /// see <see cref="Shared.Enums.ProjectType"/>'s own remarks for what each mode
+        /// changes about the workspace.</summary>
+        public ProjectType ProjectType => Layers.ProjectType;
+
+        /// <summary>Which content the center workspace area shows for this tab - see
+        /// <see cref="ViewModels.WorkspaceMode"/>'s own remarks. Defaults to
+        /// <see cref="WorkspaceMode.Timeline"/> for a <see cref="Shared.Enums.ProjectType.ClipbarAnimation"/>
+        /// project (see the constructor) so it always opens straight into the
+        /// dedicated Timeline workspace rather than requiring an extra click every
+        /// time - every other project type defaults to (and, since MainWindow.xaml
+        /// only ever shows the Design/Timeline switch for a Clipbar Animation project
+        /// at all, effectively stays at) <see cref="WorkspaceMode.Design"/>.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsDesignMode))]
+        [NotifyPropertyChangedFor(nameof(IsTimelineMode))]
+        private WorkspaceMode workspaceMode = WorkspaceMode.Design;
+
+        public bool IsDesignMode => WorkspaceMode == WorkspaceMode.Design;
+
+        public bool IsTimelineMode => WorkspaceMode == WorkspaceMode.Timeline;
+
+        public DocumentViewModel(ToolboxViewModel toolbox, string title, ProjectType projectType = ProjectType.StandardImage)
         {
             ArgumentNullException.ThrowIfNull(toolbox);
             if (string.IsNullOrWhiteSpace(title)) throw new ArgumentException("Document title cannot be empty.", nameof(title));
 
             this.title = title;
-            Layers = new LayersViewModel();
+            Layers = new LayersViewModel(projectType);
             Canvas = new CanvasViewModel(toolbox, Layers);
             Timeline = new TimelineViewModel();
+
+            if (projectType == ProjectType.ClipbarAnimation)
+                workspaceMode = WorkspaceMode.Timeline;
         }
 
         /// <summary>Disposes <see cref="Canvas"/> (which unsubscribes from the shared,
@@ -71,13 +97,16 @@ namespace JolieCat.UI.ViewModels
         /// layer keeps for its own whole lifetime (so a later "Edit Contents" session
         /// can reopen and keep editing it), so disposing it here - the one place a
         /// Scene's bitmaps are ever freed - would leave that Smart Object permanently
-        /// broken the moment this one editing tab happened to close. <see cref="Timeline"/>
-        /// holds no unmanaged resources or external subscriptions of its own.</summary>
+        /// broken the moment this one editing tab happened to close. Also disposes
+        /// <see cref="Timeline"/>, which stops its own playback timer - left running,
+        /// it would keep ticking (and advancing a now-orphaned <see cref="TimelineViewModel.CurrentFrame"/>)
+        /// forever even after this document is gone.</summary>
         public void Dispose()
         {
             if (_disposed) return;
 
             Canvas.Dispose();
+            Timeline.Dispose();
             if (SmartObjectHostLayer is null)
                 Layers.Dispose();
             _disposed = true;
