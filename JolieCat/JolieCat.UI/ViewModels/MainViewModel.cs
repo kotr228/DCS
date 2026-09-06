@@ -1,10 +1,13 @@
 using System;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using JolieCat.Core.Clipboard;
+using JolieCat.Core.Documents;
 using JolieCat.Core.Export;
 using JolieCat.Core.Serialization;
 using JolieCat.Core.Tools;
@@ -18,12 +21,22 @@ namespace JolieCat.UI.ViewModels
 {
     /// <summary>
     /// View model for <see cref="MainWindow"/>: owns the visibility of the four docking
-    /// zones (Left/Right/Bottom) around the central canvas, and composes the panels'
-    /// own view models (toolbox, layers, canvas, timeline) rather than flattening their
-    /// state in here as the editor grows more panels. Also owns the two things that cut
-    /// across every panel: undo/redo (delegating to <see cref="LayersViewModel.History"/>,
-    /// the document's single shared history) and whole-project Save/Open.
+    /// zones (Left/Right/Bottom) around the central canvas, the open document tabs (see
+    /// <see cref="DocumentViewModel"/>) and which one is active, and composes the
+    /// panels' own view models. Also owns the things that cut across every panel and
+    /// every document alike: the shared tool palette (<see cref="Toolbox"/>), undo/redo/
+    /// copy/paste (each acting on whichever document is currently active), and
+    /// whole-project Save/Open/Import/Export.
     /// </summary>
+    /// <remarks>
+    /// <see cref="Layers"/>/<see cref="Canvas"/>/<see cref="Timeline"/> are kept as
+    /// forwarding properties resolving to <see cref="ActiveDocument"/>'s own instances,
+    /// rather than every other view in this app (MainWindow.xaml, CanvasView.xaml, the
+    /// Timeline/Properties views) being rewritten to bind through an extra
+    /// "ActiveDocument." prefix - a well-established WPF "current item" facade pattern
+    /// that keeps every existing binding path working unchanged as tabs are added,
+    /// closed, and switched between.
+    /// </remarks>
     public partial class MainViewModel : ObservableObject
     {
         /// <summary>The exact text the status bar shows once a save completes - a
@@ -58,17 +71,19 @@ namespace JolieCat.UI.ViewModels
         /// full-workspace overlay (see MainWindow.xaml) that blocks further edits while
         /// <see cref="ProjectSerializer.SaveAsync"/> is writing the file, distinct from
         /// <see cref="SaveStatusMessage"/>, which keeps showing "saved successfully" for
-        /// a little while after this already flips back to false. Also gates Undo/Redo's
-        /// own CanExecute (see below): the overlay only blocks mouse input, but Undo and
-        /// Redo can each mutate or entirely replace a layer's SKBitmap synchronously on
-        /// the UI thread, while SaveAsync is concurrently reading that same layer's
+        /// a little while after this already flips back to false. Also gates Undo/Redo/
+        /// Paste's own CanExecute (see below): the overlay only blocks mouse input, but
+        /// each of these can mutate or entirely replace a layer's SKBitmap synchronously
+        /// on the UI thread, while SaveAsync is concurrently reading that same layer's
         /// pixels on a background thread - a real race, not just an unwanted concurrent
-        /// edit, so these two specifically need to be genuinely disabled (not merely
-        /// blocked by the overlay) rather than just re-guarded like SaveProjectAsync/
-        /// OpenProject/ImportImage's own early-return checks.</summary>
+        /// edit, so these specifically need to be genuinely disabled (not merely blocked
+        /// by the overlay) rather than just re-guarded like SaveProjectAsync/OpenProject/
+        /// ImportImage's own early-return checks.</summary>
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
         [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CopySelectionCommand))]
+        [NotifyCanExecuteChangedFor(nameof(PasteCommand))]
         private bool isSaving;
 
         /// <summary>The bottom status bar's text: "Saving project..." while a save is
@@ -83,35 +98,64 @@ namespace JolieCat.UI.ViewModels
         /// mismatch appears, instead of inferred from a screenshot. Every layer is
         /// always exactly the document's size and drawn from (0,0) - there is no
         /// per-layer offset anywhere in this codebase - so this always shows "@
-        /// (0,0)" for that reason, not as a placeholder. Recomputed on every
-        /// <see cref="LayersViewModel.InvalidateRequested"/> (structural changes,
-        /// undo/redo, opening a project, importing an image - anything that could
-        /// change either size), which is the same event the canvas repaint itself
-        /// already relies on for "did anything worth redrawing just happen".</summary>
+        /// (0,0)" for that reason, not as a placeholder. Recomputed on every relevant
+        /// change of whichever document is currently active (see <see cref="RegisterDocument"/>
+        /// and <see cref="OnActiveDocumentChanged"/>).</summary>
         [ObservableProperty]
         private string dimensionDebugText = string.Empty;
 
+        /// <summary>Every open document/tab.</summary>
+        public ObservableCollection<DocumentViewModel> Documents { get; } = new();
+
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(Layers))]
+        [NotifyPropertyChangedFor(nameof(Canvas))]
+        [NotifyPropertyChangedFor(nameof(Timeline))]
+        [NotifyCanExecuteChangedFor(nameof(UndoCommand))]
+        [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
+        [NotifyCanExecuteChangedFor(nameof(CopySelectionCommand))]
+        [NotifyCanExecuteChangedFor(nameof(PasteCommand))]
+        private DocumentViewModel activeDocument;
+
+        /// <summary>The active tool and its options - shared by every document tab
+        /// rather than duplicated per document (see <see cref="DocumentViewModel"/>'s
+        /// own remarks for why).</summary>
         public ToolboxViewModel Toolbox { get; }
 
-        public LayersViewModel Layers { get; }
+        /// <summary>Forwards to <see cref="ActiveDocument"/>'s own <see cref="DocumentViewModel.Layers"/> -
+        /// see this class's remarks for why every existing binding/call site can keep
+        /// reading this property unchanged as the active document changes.</summary>
+        public LayersViewModel Layers => ActiveDocument.Layers;
 
-        public CanvasViewModel Canvas { get; }
+        public CanvasViewModel Canvas => ActiveDocument.Canvas;
 
-        public TimelineViewModel Timeline { get; }
+        public TimelineViewModel Timeline => ActiveDocument.Timeline;
 
         public MainViewModel()
         {
             Toolbox = new ToolboxViewModel();
-            Layers = new LayersViewModel();
-            Canvas = new CanvasViewModel(Toolbox, Layers);
-            Timeline = new TimelineViewModel();
 
-            // Undo/Redo's enabled state (bound from MainWindow's Edit menu/toolbar, if
-            // any, and implicitly from the Ctrl+Z/Ctrl+Y key bindings' own CanExecute
-            // gate) needs to track the shared history regardless of which panel actually
-            // pushed the command that changed it.
-            Layers.History.Changed += (_, _) =>
+            var firstDocument = new DocumentViewModel(Toolbox, "Untitled 1");
+            RegisterDocument(firstDocument);
+            Documents.Add(firstDocument);
+            activeDocument = firstDocument;
+
+            UpdateDimensionDebugText();
+        }
+
+        /// <summary>Wires up the per-document event subscriptions that keep the shared
+        /// Undo/Redo state and the status bar's dimension readout live - once per
+        /// document, for its whole lifetime, rather than unsubscribing/resubscribing on
+        /// every tab switch. Each handler gates on whether <paramref name="document"/>
+        /// is still the active one before touching any shared UI state, so a background
+        /// tab's own edits (there aren't any right now - nothing runs on an inactive
+        /// tab - but this keeps the guard correct if that ever changes) can never
+        /// clobber what the active tab is showing.</summary>
+        private void RegisterDocument(DocumentViewModel document)
+        {
+            document.Layers.History.Changed += (_, _) =>
             {
+                if (!ReferenceEquals(document, ActiveDocument)) return;
                 UndoCommand.NotifyCanExecuteChanged();
                 RedoCommand.NotifyCanExecuteChanged();
             };
@@ -122,11 +166,27 @@ namespace JolieCat.UI.ViewModels
             // the Layers panel active, which changes ActiveLayer without itself
             // requesting a repaint - otherwise the readout would keep showing the
             // previously active layer's name until something else invalidated.
-            Layers.InvalidateRequested += (_, _) => UpdateDimensionDebugText();
-            Layers.PropertyChanged += (_, e) =>
+            document.Layers.InvalidateRequested += (_, _) =>
             {
-                if (e.PropertyName == nameof(LayersViewModel.ActiveLayer)) UpdateDimensionDebugText();
+                if (ReferenceEquals(document, ActiveDocument)) UpdateDimensionDebugText();
             };
+            document.Layers.PropertyChanged += (_, e) =>
+            {
+                if (ReferenceEquals(document, ActiveDocument) && e.PropertyName == nameof(LayersViewModel.ActiveLayer))
+                    UpdateDimensionDebugText();
+            };
+        }
+
+        /// <summary>Refreshes every piece of shared UI state that depends on which
+        /// document is active - the status bar's dimension readout, and Undo/Redo/Copy/
+        /// Paste's enabled state (each of which reads <see cref="Layers"/>, which just
+        /// changed identity).</summary>
+        partial void OnActiveDocumentChanged(DocumentViewModel value)
+        {
+            UndoCommand.NotifyCanExecuteChanged();
+            RedoCommand.NotifyCanExecuteChanged();
+            CopySelectionCommand.NotifyCanExecuteChanged();
+            PasteCommand.NotifyCanExecuteChanged();
             UpdateDimensionDebugText();
         }
 
@@ -159,6 +219,46 @@ namespace JolieCat.UI.ViewModels
         [RelayCommand]
         private void SelectTool(ToolDefinition? tool) => Toolbox.SelectToolCommand.Execute(tool);
 
+        /// <summary>Opens a brand new, empty document as its own tab and makes it
+        /// active - the tab strip's "+"/File-New action.</summary>
+        [RelayCommand]
+        private void NewDocument()
+        {
+            var document = new DocumentViewModel(Toolbox, $"Untitled {Documents.Count + 1}");
+            RegisterDocument(document);
+            Documents.Add(document);
+            ActiveDocument = document;
+        }
+
+        /// <summary>Closes a document tab - <paramref name="document"/> defaults to
+        /// whichever is active when invoked from a keyboard shortcut rather than a
+        /// specific tab's own close button. Always leaves at least one tab open: closing
+        /// the last one opens a fresh blank document in its place instead, exactly like
+        /// <see cref="NewDocument"/>, rather than leaving the workspace with nothing
+        /// open (which nothing else in this app is set up to handle - every panel here
+        /// assumes an active document always exists).</summary>
+        [RelayCommand]
+        private void CloseDocument(DocumentViewModel? document)
+        {
+            document ??= ActiveDocument;
+            var index = Documents.IndexOf(document);
+            if (index < 0) return;
+
+            Documents.RemoveAt(index);
+
+            if (Documents.Count == 0)
+            {
+                var replacement = new DocumentViewModel(Toolbox, "Untitled 1");
+                RegisterDocument(replacement);
+                Documents.Add(replacement);
+            }
+
+            if (ReferenceEquals(ActiveDocument, document))
+                ActiveDocument = Documents[Math.Min(index, Documents.Count - 1)];
+
+            document.Dispose();
+        }
+
         [RelayCommand(CanExecute = nameof(CanUndo))]
         private void Undo() => Layers.History.Undo();
 
@@ -169,7 +269,66 @@ namespace JolieCat.UI.ViewModels
 
         private bool CanRedo() => Layers.History.CanRedo && !IsSaving;
 
-        /// <summary>Prompts for a destination and writes the whole open project - every
+        /// <summary>Copies the active layer's pixels within the current selection (the
+        /// whole layer, if nothing is selected - matching every other paint operation's
+        /// own "no selection means everywhere is fair game" convention, see
+        /// <see cref="Selection.Contains"/>) into <see cref="PixelClipboard"/>, cropped
+        /// to the selection's bounding box and clipped to its actual shape (not just
+        /// that bounding rectangle) so a non-rectangular selection - an ellipse, a
+        /// lasso - doesn't bring its corners along transparently.</summary>
+        [RelayCommand(CanExecute = nameof(CanCopySelection))]
+        private void CopySelection()
+        {
+            var activeLayer = Layers.ActiveLayer?.Model;
+            if (activeLayer is null) return;
+
+            var selection = Layers.Scene.Selection;
+            var layerBounds = new SKRectI(0, 0, activeLayer.Bitmap.Width, activeLayer.Bitmap.Height);
+            var bounds = selection.HasSelection && selection.Region is { } region
+                ? SKRectI.Intersect(region.Bounds, layerBounds)
+                : layerBounds;
+            if (bounds.IsEmpty) return;
+
+            var copy = new SKBitmap(bounds.Width, bounds.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using (var canvas = new SKCanvas(copy))
+            {
+                canvas.Clear(SKColors.Transparent);
+
+                if (selection.HasSelection && selection.Path is { } path)
+                {
+                    using var translated = new SKPath(path);
+                    translated.Transform(SKMatrix.CreateTranslation(-bounds.Left, -bounds.Top));
+                    canvas.ClipPath(translated, antialias: true);
+                }
+
+                canvas.DrawBitmap(activeLayer.Bitmap, -bounds.Left, -bounds.Top);
+            }
+
+            PixelClipboard.SetContent(copy);
+            PasteCommand.NotifyCanExecuteChanged();
+        }
+
+        private bool CanCopySelection() => !IsSaving && Layers.ActiveLayer is not null;
+
+        /// <summary>Pastes <see cref="PixelClipboard"/>'s content as a new topmost layer
+        /// (see <see cref="LayersViewModel.PasteAsNewLayer"/>) into whichever document
+        /// is currently active - including a different one than it was copied from -
+        /// centered on the document rather than requiring a remembered cursor position,
+        /// so a paste always lands somewhere visible regardless of the current pan/zoom
+        /// or which document it's landing in.</summary>
+        [RelayCommand(CanExecute = nameof(CanPaste))]
+        private void Paste()
+        {
+            if (PixelClipboard.Content is not { } clip) return;
+
+            var x = (Layers.DocumentWidth - clip.Width) / 2;
+            var y = (Layers.DocumentHeight - clip.Height) / 2;
+            Layers.PasteAsNewLayer(clip, x, y);
+        }
+
+        private bool CanPaste() => !IsSaving && PixelClipboard.HasContent;
+
+        /// <summary>Prompts for a destination and writes the active document - every
         /// layer's pixels and metadata, plus the timeline's tracks/clips/keyframes - as a
         /// single <c>.jolie</c> file (see <see cref="ProjectSerializer.SaveAsync"/>).
         /// <see cref="IsSaving"/> is true for exactly the write's duration - MainWindow's
@@ -188,11 +347,12 @@ namespace JolieCat.UI.ViewModels
             // which input triggered it.
             if (IsSaving) return;
 
+            var activeDocument = ActiveDocument;
             var dialog = new SaveFileDialog
             {
                 Filter = "JolieCat Project (*.jolie)|*.jolie",
                 DefaultExt = ".jolie",
-                FileName = "Untitled.jolie",
+                FileName = $"{activeDocument.Title}.jolie",
             };
             if (dialog.ShowDialog() != true) return;
 
@@ -201,7 +361,10 @@ namespace JolieCat.UI.ViewModels
 
             try
             {
-                await ProjectSerializer.SaveAsync(dialog.FileName, Layers.Scene, BuildTimelineData(), Timeline.TotalFrames, Timeline.FrameRate);
+                await ProjectSerializer.SaveAsync(dialog.FileName, activeDocument.Layers.Scene, BuildTimelineData(activeDocument), activeDocument.Timeline.TotalFrames, activeDocument.Timeline.FrameRate);
+
+                activeDocument.Title = Path.GetFileNameWithoutExtension(dialog.FileName);
+                activeDocument.FilePath = dialog.FileName;
 
                 SaveStatusMessage = SaveSuccessMessage;
                 _ = ClearSaveStatusAfterDelayAsync(SaveSuccessMessage);
@@ -237,15 +400,16 @@ namespace JolieCat.UI.ViewModels
                 SaveStatusMessage = string.Empty;
         }
 
-        /// <summary>Prompts for a <c>.jolie</c> file and replaces the open document (layers
-        /// and timeline alike) with what it contains (see <see cref="ProjectSerializer.Load"/>).</summary>
+        /// <summary>Prompts for a <c>.jolie</c> file and opens it as a brand new tab -
+        /// rather than replacing the active document's content - so multiple projects
+        /// can stay open simultaneously (see <see cref="DocumentViewModel"/>).</summary>
         [RelayCommand]
         private void OpenProject()
         {
             // Same reasoning as SaveProjectAsync's own guard: a keyboard shortcut isn't
             // stopped by the mouse-blocking saving overlay, so this needs to check for
-            // itself that a save isn't still in flight before replacing the document
-            // out from under it.
+            // itself that a save isn't still in flight before adding a document while
+            // one might still be mid-write.
             if (IsSaving) return;
 
             var dialog = new OpenFileDialog { Filter = "JolieCat Project (*.jolie)|*.jolie" };
@@ -254,8 +418,15 @@ namespace JolieCat.UI.ViewModels
             try
             {
                 var result = ProjectSerializer.Load(dialog.FileName);
-                Layers.LoadScene(result.Scene, Path.GetFileNameWithoutExtension(dialog.FileName));
-                Timeline.LoadTracks(result.TimelineTracks, result.TimelineTotalFrames, result.TimelineFrameRate);
+                var name = Path.GetFileNameWithoutExtension(dialog.FileName);
+
+                var document = new DocumentViewModel(Toolbox, name) { FilePath = dialog.FileName };
+                RegisterDocument(document);
+                document.Layers.LoadScene(result.Scene, name);
+                document.Timeline.LoadTracks(result.TimelineTracks, result.TimelineTotalFrames, result.TimelineFrameRate);
+
+                Documents.Add(document);
+                ActiveDocument = document;
                 Canvas.ResetView();
             }
             catch (Exception ex)
@@ -265,9 +436,10 @@ namespace JolieCat.UI.ViewModels
         }
 
         /// <summary>Prompts for one or more image files (PNG/JPG/JPEG/BMP/WEBP) and
-        /// imports each as its own new layer - the file-dialog counterpart to dropping
-        /// images directly onto the canvas (see <see cref="CanvasViewModel.ImportImageFiles"/>,
-        /// which both paths funnel through).</summary>
+        /// imports each as its own new layer into the active document - the file-dialog
+        /// counterpart to dropping images directly onto the canvas (see
+        /// <see cref="CanvasViewModel.ImportImageFiles"/>, which both paths funnel
+        /// through).</summary>
         [RelayCommand]
         private void ImportImage()
         {
@@ -283,16 +455,16 @@ namespace JolieCat.UI.ViewModels
             Canvas.ImportImageFiles(dialog.FileNames);
         }
 
-        /// <summary>Exports the flattened composite (or a single selected layer - see
-        /// <see cref="ExportOptionsViewModel"/>) to a PNG/JPEG/WebP file at the exact
-        /// document (or layer) pixel dimensions - no checkerboard, no selection overlay,
-        /// no pan/zoom transform, so there is no top-edge clipping or coordinate offset
-        /// for those to introduce (see <see cref="ImageExportService"/>). Flattening
-        /// happens synchronously (it reads the live scene, so it can't safely run on a
-        /// background thread while something else might mutate it), then the encode and
-        /// file write - the actually slow part for a large image - run on a background
-        /// thread via <see cref="ImageExportService.ExportAsync"/>, exactly like
-        /// <see cref="SaveProjectAsync"/>'s own write.</summary>
+        /// <summary>Exports the active document's flattened composite (or a single
+        /// selected layer - see <see cref="ExportOptionsViewModel"/>) to a PNG/JPEG/WebP
+        /// file at the exact document (or layer) pixel dimensions - no checkerboard, no
+        /// selection overlay, no pan/zoom transform, so there is no top-edge clipping or
+        /// coordinate offset for those to introduce (see <see cref="ImageExportService"/>).
+        /// Flattening happens synchronously (it reads the live scene, so it can't safely
+        /// run on a background thread while something else might mutate it), then the
+        /// encode and file write - the actually slow part for a large image - run on a
+        /// background thread via <see cref="ImageExportService.ExportAsync"/>, exactly
+        /// like <see cref="SaveProjectAsync"/>'s own write.</summary>
         [RelayCommand]
         private async Task ExportImageAsync()
         {
@@ -343,11 +515,11 @@ namespace JolieCat.UI.ViewModels
             }
         }
 
-        /// <summary>Maps the Timeline panel's view models to the plain, UI-agnostic data
-        /// <see cref="ProjectSerializer"/> actually writes - this mapping (not the Core
-        /// serializer) is what keeps <c>JolieCat.Core</c> from needing to reference
-        /// <c>JolieCat.UI</c>'s timeline view models at all.</summary>
-        private TimelineTrackData[] BuildTimelineData() => Timeline.Tracks.Select(track => new TimelineTrackData
+        /// <summary>Maps a document's Timeline panel view models to the plain,
+        /// UI-agnostic data <see cref="ProjectSerializer"/> actually writes - this
+        /// mapping (not the Core serializer) is what keeps <c>JolieCat.Core</c> from
+        /// needing to reference <c>JolieCat.UI</c>'s timeline view models at all.</summary>
+        private static TimelineTrackData[] BuildTimelineData(DocumentViewModel document) => document.Timeline.Tracks.Select(track => new TimelineTrackData
         {
             Name = track.Name,
             Clips = track.Clips.Select(clip => new TimelineClipData

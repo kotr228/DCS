@@ -16,8 +16,11 @@ namespace JolieCat.UI.ViewModels.Layers
     /// standard layer operations (add/delete/reorder/merge down). <see cref="Rendering.CanvasRenderer"/>
     /// reads <see cref="Scene"/> directly to composite every visible layer back-to-front.
     /// </summary>
-    public partial class LayersViewModel : ObservableObject
+    public partial class LayersViewModel : ObservableObject, IDisposable
     {
+        private bool _disposed;
+
+
         /// <summary>Starting canvas size for a brand new document - only used before the
         /// first layer exists (after that, <see cref="DocumentWidth"/>/<see cref="DocumentHeight"/>
         /// are read from it directly, so they can never drift out of sync with the
@@ -198,6 +201,23 @@ namespace JolieCat.UI.ViewModels.Layers
             });
         }
 
+        /// <summary>Pastes <paramref name="content"/> (see <see cref="Core.Clipboard.PixelClipboard"/>)
+        /// as a new topmost layer, drawn at (<paramref name="x"/>, <paramref name="y"/>) -
+        /// not merged onto the active layer, so a paste can never overwrite existing
+        /// content and is always its own undo/redo entry, exactly like
+        /// <see cref="ImportImage"/>.</summary>
+        public void PasteAsNewLayer(SKBitmap content, int x, int y)
+        {
+            ArgumentNullException.ThrowIfNull(content);
+
+            ExecuteStructuralChange(() =>
+            {
+                var layer = Scene.AddLayer($"Pasted {Scene.Layers.Count}", DocumentWidth, DocumentHeight);
+                layer.Canvas.DrawBitmap(content, x, y);
+                Scene.ActiveLayer = layer;
+            });
+        }
+
         /// <summary>Blits <paramref name="bitmap"/> into <paramref name="layer"/>'s
         /// buffer, always anchored at (0,0) - directly, if it's already exactly the
         /// layer's size (the common case once <see cref="ImportImage"/> has resized the
@@ -327,5 +347,17 @@ namespace JolieCat.UI.ViewModels.Layers
         private void OnLayerVisualStateChanged(object? sender, EventArgs e) => RaiseInvalidate();
 
         private void RaiseInvalidate() => InvalidateRequested?.Invoke(this, EventArgs.Empty);
+
+        /// <summary>Disposes <see cref="Scene"/> - and so every layer's (and mask's)
+        /// unmanaged <see cref="SKBitmap"/>s - needed now that closing a document tab
+        /// (see <c>MainViewModel.CloseDocument</c>) is a real, reachable action rather
+        /// than something that only ever happened at process exit.</summary>
+        public void Dispose()
+        {
+            if (_disposed) return;
+
+            Scene.Dispose();
+            _disposed = true;
+        }
     }
 }

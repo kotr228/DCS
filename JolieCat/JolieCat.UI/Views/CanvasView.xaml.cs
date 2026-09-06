@@ -52,6 +52,15 @@ namespace JolieCat.UI.Views
                 newViewModel.InvalidateRequested += OnInvalidateRequested;
                 newViewModel.PropertyChanged += OnViewModelPropertyChanged;
             }
+
+            // Forces an immediate repaint against whichever CanvasViewModel just
+            // became current - needed now that this same CanvasView is reused across
+            // document tabs (MainWindow's DataContext="{Binding Canvas}" just points
+            // at a different DocumentViewModel's own CanvasViewModel on a tab switch).
+            // Without this, switching tabs would keep showing the previous document's
+            // last-rendered frame until something unrelated happened to trigger a
+            // repaint (a paint stroke, a zoom) on the newly active one.
+            Surface.InvalidateVisual();
         }
 
         private void OnInvalidateRequested(object? sender, EventArgs e) => Surface.InvalidateVisual();

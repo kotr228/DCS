@@ -18,8 +18,17 @@
     <Window.InputBindings>
         <KeyBinding Key="Z" Modifiers="Control" Command="{Binding UndoCommand}" />
         <KeyBinding Key="Y" Modifiers="Control" Command="{Binding RedoCommand}" />
+        <!-- Ctrl+Shift+Z: the alternate Redo gesture some editors use instead of/
+             alongside Ctrl+Y - both do the same thing here. -->
+        <KeyBinding Key="Z" Modifiers="Control+Shift" Command="{Binding RedoCommand}" />
+        <KeyBinding Key="C" Modifiers="Control" Command="{Binding CopySelectionCommand}" />
+        <KeyBinding Key="V" Modifiers="Control" Command="{Binding PasteCommand}" />
         <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveProjectCommand}" />
         <KeyBinding Key="O" Modifiers="Control" Command="{Binding OpenProjectCommand}" />
+        <!-- New/close document tab - natural companions to Ctrl+S/Ctrl+O above now
+             that more than one project can be open at once (see DocumentViewModel). -->
+        <KeyBinding Key="N" Modifiers="Control" Command="{Binding NewDocumentCommand}" />
+        <KeyBinding Key="W" Modifiers="Control" Command="{Binding CloseDocumentCommand}" />
     </Window.InputBindings>
 
     <Window.Resources>
@@ -307,15 +316,63 @@
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
                           Visibility="{Binding IsLeftPanelVisible, Converter={StaticResource BoolToVisibility}}" />
 
-            <!-- Center: Canvas (software-rendered Skia surface - see CanvasView.xaml.cs).
-                 SnapsToDevicePixels explicitly repeated here (on top of the Window's own
-                 UseLayoutRounding/SnapsToDevicePixels) so this Border's own background -
-                 a different color than the canvas's OutsideDocumentColor - can never show
-                 through as a hairline seam at the SKElement's edge from a sub-pixel
-                 layout mismatch between the two. -->
-            <Border Grid.Column="2" Style="{StaticResource DockPanelBorderStyle}" SnapsToDevicePixels="True">
-                <views:CanvasView DataContext="{Binding Canvas}" SnapsToDevicePixels="True" />
-            </Border>
+            <!-- Center: document tabs (top) + Canvas (below). Each tab is its own
+                 independent Scene/layer stack/zoom-pan/history/undo-redo (see
+                 DocumentViewModel) - MainViewModel.Layers/Canvas/Timeline all forward
+                 to whichever DocumentViewModel is ActiveDocument, so every other
+                 binding in this window (including CanvasView below) keeps working
+                 unchanged as tabs are added, closed, and switched between. -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" /> <!-- Document tab strip -->
+                    <RowDefinition Height="*" /> <!-- Canvas -->
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Background="{StaticResource PanelAltBackgroundBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="+" Width="28" Margin="4,2"
+                                ToolTip="New document (Ctrl+N)" Command="{Binding NewDocumentCommand}" />
+
+                        <!-- SelectedItem drives ActiveDocument directly - switching tabs
+                             is just changing which DocumentViewModel is selected here,
+                             no extra plumbing needed. -->
+                        <ListBox ItemsSource="{Binding Documents}" SelectedItem="{Binding ActiveDocument, Mode=TwoWay}"
+                                 Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                 ItemContainerStyle="{StaticResource ToolListBoxItemStyle}">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal" />
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Margin="10,6">
+                                        <TextBlock Text="{Binding Title}" FontSize="11" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                        <Button Content="&#x2715;" Width="16" Height="16" Margin="8,0,0,0" Padding="0"
+                                                FontSize="9" ToolTip="Close tab (Ctrl+W)"
+                                                Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.CloseDocumentCommand}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+                </Border>
+
+                <!-- SnapsToDevicePixels explicitly repeated here (on top of the
+                     Window's own UseLayoutRounding/SnapsToDevicePixels) so this
+                     Border's own background - a different color than the canvas's
+                     OutsideDocumentColor - can never show through as a hairline seam
+                     at the SKElement's edge from a sub-pixel layout mismatch between
+                     the two. -->
+                <Border Grid.Row="1" Style="{StaticResource DockPanelBorderStyle}" SnapsToDevicePixels="True">
+                    <views:CanvasView DataContext="{Binding Canvas}" SnapsToDevicePixels="True" />
+                </Border>
+            </Grid>
 
             <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch"
                           Visibility="{Binding IsRightPanelVisible, Converter={StaticResource BoolToVisibility}}" />

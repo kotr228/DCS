@@ -22,7 +22,7 @@ namespace JolieCat.Core.Documents
     /// second <c>IScene</c>/<c>IDocument</c> implementation (e.g. a serialized-project
     /// loader) is still free to reintroduce that layer of indirection when it exists.
     /// </remarks>
-    public sealed class Scene
+    public sealed class Scene : IDisposable
     {
         private readonly List<Layer> _layers = new();
 
@@ -230,6 +230,19 @@ namespace JolieCat.Core.Documents
             ActiveLayer = activeIndex >= 0 && activeIndex < _layers.Count
                 ? _layers[activeIndex]
                 : _layers.Count > 0 ? _layers[^1] : null;
+        }
+
+        /// <summary>Disposes every layer (and its mask, if any) - each one's
+        /// <see cref="SKBitmap"/>s are unmanaged native memory that needs an explicit
+        /// release rather than waiting on the GC. Needed now that a document (and so
+        /// its Scene) can actually be closed mid-session - see
+        /// <c>JolieCat.UI.ViewModels.DocumentViewModel</c> - rather than only ever
+        /// going away at process exit.</summary>
+        public void Dispose()
+        {
+            foreach (var layer in _layers)
+                layer.Dispose();
+            _layers.Clear();
         }
     }
 }
