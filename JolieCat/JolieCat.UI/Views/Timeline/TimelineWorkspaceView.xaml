@@ -10,10 +10,34 @@
              d:DataContext="{d:DesignInstance Type=vm:TimelineViewModel, IsDesignTimeCreatable=True}">
 
     <UserControl.Resources>
-        <Style x:Key="TransportButtonStyle" TargetType="ButtonBase" BasedOn="{StaticResource {x:Type Button}}">
+        <!-- TargetType must match BasedOn's own TargetType exactly (or be a subtype of
+             it) - Button and ToggleButton are siblings (both derive from ButtonBase,
+             neither from the other), so a shared ButtonBase-targeted style can't be
+             BasedOn either one's own implicit/named style without WPF rejecting the
+             mismatch at load time. Two small sibling styles instead, each correctly
+             BasedOn its own control's real chrome (App.xaml's implicit Button style /
+             PanelToggleButtonStyle), both just layering the same Width/FontSize/Margin
+             sizing on top. -->
+        <Style x:Key="TransportButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Width" Value="34" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Margin" Value="0,0,4,0" />
+        </Style>
+
+        <!-- The Play/Pause transport control's own style: same sizing as
+             TransportButtonStyle, plus the play/pause glyph swap (previously an inline
+             ToggleButton.StyleBasedOn the Button-only style above, which hit the exact
+             same TargetType mismatch this style now avoids). -->
+        <Style x:Key="TransportToggleButtonStyle" TargetType="ToggleButton" BasedOn="{StaticResource PanelToggleButtonStyle}">
+            <Setter Property="Width" Value="34" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Content" Value="&#x25B6;" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                    <Setter Property="Content" Value="&#x23F8;" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </UserControl.Resources>
 
@@ -29,19 +53,9 @@
                         Command="{Binding GoToStartCommand}" />
                 <Button Content="&#x23EA;" ToolTip="Previous frame" Style="{StaticResource TransportButtonStyle}"
                         Command="{Binding StepBackwardCommand}" />
-                <ToggleButton IsChecked="{Binding IsPlaying, Mode=OneWay}"
-                              Command="{Binding TogglePlaybackCommand}" ToolTip="Play/Pause">
-                    <ToggleButton.Style>
-                        <Style TargetType="ToggleButton" BasedOn="{StaticResource TransportButtonStyle}">
-                            <Setter Property="Content" Value="&#x25B6;" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsPlaying}" Value="True">
-                                    <Setter Property="Content" Value="&#x23F8;" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ToggleButton.Style>
-                </ToggleButton>
+                <ToggleButton Style="{StaticResource TransportToggleButtonStyle}"
+                              IsChecked="{Binding IsPlaying, Mode=OneWay}"
+                              Command="{Binding TogglePlaybackCommand}" ToolTip="Play/Pause" />
                 <Button Content="&#x23E9;" ToolTip="Next frame" Style="{StaticResource TransportButtonStyle}"
                         Command="{Binding StepForwardCommand}" />
                 <Button Content="&#x23ED;" ToolTip="Go to end" Style="{StaticResource TransportButtonStyle}"
