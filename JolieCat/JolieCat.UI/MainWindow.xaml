@@ -303,7 +303,7 @@
             <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
                           Visibility="{Binding IsLeftPanelVisible, Converter={StaticResource BoolToVisibility}}" />
 
-            <!-- Center: Canvas (hardware-accelerated Skia render surface) -->
+            <!-- Center: Canvas (software-rendered Skia surface - see CanvasView.xaml.cs) -->
             <Border Grid.Column="2" Style="{StaticResource DockPanelBorderStyle}">
                 <views:CanvasView DataContext="{Binding Canvas}" />
             </Border>

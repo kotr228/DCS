@@ -11,11 +11,20 @@ using SkiaSharp.Views.Desktop;
 namespace JolieCat.UI.Views
 {
     /// <summary>
-    /// Hosts the hardware-accelerated Skia render surface for the document canvas.
-    /// Rendering itself is delegated to <see cref="CanvasRenderer"/>, and all pointer
-    /// interaction is delegated to <see cref="CanvasViewModel"/> - this code-behind only
-    /// translates WPF input events (DIP coordinates, DPI-scaled to the surface's actual
-    /// device pixels) into the view model's calls, and repaints when it asks to.
+    /// Hosts the software-rendered Skia surface (<c>SKElement</c>, not the GPU/OpenGL-
+    /// backed <c>SKGLElement</c>) for the document canvas - deliberately: SKGLElement
+    /// hosts its GL framebuffer via the third-party GLWpfControl (which has to flip the
+    /// framebuffer to reconcile OpenGL's bottom-left-origin convention with WPF's own
+    /// top-left one to composite it at all), an extra layer with its own coordinate
+    /// handling this app's actual pixel data never otherwise passes through - every
+    /// layer bitmap, the whole render pipeline, and the .jolie serializer are all plain
+    /// top-left-origin CPU raster surfaces already. SKElement removes that layer
+    /// entirely rather than trying to out-guess it, at the cost of GPU acceleration this
+    /// 2D raster editor doesn't need at these resolutions anyway. Rendering itself is
+    /// delegated to <see cref="CanvasRenderer"/>, and all pointer interaction is
+    /// delegated to <see cref="CanvasViewModel"/> - this code-behind only translates WPF
+    /// input events (DIP coordinates, DPI-scaled to the surface's actual device pixels)
+    /// into the view model's calls, and repaints when it asks to.
     /// </summary>
     public partial class CanvasView : UserControl
     {
@@ -89,9 +98,9 @@ namespace JolieCat.UI.Views
             TextEditBox.Margin = new Thickness(left, top, 0, 0);
         }
 
-        private void OnPaintSurface(object? sender, SKPaintGLSurfaceEventArgs e)
+        private void OnPaintSurface(object? sender, SKPaintSurfaceEventArgs e)
         {
-            // The SKGLElement's PaintSurface reports the surface's actual device-pixel
+            // The SKElement's PaintSurface reports the surface's actual device-pixel
             // size (e.Info), which differs from Surface.ActualWidth/Height (DIPs) on any
             // display that isn't exactly 96 DPI - cache the ratio so pointer events (only
             // ever given in DIPs by WPF) can be converted to the same device-pixel space
