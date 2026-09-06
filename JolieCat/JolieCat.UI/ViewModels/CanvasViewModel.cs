@@ -333,7 +333,7 @@ namespace JolieCat.UI.ViewModels
                     _isPainting = true;
                     _lastPaintPoint = doc;
                     _strokeLayer = activeLayer;
-                    _strokeBeforePixels = activeLayer.Bitmap.Pixels;
+                    _strokeBeforePixels = activeLayer.PaintBitmap.Pixels;
                     PaintDot(activeLayer, doc);
                     RaiseInvalidate();
                     break;
@@ -401,18 +401,18 @@ namespace JolieCat.UI.ViewModels
                 case ToolType.PaintBucket:
                     if (activeLayer is null || activeLayer.IsLocked) break;
 
-                    var beforeFill = activeLayer.Bitmap.Pixels;
+                    var beforeFill = activeLayer.PaintBitmap.Pixels;
                     FloodFill(activeLayer, doc);
-                    Layers.History.Push(new LayerPixelsCommand(activeLayer, beforeFill, activeLayer.Bitmap.Pixels));
+                    Layers.History.Push(new LayerPixelsCommand(activeLayer.PaintBitmap, beforeFill, activeLayer.PaintBitmap.Pixels));
                     RaiseInvalidate();
                     break;
 
                 case ToolType.Gradient:
                     if (activeLayer is null || activeLayer.IsLocked) break;
 
-                    var beforeGradient = activeLayer.Bitmap.Pixels;
+                    var beforeGradient = activeLayer.PaintBitmap.Pixels;
                     ApplyGradient(activeLayer, doc);
-                    Layers.History.Push(new LayerPixelsCommand(activeLayer, beforeGradient, activeLayer.Bitmap.Pixels));
+                    Layers.History.Push(new LayerPixelsCommand(activeLayer.PaintBitmap, beforeGradient, activeLayer.PaintBitmap.Pixels));
                     RaiseInvalidate();
                     break;
 
@@ -504,7 +504,7 @@ namespace JolieCat.UI.ViewModels
         {
             if (_strokeLayer is null || _strokeBeforePixels is null) return;
 
-            Layers.History.Push(new LayerPixelsCommand(_strokeLayer, _strokeBeforePixels, _strokeLayer.Bitmap.Pixels));
+            Layers.History.Push(new LayerPixelsCommand(_strokeLayer.PaintBitmap, _strokeBeforePixels, _strokeLayer.PaintBitmap.Pixels));
 
             _strokeLayer = null;
             _strokeBeforePixels = null;
@@ -812,9 +812,9 @@ namespace JolieCat.UI.ViewModels
             var layer = Layers.ActiveLayer?.Model;
             if (!string.IsNullOrEmpty(text) && layer is not null && !layer.IsLocked)
             {
-                var before = layer.Bitmap.Pixels;
+                var before = layer.PaintBitmap.Pixels;
                 DrawTextOnLayer(layer, text);
-                Layers.History.Push(new LayerPixelsCommand(layer, before, layer.Bitmap.Pixels));
+                Layers.History.Push(new LayerPixelsCommand(layer.PaintBitmap, before, layer.PaintBitmap.Pixels));
                 RaiseInvalidate();
             }
 
@@ -850,7 +850,7 @@ namespace JolieCat.UI.ViewModels
             // Horizontal Text, or a new column for Vertical Text - see DrawVerticalText.
             var lines = text.Replace("\r\n", "\n").Split('\n');
 
-            WithSelectionClip(layer.Canvas, canvas =>
+            WithSelectionClip(layer.PaintCanvas, canvas =>
             {
                 if (_isVerticalTextEdit)
                     DrawVerticalText(canvas, lines, font, paint);
@@ -932,7 +932,7 @@ namespace JolieCat.UI.ViewModels
             if (_toolbox.ActiveTool.Type == ToolType.Pencil)
             {
                 using var pencilPaint = CreatePencilPaint();
-                WithSelectionClip(layer.Canvas, canvas => canvas.DrawPoint(point, pencilPaint));
+                WithSelectionClip(layer.PaintCanvas, canvas => canvas.DrawPoint(point, pencilPaint));
                 return;
             }
 
@@ -940,7 +940,7 @@ namespace JolieCat.UI.ViewModels
             var radius = size / 2f;
 
             using var dabPaint = CreateDabPaint(radius);
-            WithSelectionClip(layer.Canvas, canvas => DrawDab(canvas, point, radius, dabPaint));
+            WithSelectionClip(layer.PaintCanvas, canvas => DrawDab(canvas, point, radius, dabPaint));
 
             // The next dab (from the first PaintLineTo call of this stroke) should land
             // one full spacing interval past this one.
@@ -959,7 +959,7 @@ namespace JolieCat.UI.ViewModels
             if (_toolbox.ActiveTool.Type == ToolType.Pencil)
             {
                 using var pencilPaint = CreatePencilPaint();
-                WithSelectionClip(layer.Canvas, canvas => canvas.DrawLine(from, to, pencilPaint));
+                WithSelectionClip(layer.PaintCanvas, canvas => canvas.DrawLine(from, to, pencilPaint));
                 return;
             }
 
@@ -974,7 +974,7 @@ namespace JolieCat.UI.ViewModels
 
             using var dabPaint = CreateDabPaint(radius);
 
-            WithSelectionClip(layer.Canvas, canvas =>
+            WithSelectionClip(layer.PaintCanvas, canvas =>
             {
                 var nextDabAt = _distanceUntilNextDab;
                 while (nextDabAt <= segmentLength)
@@ -1082,7 +1082,7 @@ namespace JolieCat.UI.ViewModels
 
         private void FloodFill(Core.Documents.Layer layer, SKPoint point)
         {
-            var bitmap = layer.Bitmap;
+            var bitmap = layer.PaintBitmap;
             var x0 = (int)point.X;
             var y0 = (int)point.Y;
             if (x0 < 0 || y0 < 0 || x0 >= bitmap.Width || y0 >= bitmap.Height)
@@ -1188,11 +1188,21 @@ namespace JolieCat.UI.ViewModels
             using var shader = SKShader.CreateLinearGradient(start, end, new[] { startColor, endColor }, null, SKShaderTileMode.Clamp);
             using var paint = new SKPaint { Shader = shader };
 
-            WithSelectionClip(layer.Canvas, canvas =>
+            WithSelectionClip(layer.PaintCanvas, canvas =>
                 canvas.DrawRect(new SKRect(0, 0, layer.Bitmap.Width, layer.Bitmap.Height), paint));
         }
 
-        private void RaiseInvalidate() => InvalidateRequested?.Invoke(this, EventArgs.Empty);
+        private void RaiseInvalidate()
+        {
+            // Cheap even when nothing mask-related is going on (a null check and a
+            // bool read) - keeps the Layers panel's mask thumbnail live while a mask is
+            // actively being painted on, without every individual paint call site
+            // needing its own copy of this same check.
+            if (Layers.ActiveLayer is { } activeItem && activeItem.Model.IsMaskActive)
+                activeItem.RefreshMaskThumbnail();
+
+            InvalidateRequested?.Invoke(this, EventArgs.Empty);
+        }
 
         partial void OnPanXChanged(double value)
         {

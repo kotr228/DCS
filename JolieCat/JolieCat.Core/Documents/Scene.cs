@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using JolieCat.Core.History;
+using JolieCat.Core.Rendering;
 using SkiaSharp;
 
 namespace JolieCat.Core.Documents
@@ -113,12 +114,12 @@ namespace JolieCat.Core.Documents
             if (index <= 0) return false;
 
             var below = _layers[index - 1];
-            var alpha = (byte)Math.Clamp(layer.Opacity * 255.0, 0, 255);
 
-            using (var paint = new SKPaint { Color = SKColors.White.WithAlpha(alpha), BlendMode = Layer.ToSkiaBlendMode(layer.BlendMode) })
-            {
-                below.Canvas.DrawBitmap(layer.Bitmap, 0, 0, paint);
-            }
+            // Delegates to SceneCompositor rather than drawing layer.Bitmap directly, so
+            // a masked layer merges down showing exactly what it already looked like
+            // composited on screen - not its full, unmasked content suddenly reappearing
+            // the moment it merges into the layer below.
+            SceneCompositor.DrawLayer(below.Canvas, layer, layer.Bitmap.Width, layer.Bitmap.Height);
 
             return RemoveLayer(layer);
         }
@@ -153,6 +154,18 @@ namespace JolieCat.Core.Documents
                 };
                 resized.Canvas.DrawBitmap(old.Bitmap, 0, 0);
 
+                // A mask is resized the same way as the layer's own content - anchored
+                // at its top-left corner, cropped or padded-with-white (fully visible,
+                // matching a freshly added mask's own default) rather than left behind.
+                if (old.Mask is { } oldMask)
+                {
+                    var resizedMask = resized.AddMask();
+                    resizedMask.IsEnabled = oldMask.IsEnabled;
+                    resizedMask.Canvas.Clear(SKColors.White);
+                    resizedMask.Canvas.DrawBitmap(oldMask.Bitmap, 0, 0);
+                    resized.IsMaskActive = old.IsMaskActive;
+                }
+
                 _layers[i] = resized;
                 if (ActiveLayer == old) ActiveLayer = resized;
 
@@ -166,7 +179,8 @@ namespace JolieCat.Core.Documents
         public IReadOnlyList<LayerSnapshot> CaptureLayers() => _layers
             .Select(layer => new LayerSnapshot(
                 layer.Name, layer.Bitmap.Width, layer.Bitmap.Height, layer.Type,
-                layer.IsVisible, layer.IsLocked, layer.Opacity, layer.BlendMode, layer.Bitmap.Pixels))
+                layer.IsVisible, layer.IsLocked, layer.Opacity, layer.BlendMode, layer.Bitmap.Pixels,
+                layer.Mask is not null, layer.Mask?.IsEnabled ?? false, layer.Mask?.Bitmap.Pixels))
             .ToList();
 
         /// <summary>
@@ -201,6 +215,15 @@ namespace JolieCat.Core.Documents
                     BlendMode = entry.BlendMode,
                 };
                 layer.Bitmap.Pixels = entry.Pixels;
+
+                if (entry.HasMask)
+                {
+                    var mask = layer.AddMask();
+                    mask.IsEnabled = entry.IsMaskEnabled;
+                    if (entry.MaskPixels is { } maskPixels)
+                        mask.Bitmap.Pixels = maskPixels;
+                }
+
                 _layers.Add(layer);
             }
 

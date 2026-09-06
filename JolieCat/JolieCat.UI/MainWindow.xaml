@@ -236,6 +236,9 @@
                 <Button Content="Import..." Width="70" Margin="2,0"
                         ToolTip="Import image files (PNG/JPG/BMP/WEBP) as new layers - or just drag them onto the canvas"
                         Command="{Binding ImportImageCommand}" />
+                <Button Content="Export..." Width="70" Margin="2,0"
+                        ToolTip="Export the flattened image (or a single layer) as PNG/JPEG/WebP"
+                        Command="{Binding ExportImageCommand}" />
 
                 <Border Width="1" Margin="8,2" Background="{StaticResource BorderBrush}" />
 
@@ -352,6 +355,10 @@
                                     Command="{Binding Layers.MoveLayerDownCommand}" />
                             <Button Content="Merge" ToolTip="Merge down onto the layer below" Style="{StaticResource LayerToolButtonStyle}"
                                     Command="{Binding Layers.MergeDownCommand}" />
+                            <Button Content="Mask+" ToolTip="Add a mask to the active layer" Style="{StaticResource LayerToolButtonStyle}"
+                                    Command="{Binding Layers.AddMaskCommand}" />
+                            <Button Content="Mask&#x2212;" ToolTip="Remove the active layer's mask" Style="{StaticResource LayerToolButtonStyle}"
+                                    Command="{Binding Layers.RemoveMaskCommand}" />
                         </StackPanel>
 
                         <!-- Blend Mode + Opacity apply to whichever layer is currently
@@ -391,6 +398,41 @@
                                                  Loaded="LayerNameEditBox_Loaded"
                                                  KeyDown="LayerNameEditBox_KeyDown"
                                                  LostFocus="LayerNameEditBox_LostFocus" />
+
+                                        <!-- Mask thumbnail - only shown once this layer
+                                             actually has a mask (see LayerViewModel.HasMask).
+                                             A checked/highlighted border means this mask,
+                                             not the layer's own color content, is what
+                                             painting tools currently draw onto (IsMaskActive) -
+                                             clicking it toggles that, the same gesture every
+                                             other raster editor uses to select a layer's mask
+                                             as the active paint target. -->
+                                        <ToggleButton Width="22" Height="22" Margin="8,0,0,0" Padding="0"
+                                                      IsChecked="{Binding IsMaskActive, Mode=TwoWay}"
+                                                      Visibility="{Binding HasMask, Converter={StaticResource BoolToVisibility}}"
+                                                      ToolTip="Click to paint this layer's mask instead of its content">
+                                            <ToggleButton.Style>
+                                                <Style TargetType="ToggleButton">
+                                                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsChecked" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ToggleButton.Style>
+                                            <Image Source="{Binding MaskThumbnail}" Stretch="Uniform" Width="18" Height="18" />
+                                        </ToggleButton>
+
+                                        <!-- A disabled/unchecked mask still exists (see
+                                             LayerMask.IsEnabled's own remarks) - this lets it
+                                             be toggled off to compare against the unmasked
+                                             layer without removing it outright. -->
+                                        <CheckBox IsChecked="{Binding IsMaskEnabled, Mode=TwoWay}"
+                                                  Visibility="{Binding HasMask, Converter={StaticResource BoolToVisibility}}"
+                                                  ToolTip="Mask enabled" VerticalAlignment="Center" Margin="4,0,0,0" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
@@ -423,15 +465,33 @@
             <TextBlock Grid.Column="0" Margin="10,3" FontSize="11" Text="{Binding SaveStatusMessage}"
                        Foreground="{StaticResource TextSecondaryBrush}">
                 <TextBlock.Style>
-                    <!-- Fades SaveSuccessMessage out a couple of seconds after it
-                         appears, rather than having it just vanish the instant
-                         MainViewModel clears it back to empty. Only that exact message
-                         fades - "Saving project..." (and anything else) stays fully
-                         opaque the whole time it's showing. -->
+                    <!-- Fades SaveSuccessMessage/ExportSuccessMessage out a couple of
+                         seconds after either appears, rather than having it just vanish
+                         the instant MainViewModel clears it back to empty. Only those
+                         two exact messages fade - "Saving project..."/"Exporting
+                         image..." (and anything else) stay fully opaque the whole time
+                         they're showing. -->
                     <Style TargetType="TextBlock">
                         <Setter Property="Opacity" Value="1" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding SaveStatusMessage}" Value="{x:Static vm:MainViewModel.SaveSuccessMessage}">
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             From="1" To="0" BeginTime="0:0:1.5" Duration="0:0:1" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" Duration="0" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding SaveStatusMessage}" Value="{x:Static vm:MainViewModel.ExportSuccessMessage}">
                                 <DataTrigger.EnterActions>
                                     <BeginStoryboard>
                                         <Storyboard>

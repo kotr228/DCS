@@ -1,5 +1,6 @@
 using System;
 using JolieCat.Core.Documents;
+using JolieCat.Core.Rendering;
 using JolieCat.UI.ViewModels;
 using JolieCat.UI.ViewModels.Layers;
 using SkiaSharp;
@@ -35,28 +36,15 @@ namespace JolieCat.UI.Rendering
             var documentRect = new SKRect(0, 0, viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight);
 
             DrawCheckerboard(canvas, documentRect);
-            DrawLayers(canvas, viewModel.Layers.Scene);
+            // Scene.Layers is already back-to-front, so drawing in list order composites
+            // correctly with no extra sorting. Masking, opacity, and blend mode are all
+            // handled by SceneCompositor - the same code JolieCat.Core's image export
+            // and Scene.MergeLayerDown use, so a masked layer looks identical here, in a
+            // merge, and in an exported file.
+            SceneCompositor.DrawLayers(canvas, viewModel.Layers.Scene, viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight);
             DrawSelectionOverlay(canvas, viewModel);
 
             canvas.Restore();
-        }
-
-        private static void DrawLayers(SKCanvas canvas, Scene scene)
-        {
-            // Scene.Layers is already back-to-front, so drawing in list order composites
-            // correctly with no extra sorting.
-            foreach (var layer in scene.Layers)
-            {
-                if (!layer.IsVisible) continue;
-
-                using var paint = new SKPaint
-                {
-                    Color = SKColors.White.WithAlpha((byte)Math.Clamp(layer.Opacity * 255.0, 0, 255)),
-                    BlendMode = Layer.ToSkiaBlendMode(layer.BlendMode),
-                };
-
-                canvas.DrawBitmap(layer.Bitmap, 0, 0, paint);
-            }
         }
 
         private static void DrawCheckerboard(SKCanvas canvas, SKRect documentRect)

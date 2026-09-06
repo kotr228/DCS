@@ -1,0 +1,48 @@
+<Window x:Class="JolieCat.UI.Views.ExportDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
+        mc:Ignorable="d"
+        Title="Export Image" Height="280" Width="380"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        d:DataContext="{d:DesignInstance Type=vm:ExportOptionsViewModel, IsDesignTimeCreatable=False}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- What to export: the whole flattened composite, or one selected layer alone
+             (masked, if it has one - see ExportOptionsViewModel/ImageExportService). -->
+        <TextBlock Grid.Row="0" Text="Export" Margin="0,0,0,4" />
+        <ComboBox Grid.Row="1" ItemsSource="{Binding Targets}" SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                  Margin="0,0,0,12" />
+
+        <TextBlock Grid.Row="2" Text="Format" Margin="0,0,0,4" />
+        <ComboBox Grid.Row="3" ItemsSource="{Binding AllFormats}" SelectedItem="{Binding Format, Mode=TwoWay}"
+                  Margin="0,0,0,12" />
+
+        <!-- Quality only means anything for the lossy formats - PNG is always
+             lossless, so the slider is disabled (not hidden - its position/value stay
+             visible for reference) rather than removed entirely when PNG is selected. -->
+        <StackPanel Grid.Row="4" VerticalAlignment="Top" IsEnabled="{Binding IsQualityEnabled}">
+            <TextBlock Margin="0,0,0,4">
+                <Run Text="Quality" /><Run Text=" (" /><Run Text="{Binding Quality, Mode=OneWay}" /><Run Text=")" />
+            </TextBlock>
+            <Slider Minimum="1" Maximum="100" Value="{Binding Quality, Mode=TwoWay}"
+                    TickFrequency="10" IsSnapToTickEnabled="False" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <Button Content="Export..." Width="80" IsDefault="True" Click="Export_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

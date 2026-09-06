@@ -71,6 +71,7 @@ namespace JolieCat.Core.Serialization
             {
                 var layer = scene.Layers[i];
                 var entryName = $"layers/{i}.png";
+                var maskEntryName = layer.Mask is not null ? $"layers/{i}.mask.png" : null;
 
                 manifest.Layers.Add(new LayerManifestEntry
                 {
@@ -81,11 +82,21 @@ namespace JolieCat.Core.Serialization
                     Opacity = layer.Opacity,
                     BlendMode = layer.BlendMode.ToString(),
                     BitmapEntryName = entryName,
+                    HasMask = layer.Mask is not null,
+                    IsMaskEnabled = layer.Mask?.IsEnabled ?? true,
+                    MaskEntryName = maskEntryName,
                 });
 
                 var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
-                using var entryStream = entry.Open();
-                layer.Bitmap.Encode(entryStream, SKEncodedImageFormat.Png, 100);
+                using (var entryStream = entry.Open())
+                    layer.Bitmap.Encode(entryStream, SKEncodedImageFormat.Png, 100);
+
+                if (layer.Mask is { } mask)
+                {
+                    var maskEntry = archive.CreateEntry(maskEntryName!, CompressionLevel.Optimal);
+                    using var maskEntryStream = maskEntry.Open();
+                    mask.Bitmap.Encode(maskEntryStream, SKEncodedImageFormat.Png, 100);
+                }
             }
 
             var manifestEntry = archive.CreateEntry(ManifestEntryName, CompressionLevel.Optimal);
@@ -173,6 +184,29 @@ namespace JolieCat.Core.Serialization
                     layer.Bitmap.Pixels = decoded.Pixels;
                 else
                     layer.Canvas.DrawBitmap(decoded, 0, 0);
+
+                if (layerEntry.HasMask && layerEntry.MaskEntryName is { } maskEntryName)
+                {
+                    var maskEntry = archive.GetEntry(maskEntryName)
+                        ?? throw new InvalidDataException($"'{path}' is missing layer mask '{maskEntryName}'.");
+
+                    // Same buffered-stream decode as the layer's own bitmap above - see
+                    // that comment for why decoding straight from a ZipArchiveEntry's
+                    // stream isn't safe for a large/high-entropy PNG.
+                    using var maskStream = maskEntry.Open();
+                    using var bufferedMaskStream = new MemoryStream();
+                    maskStream.CopyTo(bufferedMaskStream);
+                    bufferedMaskStream.Position = 0;
+                    using var decodedMask = SKBitmap.Decode(bufferedMaskStream)
+                        ?? throw new InvalidDataException($"'{path}' has an unreadable layer mask '{maskEntryName}'.");
+
+                    var mask = layer.AddMask();
+                    mask.IsEnabled = layerEntry.IsMaskEnabled;
+                    if (decodedMask.Width == manifest.DocumentWidth && decodedMask.Height == manifest.DocumentHeight)
+                        mask.Bitmap.Pixels = decodedMask.Pixels;
+                    else
+                        mask.Canvas.DrawBitmap(decodedMask, 0, 0);
+                }
 
                 scene.AddLayer(layer);
             }

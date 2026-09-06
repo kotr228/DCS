@@ -2,6 +2,8 @@ using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using JolieCat.Core.Documents;
 using JolieCat.Shared.Enums;
+using JolieCat.UI.Media;
+using System.Windows.Media.Imaging;
 
 namespace JolieCat.UI.ViewModels.Layers
 {
@@ -36,9 +38,65 @@ namespace JolieCat.UI.ViewModels.Layers
         /// invert a bool.</summary>
         public bool IsNotEditingName => !IsEditingName;
 
+        /// <summary>The mask thumbnail shown in the Layers panel row, or null when this
+        /// layer has no mask - refreshed via <see cref="RefreshMaskThumbnail"/> after any
+        /// mask edit, add, or remove.</summary>
+        [ObservableProperty]
+        private BitmapSource? maskThumbnail;
+
         public LayerViewModel(Layer model)
         {
             Model = model ?? throw new ArgumentNullException(nameof(model));
+            RefreshMaskThumbnail();
+        }
+
+        /// <summary>Whether this layer currently has a mask attached at all - the
+        /// Layers panel row shows either the mask thumbnail (see
+        /// <see cref="MaskThumbnail"/>) or a plain "add mask" affordance based on this.</summary>
+        public bool HasMask => Model.Mask is not null;
+
+        /// <summary>Whether an existing mask currently affects compositing - mirrors
+        /// <see cref="LayerMask.IsEnabled"/>; meaningless (and left false) while
+        /// <see cref="HasMask"/> is false.</summary>
+        public bool IsMaskEnabled
+        {
+            get => Model.Mask?.IsEnabled ?? false;
+            set
+            {
+                if (Model.Mask is not { } mask || mask.IsEnabled == value) return;
+                mask.IsEnabled = value;
+                OnPropertyChanged();
+                VisualStateChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>True while this layer's mask - not its own color content - is what
+        /// painting tools draw onto (see <see cref="Layer.IsMaskActive"/>). Selected by
+        /// clicking the mask thumbnail in the Layers panel, the same gesture every other
+        /// raster editor uses to switch a layer's paint target to its mask.</summary>
+        public bool IsMaskActive
+        {
+            get => Model.IsMaskActive;
+            set
+            {
+                if (Model.IsMaskActive == value) return;
+                Model.IsMaskActive = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>Recomputes <see cref="MaskThumbnail"/> from the mask's current
+        /// pixels (null if there is no mask), and re-announces <see cref="HasMask"/>/
+        /// <see cref="IsMaskEnabled"/> - both plain computed reads of <see cref="Model"/>,
+        /// so unlike <see cref="MaskThumbnail"/> itself they have no setter of their own
+        /// to raise a change from. Called after this layer's mask is added, removed, or
+        /// painted on - whichever of the three actually changed, calling this
+        /// unconditionally is simpler and cheaper than tracking which.</summary>
+        public void RefreshMaskThumbnail()
+        {
+            MaskThumbnail = Model.Mask is { } mask ? SkiaImageConverter.ToThumbnail(mask.Bitmap) : null;
+            OnPropertyChanged(nameof(HasMask));
+            OnPropertyChanged(nameof(IsMaskEnabled));
         }
 
         public string Name

@@ -130,6 +130,32 @@ namespace JolieCat.UI.ViewModels.Layers
             ExecuteStructuralChange(() => Scene.MergeLayerDown(layer));
         }
 
+        /// <summary>Attaches a fresh, fully-visible mask to the active layer - a no-op
+        /// if it already has one (see <see cref="Layer.AddMask"/>). Recorded as one
+        /// undo/redo entry like any other layer-list operation.</summary>
+        [RelayCommand(CanExecute = nameof(HasActiveLayer))]
+        private void AddMask()
+        {
+            if (ActiveLayer is null) return;
+
+            var layer = ActiveLayer.Model;
+            ExecuteStructuralChange(() => layer.AddMask());
+            ActiveLayer?.RefreshMaskThumbnail();
+        }
+
+        /// <summary>Removes the active layer's mask - a no-op if it has none (see
+        /// <see cref="Layer.RemoveMask"/>). Recorded as one undo/redo entry like any
+        /// other layer-list operation.</summary>
+        [RelayCommand(CanExecute = nameof(HasActiveLayer))]
+        private void RemoveMask()
+        {
+            if (ActiveLayer is null) return;
+
+            var layer = ActiveLayer.Model;
+            ExecuteStructuralChange(() => layer.RemoveMask());
+            ActiveLayer?.RefreshMaskThumbnail();
+        }
+
         /// <summary>Resizes the whole document's canvas to (<paramref name="newWidth"/>,
         /// <paramref name="newHeight"/>) - every existing layer's content is preserved,
         /// anchored at its top-left corner (cropped if shrinking, padded with

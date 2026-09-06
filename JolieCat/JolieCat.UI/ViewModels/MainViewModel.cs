@@ -5,11 +5,14 @@ using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using JolieCat.Core.Export;
 using JolieCat.Core.Serialization;
 using JolieCat.Core.Tools;
 using JolieCat.UI.ViewModels.Layers;
 using JolieCat.UI.ViewModels.Timeline;
+using JolieCat.UI.Views;
 using Microsoft.Win32;
+using SkiaSharp;
 
 namespace JolieCat.UI.ViewModels
 {
@@ -28,6 +31,13 @@ namespace JolieCat.UI.ViewModels
         /// trigger, which has to match it exactly to fire, references this instead of
         /// its own separately-typed copy (via <c>x:Static</c>).</summary>
         public const string SaveSuccessMessage = "✓ Project saved successfully";
+
+        /// <summary>The status bar's success text for an image export - a separate
+        /// constant from <see cref="SaveSuccessMessage"/> (rather than reusing it) since
+        /// MainWindow.xaml's fade-out DataTrigger has to match the exact text it's
+        /// looking for, and "project saved" would be a misleading thing to show after
+        /// exporting a flattened image rather than the project file itself.</summary>
+        public const string ExportSuccessMessage = "✓ Image exported successfully";
 
         /// <summary>How long <see cref="SaveSuccessMessage"/> stays up before this class
         /// clears it back to empty - matched by the fade-out Storyboard's own total
@@ -194,7 +204,7 @@ namespace JolieCat.UI.ViewModels
                 await ProjectSerializer.SaveAsync(dialog.FileName, Layers.Scene, BuildTimelineData(), Timeline.TotalFrames, Timeline.FrameRate);
 
                 SaveStatusMessage = SaveSuccessMessage;
-                _ = ClearSaveStatusAfterDelayAsync();
+                _ = ClearSaveStatusAfterDelayAsync(SaveSuccessMessage);
             }
             catch (Exception ex)
             {
@@ -207,19 +217,23 @@ namespace JolieCat.UI.ViewModels
             }
         }
 
-        /// <summary>Clears <see cref="SaveStatusMessage"/> back to empty once <see cref="SaveSuccessMessage"/>
-        /// has been up long enough to fade out on its own (see MainWindow.xaml's
-        /// DataTrigger) - not awaited by the caller, since the save itself is already
-        /// long finished by this point and nothing should block on a purely cosmetic
-        /// timer. Clearing back to empty (rather than leaving the success text in place)
-        /// also matters functionally: a DataTrigger only fires on a value *change*, so
-        /// without this the very next save's success message wouldn't re-trigger the
-        /// fade at all.</summary>
-        private async Task ClearSaveStatusAfterDelayAsync()
+        /// <summary>Clears <see cref="SaveStatusMessage"/> back to empty once
+        /// <paramref name="expectedMessage"/> (<see cref="SaveSuccessMessage"/> or
+        /// <see cref="ExportSuccessMessage"/>) has been up long enough to fade out on
+        /// its own (see MainWindow.xaml's DataTriggers) - not awaited by the caller,
+        /// since the save/export itself is already long finished by this point and
+        /// nothing should block on a purely cosmetic timer. Clearing back to empty
+        /// (rather than leaving the success text in place) also matters functionally: a
+        /// DataTrigger only fires on a value *change*, so without this the very next
+        /// save/export's success message wouldn't re-trigger the fade at all. Checked
+        /// against <paramref name="expectedMessage"/> (not just non-empty) so a save's
+        /// delayed clear can never stomp an export's success message that started
+        /// showing afterward, or vice versa.</summary>
+        private async Task ClearSaveStatusAfterDelayAsync(string expectedMessage)
         {
             await Task.Delay(SaveSuccessDisplayDuration);
 
-            if (SaveStatusMessage == SaveSuccessMessage)
+            if (SaveStatusMessage == expectedMessage)
                 SaveStatusMessage = string.Empty;
         }
 
@@ -267,6 +281,66 @@ namespace JolieCat.UI.ViewModels
             if (dialog.ShowDialog() != true) return;
 
             Canvas.ImportImageFiles(dialog.FileNames);
+        }
+
+        /// <summary>Exports the flattened composite (or a single selected layer - see
+        /// <see cref="ExportOptionsViewModel"/>) to a PNG/JPEG/WebP file at the exact
+        /// document (or layer) pixel dimensions - no checkerboard, no selection overlay,
+        /// no pan/zoom transform, so there is no top-edge clipping or coordinate offset
+        /// for those to introduce (see <see cref="ImageExportService"/>). Flattening
+        /// happens synchronously (it reads the live scene, so it can't safely run on a
+        /// background thread while something else might mutate it), then the encode and
+        /// file write - the actually slow part for a large image - run on a background
+        /// thread via <see cref="ImageExportService.ExportAsync"/>, exactly like
+        /// <see cref="SaveProjectAsync"/>'s own write.</summary>
+        [RelayCommand]
+        private async Task ExportImageAsync()
+        {
+            if (IsSaving) return;
+
+            var options = new ExportOptionsViewModel(Layers.Scene);
+            var dialog = new ExportDialog { DataContext = options, Owner = Application.Current.MainWindow };
+            if (dialog.ShowDialog() != true) return;
+
+            var saveDialog = new SaveFileDialog
+            {
+                Filter = options.Format switch
+                {
+                    ImageExportFormat.Png => "PNG Image (*.png)|*.png",
+                    ImageExportFormat.Jpeg => "JPEG Image (*.jpg)|*.jpg",
+                    ImageExportFormat.WebP => "WebP Image (*.webp)|*.webp",
+                    _ => "All files (*.*)|*.*",
+                },
+                DefaultExt = options.FileExtension,
+                FileName = $"Untitled{options.FileExtension}",
+            };
+            if (saveDialog.ShowDialog() != true) return;
+
+            IsSaving = true;
+            SaveStatusMessage = "Exporting image...";
+
+            SKBitmap? flattened = null;
+            try
+            {
+                flattened = options.SelectedTarget.Layer is { } layer
+                    ? ImageExportService.FlattenLayer(layer)
+                    : ImageExportService.FlattenScene(Layers.Scene, Layers.DocumentWidth, Layers.DocumentHeight);
+
+                await ImageExportService.ExportAsync(saveDialog.FileName, flattened, options.Format, options.Quality);
+
+                SaveStatusMessage = ExportSuccessMessage;
+                _ = ClearSaveStatusAfterDelayAsync(ExportSuccessMessage);
+            }
+            catch (Exception ex)
+            {
+                SaveStatusMessage = string.Empty;
+                MessageBox.Show($"Couldn't export the image:\n{ex.Message}", "Export Image", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                flattened?.Dispose();
+                IsSaving = false;
+            }
         }
 
         /// <summary>Maps the Timeline panel's view models to the plain, UI-agnostic data

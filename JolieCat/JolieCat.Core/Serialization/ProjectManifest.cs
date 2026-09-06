@@ -51,6 +51,19 @@ namespace JolieCat.Core.Serialization
 
         /// <summary>Zip entry name (under "layers/") holding this layer's bitmap as a PNG.</summary>
         public string BitmapEntryName { get; set; } = string.Empty;
+
+        /// <summary>Whether this layer has a mask at all - <see cref="MaskEntryName"/>
+        /// is only meaningful when this is true, distinguishing "no mask" from a mask
+        /// entry name that happens to be empty/missing in a hand-edited or corrupted file.</summary>
+        public bool HasMask { get; set; }
+
+        /// <summary>Mirrors <see cref="Documents.LayerMask.IsEnabled"/> - whether the mask
+        /// currently affects compositing, independent of whether one exists at all.</summary>
+        public bool IsMaskEnabled { get; set; } = true;
+
+        /// <summary>Zip entry name (under "layers/") holding this layer's mask as a PNG -
+        /// only present when <see cref="HasMask"/> is true.</summary>
+        public string? MaskEntryName { get; set; }
     }
 
     /// <summary>One timeline track's clips and keyframes - enough to reconstruct

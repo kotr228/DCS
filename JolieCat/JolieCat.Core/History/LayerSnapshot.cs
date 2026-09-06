@@ -20,5 +20,8 @@ namespace JolieCat.Core.History
         bool IsLocked,
         double Opacity,
         BlendMode BlendMode,
-        SKColor[] Pixels);
+        SKColor[] Pixels,
+        bool HasMask,
+        bool IsMaskEnabled,
+        SKColor[]? MaskPixels);
 }
