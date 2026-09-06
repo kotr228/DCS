@@ -130,8 +130,23 @@ namespace JolieCat.Core.Serialization
                 var bitmapEntry = archive.GetEntry(layerEntry.BitmapEntryName)
                     ?? throw new InvalidDataException($"'{path}' is missing layer bitmap '{layerEntry.BitmapEntryName}'.");
 
+                // Buffered into a seekable MemoryStream before decoding - a
+                // ZipArchiveEntry's own stream is forward-only (CanSeek is false,
+                // Length throws), and SKBitmap.Decode(Stream) on a non-seekable
+                // source silently returns a bitmap of the correct size but with
+                // every pixel zeroed for a large/high-entropy PNG (confirmed with a
+                // real ZipArchive round-trip: a small, highly-compressible test
+                // image decoded fine this way, but a ~450KB, 1853x1853 one came
+                // back completely blank) - decoding from a plain seekable
+                // MemoryStream or by file path both work correctly on the exact
+                // same bytes, which is what pointed at the non-seekable stream
+                // itself as the cause rather than anything about the PNG data or
+                // the zip entry.
                 using var bitmapStream = bitmapEntry.Open();
-                using var decoded = SKBitmap.Decode(bitmapStream)
+                using var bufferedStream = new MemoryStream();
+                bitmapStream.CopyTo(bufferedStream);
+                bufferedStream.Position = 0;
+                using var decoded = SKBitmap.Decode(bufferedStream)
                     ?? throw new InvalidDataException($"'{path}' has an unreadable layer bitmap '{layerEntry.BitmapEntryName}'.");
 
                 var type = Enum.TryParse<LayerType>(layerEntry.Type, out var parsedType) ? parsedType : LayerType.Raster;
