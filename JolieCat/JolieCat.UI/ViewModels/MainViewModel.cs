@@ -569,6 +569,111 @@ namespace JolieCat.UI.ViewModels
             }
         }
 
+        /// <summary>Opens the shared Filter dialog (Gaussian Blur/Box Blur/Sharpen/
+        /// Noise - see <see cref="FilterOptionsViewModel"/>) for <paramref name="kind"/>,
+        /// live-previewing every slider change on the canvas via
+        /// <see cref="CanvasViewModel.BeginAdjustment"/>/<see cref="CanvasViewModel.UpdateAdjustmentPreview"/>,
+        /// then bakes it in (Apply) or discards it (Cancel/closing the dialog any
+        /// other way) - never both, and never neither: <see cref="CanvasViewModel.CommitAdjustment"/>/
+        /// <see cref="CanvasViewModel.CancelAdjustment"/> run unconditionally based on
+        /// <c>ShowDialog</c>'s own result, exactly once.</summary>
+        [RelayCommand]
+        private void OpenFilterDialog(FilterKind kind)
+        {
+            if (IsSaving || Layers.ActiveLayer is null) return;
+
+            Canvas.BeginAdjustment();
+
+            var options = new FilterOptionsViewModel(kind);
+            void UpdatePreview(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+                Canvas.UpdateAdjustmentPreview(options.Apply);
+            options.PropertyChanged += UpdatePreview;
+            UpdatePreview(null, null!);
+
+            var dialog = new FilterDialog { DataContext = options, Owner = Application.Current.MainWindow };
+            var applied = dialog.ShowDialog() == true;
+            options.PropertyChanged -= UpdatePreview;
+
+            if (applied) Canvas.CommitAdjustment();
+            else Canvas.CancelAdjustment();
+        }
+
+        /// <summary>Opens the shared Brightness/Contrast or Hue/Saturation/Lightness
+        /// dialog (see <see cref="SimpleAdjustmentViewModel"/>) - same live-preview/
+        /// commit-or-cancel pattern as <see cref="OpenFilterDialog"/>.</summary>
+        [RelayCommand]
+        private void OpenSimpleAdjustmentDialog(SimpleAdjustmentKind kind)
+        {
+            if (IsSaving || Layers.ActiveLayer is null) return;
+
+            Canvas.BeginAdjustment();
+
+            var options = new SimpleAdjustmentViewModel(kind);
+            void UpdatePreview(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+                Canvas.UpdateAdjustmentPreview(options.Apply);
+            options.PropertyChanged += UpdatePreview;
+            UpdatePreview(null, null!);
+
+            var dialog = new SimpleAdjustmentDialog { DataContext = options, Owner = Application.Current.MainWindow };
+            var applied = dialog.ShowDialog() == true;
+            options.PropertyChanged -= UpdatePreview;
+
+            if (applied) Canvas.CommitAdjustment();
+            else Canvas.CancelAdjustment();
+        }
+
+        /// <summary>Opens Levels (see <see cref="LevelsViewModel"/>) - same live-
+        /// preview/commit-or-cancel pattern, with the histogram built once (from
+        /// <see cref="CanvasViewModel.AdjustmentSourceBitmap"/>, the layer's own
+        /// snapshotted pixels) right after <see cref="CanvasViewModel.BeginAdjustment"/>
+        /// runs, so it always reflects the layer's real content, not an empty/
+        /// default bitmap.</summary>
+        [RelayCommand]
+        private void OpenLevelsDialog()
+        {
+            if (IsSaving || Layers.ActiveLayer is null) return;
+
+            Canvas.BeginAdjustment();
+            if (Canvas.AdjustmentSourceBitmap is not { } source) { Canvas.CancelAdjustment(); return; }
+
+            var options = new LevelsViewModel(source);
+            void UpdatePreview(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+                Canvas.UpdateAdjustmentPreview(options.Apply);
+            options.PropertyChanged += UpdatePreview;
+            UpdatePreview(null, null!);
+
+            var dialog = new LevelsDialog { DataContext = options, Owner = Application.Current.MainWindow };
+            var applied = dialog.ShowDialog() == true;
+            options.PropertyChanged -= UpdatePreview;
+
+            if (applied) Canvas.CommitAdjustment();
+            else Canvas.CancelAdjustment();
+        }
+
+        /// <summary>Opens Curves (see <see cref="CurvesViewModel"/>) - same live-
+        /// preview/commit-or-cancel pattern; the control-point collection's own
+        /// changes (not a single settable property) drive the preview here.</summary>
+        [RelayCommand]
+        private void OpenCurvesDialog()
+        {
+            if (IsSaving || Layers.ActiveLayer is null) return;
+
+            Canvas.BeginAdjustment();
+
+            var options = new CurvesViewModel();
+            void UpdatePreview(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+                Canvas.UpdateAdjustmentPreview(options.Apply);
+            options.PropertyChanged += UpdatePreview;
+            UpdatePreview(null, null!);
+
+            var dialog = new CurvesDialog { DataContext = options, Owner = Application.Current.MainWindow };
+            var applied = dialog.ShowDialog() == true;
+            options.PropertyChanged -= UpdatePreview;
+
+            if (applied) Canvas.CommitAdjustment();
+            else Canvas.CancelAdjustment();
+        }
+
         /// <summary>Maps a document's Timeline panel view models to the plain,
         /// UI-agnostic data <see cref="ProjectSerializer"/> actually writes - this
         /// mapping (not the Core serializer) is what keeps <c>JolieCat.Core</c> from

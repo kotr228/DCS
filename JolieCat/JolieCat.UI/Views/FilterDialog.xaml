@@ -1,0 +1,32 @@
+<Window x:Class="JolieCat.UI.Views.FilterDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
+        xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+        mc:Ignorable="d"
+        Title="{Binding Title}" Height="180" Width="360"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        d:DataContext="{d:DesignInstance Type=vm:FilterOptionsViewModel, IsDesignTimeCreatable=False}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Every filter in this dialog (Gaussian Blur, Box Blur, Sharpen, Noise) is
+             just this one slider - see FilterOptionsViewModel for why one shell
+             covers all four rather than a separate dialog each. -->
+        <controls:LabeledSlider Grid.Row="0" VerticalAlignment="Top"
+                                 Label="{Binding AmountLabel}"
+                                 Minimum="{Binding AmountMin}" Maximum="{Binding AmountMax}"
+                                 Value="{Binding Amount, Mode=TwoWay}" />
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <Button Content="Apply" Width="80" IsDefault="True" Click="Apply_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

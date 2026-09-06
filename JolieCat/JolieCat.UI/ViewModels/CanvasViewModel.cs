@@ -132,6 +132,12 @@ namespace JolieCat.UI.ViewModels
         private int _warpDragRow = -1;
         private int _warpDragCol = -1;
 
+        // ================= Filter / Color Adjustment Preview =================
+
+        private Core.Documents.Layer? _adjustmentLayer;
+        private SKBitmap? _adjustmentOriginalBitmap;
+        private Func<SKBitmap, SKBitmap>? _adjustmentPreview;
+
         private bool _disposed;
 
         [ObservableProperty]
@@ -1456,20 +1462,23 @@ namespace JolieCat.UI.ViewModels
 
         // ================= Free Transform =================
 
-        /// <summary>The active layer, while Free Transform or Warp is live-previewing
-        /// it rather than its own committed bitmap - <see cref="Rendering.CanvasRenderer"/>
-        /// substitutes <see cref="BuildLivePreviewBitmap"/>'s result for exactly this
-        /// one layer (see <see cref="Rendering.SceneCompositor.DrawLayers"/>'s
-        /// preview-layer overload) so it composites correctly against the layers above
-        /// and below it while mid-gesture.</summary>
-        public Core.Documents.Layer? LivePreviewLayer => _transformLayer ?? _warpLayer;
+        /// <summary>The active layer, while Free Transform, Warp, or a filter/color
+        /// adjustment dialog is live-previewing it rather than its own committed
+        /// bitmap - <see cref="Rendering.CanvasRenderer"/> substitutes
+        /// <see cref="BuildLivePreviewBitmap"/>'s result for exactly this one layer
+        /// (see <see cref="Rendering.SceneCompositor.DrawLayers"/>'s preview-layer
+        /// overload) so it composites correctly against the layers above and below
+        /// it while mid-gesture/mid-preview.</summary>
+        public Core.Documents.Layer? LivePreviewLayer => _transformLayer ?? _warpLayer ?? _adjustmentLayer;
 
-        /// <summary>Bakes the current Free Transform/Warp gesture's live preview into a
-        /// fresh bitmap for <see cref="Rendering.CanvasRenderer"/> to draw in place of
-        /// <see cref="LivePreviewLayer"/>'s own committed content - null when neither is
-        /// active. Rebuilt fresh on every call rather than cached: it's only ever
-        /// called once per repaint, and a repaint only happens when something (a drag)
-        /// actually changed, so there's nothing to gain from caching it.</summary>
+        /// <summary>Bakes the current Free Transform/Warp gesture's, or filter/color
+        /// adjustment dialog's, live preview into a fresh bitmap for
+        /// <see cref="Rendering.CanvasRenderer"/> to draw in place of
+        /// <see cref="LivePreviewLayer"/>'s own committed content - null when none of
+        /// them is active. Rebuilt fresh on every call rather than cached: it's only
+        /// ever called once per repaint, and a repaint only happens when something (a
+        /// drag, or a dialog's slider) actually changed, so there's nothing to gain
+        /// from caching it.</summary>
         public SKBitmap? BuildLivePreviewBitmap()
         {
             if (_isTransforming && _transformLayer is not null && _transformOriginalBitmap is not null)
@@ -1480,6 +1489,9 @@ namespace JolieCat.UI.ViewModels
 
             if (_isWarping && _warpMesh is not null && _warpOriginalBitmap is not null)
                 return _warpMesh.Bake(_warpOriginalBitmap);
+
+            if (_adjustmentLayer is not null && _adjustmentOriginalBitmap is not null && _adjustmentPreview is not null)
+                return _adjustmentPreview(_adjustmentOriginalBitmap);
 
             return null;
         }
@@ -1714,6 +1726,89 @@ namespace JolieCat.UI.ViewModels
             _warpMesh = null;
             _warpDragRow = -1;
             _warpDragCol = -1;
+        }
+
+        // ================= Filter / Color Adjustment Preview =================
+
+        /// <summary>The active layer's pixels exactly as they were the moment
+        /// <see cref="BeginAdjustment"/> snapshotted them - what a filter/adjustment
+        /// dialog's own live preview (see <see cref="UpdateAdjustmentPreview"/>) is
+        /// always computed from, and what a dialog reads to build things like
+        /// <see cref="Core.Adjustments.Histogram"/> from the pixels as they actually
+        /// are right now, not some earlier state. Null unless an adjustment is in
+        /// progress.</summary>
+        public SKBitmap? AdjustmentSourceBitmap => _adjustmentOriginalBitmap;
+
+        /// <summary>Snapshots the active layer's current pixels and starts a live
+        /// preview session - called once, right before a filter/color adjustment
+        /// dialog is shown. The layer's real bitmap is never touched until
+        /// <see cref="CommitAdjustment"/> runs, exactly like Free Transform/Warp:
+        /// <see cref="CancelAdjustment"/> (the dialog's Cancel button, or closing it
+        /// without applying) is always a true no-op on the actual document.</summary>
+        public void BeginAdjustment()
+        {
+            var layer = Layers.ActiveLayer?.Model;
+            if (layer is null) return;
+
+            _adjustmentLayer = layer;
+            _adjustmentOriginalBitmap?.Dispose();
+            _adjustmentOriginalBitmap = layer.Bitmap.Copy();
+            _adjustmentPreview = null;
+            RaiseInvalidate();
+        }
+
+        /// <summary>Sets (or replaces) the function the live preview renders through -
+        /// called every time a dialog's own slider/control-point/etc. changes, so the
+        /// canvas always shows what committing right now would actually produce.
+        /// <paramref name="preview"/> receives <see cref="AdjustmentSourceBitmap"/>
+        /// (the original, untouched snapshot) each time it's invoked - never a
+        /// previous preview's own output - so repeated adjustments of the same
+        /// slider never compound against each other.</summary>
+        public void UpdateAdjustmentPreview(Func<SKBitmap, SKBitmap> preview)
+        {
+            _adjustmentPreview = preview ?? throw new ArgumentNullException(nameof(preview));
+            RaiseInvalidate();
+        }
+
+        /// <summary>Bakes whatever the live preview currently shows into the active
+        /// layer's actual bitmap and records it as one undo/redo entry - the dialog's
+        /// Apply/OK button. A no-op (same as <see cref="CancelAdjustment"/>) if
+        /// nothing was ever previewed, so opening a dialog and immediately closing it
+        /// with Apply/OK never pushes a do-nothing history entry.</summary>
+        public void CommitAdjustment()
+        {
+            if (_adjustmentLayer is null || _adjustmentOriginalBitmap is null || _adjustmentPreview is null)
+            {
+                EndAdjustment();
+                RaiseInvalidate();
+                return;
+            }
+
+            var before = _adjustmentLayer.Bitmap.Pixels;
+            using (var baked = _adjustmentPreview(_adjustmentOriginalBitmap))
+                _adjustmentLayer.Bitmap.Pixels = baked.Pixels;
+
+            Layers.History.Push(new LayerPixelsCommand(_adjustmentLayer.Bitmap, before, _adjustmentLayer.Bitmap.Pixels));
+            EndAdjustment();
+            RaiseInvalidate();
+        }
+
+        /// <summary>Discards the live preview without changing the document - the
+        /// dialog's Cancel button, or closing it any other way. The active layer's
+        /// actual bitmap was never touched (only ever live-previewed), so this is
+        /// just dropping the preview state, not undoing a write.</summary>
+        public void CancelAdjustment()
+        {
+            EndAdjustment();
+            RaiseInvalidate();
+        }
+
+        private void EndAdjustment()
+        {
+            _adjustmentLayer = null;
+            _adjustmentOriginalBitmap?.Dispose();
+            _adjustmentOriginalBitmap = null;
+            _adjustmentPreview = null;
         }
 
         private void RaiseInvalidate()

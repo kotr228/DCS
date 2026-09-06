@@ -255,6 +255,33 @@
                         Command="{Binding UndoCommand}" />
                 <Button Content="Redo" Width="60" Margin="2,0" ToolTip="Redo (Ctrl+Y)"
                         Command="{Binding RedoCommand}" />
+
+                <Border Width="1" Margin="8,2" Background="{StaticResource BorderBrush}" />
+
+                <!-- Each item opens a modal dialog with its own live preview on the
+                     canvas (see MainViewModel.OpenFilterDialog/OpenSimpleAdjustmentDialog/
+                     OpenLevelsDialog/OpenCurvesDialog) - nothing is written to the
+                     active layer until that dialog's own Apply button is clicked. -->
+                <Menu Background="Transparent" VerticalAlignment="Center">
+                    <MenuItem Header="Filters">
+                        <MenuItem Header="Gaussian Blur..." Command="{Binding OpenFilterDialogCommand}"
+                                  CommandParameter="{x:Static vm:FilterKind.GaussianBlur}" />
+                        <MenuItem Header="Box Blur..." Command="{Binding OpenFilterDialogCommand}"
+                                  CommandParameter="{x:Static vm:FilterKind.BoxBlur}" />
+                        <MenuItem Header="Sharpen..." Command="{Binding OpenFilterDialogCommand}"
+                                  CommandParameter="{x:Static vm:FilterKind.Sharpen}" />
+                        <MenuItem Header="Noise..." Command="{Binding OpenFilterDialogCommand}"
+                                  CommandParameter="{x:Static vm:FilterKind.Noise}" />
+                    </MenuItem>
+                    <MenuItem Header="Adjustments">
+                        <MenuItem Header="Brightness / Contrast..." Command="{Binding OpenSimpleAdjustmentDialogCommand}"
+                                  CommandParameter="{x:Static vm:SimpleAdjustmentKind.BrightnessContrast}" />
+                        <MenuItem Header="Hue / Saturation / Lightness..." Command="{Binding OpenSimpleAdjustmentDialogCommand}"
+                                  CommandParameter="{x:Static vm:SimpleAdjustmentKind.HueSaturation}" />
+                        <MenuItem Header="Levels..." Command="{Binding OpenLevelsDialogCommand}" />
+                        <MenuItem Header="Curves..." Command="{Binding OpenCurvesDialogCommand}" />
+                    </MenuItem>
+                </Menu>
             </StackPanel>
         </Border>
 
