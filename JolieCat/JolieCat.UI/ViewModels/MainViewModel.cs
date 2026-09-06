@@ -107,6 +107,20 @@ namespace JolieCat.UI.ViewModels
         /// <summary>Every open document/tab.</summary>
         public ObservableCollection<DocumentViewModel> Documents { get; } = new();
 
+        /// <summary>Nullable, even though the app never intentionally leaves no
+        /// document active: a WPF Selector (the tab strip's ListBox, TwoWay-bound
+        /// SelectedItem="{Binding ActiveDocument}") sets its bound property to null of
+        /// its own accord the moment the item it currently has selected is removed
+        /// from the bound collection - synchronously, as part of processing that
+        /// collection change, before any of this class's own code gets a chance to
+        /// react. <see cref="CloseDocument"/> reassigns <see cref="ActiveDocument"/>
+        /// to the next tab *before* removing the closed one specifically to avoid ever
+        /// triggering that transient-null window - but declaring this nullable (rather
+        /// than asserting it can't happen) and giving every reader of it a safe
+        /// fallback (see <see cref="Layers"/>/<see cref="Canvas"/>/<see cref="Timeline"/>)
+        /// means a future change that reintroduces the same WPF timing quirk (a second
+        /// TwoWay-bound selector, a different close/removal order) fails safe instead
+        /// of throwing a NullReferenceException out of a property getter.</summary>
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(Layers))]
         [NotifyPropertyChangedFor(nameof(Canvas))]
@@ -115,21 +129,34 @@ namespace JolieCat.UI.ViewModels
         [NotifyCanExecuteChangedFor(nameof(RedoCommand))]
         [NotifyCanExecuteChangedFor(nameof(CopySelectionCommand))]
         [NotifyCanExecuteChangedFor(nameof(PasteCommand))]
-        private DocumentViewModel activeDocument;
+        private DocumentViewModel? activeDocument;
+
+        /// <summary>A never-shown, lazily-created document (never added to
+        /// <see cref="Documents"/>, never made active) that <see cref="Layers"/>/
+        /// <see cref="Canvas"/>/<see cref="Timeline"/> fall back to for the rare/
+        /// transient moment <see cref="ActiveDocument"/> is null - see its own remarks.
+        /// Lets every existing binding and call site that reads Layers/Canvas/Timeline
+        /// keep assuming a non-null instance rather than needing a null-conditional
+        /// (or a crash) scattered across every one of them.</summary>
+        private DocumentViewModel? _fallbackDocument;
+
+        private DocumentViewModel FallbackDocument => _fallbackDocument ??= new DocumentViewModel(Toolbox, "(no document)");
 
         /// <summary>The active tool and its options - shared by every document tab
         /// rather than duplicated per document (see <see cref="DocumentViewModel"/>'s
         /// own remarks for why).</summary>
         public ToolboxViewModel Toolbox { get; }
 
-        /// <summary>Forwards to <see cref="ActiveDocument"/>'s own <see cref="DocumentViewModel.Layers"/> -
-        /// see this class's remarks for why every existing binding/call site can keep
-        /// reading this property unchanged as the active document changes.</summary>
-        public LayersViewModel Layers => ActiveDocument.Layers;
+        /// <summary>Forwards to <see cref="ActiveDocument"/>'s own <see cref="DocumentViewModel.Layers"/>
+        /// (or <see cref="FallbackDocument"/>'s, on the rare/transient tick
+        /// <see cref="ActiveDocument"/> is null - see its own remarks) - see this
+        /// class's remarks for why every existing binding/call site can keep reading
+        /// this property unchanged as the active document changes.</summary>
+        public LayersViewModel Layers => (ActiveDocument ?? FallbackDocument).Layers;
 
-        public CanvasViewModel Canvas => ActiveDocument.Canvas;
+        public CanvasViewModel Canvas => (ActiveDocument ?? FallbackDocument).Canvas;
 
-        public TimelineViewModel Timeline => ActiveDocument.Timeline;
+        public TimelineViewModel Timeline => (ActiveDocument ?? FallbackDocument).Timeline;
 
         public MainViewModel()
         {
@@ -180,8 +207,11 @@ namespace JolieCat.UI.ViewModels
         /// <summary>Refreshes every piece of shared UI state that depends on which
         /// document is active - the status bar's dimension readout, and Undo/Redo/Copy/
         /// Paste's enabled state (each of which reads <see cref="Layers"/>, which just
-        /// changed identity).</summary>
-        partial void OnActiveDocumentChanged(DocumentViewModel value)
+        /// changed identity). Runs the same way even when <paramref name="value"/> is
+        /// the transient null described on <see cref="ActiveDocument"/>'s own remarks -
+        /// every one of these reads <see cref="Layers"/>, which already falls back
+        /// safely rather than needing a null check here too.</summary>
+        partial void OnActiveDocumentChanged(DocumentViewModel? value)
         {
             UndoCommand.NotifyCanExecuteChanged();
             RedoCommand.NotifyCanExecuteChanged();
@@ -237,25 +267,49 @@ namespace JolieCat.UI.ViewModels
         /// <see cref="NewDocument"/>, rather than leaving the workspace with nothing
         /// open (which nothing else in this app is set up to handle - every panel here
         /// assumes an active document always exists).</summary>
+        /// <remarks>
+        /// If <paramref name="document"/> (or the <see cref="ActiveDocument"/> it
+        /// defaults to) is the active tab, <see cref="ActiveDocument"/> is reassigned to
+        /// whatever tab should become active *before* <paramref name="document"/> is
+        /// removed from <see cref="Documents"/> - deliberately in that order. The tab
+        /// strip's ListBox has its SelectedItem TwoWay-bound to ActiveDocument; removing
+        /// an item from a Selector's ItemsSource while that same item is still its
+        /// SelectedItem makes WPF null out SelectedItem (and so, via the binding,
+        /// ActiveDocument) itself, synchronously, as part of processing the removal -
+        /// which happened before this method existed in this order and was exactly the
+        /// source of a NullReferenceException out of Layers/Canvas/Timeline the instant
+        /// that transient null landed. Reassigning ActiveDocument first means the
+        /// SelectedItem has already moved off <paramref name="document"/> by the time
+        /// it's removed, so WPF has nothing left to "helpfully" null out.
+        /// </remarks>
         [RelayCommand]
         private void CloseDocument(DocumentViewModel? document)
         {
             document ??= ActiveDocument;
+            if (document is null) return;
+
             var index = Documents.IndexOf(document);
             if (index < 0) return;
 
-            Documents.RemoveAt(index);
-
-            if (Documents.Count == 0)
+            if (ReferenceEquals(ActiveDocument, document))
             {
-                var replacement = new DocumentViewModel(Toolbox, "Untitled 1");
-                RegisterDocument(replacement);
-                Documents.Add(replacement);
+                if (Documents.Count == 1)
+                {
+                    var replacement = new DocumentViewModel(Toolbox, "Untitled 1");
+                    RegisterDocument(replacement);
+                    Documents.Add(replacement);
+                    ActiveDocument = replacement;
+                }
+                else
+                {
+                    // Prefers the tab to the right (same index the closed one is
+                    // about to vacate) if there is one, else falls back to the left -
+                    // the same convention a browser's own tab strip uses.
+                    ActiveDocument = Documents[index < Documents.Count - 1 ? index + 1 : index - 1];
+                }
             }
 
-            if (ReferenceEquals(ActiveDocument, document))
-                ActiveDocument = Documents[Math.Min(index, Documents.Count - 1)];
-
+            Documents.Remove(document);
             document.Dispose();
         }
 
@@ -346,8 +400,8 @@ namespace JolieCat.UI.ViewModels
             // can never start concurrently with one already in flight, regardless of
             // which input triggered it.
             if (IsSaving) return;
+            if (ActiveDocument is not { } activeDocument) return;
 
-            var activeDocument = ActiveDocument;
             var dialog = new SaveFileDialog
             {
                 Filter = "JolieCat Project (*.jolie)|*.jolie",
