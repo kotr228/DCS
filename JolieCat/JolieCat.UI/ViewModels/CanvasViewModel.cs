@@ -87,6 +87,51 @@ namespace JolieCat.UI.ViewModels
         /// in practice: switching tools commits first, see <see cref="OnToolboxPropertyChanged"/>).</summary>
         private bool _isVerticalTextEdit;
 
+        // ================= Crop =================
+
+        private enum CropHandle { None, TopLeft, Top, TopRight, Right, BottomRight, Bottom, BottomLeft, Left, Inside }
+
+        /// <summary>Device-pixel radius a click/drag has to land within a handle to hit
+        /// it - converted to document space via <see cref="Zoom"/> at test time, so
+        /// handles stay equally easy to grab regardless of zoom level.</summary>
+        private const float HandleHitRadius = 10f;
+
+        private bool _isCropping;
+        private SKRect _cropRect;
+        private CropHandle _activeCropHandle = CropHandle.None;
+        private SKPoint _cropDragStart;
+        private SKRect _cropDragStartRect;
+
+        // ================= Free Transform =================
+
+        private enum TransformHandle { None, TopLeft, TopRight, BottomLeft, BottomRight, Rotate, Inside }
+
+        private bool _isTransforming;
+        private Core.Documents.Layer? _transformLayer;
+        private SKBitmap? _transformOriginalBitmap;
+        private SKRect _transformOriginalBounds;
+        private float _transformScaleX = 1f;
+        private float _transformScaleY = 1f;
+        private float _transformRotation;
+        private float _transformTranslateX;
+        private float _transformTranslateY;
+        private TransformHandle _activeTransformHandle = TransformHandle.None;
+        private SKPoint _transformDragStart;
+        private float _transformDragStartScaleX;
+        private float _transformDragStartScaleY;
+        private float _transformDragStartRotation;
+        private float _transformDragStartTranslateX;
+        private float _transformDragStartTranslateY;
+
+        // ================= Warp =================
+
+        private bool _isWarping;
+        private Core.Documents.Layer? _warpLayer;
+        private SKBitmap? _warpOriginalBitmap;
+        private Core.Transform.MeshWarp? _warpMesh;
+        private int _warpDragRow = -1;
+        private int _warpDragCol = -1;
+
         private bool _disposed;
 
         [ObservableProperty]
@@ -294,6 +339,14 @@ namespace JolieCat.UI.ViewModels
             // would not expect to vanish just from clicking a different tool.
             CommitTextEdit();
 
+            // Crop/Free Transform/Warp are the same: each holds real, user-driven work
+            // (a dragged rectangle, a live scale/rotation, a warped grid) that would
+            // otherwise silently vanish just from clicking a different tool - so
+            // switching away from one commits it, exactly like the text edit above.
+            CommitCrop();
+            CommitTransform();
+            CommitWarp();
+
             // Switching tools mid-gesture (e.g. clicking Brush while a polygon is only
             // half-drawn) abandons that gesture rather than leaving it to silently
             // resume - and silently resume it would: Polygonal Lasso's vertices survive
@@ -303,7 +356,16 @@ namespace JolieCat.UI.ViewModels
             // meant to persist across tool switches (select with Lasso, then paint with
             // Brush inside it).
             CancelInteraction();
+
+            // Switching *to* Crop/Free Transform/Warp starts each fresh against
+            // whatever's active now - the whole document for Crop, the active layer's
+            // current content for Free Transform/Warp.
+            if (_toolbox.ActiveTool.Type == ToolType.Crop) StartCrop();
+            else if (_toolbox.ActiveTool.Type == ToolType.FreeTransform) StartTransform();
+            else if (_toolbox.ActiveTool.Type == ToolType.Warp) StartWarp();
+
             OnPropertyChanged(nameof(ActiveToolType));
+            RaiseInvalidate();
         }
 
         private void OnLayersInvalidateRequested(object? sender, EventArgs e) => RaiseInvalidate();
@@ -416,6 +478,32 @@ namespace JolieCat.UI.ViewModels
                     RaiseInvalidate();
                     break;
 
+                case ToolType.Crop:
+                    if (!_isCropping) break;
+
+                    _activeCropHandle = HitTestCropHandle(doc);
+                    _cropDragStart = doc;
+                    _cropDragStartRect = _cropRect;
+                    break;
+
+                case ToolType.FreeTransform:
+                    if (!_isTransforming) break;
+
+                    _activeTransformHandle = HitTestTransformHandle(doc);
+                    _transformDragStart = doc;
+                    _transformDragStartScaleX = _transformScaleX;
+                    _transformDragStartScaleY = _transformScaleY;
+                    _transformDragStartRotation = _transformRotation;
+                    _transformDragStartTranslateX = _transformTranslateX;
+                    _transformDragStartTranslateY = _transformTranslateY;
+                    break;
+
+                case ToolType.Warp:
+                    if (_warpMesh is null) break;
+
+                    (_warpDragRow, _warpDragCol) = _warpMesh.FindNearestPoint(doc);
+                    break;
+
                 default:
                     // Every other tool (the remaining retouching tools, vector/text
                     // tools, canvas rotate) has a Properties panel and an icon but no
@@ -466,6 +554,21 @@ namespace JolieCat.UI.ViewModels
                 PanX = SnapToPixel(_panStartX + (devicePoint.X - _panDragStart.X));
                 PanY = SnapToPixel(_panStartY + (devicePoint.Y - _panDragStart.Y));
             }
+            else if (_isCropping && _activeCropHandle != CropHandle.None)
+            {
+                UpdateCropDrag(doc);
+                RaiseInvalidate();
+            }
+            else if (_isTransforming && _activeTransformHandle != TransformHandle.None)
+            {
+                UpdateTransformDrag(doc);
+                RaiseInvalidate();
+            }
+            else if (_isWarping && _warpDragRow >= 0 && _warpMesh is not null)
+            {
+                _warpMesh.WarpedGrid[_warpDragRow, _warpDragCol] = doc;
+                RaiseInvalidate();
+            }
         }
 
         public void OnPointerReleased(SKPoint devicePoint)
@@ -490,6 +593,16 @@ namespace JolieCat.UI.ViewModels
             _isDraggingMarquee = false;
             _isDrawingLasso = false;
             _lassoPath = null;
+
+            // Crop/Free Transform/Warp deliberately survive a mouse-up (unlike every
+            // gesture above): only the currently-dragged handle/point releases, not the
+            // whole in-progress operation - the user can keep adjusting handles across
+            // multiple drags before committing with Enter, exactly like every real
+            // crop/transform/warp tool's own mouse-up behavior.
+            _activeCropHandle = CropHandle.None;
+            _activeTransformHandle = TransformHandle.None;
+            _warpDragRow = -1;
+            _warpDragCol = -1;
 
             // Polygonal Lasso's _isDrawingPolygon deliberately survives a mouse-up: it's
             // a multi-click gesture (click each vertex, double-click to close), not a
@@ -533,6 +646,13 @@ namespace JolieCat.UI.ViewModels
             _isDrawingPolygon = false;
             _polygonVertices.Clear();
             LiveSelectionPath = null;
+
+            // Only the currently-dragged handle/point releases here too - not the whole
+            // in-progress Crop/Free Transform/Warp operation, matching OnPointerReleased.
+            _activeCropHandle = CropHandle.None;
+            _activeTransformHandle = TransformHandle.None;
+            _warpDragRow = -1;
+            _warpDragCol = -1;
         }
 
         /// <summary>Zooms in/out by one wheel notch, keeping the document point under the
@@ -1190,6 +1310,410 @@ namespace JolieCat.UI.ViewModels
 
             WithSelectionClip(layer.PaintCanvas, canvas =>
                 canvas.DrawRect(new SKRect(0, 0, layer.Bitmap.Width, layer.Bitmap.Height), paint));
+        }
+
+        // ================= Crop =================
+
+        /// <summary>The live crop rectangle, in document space, or null while the Crop
+        /// tool isn't active - <see cref="Rendering.CanvasRenderer"/>'s own read of this
+        /// drives the darkened-outside-area overlay and handle positions.</summary>
+        public SKRect? CropRect => _isCropping ? _cropRect : null;
+
+        private void StartCrop()
+        {
+            _cropRect = SKRect.Create(0, 0, Layers.DocumentWidth, Layers.DocumentHeight);
+            _isCropping = true;
+        }
+
+        /// <summary>Applies the live crop rectangle (and the Crop tool's own straighten
+        /// angle) to the whole document - see <see cref="Core.Documents.Scene.CropLayers"/>.
+        /// A no-op if Crop isn't active or the rectangle has collapsed to nothing.</summary>
+        public void CommitCrop()
+        {
+            if (!_isCropping) return;
+
+            var rect = SKRectI.Round(_cropRect);
+            if (rect.Width > 0 && rect.Height > 0)
+            {
+                var rotation = (float)((_toolbox.CurrentToolOptions as CropToolOptionsViewModel)?.RotationDegrees ?? 0);
+                Layers.CropDocument(rect, rotation);
+            }
+
+            _isCropping = false;
+            _activeCropHandle = CropHandle.None;
+            RaiseInvalidate();
+        }
+
+        /// <summary>Discards the in-progress crop rectangle without changing the
+        /// document - Escape's behavior for the Crop tool.</summary>
+        public void CancelCrop()
+        {
+            _isCropping = false;
+            _activeCropHandle = CropHandle.None;
+            RaiseInvalidate();
+        }
+
+        private CropHandle HitTestCropHandle(SKPoint doc)
+        {
+            var r = _cropRect;
+            var radius = HandleHitRadius / (float)Zoom;
+
+            bool Near(float x, float y) => Math.Abs(doc.X - x) <= radius && Math.Abs(doc.Y - y) <= radius;
+
+            if (Near(r.Left, r.Top)) return CropHandle.TopLeft;
+            if (Near(r.Right, r.Top)) return CropHandle.TopRight;
+            if (Near(r.Left, r.Bottom)) return CropHandle.BottomLeft;
+            if (Near(r.Right, r.Bottom)) return CropHandle.BottomRight;
+            if (Near(r.MidX, r.Top)) return CropHandle.Top;
+            if (Near(r.MidX, r.Bottom)) return CropHandle.Bottom;
+            if (Near(r.Left, r.MidY)) return CropHandle.Left;
+            if (Near(r.Right, r.MidY)) return CropHandle.Right;
+            return r.Contains(doc) ? CropHandle.Inside : CropHandle.None;
+        }
+
+        private void UpdateCropDrag(SKPoint doc)
+        {
+            if (_activeCropHandle == CropHandle.None) return;
+
+            var dx = doc.X - _cropDragStart.X;
+            var dy = doc.Y - _cropDragStart.Y;
+            var start = _cropDragStartRect;
+
+            if (_activeCropHandle == CropHandle.Inside)
+            {
+                _cropRect = SKRect.Create(start.Left + dx, start.Top + dy, start.Width, start.Height);
+                return;
+            }
+
+            var left = start.Left;
+            var top = start.Top;
+            var right = start.Right;
+            var bottom = start.Bottom;
+
+            switch (_activeCropHandle)
+            {
+                case CropHandle.TopLeft: left += dx; top += dy; break;
+                case CropHandle.Top: top += dy; break;
+                case CropHandle.TopRight: right += dx; top += dy; break;
+                case CropHandle.Right: right += dx; break;
+                case CropHandle.BottomRight: right += dx; bottom += dy; break;
+                case CropHandle.Bottom: bottom += dy; break;
+                case CropHandle.BottomLeft: left += dx; bottom += dy; break;
+                case CropHandle.Left: left += dx; break;
+            }
+
+            // A minimum size - not clamped to the document's own bounds, since
+            // dragging a handle past the original edge is how this tool also extends
+            // the canvas (padding the new area with transparency/a fully-visible
+            // mask) rather than only ever being able to shrink it.
+            const float minSize = 8f;
+            if (right - left < minSize)
+            {
+                if (_activeCropHandle is CropHandle.TopLeft or CropHandle.Left or CropHandle.BottomLeft) left = right - minSize;
+                else right = left + minSize;
+            }
+            if (bottom - top < minSize)
+            {
+                if (_activeCropHandle is CropHandle.TopLeft or CropHandle.Top or CropHandle.TopRight) top = bottom - minSize;
+                else bottom = top + minSize;
+            }
+
+            _cropRect = ApplyCropAspectLock(SKRect.Create(left, top, right - left, bottom - top), _activeCropHandle);
+        }
+
+        /// <summary>Recomputes whichever dimension the dragged handle didn't primarily
+        /// control from the other, to match the Crop tool's current aspect-ratio lock -
+        /// a no-op (returns <paramref name="rect"/> unchanged) while it's Free. Keeps
+        /// the rectangle anchored at whichever corner/edge is opposite the one being
+        /// dragged, rather than letting it drift as the locked dimension changes.</summary>
+        private SKRect ApplyCropAspectLock(SKRect rect, CropHandle handle)
+        {
+            if (_toolbox.CurrentToolOptions is not CropToolOptionsViewModel options) return rect;
+
+            var ratio = options.AspectRatio == CropAspectRatioMode.Original
+                ? (Layers.DocumentHeight > 0 ? (double)Layers.DocumentWidth / Layers.DocumentHeight : (double?)null)
+                : options.GetFixedRatio();
+            if (ratio is not { } r || r <= 0) return rect;
+
+            var width = rect.Width;
+            var height = rect.Height;
+
+            // Dragging a purely-vertical edge (Top/Bottom) primarily changed height,
+            // so width follows it; every other handle (the corners, and the purely-
+            // horizontal Left/Right edges) primarily changed width, so height follows.
+            if (handle is CropHandle.Top or CropHandle.Bottom)
+                width = (float)(height * r);
+            else
+                height = (float)(width / r);
+
+            return handle switch
+            {
+                CropHandle.TopLeft or CropHandle.Top or CropHandle.TopRight => SKRect.Create(rect.Right - width, rect.Bottom - height, width, height),
+                CropHandle.BottomLeft or CropHandle.Left => SKRect.Create(rect.Right - width, rect.Top, width, height),
+                _ => SKRect.Create(rect.Left, rect.Top, width, height),
+            };
+        }
+
+        // ================= Free Transform =================
+
+        /// <summary>The active layer, while Free Transform or Warp is live-previewing
+        /// it rather than its own committed bitmap - <see cref="Rendering.CanvasRenderer"/>
+        /// substitutes <see cref="BuildLivePreviewBitmap"/>'s result for exactly this
+        /// one layer (see <see cref="Rendering.SceneCompositor.DrawLayers"/>'s
+        /// preview-layer overload) so it composites correctly against the layers above
+        /// and below it while mid-gesture.</summary>
+        public Core.Documents.Layer? LivePreviewLayer => _transformLayer ?? _warpLayer;
+
+        /// <summary>Bakes the current Free Transform/Warp gesture's live preview into a
+        /// fresh bitmap for <see cref="Rendering.CanvasRenderer"/> to draw in place of
+        /// <see cref="LivePreviewLayer"/>'s own committed content - null when neither is
+        /// active. Rebuilt fresh on every call rather than cached: it's only ever
+        /// called once per repaint, and a repaint only happens when something (a drag)
+        /// actually changed, so there's nothing to gain from caching it.</summary>
+        public SKBitmap? BuildLivePreviewBitmap()
+        {
+            if (_isTransforming && _transformLayer is not null && _transformOriginalBitmap is not null)
+            {
+                var matrix = BuildLiveTransformMatrix();
+                return Core.Transform.LayerTransformer.Bake(_transformOriginalBitmap, matrix, _transformLayer.Bitmap.Width, _transformLayer.Bitmap.Height);
+            }
+
+            if (_isWarping && _warpMesh is not null && _warpOriginalBitmap is not null)
+                return _warpMesh.Bake(_warpOriginalBitmap);
+
+            return null;
+        }
+
+        /// <summary>The Free Transform box's current (live) four corners, in document
+        /// space - null while it isn't active. <see cref="Rendering.CanvasRenderer"/>
+        /// draws the box outline and its corner/rotate handles from these.</summary>
+        public SKPoint[]? TransformCorners()
+        {
+            if (!_isTransforming) return null;
+
+            var matrix = BuildLiveTransformMatrix();
+            var b = _transformOriginalBounds;
+            return new[]
+            {
+                matrix.MapPoint(new SKPoint(b.Left, b.Top)),
+                matrix.MapPoint(new SKPoint(b.Right, b.Top)),
+                matrix.MapPoint(new SKPoint(b.Right, b.Bottom)),
+                matrix.MapPoint(new SKPoint(b.Left, b.Bottom)),
+            };
+        }
+
+        /// <summary>The Free Transform box's rotate handle position, in document space -
+        /// a fixed screen distance beyond the box's own top edge, along whichever
+        /// direction that edge currently faces (so it stays "above" the box through any
+        /// rotation) - or null while Free Transform isn't active.</summary>
+        public SKPoint? TransformRotateHandle()
+        {
+            if (!_isTransforming) return null;
+
+            var matrix = BuildLiveTransformMatrix();
+            var b = _transformOriginalBounds;
+            var center = matrix.MapPoint(new SKPoint(b.MidX, b.MidY));
+            var topMid = matrix.MapPoint(new SKPoint(b.MidX, b.Top));
+
+            var dx = topMid.X - center.X;
+            var dy = topMid.Y - center.Y;
+            var length = MathF.Sqrt(dx * dx + dy * dy);
+            if (length < 0.001f) return topMid;
+
+            var offset = 30f / (float)Zoom;
+            return new SKPoint(topMid.X + dx / length * offset, topMid.Y + dy / length * offset);
+        }
+
+        private void StartTransform()
+        {
+            var layer = Layers.ActiveLayer?.Model;
+            if (layer is null) return;
+
+            _transformLayer = layer;
+            _transformOriginalBitmap?.Dispose();
+            _transformOriginalBitmap = layer.Bitmap.Copy();
+            _transformOriginalBounds = SKRect.Create(0, 0, layer.Bitmap.Width, layer.Bitmap.Height);
+            _transformScaleX = 1f;
+            _transformScaleY = 1f;
+            _transformRotation = 0f;
+            _transformTranslateX = 0f;
+            _transformTranslateY = 0f;
+            _isTransforming = true;
+        }
+
+        /// <summary>Bakes the live scale/rotation/translation into the active layer's
+        /// actual bitmap (see <see cref="Core.Transform.LayerTransformer.Bake"/>) and
+        /// records it as one undo/redo entry - a no-op if Free Transform isn't active.</summary>
+        public void CommitTransform()
+        {
+            if (!_isTransforming || _transformLayer is null || _transformOriginalBitmap is null)
+            {
+                EndTransform();
+                return;
+            }
+
+            var matrix = BuildLiveTransformMatrix();
+            var before = _transformLayer.Bitmap.Pixels;
+            using (var baked = Core.Transform.LayerTransformer.Bake(_transformOriginalBitmap, matrix, _transformLayer.Bitmap.Width, _transformLayer.Bitmap.Height))
+                _transformLayer.Bitmap.Pixels = baked.Pixels;
+
+            Layers.History.Push(new LayerPixelsCommand(_transformLayer.Bitmap, before, _transformLayer.Bitmap.Pixels));
+            EndTransform();
+            RaiseInvalidate();
+        }
+
+        /// <summary>Discards the in-progress transform - the active layer's actual
+        /// bitmap was never touched (only ever live-previewed), so this is just
+        /// dropping the preview state, not undoing a write.</summary>
+        public void CancelTransform()
+        {
+            EndTransform();
+            RaiseInvalidate();
+        }
+
+        private void EndTransform()
+        {
+            _isTransforming = false;
+            _transformLayer = null;
+            _transformOriginalBitmap?.Dispose();
+            _transformOriginalBitmap = null;
+            _activeTransformHandle = TransformHandle.None;
+        }
+
+        private SKMatrix BuildLiveTransformMatrix() => Core.Transform.LayerTransformer.BuildMatrix(
+            new SKPoint(_transformOriginalBounds.MidX, _transformOriginalBounds.MidY),
+            _transformScaleX, _transformScaleY, _transformRotation, _transformTranslateX, _transformTranslateY);
+
+        private TransformHandle HitTestTransformHandle(SKPoint doc)
+        {
+            if (_transformLayer is null) return TransformHandle.None;
+
+            var radius = HandleHitRadius / (float)Zoom;
+            bool Near(SKPoint p) => SKPoint.Distance(p, doc) <= radius;
+
+            if (TransformRotateHandle() is { } rotateHandle && Near(rotateHandle)) return TransformHandle.Rotate;
+
+            var corners = TransformCorners();
+            if (corners is not null)
+            {
+                if (Near(corners[0])) return TransformHandle.TopLeft;
+                if (Near(corners[1])) return TransformHandle.TopRight;
+                if (Near(corners[2])) return TransformHandle.BottomRight;
+                if (Near(corners[3])) return TransformHandle.BottomLeft;
+            }
+
+            // Inside test: map the click back into the box's own original
+            // (untransformed) space via the inverse matrix, then a plain axis-aligned
+            // Contains check - correct regardless of the box's current rotation.
+            var matrix = BuildLiveTransformMatrix();
+            if (matrix.TryInvert(out var inverse) && _transformOriginalBounds.Contains(inverse.MapPoint(doc)))
+                return TransformHandle.Inside;
+
+            return TransformHandle.None;
+        }
+
+        private void UpdateTransformDrag(SKPoint doc)
+        {
+            switch (_activeTransformHandle)
+            {
+                case TransformHandle.Inside:
+                    _transformTranslateX = _transformDragStartTranslateX + (doc.X - _transformDragStart.X);
+                    _transformTranslateY = _transformDragStartTranslateY + (doc.Y - _transformDragStart.Y);
+                    break;
+
+                case TransformHandle.Rotate:
+                {
+                    var center = new SKPoint(
+                        _transformOriginalBounds.MidX + _transformDragStartTranslateX,
+                        _transformOriginalBounds.MidY + _transformDragStartTranslateY);
+                    var startAngle = MathF.Atan2(_transformDragStart.Y - center.Y, _transformDragStart.X - center.X);
+                    var currentAngle = MathF.Atan2(doc.Y - center.Y, doc.X - center.X);
+                    _transformRotation = _transformDragStartRotation + (currentAngle - startAngle) * (180f / MathF.PI);
+                    break;
+                }
+
+                // Corner handles scale uniformly, by how much further from (or closer
+                // to) the box's own original center the drag point is now versus where
+                // the drag started - rotation-agnostic (it's a plain radial distance
+                // ratio) and the same regardless of which corner was grabbed.
+                case TransformHandle.TopLeft:
+                case TransformHandle.TopRight:
+                case TransformHandle.BottomLeft:
+                case TransformHandle.BottomRight:
+                {
+                    var center = new SKPoint(_transformOriginalBounds.MidX, _transformOriginalBounds.MidY);
+                    var startDistance = SKPoint.Distance(center, _transformDragStart);
+                    var currentDistance = SKPoint.Distance(center, doc);
+                    if (startDistance > 0.001f)
+                    {
+                        var factor = currentDistance / startDistance;
+                        _transformScaleX = _transformDragStartScaleX * factor;
+                        _transformScaleY = _transformDragStartScaleY * factor;
+                    }
+                    break;
+                }
+            }
+        }
+
+        // ================= Warp =================
+
+        /// <summary>The live control-point grid, or null while the Warp tool isn't
+        /// active - <see cref="Rendering.CanvasRenderer"/> draws the grid lines/points
+        /// from this alongside <see cref="LivePreviewLayer"/>'s warped preview.</summary>
+        public Core.Transform.MeshWarp? WarpMesh => _isWarping ? _warpMesh : null;
+
+        private void StartWarp()
+        {
+            var layer = Layers.ActiveLayer?.Model;
+            if (layer is null) return;
+
+            var gridSize = Math.Clamp((_toolbox.CurrentToolOptions as WarpToolOptionsViewModel)?.GridSize ?? 3, 2, 4);
+
+            _warpLayer = layer;
+            _warpOriginalBitmap?.Dispose();
+            _warpOriginalBitmap = layer.Bitmap.Copy();
+            _warpMesh = new Core.Transform.MeshWarp(gridSize, gridSize, layer.Bitmap.Width, layer.Bitmap.Height);
+            _isWarping = true;
+        }
+
+        /// <summary>Bakes the live-warped mesh into the active layer's actual bitmap
+        /// (see <see cref="Core.Transform.MeshWarp.Bake"/>) and records it as one
+        /// undo/redo entry - a no-op if Warp isn't active.</summary>
+        public void CommitWarp()
+        {
+            if (!_isWarping || _warpLayer is null || _warpOriginalBitmap is null || _warpMesh is null)
+            {
+                EndWarp();
+                return;
+            }
+
+            var before = _warpLayer.Bitmap.Pixels;
+            using (var baked = _warpMesh.Bake(_warpOriginalBitmap))
+                _warpLayer.Bitmap.Pixels = baked.Pixels;
+
+            Layers.History.Push(new LayerPixelsCommand(_warpLayer.Bitmap, before, _warpLayer.Bitmap.Pixels));
+            EndWarp();
+            RaiseInvalidate();
+        }
+
+        /// <summary>Discards the in-progress warp - the active layer's actual bitmap
+        /// was never touched (only ever live-previewed), so this just drops the
+        /// preview state, not undoing a write.</summary>
+        public void CancelWarp()
+        {
+            EndWarp();
+            RaiseInvalidate();
+        }
+
+        private void EndWarp()
+        {
+            _isWarping = false;
+            _warpLayer = null;
+            _warpOriginalBitmap?.Dispose();
+            _warpOriginalBitmap = null;
+            _warpMesh = null;
+            _warpDragRow = -1;
+            _warpDragCol = -1;
         }
 
         private void RaiseInvalidate()

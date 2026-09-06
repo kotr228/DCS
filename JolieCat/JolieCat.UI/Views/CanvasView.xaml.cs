@@ -131,6 +131,32 @@ namespace JolieCat.UI.Views
             viewModel.OnPointerPressed(ToDevicePixels(e.GetPosition(Surface)), e.ClickCount == 2);
         }
 
+        /// <summary>Enter commits and Escape cancels whichever of Crop/Free Transform/
+        /// Warp is currently active - calling all three Commit (or Cancel) methods
+        /// unconditionally is safe, since each is a no-op unless its own tool is the
+        /// one actually in progress (mirrors CanvasViewModel.OnToolboxPropertyChanged's
+        /// own "call all three" pattern for the same reason). Requires the canvas
+        /// surface to have keyboard focus, which mouse-down above already gives it.</summary>
+        private void Surface_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (ViewModel is not { } viewModel) return;
+
+            if (e.Key == Key.Enter)
+            {
+                viewModel.CommitCrop();
+                viewModel.CommitTransform();
+                viewModel.CommitWarp();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Escape)
+            {
+                viewModel.CancelCrop();
+                viewModel.CancelTransform();
+                viewModel.CancelWarp();
+                e.Handled = true;
+            }
+        }
+
         private void Surface_MouseMove(object sender, MouseEventArgs e)
         {
             ViewModel?.OnPointerMoved(ToDevicePixels(e.GetPosition(Surface)));

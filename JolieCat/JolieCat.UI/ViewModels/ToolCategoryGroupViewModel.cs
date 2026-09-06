@@ -35,6 +35,7 @@ namespace JolieCat.UI.ViewModels
                 ToolCategory.Painting => "Painting",
                 ToolCategory.Retouching => "Retouching",
                 ToolCategory.VectorText => "Vector / Text",
+                ToolCategory.Transform => "Transform",
                 _ => category.ToString(),
             };
         }

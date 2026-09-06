@@ -17,8 +17,14 @@ namespace JolieCat.Core.Rendering
         /// <summary>Draws every visible layer in <paramref name="scene"/>, back-to-front,
         /// onto <paramref name="canvas"/> - the document-space compositing step shared by
         /// the live canvas (inside its own pan/zoom transform) and a flattened export
-        /// (drawn 1:1 with no transform at all).</summary>
-        public static void DrawLayers(SKCanvas canvas, Scene scene, int documentWidth, int documentHeight)
+        /// (drawn 1:1 with no transform at all). If <paramref name="previewLayer"/> is
+        /// given, its content is drawn from <paramref name="previewBitmap"/> instead of
+        /// its own (untouched) <see cref="Layer.Bitmap"/> - still in its normal position
+        /// in the stack, and still with its own opacity/blend mode/mask - used by the
+        /// Free Transform/Warp tools' live preview so a layer mid-transform renders
+        /// correctly relative to the layers above and below it, rather than the preview
+        /// only ever being drawable on top of everything.</summary>
+        public static void DrawLayers(SKCanvas canvas, Scene scene, int documentWidth, int documentHeight, Layer? previewLayer = null, SKBitmap? previewBitmap = null)
         {
             ArgumentNullException.ThrowIfNull(canvas);
             ArgumentNullException.ThrowIfNull(scene);
@@ -26,13 +32,25 @@ namespace JolieCat.Core.Rendering
             foreach (var layer in scene.Layers)
             {
                 if (!layer.IsVisible) continue;
-                DrawLayer(canvas, layer, documentWidth, documentHeight);
+
+                var bitmap = ReferenceEquals(layer, previewLayer) && previewBitmap is not null ? previewBitmap : layer.Bitmap;
+                DrawLayer(canvas, layer, bitmap, documentWidth, documentHeight);
             }
         }
 
         /// <summary>Draws one layer - masked, if it has an enabled mask - onto
         /// <paramref name="canvas"/> with its own opacity and blend mode.</summary>
-        public static void DrawLayer(SKCanvas canvas, Layer layer, int documentWidth, int documentHeight)
+        public static void DrawLayer(SKCanvas canvas, Layer layer, int documentWidth, int documentHeight) =>
+            DrawLayer(canvas, layer, layer.Bitmap, documentWidth, documentHeight);
+
+        /// <summary>Draws one layer exactly like <see cref="DrawLayer(SKCanvas, Layer, int, int)"/>,
+        /// but sourcing its color content from <paramref name="bitmap"/> instead of the
+        /// layer's own <see cref="Layer.Bitmap"/> - <paramref name="layer"/> still
+        /// supplies its own opacity, blend mode, and mask. Lets a caller substitute a
+        /// live-transformed/warped preview bitmap for one layer while every other
+        /// layer (and this one's own compositing behavior) stays exactly as it would
+        /// normally be.</summary>
+        public static void DrawLayer(SKCanvas canvas, Layer layer, SKBitmap bitmap, int documentWidth, int documentHeight)
         {
             using var layerPaint = new SKPaint
             {
@@ -52,7 +70,7 @@ namespace JolieCat.Core.Rendering
                 using var maskedSurface = SKSurface.Create(new SKImageInfo(documentWidth, documentHeight, SKColorType.Rgba8888, SKAlphaType.Premul));
                 var maskedCanvas = maskedSurface.Canvas;
                 maskedCanvas.Clear(SKColors.Transparent);
-                maskedCanvas.DrawBitmap(layer.Bitmap, 0, 0);
+                maskedCanvas.DrawBitmap(bitmap, 0, 0);
 
                 // SKColorFilter.CreateLumaColor() converts whatever's drawn through it to
                 // its luminance value carried in the alpha channel - exactly "read the
@@ -68,7 +86,7 @@ namespace JolieCat.Core.Rendering
             }
             else
             {
-                canvas.DrawBitmap(layer.Bitmap, 0, 0, layerPaint);
+                canvas.DrawBitmap(bitmap, 0, 0, layerPaint);
             }
         }
 

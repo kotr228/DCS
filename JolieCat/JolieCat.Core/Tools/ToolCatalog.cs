@@ -106,6 +106,18 @@ namespace JolieCat.Core.Tools
 
             new(ToolType.TextVertical, ToolCategory.VectorText, "Vertical Text",
                 "M4,4 V20 H7 V4 Z M7,10.5 H20 V13.5 H7 Z", "T"),
+
+            // Transform
+            new(ToolType.Crop, ToolCategory.Transform, "Crop",
+                "M6,2 V18 H22 V20 H6 V22 H4 V20 H2 V18 H4 V6 H2 V4 H4 V2 Z M8,6 H18 V16 H20 V6 Z M8,8 V16 H16 V18 H8 Z", "C"),
+
+            new(ToolType.FreeTransform, ToolCategory.Transform, "Free Transform",
+                "M2,2 H8 V4 H4 V8 H2 Z M16,2 H22 V8 H20 V4 H16 Z M2,16 H4 V20 H8 V22 H2 Z M20,16 H22 V22 H16 V20 H20 Z " +
+                "M9,9 A1.5,1.5 0 1 1 12,9 A1.5,1.5 0 1 1 9,9 Z M9,15 A1.5,1.5 0 1 1 12,15 A1.5,1.5 0 1 1 9,15 Z", "T"),
+
+            new(ToolType.Warp, ToolCategory.Transform, "Warp",
+                "M2,2 H22 V22 H2 Z M2,9 H22 M2,15 H22 M9,2 V22 M15,2 V22 " +
+                "M9,9 A1.3,1.3 0 1 1 11.6,9 A1.3,1.3 0 1 1 9,9 Z M15,15 A1.3,1.3 0 1 1 17.6,15 A1.3,1.3 0 1 1 15,15 Z", "W"),
         };
     }
 }

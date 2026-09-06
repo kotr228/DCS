@@ -173,6 +173,79 @@ namespace JolieCat.Core.Documents
             }
         }
 
+        /// <summary>
+        /// Crops every layer to <paramref name="cropRect"/> (document-space, axis-
+        /// aligned) - first rotating each layer's entire content around the document's
+        /// own center by -<paramref name="rotationDegrees"/> ("straighten") if
+        /// non-zero. Every resulting layer (and mask) is exactly <paramref name="cropRect"/>'s
+        /// own size, anchored so content that was at <paramref name="cropRect"/>'s
+        /// top-left now sits at (0,0) - the same top-left-anchored convention every
+        /// other layer placement in this codebase already uses. Rebuilds a fresh
+        /// <see cref="Layer"/> per layer (disposing the old one), exactly like
+        /// <see cref="ResizeLayers"/>.
+        /// </summary>
+        public void CropLayers(SKRectI cropRect, float rotationDegrees)
+        {
+            if (cropRect.Width <= 0 || cropRect.Height <= 0) throw new ArgumentOutOfRangeException(nameof(cropRect));
+
+            for (var i = 0; i < _layers.Count; i++)
+            {
+                var old = _layers[i];
+                var center = new SKPoint(old.Bitmap.Width / 2f, old.Bitmap.Height / 2f);
+
+                var cropped = new Layer(old.Name, cropRect.Width, cropRect.Height, old.Type)
+                {
+                    IsVisible = old.IsVisible,
+                    IsLocked = old.IsLocked,
+                    Opacity = old.Opacity,
+                    BlendMode = old.BlendMode,
+                };
+
+                RotateAndCropInto(cropped.Canvas, old.Bitmap, center, rotationDegrees, cropRect, SKColors.Transparent);
+
+                if (old.Mask is { } oldMask)
+                {
+                    var croppedMask = cropped.AddMask();
+                    croppedMask.IsEnabled = oldMask.IsEnabled;
+                    RotateAndCropInto(croppedMask.Canvas, oldMask.Bitmap, center, rotationDegrees, cropRect, SKColors.White);
+                    cropped.IsMaskActive = old.IsMaskActive;
+                }
+
+                _layers[i] = cropped;
+                if (ActiveLayer == old) ActiveLayer = cropped;
+
+                old.Dispose();
+            }
+        }
+
+        /// <summary>Rotates <paramref name="source"/> around <paramref name="center"/>
+        /// by -<paramref name="rotationDegrees"/> onto a same-size intermediate
+        /// surface, then trims that to <paramref name="cropRect"/> and draws the
+        /// result onto <paramref name="destCanvas"/> at (0,0). Deliberately two
+        /// passes rather than one combined transform: rotating and cropping via a
+        /// single concatenated matrix is easy to get subtly backwards (which half of
+        /// the composition applies "first" to a point); two separate, individually
+        /// obvious passes are not, and this is a rare, user-initiated, one-time
+        /// operation where the extra intermediate bitmap's cost is irrelevant.</summary>
+        private static void RotateAndCropInto(SKCanvas destCanvas, SKBitmap source, SKPoint center, float rotationDegrees, SKRectI cropRect, SKColor backgroundColor)
+        {
+            using var rotated = new SKBitmap(source.Width, source.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using (var rotateCanvas = new SKCanvas(rotated))
+            {
+                rotateCanvas.Clear(backgroundColor);
+                if (rotationDegrees != 0f)
+                {
+                    rotateCanvas.Translate(center.X, center.Y);
+                    rotateCanvas.RotateDegrees(-rotationDegrees);
+                    rotateCanvas.Translate(-center.X, -center.Y);
+                }
+                rotateCanvas.DrawBitmap(source, 0, 0);
+            }
+
+            destCanvas.Clear(backgroundColor);
+            destCanvas.DrawBitmap(rotated, -cropRect.Left, -cropRect.Top);
+        }
+
         /// <summary>Freezes every layer's metadata and pixel content - the History
         /// system's before/after state for a structural change (see
         /// <see cref="History.SceneStructuralCommand"/>).</summary>

@@ -9,6 +9,7 @@ namespace JolieCat.Shared.Enums
         Navigation,
         Painting,
         Retouching,
-        VectorText
+        VectorText,
+        Transform
     }
 }

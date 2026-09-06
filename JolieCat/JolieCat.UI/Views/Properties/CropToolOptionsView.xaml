@@ -1,0 +1,18 @@
+<UserControl x:Class="JolieCat.UI.Views.Properties.CropToolOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+             mc:Ignorable="d">
+    <StackPanel Margin="10">
+        <TextBlock Text="Aspect Ratio" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4" />
+        <ComboBox ItemsSource="{Binding AllAspectRatios}" SelectedItem="{Binding AspectRatio, Mode=TwoWay}" Margin="0,0,0,10" />
+
+        <controls:LabeledSlider Label="Straighten" Minimum="-45" Maximum="45" Suffix="&#176;"
+                                 Value="{Binding RotationDegrees, Mode=TwoWay}" />
+
+        <TextBlock Text="Drag a corner/edge handle to resize, inside to move. Press Enter to apply, Escape to cancel."
+                   Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,10,0,0" />
+    </StackPanel>
+</UserControl>

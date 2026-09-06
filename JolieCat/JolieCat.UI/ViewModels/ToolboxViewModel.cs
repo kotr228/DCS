@@ -73,6 +73,12 @@ namespace JolieCat.UI.ViewModels
 
             ToolType.Eyedropper => new EyedropperToolOptionsViewModel(),
 
+            ToolType.Crop => new CropToolOptionsViewModel(),
+
+            ToolType.FreeTransform => new FreeTransformToolOptionsViewModel(),
+
+            ToolType.Warp => new WarpToolOptionsViewModel(),
+
             _ => new EmptyToolOptionsViewModel(),
         };
     }

@@ -1,0 +1,16 @@
+<UserControl x:Class="JolieCat.UI.Views.Properties.WarpToolOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d">
+    <StackPanel Margin="10">
+        <TextBlock Text="Grid Size" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4" />
+        <ComboBox SelectedValuePath="Content" SelectedValue="{Binding GridSize, Mode=TwoWay}" Margin="0,0,0,10">
+            <ComboBoxItem Content="3" />
+            <ComboBoxItem Content="4" />
+        </ComboBox>
+
+        <TextBlock Text="{Binding Instructions}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+    </StackPanel>
+</UserControl>

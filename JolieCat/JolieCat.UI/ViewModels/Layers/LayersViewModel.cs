@@ -172,6 +172,12 @@ namespace JolieCat.UI.ViewModels.Layers
             ExecuteStructuralChange(() => Scene.ResizeLayers(newWidth, newHeight));
         }
 
+        /// <summary>Crops the whole document to <paramref name="cropRect"/> (see
+        /// <see cref="Scene.CropLayers"/>) - the Crop tool's commit step. One undo/redo
+        /// entry, like every other structural change.</summary>
+        public void CropDocument(SKRectI cropRect, float rotationDegrees) =>
+            ExecuteStructuralChange(() => Scene.CropLayers(cropRect, rotationDegrees));
+
         /// <summary>Imports a decoded image as a new topmost raster layer named <paramref name="name"/>,
         /// then makes it the active layer. If <paramref name="bitmap"/> doesn't already
         /// match the document's size, either the whole document is resized to the

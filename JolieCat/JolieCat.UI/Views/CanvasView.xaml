@@ -37,6 +37,7 @@
                         MouseLeftButtonUp="Surface_MouseLeftButtonUp"
                         MouseWheel="Surface_MouseWheel"
                         LostMouseCapture="Surface_LostMouseCapture"
+                        KeyDown="Surface_KeyDown"
                         DragEnter="Surface_DragEnterOrOver"
                         DragOver="Surface_DragEnterOrOver"
                         Drop="Surface_Drop" />

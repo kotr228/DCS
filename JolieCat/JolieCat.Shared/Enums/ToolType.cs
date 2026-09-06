@@ -42,6 +42,11 @@ namespace JolieCat.Shared.Enums
         Pen,
         Shape,
         TextHorizontal,
-        TextVertical
+        TextVertical,
+
+        // Transform
+        Crop,
+        FreeTransform,
+        Warp
     }
 }

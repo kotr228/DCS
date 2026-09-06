@@ -39,4 +39,16 @@
         <views:EmptyToolOptionsView />
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type opts:CropToolOptionsViewModel}">
+        <views:CropToolOptionsView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:FreeTransformToolOptionsViewModel}">
+        <views:FreeTransformToolOptionsView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:WarpToolOptionsViewModel}">
+        <views:WarpToolOptionsView />
+    </DataTemplate>
+
 </ResourceDictionary>
