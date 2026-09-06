@@ -415,7 +415,12 @@
              whether it currently has anything to say. -->
         <Border Grid.Row="4" Background="{StaticResource PanelAltBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-            <TextBlock Margin="10,3" FontSize="11" Text="{Binding SaveStatusMessage}"
+          <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Margin="10,3" FontSize="11" Text="{Binding SaveStatusMessage}"
                        Foreground="{StaticResource TextSecondaryBrush}">
                 <TextBlock.Style>
                     <!-- Fades SaveSuccessMessage out a couple of seconds after it
@@ -447,6 +452,15 @@
                     </Style>
                 </TextBlock.Style>
             </TextBlock>
+
+            <!-- Temporary debug readout - see MainViewModel.DimensionDebugText's own
+                 remarks. Not gated behind any "debug mode" flag; remove this TextBlock
+                 (and the property/wiring behind it) once the dimension-mismatch
+                 investigation it's here for is resolved. -->
+            <TextBlock Grid.Column="1" Margin="10,3" FontSize="11" FontFamily="Consolas"
+                       Text="{Binding DimensionDebugText}"
+                       Foreground="{StaticResource TextSecondaryBrush}" />
+          </Grid>
         </Border>
 
         <!-- ================= Saving Overlay ================= -->

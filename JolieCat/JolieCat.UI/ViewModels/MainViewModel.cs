@@ -67,6 +67,20 @@ namespace JolieCat.UI.ViewModels
         [ObservableProperty]
         private string saveStatusMessage = string.Empty;
 
+        /// <summary>Temporary diagnostic readout for the status bar's right side:
+        /// the live document canvas size and the active layer's own bitmap size, so
+        /// either can be read directly off the running app the instant a visual
+        /// mismatch appears, instead of inferred from a screenshot. Every layer is
+        /// always exactly the document's size and drawn from (0,0) - there is no
+        /// per-layer offset anywhere in this codebase - so this always shows "@
+        /// (0,0)" for that reason, not as a placeholder. Recomputed on every
+        /// <see cref="LayersViewModel.InvalidateRequested"/> (structural changes,
+        /// undo/redo, opening a project, importing an image - anything that could
+        /// change either size), which is the same event the canvas repaint itself
+        /// already relies on for "did anything worth redrawing just happen".</summary>
+        [ObservableProperty]
+        private string dimensionDebugText = string.Empty;
+
         public ToolboxViewModel Toolbox { get; }
 
         public LayersViewModel Layers { get; }
@@ -91,6 +105,31 @@ namespace JolieCat.UI.ViewModels
                 UndoCommand.NotifyCanExecuteChanged();
                 RedoCommand.NotifyCanExecuteChanged();
             };
+
+            // InvalidateRequested covers everything that can change either size
+            // (structural changes, undo/redo, opening a project, importing an image);
+            // PropertyChanged additionally covers just clicking a different layer in
+            // the Layers panel active, which changes ActiveLayer without itself
+            // requesting a repaint - otherwise the readout would keep showing the
+            // previously active layer's name until something else invalidated.
+            Layers.InvalidateRequested += (_, _) => UpdateDimensionDebugText();
+            Layers.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(LayersViewModel.ActiveLayer)) UpdateDimensionDebugText();
+            };
+            UpdateDimensionDebugText();
+        }
+
+        /// <summary>Refreshes <see cref="DimensionDebugText"/> from the live scene -
+        /// see that property's own remarks for why this exists and why
+        /// <see cref="LayersViewModel.InvalidateRequested"/> is what drives it.</summary>
+        private void UpdateDimensionDebugText()
+        {
+            var activeLayer = Layers.ActiveLayer?.Model;
+            DimensionDebugText = activeLayer is null
+                ? $"Canvas {Layers.DocumentWidth}x{Layers.DocumentHeight}"
+                : $"Canvas {Layers.DocumentWidth}x{Layers.DocumentHeight}  |  Layer \"{activeLayer.Name}\" " +
+                  $"{activeLayer.Bitmap.Width}x{activeLayer.Bitmap.Height} @ (0,0)";
         }
 
         [RelayCommand]
