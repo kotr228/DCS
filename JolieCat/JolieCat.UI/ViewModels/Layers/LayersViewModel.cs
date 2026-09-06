@@ -173,10 +173,10 @@ namespace JolieCat.UI.ViewModels.Layers
         }
 
         /// <summary>Blits <paramref name="bitmap"/> into <paramref name="layer"/>'s
-        /// buffer - directly at (0,0) if it's already exactly the layer's size (the
-        /// common case once <see cref="ImportImage"/> has resized the document to
-        /// match), otherwise scaled down/up to fit within the layer's bounds, preserving
-        /// aspect ratio and centered rather than stretched.</summary>
+        /// buffer, always anchored at (0,0) - directly, if it's already exactly the
+        /// layer's size (the common case once <see cref="ImportImage"/> has resized the
+        /// document to match), otherwise scaled down/up to fit within the layer's
+        /// bounds, preserving aspect ratio rather than stretched.</summary>
         private static void DrawImageIntoLayer(Layer layer, SKBitmap bitmap)
         {
             if (bitmap.Width == layer.Bitmap.Width && bitmap.Height == layer.Bitmap.Height)
@@ -186,15 +186,26 @@ namespace JolieCat.UI.ViewModels.Layers
             }
 
             var scale = Math.Min((float)layer.Bitmap.Width / bitmap.Width, (float)layer.Bitmap.Height / bitmap.Height);
-            var scaledWidth = bitmap.Width * scale;
-            var scaledHeight = bitmap.Height * scale;
-            var dest = SKRect.Create(
-                (layer.Bitmap.Width - scaledWidth) / 2f,
-                (layer.Bitmap.Height - scaledHeight) / 2f,
-                scaledWidth, scaledHeight);
+
+            // Rounded to whole pixels, not left as fractional values - every other
+            // bitmap placement in this codebase (Scene.ResizeLayers, ProjectSerializer's
+            // own mismatch handling, the same-size branch just above) lands on an exact
+            // pixel boundary, and a fractional destination rect here would be the one
+            // exception: combined with antialiasing, a sub-pixel edge softens into a
+            // faint blended line along whichever side lands off-grid - most visible at
+            // the top, where the checkerboard's contrast against it is strongest.
+            var scaledWidth = (float)Math.Round(bitmap.Width * scale);
+            var scaledHeight = (float)Math.Round(bitmap.Height * scale);
+
+            // Anchored at (0,0) - not centered. Every other layer/bitmap placement in
+            // this app (including the same-size branch above) is top-left anchored;
+            // centering here was the one exception, and its offset (however small)
+            // reads as this image having shifted relative to everything else in the
+            // scene, which is always measured from the same (0,0) origin.
+            var dest = SKRect.Create(0, 0, scaledWidth, scaledHeight);
 
             using var image = SKImage.FromBitmap(bitmap);
-            using var paint = new SKPaint { IsAntialias = true };
+            using var paint = new SKPaint { IsAntialias = false };
             layer.Canvas.DrawImage(image, dest, new SKSamplingOptions(SKFilterMode.Linear), paint);
         }
 
