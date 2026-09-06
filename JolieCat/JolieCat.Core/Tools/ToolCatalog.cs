@@ -98,6 +98,13 @@ namespace JolieCat.Core.Tools
             new(ToolType.Pen, ToolCategory.VectorText, "Pen (Path)",
                 "M18,3 L21,6 L10,17 L7,14 Z M5,16 H8 V19 H5 Z", "P"),
 
+            new(ToolType.PathSelection, ToolCategory.VectorText, "Path Selection",
+                "M5,3 L5,19 L9,15 L12,21 L15,19.5 L12,13.5 L17,13.5 Z", "A"),
+
+            new(ToolType.DirectSelection, ToolCategory.VectorText, "Direct Selection",
+                "M5,3 L5,19 L9,15 L12,21 L15,19.5 L12,13.5 L17,13.5 Z " +
+                "M5.5,10.5 A1.5,1.5 0 1 1 8.5,10.5 A1.5,1.5 0 1 1 5.5,10.5 Z", "A"),
+
             new(ToolType.Shape, ToolCategory.VectorText, "Shape",
                 "M4,10 H16 V22 H4 Z M10,8 A6,6 0 1 1 22,8 A6,6 0 1 1 10,8 Z", "U"),
 

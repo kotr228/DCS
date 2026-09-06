@@ -207,6 +207,33 @@ namespace JolieCat.UI.ViewModels.Layers
             });
         }
 
+        /// <summary>Places a decoded image as a new topmost Smart Object layer (see
+        /// <see cref="Layer.CreateSmartObject"/>) - non-destructively re-sampled from
+        /// its own pristine source, unlike <see cref="ImportImage"/>'s plain raster
+        /// layer, so scaling/rotating it later via Free Transform never compounds
+        /// quality loss. Always wrapped in a tiny one-layer embedded <see cref="Scene"/>
+        /// (not just a bare bitmap), so "Edit Contents" (see <c>MainViewModel.EditSmartObjectContents</c>)
+        /// has a real sub-document to open for every Smart Object placed this way.
+        /// Always adopts the document's current size for the new layer's own canvas
+        /// (never resizes the document, unlike <see cref="ImportImage"/>) - a Smart
+        /// Object's placement/size is meant to be adjusted afterward via Free
+        /// Transform, not fixed up-front by resizing the whole canvas around it.</summary>
+        public void PlaceSmartObject(SKBitmap sourceBitmap, string name)
+        {
+            ArgumentNullException.ThrowIfNull(sourceBitmap);
+
+            ExecuteStructuralChange(() =>
+            {
+                var embeddedScene = new Scene(name);
+                var embeddedLayer = embeddedScene.AddLayer("Content", sourceBitmap.Width, sourceBitmap.Height);
+                embeddedLayer.Canvas.DrawBitmap(sourceBitmap, 0, 0);
+
+                var layer = Layer.CreateSmartObject(name, DocumentWidth, DocumentHeight, sourceBitmap.Copy(), embeddedScene);
+                Scene.AddLayer(layer);
+                Scene.ActiveLayer = layer;
+            });
+        }
+
         /// <summary>Pastes <paramref name="content"/> (see <see cref="Core.Clipboard.PixelClipboard"/>)
         /// as a new topmost layer, drawn at (<paramref name="x"/>, <paramref name="y"/>) -
         /// not merged onto the active layer, so a paste can never overwrite existing

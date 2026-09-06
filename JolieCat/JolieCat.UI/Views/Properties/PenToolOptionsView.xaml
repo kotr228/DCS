@@ -1,0 +1,29 @@
+<UserControl x:Class="JolieCat.UI.Views.Properties.PenToolOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+             xmlns:views="clr-namespace:JolieCat.UI.Views"
+             mc:Ignorable="d">
+    <StackPanel Margin="10">
+        <controls:LabeledSlider Label="Stroke Width" Minimum="1" Maximum="100" Suffix="px" Value="{Binding StrokeWidth, Mode=TwoWay}" />
+
+        <views:ColorPickerPanel Margin="0,8,0,0"
+                                 DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Canvas}" />
+
+        <!-- Convert to Selection/Stroke/Fill act on the canvas's own working path, not
+             on this options view model - the same DataContext rebind the color picker
+             above already uses to reach CanvasViewModel directly (see
+             PaintToolOptionsView's own remarks for why). -->
+        <StackPanel Margin="0,12,0,0"
+                    DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Canvas}">
+            <Button Content="Convert to Selection" Command="{Binding ConvertPenPathToSelectionCommand}" Margin="0,0,0,6" Padding="4" />
+            <Button Content="Stroke Path" Command="{Binding StrokePenPathCommand}" Margin="0,0,0,6" Padding="4" />
+            <Button Content="Fill Path" Command="{Binding FillPenPathCommand}" Padding="4" />
+        </StackPanel>
+
+        <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"
+                   Text="Click to place corner points; click-drag for smooth curve handles. Click the start point (or double-click) to finish. Enter finishes an open path, Escape discards it. Switch to Path Selection to move the whole path, or Direct Selection to edit individual points and handles." />
+    </StackPanel>
+</UserControl>

@@ -1,5 +1,6 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
+using JolieCat.Core.Documents;
 using JolieCat.UI.ViewModels.Layers;
 using JolieCat.UI.ViewModels.Timeline;
 
@@ -39,6 +40,15 @@ namespace JolieCat.UI.ViewModels
 
         public TimelineViewModel Timeline { get; }
 
+        /// <summary>Set when this tab was opened via "Edit Contents" on a Smart Object
+        /// layer (see <c>MainViewModel.EditSmartObjectContents</c>) - the layer whose
+        /// own <see cref="Layer.SmartObject"/> owns this tab's <see cref="Layers"/>'
+        /// <see cref="Layers.Scene"/> for that layer's whole lifetime (across repeated
+        /// Edit Contents sessions, not just this one tab). Null for every ordinary
+        /// document tab. <see cref="Dispose"/> leaves that Scene undisposed precisely
+        /// because of this - see its own remarks.</summary>
+        public Layer? SmartObjectHostLayer { get; init; }
+
         public DocumentViewModel(ToolboxViewModel toolbox, string title)
         {
             ArgumentNullException.ThrowIfNull(toolbox);
@@ -55,14 +65,21 @@ namespace JolieCat.UI.ViewModels
         /// document's CanvasViewModel, and everything it references including every
         /// layer's native bitmap, would be kept alive forever by that subscription) and
         /// <see cref="Layers"/> (which frees every layer's/mask's unmanaged pixel
-        /// buffer). <see cref="Timeline"/> holds no unmanaged resources or external
-        /// subscriptions of its own.</summary>
+        /// buffer) - except when <see cref="SmartObjectHostLayer"/> is set: that tab's
+        /// <see cref="Layers"/>' <see cref="Layers.Scene"/> is the very same
+        /// <see cref="Documents.SmartObjectContent.EmbeddedScene"/> instance the host
+        /// layer keeps for its own whole lifetime (so a later "Edit Contents" session
+        /// can reopen and keep editing it), so disposing it here - the one place a
+        /// Scene's bitmaps are ever freed - would leave that Smart Object permanently
+        /// broken the moment this one editing tab happened to close. <see cref="Timeline"/>
+        /// holds no unmanaged resources or external subscriptions of its own.</summary>
         public void Dispose()
         {
             if (_disposed) return;
 
             Canvas.Dispose();
-            Layers.Dispose();
+            if (SmartObjectHostLayer is null)
+                Layers.Dispose();
             _disposed = true;
         }
     }

@@ -40,6 +40,8 @@ namespace JolieCat.Shared.Enums
 
         // Vector & Text
         Pen,
+        PathSelection,
+        DirectSelection,
         Shape,
         TextHorizontal,
         TextVertical,

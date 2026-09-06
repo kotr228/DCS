@@ -23,6 +23,10 @@
         <views:ShapeToolOptionsView />
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type opts:PenToolOptionsViewModel}">
+        <views:PenToolOptionsView />
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type opts:FillToolOptionsViewModel}">
         <views:FillToolOptionsView />
     </DataTemplate>

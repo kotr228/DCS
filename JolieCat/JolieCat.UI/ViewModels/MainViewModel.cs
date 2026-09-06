@@ -309,6 +309,18 @@ namespace JolieCat.UI.ViewModels
                 }
             }
 
+            // A Smart Object "Edit Contents" tab's edits only take effect on its parent
+            // instance once this tab closes - re-flatten its (possibly just-edited)
+            // embedded scene back into the host layer's cached render now, before this
+            // tab (and its CanvasViewModel) goes away. The host layer's Bitmap is
+            // mutated in place, so the parent document's own tab shows the change the
+            // moment it's next shown - switching back to it (which this method's own
+            // ActiveDocument reassignment above may already have done) forces a fresh
+            // repaint via CanvasView's own tab-switch handling, exactly like any other
+            // cross-tab document change.
+            if (document.SmartObjectHostLayer is { } hostLayer)
+                hostLayer.RefreshSmartObjectContent(document.Layers.DocumentWidth, document.Layers.DocumentHeight);
+
             Documents.Remove(document);
             document.Dispose();
         }
@@ -507,6 +519,73 @@ namespace JolieCat.UI.ViewModels
             if (dialog.ShowDialog() != true) return;
 
             Canvas.ImportImageFiles(dialog.FileNames);
+        }
+
+        /// <summary>Prompts for a single image file and places it as a new Smart
+        /// Object layer in the active document (see <see cref="LayersViewModel.PlaceSmartObject"/>) -
+        /// non-destructive, unlike <see cref="ImportImage"/>'s plain raster layer:
+        /// scaling or rotating it later via Free Transform always re-samples fresh
+        /// from this original file instead of compounding quality loss.</summary>
+        [RelayCommand]
+        private void PlaceSmartObject()
+        {
+            if (IsSaving) return;
+
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Image files (*.png;*.jpg;*.jpeg;*.bmp;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.webp|All files (*.*)|*.*",
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            try
+            {
+                using var bitmap = SKBitmap.Decode(dialog.FileName);
+                if (bitmap is null)
+                {
+                    MessageBox.Show($"Couldn't read '{Path.GetFileName(dialog.FileName)}' as an image.", "Place as Smart Object",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                Layers.PlaceSmartObject(bitmap, Path.GetFileNameWithoutExtension(dialog.FileName));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                MessageBox.Show($"Couldn't read '{Path.GetFileName(dialog.FileName)}':\n{ex.Message}", "Place as Smart Object",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        /// <summary>"Edit Contents": opens a Smart Object layer's embedded sub-
+        /// composition as its own document tab - reusing the exact same multi-
+        /// document-tab machinery every other open project already uses (see
+        /// <see cref="DocumentViewModel"/>) - so its content can be painted,
+        /// transformed, or have further layers added exactly like any other document.
+        /// Reuses the already-open tab instead of opening a second one if this layer's
+        /// contents are already being edited. Closing that tab re-flattens whatever
+        /// changed back into <paramref name="layer"/>'s own cached render - see
+        /// <see cref="CloseDocument"/>'s own remarks. A no-op for a layer with no
+        /// embedded scene (not a Smart Object layer at all, or a placed-image Smart
+        /// Object with nothing of its own to edit).</summary>
+        [RelayCommand]
+        private void EditSmartObjectContents(Layer? layer)
+        {
+            if (layer?.SmartObject?.EmbeddedScene is not { } embeddedScene) return;
+
+            var existing = Documents.FirstOrDefault(d => ReferenceEquals(d.SmartObjectHostLayer, layer));
+            if (existing is not null)
+            {
+                ActiveDocument = existing;
+                return;
+            }
+
+            var document = new DocumentViewModel(Toolbox, layer.Name) { SmartObjectHostLayer = layer };
+            RegisterDocument(document);
+            document.Layers.LoadScene(embeddedScene, layer.Name);
+
+            Documents.Add(document);
+            ActiveDocument = document;
+            Canvas.ResetView();
         }
 
         /// <summary>Exports the active document's flattened composite (or a single

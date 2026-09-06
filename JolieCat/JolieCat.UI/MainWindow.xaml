@@ -245,6 +245,9 @@
                 <Button Content="Import..." Width="70" Margin="2,0"
                         ToolTip="Import image files (PNG/JPG/BMP/WEBP) as new layers - or just drag them onto the canvas"
                         Command="{Binding ImportImageCommand}" />
+                <Button Content="Place Smart Object..." Width="130" Margin="2,0"
+                        ToolTip="Place an image as a non-destructive Smart Object layer - scaling/rotating it later always re-samples from the original file"
+                        Command="{Binding PlaceSmartObjectCommand}" />
                 <Button Content="Export..." Width="70" Margin="2,0"
                         ToolTip="Export the flattened image (or a single layer) as PNG/JPEG/WebP"
                         Command="{Binding ExportImageCommand}" />
@@ -443,6 +446,10 @@
                                     Command="{Binding Layers.AddMaskCommand}" />
                             <Button Content="Mask&#x2212;" ToolTip="Remove the active layer's mask" Style="{StaticResource LayerToolButtonStyle}"
                                     Command="{Binding Layers.RemoveMaskCommand}" />
+                            <Button Content="Edit" ToolTip="Edit a Smart Object layer's contents in their own tab - a no-op for any other layer type"
+                                    Style="{StaticResource LayerToolButtonStyle}"
+                                    Command="{Binding EditSmartObjectContentsCommand}"
+                                    CommandParameter="{Binding Layers.ActiveLayer.Model}" />
                         </StackPanel>
 
                         <!-- Blend Mode + Opacity apply to whichever layer is currently

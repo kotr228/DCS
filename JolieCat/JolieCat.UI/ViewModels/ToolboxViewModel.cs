@@ -65,7 +65,12 @@ namespace JolieCat.UI.ViewModels
                 ToolType.PolygonalLasso or ToolType.MagneticLasso or ToolType.QuickSelection or
                 ToolType.MagicWand => new SelectionToolOptionsViewModel(),
 
-            ToolType.Pen or ToolType.Shape => new ShapeToolOptionsViewModel(),
+            // Path Selection/Direct Selection edit the same working path the Pen tool
+            // draws, so all three share its options (the stroke width a "Stroke Path"
+            // action paints with, and the Convert to Selection/Stroke/Fill buttons).
+            ToolType.Pen or ToolType.PathSelection or ToolType.DirectSelection => new PenToolOptionsViewModel(),
+
+            ToolType.Shape => new ShapeToolOptionsViewModel(),
 
             ToolType.PaintBucket => new FillToolOptionsViewModel(),
 

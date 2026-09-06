@@ -55,6 +55,7 @@ namespace JolieCat.UI.Rendering
             DrawCropOverlay(canvas, viewModel);
             DrawTransformOverlay(canvas, viewModel);
             DrawWarpOverlay(canvas, viewModel);
+            DrawPenPathOverlay(canvas, viewModel);
 
             canvas.Restore();
         }
@@ -221,6 +222,58 @@ namespace JolieCat.UI.Rendering
             for (var row = 0; row < mesh.Rows; row++)
                 for (var col = 0; col < mesh.Columns; col++)
                     DrawHandle(canvas, mesh.WarpedGrid[row, col], onScreenScale);
+        }
+
+        /// <summary>Draws the Pen tool's working path: its Bezier outline (plus a
+        /// rubber-band segment to the pointer while anchors are still being placed),
+        /// each control handle as a thin line from its anchor with a small round handle
+        /// at its end, and each anchor itself as a square handle - the same square/round
+        /// visual distinction Free Transform already uses for its own scale-versus-
+        /// rotate handles. A no-op while nothing has been drawn with the Pen tool
+        /// (<see cref="CanvasViewModel.PenPath"/> is null).</summary>
+        private static void DrawPenPathOverlay(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            var path = viewModel.PenPath;
+            if (path is null || path.Anchors.Count == 0) return;
+
+            var onScreenScale = 1f / (float)viewModel.Zoom;
+
+            using (var pathPaint = new SKPaint { Color = SKColors.White, Style = SKPaintStyle.Stroke, StrokeWidth = onScreenScale, IsAntialias = true })
+            using (var skPath = path.ToSKPath())
+                canvas.DrawPath(skPath, pathPaint);
+
+            if (viewModel.PenHoverPoint is { } hover)
+            {
+                using var rubberBandPaint = new SKPaint
+                {
+                    Color = new SKColor(255, 255, 255, 150),
+                    Style = SKPaintStyle.Stroke,
+                    StrokeWidth = onScreenScale,
+                    PathEffect = SKPathEffect.CreateDash(new[] { 3f * onScreenScale, 3f * onScreenScale }, 0),
+                };
+                canvas.DrawLine(path.Anchors[^1].Position, hover, rubberBandPaint);
+            }
+
+            using (var handleLinePaint = new SKPaint { Color = new SKColor(255, 255, 255, 180), StrokeWidth = onScreenScale, IsAntialias = true })
+            {
+                foreach (var anchor in path.Anchors)
+                {
+                    if (anchor.InHandle is { } inHandle)
+                    {
+                        canvas.DrawLine(anchor.Position, inHandle, handleLinePaint);
+                        DrawRoundHandle(canvas, inHandle, onScreenScale);
+                    }
+
+                    if (anchor.OutHandle is { } outHandle)
+                    {
+                        canvas.DrawLine(anchor.Position, outHandle, handleLinePaint);
+                        DrawRoundHandle(canvas, outHandle, onScreenScale);
+                    }
+                }
+            }
+
+            foreach (var anchor in path.Anchors)
+                DrawHandle(canvas, anchor.Position, onScreenScale);
         }
 
         /// <summary>A small square handle, sized to read as a fixed ~8 screen pixels

@@ -132,10 +132,10 @@ namespace JolieCat.UI.Views
         }
 
         /// <summary>Enter commits and Escape cancels whichever of Crop/Free Transform/
-        /// Warp is currently active - calling all three Commit (or Cancel) methods
+        /// Warp/Pen path is currently active - calling every Commit (or Cancel) method
         /// unconditionally is safe, since each is a no-op unless its own tool is the
         /// one actually in progress (mirrors CanvasViewModel.OnToolboxPropertyChanged's
-        /// own "call all three" pattern for the same reason). Requires the canvas
+        /// own "call all of them" pattern for the same reason). Requires the canvas
         /// surface to have keyboard focus, which mouse-down above already gives it.</summary>
         private void Surface_KeyDown(object sender, KeyEventArgs e)
         {
@@ -146,6 +146,7 @@ namespace JolieCat.UI.Views
                 viewModel.CommitCrop();
                 viewModel.CommitTransform();
                 viewModel.CommitWarp();
+                viewModel.CommitPenPath();
                 e.Handled = true;
             }
             else if (e.Key == Key.Escape)
@@ -153,6 +154,7 @@ namespace JolieCat.UI.Views
                 viewModel.CancelCrop();
                 viewModel.CancelTransform();
                 viewModel.CancelWarp();
+                viewModel.CancelPenPath();
                 e.Handled = true;
             }
         }

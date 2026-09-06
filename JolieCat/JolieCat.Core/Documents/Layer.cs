@@ -1,4 +1,5 @@
 using System;
+using JolieCat.Core.Transform;
 using JolieCat.Shared.Documents;
 using JolieCat.Shared.Enums;
 using SkiaSharp;
@@ -67,6 +68,23 @@ namespace JolieCat.Core.Documents
         /// <summary>The canvas counterpart of <see cref="PaintBitmap"/>.</summary>
         public SKCanvas PaintCanvas => IsMaskActive && Mask is not null ? Mask.Canvas : Canvas;
 
+        /// <summary>This layer's pristine source (and, if it wraps a nested
+        /// composition, that embedded scene) when <see cref="Type"/> is
+        /// <see cref="LayerType.SmartObject"/> - null for every other layer type.
+        /// <see cref="Bitmap"/> is always just this rendered through
+        /// <see cref="SmartObjectTransform"/>, kept in sync by
+        /// <see cref="RenderSmartObject"/>; nothing else ever paints on
+        /// <see cref="Bitmap"/> directly for a Smart Object layer.</summary>
+        public SmartObjectContent? SmartObject { get; private set; }
+
+        /// <summary>The affine placement currently applied to <see cref="SmartObject"/>'s
+        /// source within this layer - null exactly when <see cref="SmartObject"/> is.
+        /// Changed by the same Free Transform handles as an ordinary layer (see
+        /// <c>JolieCat.UI.ViewModels.CanvasViewModel.CommitTransform</c>), but every
+        /// change here is followed by <see cref="RenderSmartObject"/> instead of a
+        /// destructive pixel bake.</summary>
+        public SmartObjectTransform? SmartObjectTransform { get; private set; }
+
         public Layer(string name, int width, int height, LayerType type = LayerType.Raster)
         {
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Layer name cannot be empty.", nameof(name));
@@ -105,6 +123,66 @@ namespace JolieCat.Core.Documents
             Mask = null;
         }
 
+        /// <summary>Creates a new Smart Object layer sized to the document, placing
+        /// <paramref name="sourceBitmap"/> (never modified again after this - see
+        /// <see cref="SmartObjectContent.SourceBitmap"/>) centered at the document's
+        /// own center with no scale or rotation, then rendering it immediately so
+        /// <see cref="Bitmap"/> is ready to composite like any other layer. Pass
+        /// <paramref name="embeddedScene"/> only for a "Place Embedded" Smart Object
+        /// wrapping a whole nested composition; leave it null for a plain placed
+        /// image.</summary>
+        public static Layer CreateSmartObject(string name, int width, int height, SKBitmap sourceBitmap, Scene? embeddedScene = null)
+        {
+            ArgumentNullException.ThrowIfNull(sourceBitmap);
+
+            var layer = new Layer(name, width, height, LayerType.SmartObject)
+            {
+                SmartObject = new SmartObjectContent(sourceBitmap, embeddedScene),
+                // Centers the source within the layer at 1:1 scale to start - the same
+                // "just placed" position every other paint tool's initial content lands
+                // at - as a plain translation (no separate origin/pivot needed for an
+                // identity scale/rotation).
+                SmartObjectTransform = new SmartObjectTransform
+                {
+                    Matrix = SKMatrix.CreateTranslation(width / 2f - sourceBitmap.Width / 2f, height / 2f - sourceBitmap.Height / 2f),
+                },
+            };
+            layer.RenderSmartObject();
+            return layer;
+        }
+
+        /// <summary>Re-renders <see cref="Bitmap"/> by resampling
+        /// <see cref="SmartObject"/>'s <see cref="SmartObjectContent.SourceBitmap"/>
+        /// fresh through <see cref="SmartObjectTransform"/>'s current
+        /// <see cref="Documents.SmartObjectTransform.Matrix"/> - the non-destructive
+        /// counterpart of baking a Free Transform (see <see cref="LayerTransformer.Bake"/>,
+        /// which this calls directly). No-op if this isn't a Smart Object layer.
+        /// Call after any change to <see cref="SmartObjectTransform"/>.</summary>
+        public void RenderSmartObject()
+        {
+            if (SmartObject is null || SmartObjectTransform is null) return;
+
+            using var rendered = LayerTransformer.Bake(SmartObject.SourceBitmap, SmartObjectTransform.Matrix, Bitmap.Width, Bitmap.Height);
+            Canvas.Clear(SKColors.Transparent);
+            Canvas.DrawBitmap(rendered, 0, 0);
+        }
+
+        /// <summary>Re-flattens this layer's embedded sub-project (sized
+        /// <paramref name="documentWidth"/> by <paramref name="documentHeight"/> - that
+        /// sub-project's own document canvas size) into a fresh source bitmap, then
+        /// re-renders <see cref="Bitmap"/> from it through the existing
+        /// <see cref="SmartObjectTransform"/> unchanged - called when an "Edit
+        /// Contents" tab for this layer is closed. No-op if this isn't a Smart Object
+        /// layer, or has no embedded scene (a plain placed-image Smart Object has
+        /// nothing to re-flatten).</summary>
+        public void RefreshSmartObjectContent(int documentWidth, int documentHeight)
+        {
+            if (SmartObject is null) return;
+
+            SmartObject.RefreshFromEmbeddedScene(documentWidth, documentHeight);
+            RenderSmartObject();
+        }
+
         /// <summary>Maps the Shared, framework-agnostic <see cref="BlendMode"/> to the
         /// SkiaSharp blend mode used to composite this layer - every name matches Skia's
         /// own enum, so this is a direct lookup rather than an approximation.</summary>
@@ -130,6 +208,7 @@ namespace JolieCat.Core.Documents
             if (_disposed) return;
 
             Mask?.Dispose();
+            SmartObject?.Dispose();
             Canvas.Dispose();
             Bitmap.Dispose();
             _disposed = true;
