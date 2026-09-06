@@ -42,6 +42,20 @@
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
             </Style>
 
+            <!-- A docking panel's own section header ("PROPERTIES", "LAYERS", ...).
+                 Application-wide (not MainWindow.Resources, where it originally lived)
+                 for the same reason as BoolToVisibility above: StaticResource resolves
+                 once, at InitializeComponent() time, before a separately-compiled
+                 UserControl (e.g. SpriteSheetGridPanelView) is ever attached to any
+                 Window's visual tree - a Window-scoped resource isn't reachable yet at
+                 that point, so any such UserControl needing this style must find it
+                 here instead. -->
+            <Style x:Key="PanelHeaderStyle" TargetType="{x:Type TextBlock}">
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Margin" Value="8,6" />
+            </Style>
+
             <Style TargetType="{x:Type GridSplitter}">
                 <Setter Property="Background" Value="{StaticResource BorderBrush}" />
                 <Setter Property="ShowsPreview" Value="False" />

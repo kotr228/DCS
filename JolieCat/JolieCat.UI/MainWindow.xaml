@@ -84,13 +84,6 @@
             <Setter Property="BorderThickness" Value="1" />
         </Style>
 
-        <Style x:Key="PanelHeaderStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Margin" Value="8,6" />
-        </Style>
-
-
         <!-- Flat ListBoxItem style for tool entries: no default chrome, accent highlight
              on the active tool, subtle hover otherwise. -->
         <Style x:Key="ToolListBoxItemStyle" TargetType="ListBoxItem">
