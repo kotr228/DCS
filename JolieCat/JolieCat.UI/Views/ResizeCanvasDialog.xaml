@@ -1,0 +1,37 @@
+<Window x:Class="JolieCat.UI.Views.ResizeCanvasDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
+        xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+        mc:Ignorable="d"
+        Title="Resize Canvas" Height="260" Width="360"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        d:DataContext="{d:DesignInstance Type=vm:ResizeCanvasViewModel, IsDesignTimeCreatable=True}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" VerticalAlignment="Top">
+            <controls:LabeledSlider Label="Width" Minimum="1" Maximum="8000" Suffix="px"
+                                     Value="{Binding Width, Mode=TwoWay}" Margin="0,0,0,8" />
+            <controls:LabeledSlider Label="Height" Minimum="1" Maximum="8000" Suffix="px"
+                                     Value="{Binding Height, Mode=TwoWay}" Margin="0,0,0,10" />
+
+            <CheckBox Content="Lock Aspect Ratio" Foreground="{StaticResource TextPrimaryBrush}"
+                      IsChecked="{Binding LockAspectRatio, Mode=TwoWay}" />
+
+            <TextBlock Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"
+                       Text="Existing content stays anchored at the top-left corner - cropped if you shrink, padded with transparency if you grow. Every layer's mask resizes the exact same way, so nothing shifts." />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+            <Button Content="Resize" Width="80" IsDefault="True" Click="Resize_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

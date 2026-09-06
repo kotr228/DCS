@@ -492,6 +492,16 @@ namespace JolieCat.UI.ViewModels
                 document.Layers.LoadScene(result.Scene, name, result.ProjectType, result.SpriteSheetGrid);
                 document.Timeline.LoadTracks(result.TimelineTracks, result.TimelineTotalFrames, result.TimelineFrameRate);
 
+                // A Clipbar Animation project derived via DeriveClipbarFromSpriteSheet
+                // has its clips reference their own frame layers by name, not by any
+                // serialized identifier (TimelineClipData carries no layer reference at
+                // all) - reopening a saved one needs this same by-name rewiring to
+                // restore that flipbook behavior. Harmless to call unconditionally
+                // (every clip on any other project type simply matches no layer), but
+                // gated here anyway since only this project type ever needs it.
+                if (result.ProjectType == ProjectType.ClipbarAnimation)
+                    document.Timeline.RewireFrameLayers(result.Scene);
+
                 Documents.Add(document);
                 ActiveDocument = document;
                 Canvas.ResetView();
@@ -640,6 +650,72 @@ namespace JolieCat.UI.ViewModels
             {
                 IsSaving = false;
             }
+        }
+
+        /// <summary>"Resize Canvas...": prompts for a new width/height (with optional
+        /// aspect-ratio locking - see <see cref="ResizeCanvasViewModel"/>) and applies
+        /// it via <see cref="LayersViewModel.ResizeDocument"/>, which already resizes
+        /// every layer's own bitmap and mask anchored at their shared top-left corner -
+        /// cropped if shrinking, padded with transparency if growing, with no
+        /// coordinate shift on either. Recorded as one undo/redo entry like any other
+        /// structural change.</summary>
+        [RelayCommand]
+        private void ResizeCanvas()
+        {
+            if (IsSaving) return;
+
+            var options = new ResizeCanvasViewModel(Layers.DocumentWidth, Layers.DocumentHeight);
+            var dialog = new ResizeCanvasDialog { DataContext = options, Owner = Application.Current.MainWindow };
+            if (dialog.ShowDialog() != true) return;
+
+            Layers.ResizeDocument((int)Math.Round(options.Width), (int)Math.Round(options.Height));
+        }
+
+        /// <summary>Type 2 -&gt; Type 3 derivation: builds a brand new Clipbar Animation
+        /// document directly from the active Sprite Sheet project's current grid and
+        /// content (see <see cref="SpriteSheetToClipbarConverter"/>) - each grid cell
+        /// becomes its own frame layer plus a matching Timeline clip, the "foundational
+        /// track assets" the new document's dedicated Timeline workspace opens
+        /// straight into (see <see cref="DocumentViewModel"/>'s own ClipbarAnimation
+        /// default). Opens the result as its own new tab, active. A no-op if the
+        /// active document isn't a <see cref="ProjectType.SpriteSheet"/> project at all -
+        /// the Sprite Sheet panel that exposes this command already only shows for
+        /// one, but this guards it independently in case that ever changes.</summary>
+        [RelayCommand]
+        private void DeriveClipbarFromSpriteSheet()
+        {
+            if (IsSaving) return;
+            if (Layers.ProjectType != ProjectType.SpriteSheet) return;
+
+            var sourceTitle = ActiveDocument?.Title ?? "Sprite Sheet";
+
+            // A defensive copy, not the source document's own live grid instance - the
+            // new document's Document.SpriteSheetGrid is kept purely for provenance
+            // (it's never shown or edited for a ClipbarAnimation project), and sharing
+            // the actual instance would let a later edit to the *source* Sprite Sheet's
+            // own grid silently reach into this already-created document too.
+            var grid = Layers.SpriteSheetGrid;
+            var gridSnapshot = new SpriteSheetGrid
+            {
+                Columns = grid.Columns,
+                Rows = grid.Rows,
+                PaddingX = grid.PaddingX,
+                PaddingY = grid.PaddingY,
+                MarginX = grid.MarginX,
+                MarginY = grid.MarginY,
+            };
+
+            var result = SpriteSheetToClipbarConverter.Convert(Layers.Scene, Layers.DocumentWidth, Layers.DocumentHeight, gridSnapshot, Timeline.FrameRate);
+
+            var document = new DocumentViewModel(Toolbox, $"{sourceTitle} (Clipbar)", ProjectType.ClipbarAnimation);
+            RegisterDocument(document);
+            document.Layers.LoadScene(result.Scene, document.Title, ProjectType.ClipbarAnimation, gridSnapshot);
+            document.Timeline.LoadTracks(result.TimelineTracks, result.TotalFrames, result.FrameRate);
+            document.Timeline.RewireFrameLayers(result.Scene);
+
+            Documents.Add(document);
+            ActiveDocument = document;
+            Canvas.ResetView();
         }
 
         /// <summary>Exports the active document's flattened composite (or a single

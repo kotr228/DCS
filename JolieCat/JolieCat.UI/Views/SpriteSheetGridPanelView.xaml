@@ -26,8 +26,12 @@
         <CheckBox Content="Snap Marquee to Grid" Foreground="{StaticResource TextPrimaryBrush}"
                   IsChecked="{Binding SnapToSpriteSheetGrid, Mode=TwoWay}" Margin="0,8,0,10" />
 
-        <Button Content="Slice &amp; Export Frames..." Padding="4"
+        <Button Content="Slice &amp; Export Frames..." Padding="4" Margin="0,0,0,6"
                 ToolTip="Flattens the document and writes one image file per grid cell into a folder you choose"
                 Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.SliceSpriteSheetCommand}" />
+
+        <Button Content="Derive Clipbar Animation..." Padding="4"
+                ToolTip="Opens a new Clipbar Animation project as its own tab, with each grid cell already placed as its own frame layer and Timeline clip"
+                Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.DeriveClipbarFromSpriteSheetCommand}" />
     </StackPanel>
 </UserControl>

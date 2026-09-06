@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using JolieCat.Core.Documents;
 using JolieCat.Core.Serialization;
 
 namespace JolieCat.UI.ViewModels.Timeline
@@ -15,11 +17,15 @@ namespace JolieCat.UI.ViewModels.Timeline
     /// <see cref="GoToStart"/>/<see cref="GoToEnd"/>). This proves the interaction model
     /// a real timeline needs (drag a clip to move it, drag an edge to trim it, scrub the
     /// playhead, add tracks/clips/keyframes, play the playhead forward) so frame-by-
-    /// frame and skeletal/transform-based animation have somewhere to attach later -
-    /// playback here only advances <see cref="CurrentFrame"/> and scrubs the playhead
-    /// within this timeline itself, since no per-frame layer property (transform,
-    /// opacity, ...) is wired to interpolate from a clip/keyframe yet; the canvas does
-    /// not (yet) render a different frame as the playhead moves.
+    /// frame and skeletal/transform-based animation have somewhere to attach later.
+    /// No per-frame layer PROPERTY (transform, opacity, ...) interpolates from a clip/
+    /// keyframe yet - but a clip whose own <see cref="TimelineClipViewModel.TargetLayer"/>
+    /// is set (see <see cref="RewireFrameLayers"/>, the Sprite Sheet -&gt; Clipbar
+    /// Animation derivation's own "foundational track asset") does drive a real,
+    /// visible effect: exactly that layer's <see cref="Layer.IsVisible"/> flips on for
+    /// as long as the playhead sits within the clip's own frame range and off outside
+    /// it (see <see cref="UpdateFrameLayerVisibility"/>) - a flipbook, not general
+    /// keyframe interpolation, but a real one.
     /// </summary>
     public partial class TimelineViewModel : ObservableObject, IDisposable
     {
@@ -78,6 +84,67 @@ namespace JolieCat.UI.ViewModels.Timeline
 
         private void UpdatePlaybackInterval() =>
             _playbackTimer.Interval = TimeSpan.FromSeconds(1.0 / Math.Max(1.0, FrameRate));
+
+        partial void OnCurrentFrameChanged(double value) => UpdateFrameLayerVisibility();
+
+        /// <summary>Raised whenever <see cref="UpdateFrameLayerVisibility"/> actually
+        /// flips some <see cref="TimelineClipViewModel.TargetLayer"/>'s visibility -
+        /// <c>DocumentViewModel</c> wires this to a canvas repaint request, since
+        /// mutating a Core <see cref="Layer"/> directly (see <see cref="TimelineClipViewModel.TargetLayer"/>'s
+        /// own remarks for why it's the Core model, not a bindable
+        /// <c>Layers.LayerViewModel</c>) raises none of the usual UI change
+        /// notifications on its own.</summary>
+        public event EventHandler? FrameVisibilityChanged;
+
+        /// <summary>The "flipbook" half of frame-by-frame playback: for every clip
+        /// across every track whose own <see cref="TimelineClipViewModel.TargetLayer"/>
+        /// is set, shows it for exactly as long as <see cref="CurrentFrame"/> sits
+        /// within [<see cref="TimelineClipViewModel.StartFrame"/>, +<see cref="TimelineClipViewModel.LengthFrames"/>)
+        /// and hides it otherwise - a no-op for every other clip (the demo "Transform"/
+        /// "Opacity" tracks seeded in the constructor included, since neither's clips
+        /// ever get a TargetLayer). Layers never referenced by any clip are left
+        /// untouched entirely.</summary>
+        private void UpdateFrameLayerVisibility()
+        {
+            var changed = false;
+
+            foreach (var track in Tracks)
+            {
+                foreach (var clip in track.Clips)
+                {
+                    if (clip.TargetLayer is not { } layer) continue;
+
+                    var shouldBeVisible = CurrentFrame >= clip.StartFrame && CurrentFrame < clip.StartFrame + clip.LengthFrames;
+                    if (layer.IsVisible == shouldBeVisible) continue;
+
+                    layer.IsVisible = shouldBeVisible;
+                    changed = true;
+                }
+            }
+
+            if (changed) FrameVisibilityChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Reconnects every clip across every track to its own frame layer in
+        /// <paramref name="scene"/>, matched by name (see <see cref="Documents.SpriteSheetToClipbarConverter.FrameLayerName"/>) -
+        /// <see cref="TimelineClipViewModel.TargetLayer"/> itself is never serialized
+        /// (plain <see cref="TimelineClipData"/> carries no layer reference at all, so
+        /// the Core project format needs no change for this), so both a brand new
+        /// Sprite Sheet -&gt; Clipbar Animation derivation and a reopened project need to
+        /// call this once, right after their own <see cref="LoadTracks"/> and the
+        /// document's own layers are both in place. A clip whose name matches no layer
+        /// (every clip on an ordinary, non-derived project) is simply left with a null
+        /// TargetLayer - safe to call unconditionally on any project's Timeline.</summary>
+        public void RewireFrameLayers(Scene scene)
+        {
+            ArgumentNullException.ThrowIfNull(scene);
+
+            foreach (var track in Tracks)
+                foreach (var clip in track.Clips)
+                    clip.TargetLayer = scene.Layers.FirstOrDefault(layer => layer.Name == clip.Name);
+
+            UpdateFrameLayerVisibility();
+        }
 
         /// <summary>Starts auto-advancing <see cref="CurrentFrame"/> at <see cref="FrameRate"/>
         /// frames per second, looping back to 0 once it passes <see cref="TotalFrames"/> -

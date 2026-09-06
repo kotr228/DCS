@@ -488,6 +488,15 @@ namespace JolieCat.UI.ViewModels.Layers
 
         private void RaiseInvalidate() => InvalidateRequested?.Invoke(this, EventArgs.Empty);
 
+        /// <summary>Public counterpart of <see cref="RaiseInvalidate"/> for a caller
+        /// outside this class that just mutated a <see cref="Layer"/> directly (not
+        /// through <see cref="Layers.LayerViewModel"/>, so nothing here would otherwise
+        /// notice) and needs the canvas repainted - currently only
+        /// <c>DocumentViewModel</c>, wiring <c>Timeline.FrameVisibilityChanged</c> to
+        /// this whenever the Timeline's own flipbook logic flips a frame layer's
+        /// visibility.</summary>
+        public void RequestRepaint() => RaiseInvalidate();
+
         /// <summary>Disposes <see cref="Scene"/> - and so every layer's (and mask's)
         /// unmanaged <see cref="SKBitmap"/>s - needed now that closing a document tab
         /// (see <c>MainViewModel.CloseDocument</c>) is a real, reachable action rather

@@ -1,5 +1,6 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
+using JolieCat.Core.Documents;
 
 namespace JolieCat.UI.ViewModels.Timeline
 {
@@ -16,6 +17,17 @@ namespace JolieCat.UI.ViewModels.Timeline
         private readonly TimelineViewModel _owner;
 
         public string Name { get; set; }
+
+        /// <summary>The layer this clip shows exclusively for as long as the playhead
+        /// sits within [<see cref="StartFrame"/>, <see cref="StartFrame"/>+<see cref="LengthFrames"/>) -
+        /// null for an ordinary clip with no such association (every clip except ones
+        /// from a Sprite Sheet -&gt; Clipbar Animation derivation, or a match
+        /// <see cref="TimelineViewModel.RewireFrameLayers"/> later sets). Set directly
+        /// on the Core model, not a <c>Layers.LayerViewModel</c> - Timeline has no
+        /// reason to depend on the Layers view-model namespace, and a Core
+        /// <see cref="Layer"/> reference is what <see cref="TimelineViewModel"/>'s own
+        /// flipbook logic needs (see its own remarks for the trade-off that implies).</summary>
+        public Layer? TargetLayer { get; set; }
 
         [ObservableProperty]
         private double startFrame;

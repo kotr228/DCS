@@ -82,9 +82,16 @@ namespace JolieCat.UI.ViewModels
             Canvas = new CanvasViewModel(toolbox, Layers);
             Timeline = new TimelineViewModel();
 
+            // The Timeline's own flipbook logic (see TimelineViewModel.UpdateFrameLayerVisibility)
+            // mutates a frame Layer's IsVisible directly, not through Layers.LayerViewModel,
+            // so nothing else here would otherwise notice the canvas needs repainting.
+            Timeline.FrameVisibilityChanged += OnTimelineFrameVisibilityChanged;
+
             if (projectType == ProjectType.ClipbarAnimation)
                 workspaceMode = WorkspaceMode.Timeline;
         }
+
+        private void OnTimelineFrameVisibilityChanged(object? sender, EventArgs e) => Layers.RequestRepaint();
 
         /// <summary>Disposes <see cref="Canvas"/> (which unsubscribes from the shared,
         /// long-lived <see cref="ToolboxViewModel"/>'s events - without this, a closed
@@ -105,6 +112,7 @@ namespace JolieCat.UI.ViewModels
         {
             if (_disposed) return;
 
+            Timeline.FrameVisibilityChanged -= OnTimelineFrameVisibilityChanged;
             Canvas.Dispose();
             Timeline.Dispose();
             if (SmartObjectHostLayer is null)
