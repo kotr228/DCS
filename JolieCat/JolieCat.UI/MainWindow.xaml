@@ -206,6 +206,7 @@
             <RowDefinition Height="*" MinHeight="150" /> <!-- Left / Center / Right -->
             <RowDefinition Style="{StaticResource BottomSplitterRowStyle}" />
             <RowDefinition Style="{StaticResource BottomPanelRowStyle}" /> <!-- Bottom: Timeline -->
+            <RowDefinition Height="Auto" /> <!-- Status bar -->
         </Grid.RowDefinitions>
 
         <!-- ================= Top Toolbar ================= -->
@@ -400,6 +401,83 @@
         <Border Grid.Row="3" Style="{StaticResource DockPanelBorderStyle}"
                 Visibility="{Binding IsBottomPanelVisible, Converter={StaticResource BoolToVisibility}}">
             <timeline:TimelinePanelView DataContext="{Binding Timeline}" />
+        </Border>
+
+        <!-- ================= Status Bar ================= -->
+        <!-- Always present (unlike the docking zones above) rather than collapsing when
+             idle - a conventional status bar's own footprint stays stable regardless of
+             whether it currently has anything to say. -->
+        <Border Grid.Row="4" Background="{StaticResource PanelAltBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <TextBlock Margin="10,3" FontSize="11" Text="{Binding SaveStatusMessage}"
+                       Foreground="{StaticResource TextSecondaryBrush}">
+                <TextBlock.Style>
+                    <!-- Fades SaveSuccessMessage out a couple of seconds after it
+                         appears, rather than having it just vanish the instant
+                         MainViewModel clears it back to empty. Only that exact message
+                         fades - "Saving project..." (and anything else) stays fully
+                         opaque the whole time it's showing. -->
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Opacity" Value="1" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SaveStatusMessage}" Value="{x:Static vm:MainViewModel.SaveSuccessMessage}">
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             From="1" To="0" BeginTime="0:0:1.5" Duration="0:0:1" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity" To="1" Duration="0" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </Border>
+
+        <!-- ================= Saving Overlay ================= -->
+        <!-- Spans every row, including the toolbar - so Save/Open/Import/Undo/Redo are
+             all blocked too, not just the panels - blocking further edits for exactly
+             the span MainViewModel.IsSaving is true (the save's own write duration, via
+             SaveProjectAsync), which is deliberately shorter than how long the status
+             bar's success message stays up afterward (see MainViewModel's remarks). -->
+        <Border Grid.Row="0" Grid.RowSpan="5" Background="#B0000000"
+                Visibility="{Binding IsSaving, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Path Width="36" Height="36" Stretch="Uniform" HorizontalAlignment="Center"
+                      Stroke="{StaticResource AccentBrush}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathFigure StartPoint="18,2" IsClosed="False">
+                                <ArcSegment Point="34,18" Size="16,16" SweepDirection="Clockwise" IsLargeArc="True" />
+                            </PathFigure>
+                        </PathGeometry>
+                    </Path.Data>
+                    <Path.RenderTransform>
+                        <RotateTransform CenterX="18" CenterY="18" />
+                    </Path.RenderTransform>
+                    <Path.Triggers>
+                        <EventTrigger RoutedEvent="Path.Loaded">
+                            <BeginStoryboard>
+                                <Storyboard RepeatBehavior="Forever">
+                                    <DoubleAnimation Storyboard.TargetProperty="(Path.RenderTransform).(RotateTransform.Angle)"
+                                                     From="0" To="360" Duration="0:0:0.9" />
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </Path.Triggers>
+                </Path>
+                <TextBlock Text="Saving project..." Margin="0,12,0,0" HorizontalAlignment="Center"
+                           FontSize="13" Foreground="{StaticResource TextPrimaryBrush}" />
+            </StackPanel>
         </Border>
     </Grid>
 </Window>

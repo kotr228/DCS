@@ -4,6 +4,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using JolieCat.Core.Documents;
 using JolieCat.Shared.Enums;
 using SkiaSharp;
@@ -91,6 +92,21 @@ namespace JolieCat.Core.Serialization
             using var manifestStream = manifestEntry.Open();
             JsonSerializer.Serialize(manifestStream, manifest, new JsonSerializerOptions { WriteIndented = true });
         }
+
+        /// <summary>Runs <see cref="Save"/> on a background thread pool thread via
+        /// <see cref="Task.Run(Action)"/>, so a caller on a UI thread (encoding every
+        /// layer to PNG and writing the zip archive is genuinely CPU/IO-bound work, not
+        /// instantaneous) can <c>await</c> it without blocking that thread - see
+        /// <c>JolieCat.UI.ViewModels.MainViewModel.SaveProjectAsync</c>, which locks the
+        /// UI for exactly this call's duration rather than the whole synchronous method
+        /// running on the dispatcher thread.</summary>
+        public static Task SaveAsync(
+            string path,
+            Scene scene,
+            IReadOnlyList<TimelineTrackData> timelineTracks,
+            double timelineTotalFrames,
+            double timelineFrameRate) =>
+            Task.Run(() => Save(path, scene, timelineTracks, timelineTotalFrames, timelineFrameRate));
 
         public static ProjectLoadResult Load(string path)
         {
