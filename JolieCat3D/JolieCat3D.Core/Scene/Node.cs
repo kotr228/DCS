@@ -77,5 +77,52 @@ namespace JolieCat3D.Core.Scene
                 foreach (var descendant in child.Traverse())
                     yield return descendant;
         }
+
+        /// <summary>This node's world-space rotation, composed with every ancestor's -
+        /// world = ParentWorldRotation * LocalRotation (note: the reverse operand order
+        /// from <see cref="GetWorldTransform"/>'s own local*parent - <see cref="Quaternion"/>
+        /// multiplication in <see cref="System.Numerics"/> applies its right-hand operand
+        /// first, the opposite of <see cref="Matrix4x4"/>'s row-vector A*B-applies-A-first
+        /// convention; verified empirically before relying on it here). Used by
+        /// <c>JolieCat3D.Engine</c>'s rotate gizmo to convert a world-axis drag into the
+        /// correct <see cref="LocalRotation"/> change for a node under a rotated parent.</summary>
+        public Quaternion GetWorldRotation() =>
+            Parent is null ? LocalRotation : Parent.GetWorldRotation() * LocalRotation;
+
+        /// <summary>This node's world-space origin - <see cref="GetWorldTransform"/>
+        /// applied to the local origin. Where a selection outline or transform gizmo
+        /// should be positioned.</summary>
+        public Vector3 GetWorldPosition() => Vector3.Transform(Vector3.Zero, GetWorldTransform());
+
+        /// <summary>The axis-aligned world-space bounding box of this node's own
+        /// <see cref="Mesh"/> only - unlike <see cref="Scene3D.GetBounds"/>, descendants
+        /// are not included, since this is what a selection-highlight outline (drawn
+        /// around exactly the selected object, not its children too) needs.
+        /// <c>(GetWorldPosition(), GetWorldPosition())</c> for a node with no mesh (or an
+        /// empty one), so the box collapses to a point rather than being reported as
+        /// nonexistent.</summary>
+        public (Vector3 Min, Vector3 Max) GetWorldBounds()
+        {
+            var world = GetWorldTransform();
+
+            if (Mesh is null || Mesh.Vertices.Count == 0)
+            {
+                var origin = Vector3.Transform(Vector3.Zero, world);
+                return (origin, origin);
+            }
+
+            var first = Vector3.Transform(Mesh.Vertices[0].Position, world);
+            var min = first;
+            var max = first;
+
+            foreach (var vertex in Mesh.Vertices)
+            {
+                var worldPosition = Vector3.Transform(vertex.Position, world);
+                min = Vector3.Min(min, worldPosition);
+                max = Vector3.Max(max, worldPosition);
+            }
+
+            return (min, max);
+        }
     }
 }

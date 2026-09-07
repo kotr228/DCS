@@ -18,14 +18,19 @@ namespace JolieCat3D.Engine.Geometry
     public static class SceneGraphBuilder
     {
         /// <summary>Builds one <see cref="Model3DGroup"/> per root node in
-        /// <paramref name="scene"/>, combined into a single top-level group.</summary>
-        public static Model3DGroup Build(CoreScene scene)
+        /// <paramref name="scene"/>, combined into a single top-level group.
+        /// <paramref name="modelToNode"/>, if given, gets one entry added per
+        /// <see cref="GeometryModel3D"/> created, mapping it back to the <see cref="CoreNode"/>
+        /// it came from - what lets a viewport click (which WPF reports as a hit
+        /// <see cref="GeometryModel3D"/>, not a <see cref="CoreNode"/>) resolve back to a
+        /// selectable scene object at all; see <c>JolieCat3D.Engine.Selection.SceneHitTester</c>.</summary>
+        public static Model3DGroup Build(CoreScene scene, IDictionary<GeometryModel3D, CoreNode>? modelToNode = null)
         {
             ArgumentNullException.ThrowIfNull(scene);
 
             var group = new Model3DGroup();
             foreach (var root in scene.RootNodes)
-                group.Children.Add(Build(root));
+                group.Children.Add(Build(root, modelToNode));
 
             return group;
         }
@@ -36,7 +41,7 @@ namespace JolieCat3D.Engine.Geometry
         /// result, placed anywhere in a visual tree, renders this node and its whole
         /// subtree exactly where <see cref="CoreNode.GetWorldTransform"/> would put them
         /// relative to whatever <paramref name="node"/> is itself nested under.</summary>
-        public static Model3DGroup Build(CoreNode node)
+        public static Model3DGroup Build(CoreNode node, IDictionary<GeometryModel3D, CoreNode>? modelToNode = null)
         {
             ArgumentNullException.ThrowIfNull(node);
 
@@ -53,10 +58,11 @@ namespace JolieCat3D.Engine.Geometry
                     BackMaterial = MaterialFactory.Create(mesh.Material),
                 };
                 group.Children.Add(model);
+                if (modelToNode is not null) modelToNode[model] = node;
             }
 
             foreach (var child in node.Children)
-                group.Children.Add(Build(child));
+                group.Children.Add(Build(child, modelToNode));
 
             return group;
         }

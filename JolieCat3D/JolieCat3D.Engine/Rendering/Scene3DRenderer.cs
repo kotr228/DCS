@@ -1,8 +1,12 @@
+using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
 using JolieCat3D.Engine.Camera;
 using JolieCat3D.Engine.Geometry;
 using JolieCat3D.Engine.Lighting;
+using JolieCat3D.Engine.Selection;
+using CoreNode = JolieCat3D.Core.Scene.Node;
 using CoreScene = JolieCat3D.Core.Scene.Scene3D;
 
 namespace JolieCat3D.Engine.Rendering
@@ -14,29 +18,42 @@ namespace JolieCat3D.Engine.Rendering
     /// controls once via <see cref="Attach"/>, then call <see cref="Render"/> every time
     /// the <c>JolieCat3D.Core</c> scene it's showing changes. This is the one class a
     /// consumer (<c>JolieCat3D.UI</c>) actually needs to know about to get a
-    /// <see cref="CoreScene"/> on screen - it owns no rendering logic of its own beyond
-    /// delegating to <see cref="SceneGraphBuilder"/>, <see cref="SceneLightingFactory"/>,
-    /// and <see cref="CameraFraming"/>.
+    /// <see cref="CoreScene"/> on screen and to hit-test/highlight the currently selected
+    /// object in it - it owns no rendering logic of its own beyond delegating to
+    /// <see cref="SceneGraphBuilder"/>, <see cref="SceneLightingFactory"/>,
+    /// <see cref="CameraFraming"/>, and <see cref="SceneHitTester"/>/<see cref="SelectionHighlightFactory"/>.
     /// </summary>
     public sealed class Scene3DRenderer
     {
+        private static readonly Color SelectionColor = Color.FromRgb(0xC2, 0x9B, 0x58); // JolieCat AccentBrush (gold)
+
         private readonly HelixViewport3D _viewport;
         private readonly ModelVisual3D _lightingVisual = new();
         private readonly ModelVisual3D _sceneVisual = new();
+        private readonly Dictionary<GeometryModel3D, CoreNode> _modelToNode = new();
+        private Visual3D? _selectionVisual;
+        private CoreScene? _lastScene;
         private bool _isAttached;
 
         public LightingSettings Lighting { get; set; } = LightingSettings.CreateDefault();
+
+        /// <summary>The object the last <see cref="Select"/> call marked as selected -
+        /// null if nothing is. <c>JolieCat3D.UI</c> reads this after a viewport click
+        /// (via <see cref="HitTest"/> then <see cref="Select"/>) to know which
+        /// <c>NodeViewModel</c> to make the Properties Inspector show.</summary>
+        public CoreNode? SelectedNode { get; private set; }
 
         public Scene3DRenderer(HelixViewport3D viewport) =>
             _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
 
         /// <summary>
         /// One-time setup: configures orbit/pan/zoom (see <see cref="CameraFraming.ConfigureOrbitPanZoom"/>)
-        /// and adds this renderer's own lighting/scene visuals to <see cref="_viewport"/>'s
-        /// children. Idempotent - <see cref="Render"/> calls this itself, so a caller
-        /// never strictly needs to call it directly, but doing so explicitly (e.g. right
-        /// after constructing the viewport, before any scene exists yet) shows an empty,
-        /// correctly-lit viewport immediately rather than a completely blank one.
+        /// and adds this renderer's own lighting/scene/selection visuals to
+        /// <see cref="_viewport"/>'s children. Idempotent - <see cref="Render"/> calls
+        /// this itself, so a caller never strictly needs to call it directly, but doing
+        /// so explicitly (e.g. right after constructing the viewport, before any scene
+        /// exists yet) shows an empty, correctly-lit viewport immediately rather than a
+        /// completely blank one.
         /// </summary>
         public void Attach()
         {
@@ -69,16 +86,57 @@ namespace JolieCat3D.Engine.Rendering
         /// additionally reframes the camera on the scene's own bounds each time (see
         /// <see cref="CameraFraming.ZoomToFit"/>) - on by default since a freshly
         /// replaced scene is otherwise not guaranteed to still be inside the previous
-        /// scene's own framing.
+        /// scene's own framing; a live edit re-render (see <see cref="Refresh"/>) turns
+        /// this off, since re-framing the camera on every keystroke of a Properties
+        /// Inspector field or every frame of a gizmo drag would be disorienting.
         /// </summary>
         public void Render(CoreScene scene, bool zoomToFit = true)
         {
             ArgumentNullException.ThrowIfNull(scene);
             Attach();
 
-            _sceneVisual.Content = SceneGraphBuilder.Build(scene);
+            _lastScene = scene;
+            _modelToNode.Clear();
+            _sceneVisual.Content = SceneGraphBuilder.Build(scene, _modelToNode);
 
             if (zoomToFit) CameraFraming.ZoomToFit(_viewport, scene);
+
+            RefreshSelectionHighlight();
+        }
+
+        /// <summary>Re-renders the same scene <see cref="Render"/> was last called with
+        /// (a no-op if it never was), without re-framing the camera - what a gizmo drag
+        /// or a Properties Inspector edit should call after changing a node's transform,
+        /// so the mesh on screen (and the selection outline/gizmo position around it)
+        /// catches up to the new values.</summary>
+        public void Refresh()
+        {
+            if (_lastScene is { } scene) Render(scene, zoomToFit: false);
+        }
+
+        /// <summary>The <see cref="CoreNode"/> whose mesh is under <paramref name="position"/>
+        /// (in this renderer's own viewport's coordinates) - null if nothing was hit. Does
+        /// not itself change <see cref="SelectedNode"/>; call <see cref="Select"/> with
+        /// the result to actually select it.</summary>
+        public CoreNode? HitTest(Point position) => SceneHitTester.HitTest(_viewport, position, _modelToNode);
+
+        /// <summary>Marks <paramref name="node"/> as selected (or clears selection, for
+        /// null) and rebuilds the selection-outline visual around it. Deliberately
+        /// separate from <see cref="HitTest"/> (rather than one combined "click to
+        /// select" method) so <c>JolieCat3D.UI</c> can also call this from a Scene
+        /// Outliner click, not just a viewport one.</summary>
+        public void Select(CoreNode? node)
+        {
+            SelectedNode = node;
+            RefreshSelectionHighlight();
+        }
+
+        private void RefreshSelectionHighlight()
+        {
+            if (_selectionVisual is not null) _viewport.Children.Remove(_selectionVisual);
+
+            _selectionVisual = SelectionHighlightFactory.CreateHighlight(SelectedNode, SelectionColor);
+            if (_selectionVisual is not null) _viewport.Children.Add(_selectionVisual);
         }
     }
 }

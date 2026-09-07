@@ -19,6 +19,10 @@
 
   <ItemGroup>
     <PackageReference Include="HelixToolkit.Wpf" Version="2.24.0" />
+    <!-- Same version JolieCat.UI (the 2D sibling app) already uses - the Outliner/
+         Properties ViewModels below follow that project's own established
+         ObservableObject-wraps-a-Core-model convention (see e.g. its LayerViewModel). -->
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
 
   <ItemGroup>

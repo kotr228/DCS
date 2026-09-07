@@ -1,10 +1,14 @@
 ﻿using System.Numerics;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Materials;
 using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
+using JolieCat3D.Engine.Gizmos;
 using JolieCat3D.Engine.Rendering;
+using JolieCat3D.UI.ViewModels;
 
 namespace JolieCat3D.UI
 {
@@ -13,9 +17,15 @@ namespace JolieCat3D.UI
     /// </summary>
     public partial class MainWindow : Window
     {
+        private readonly Scene3DRenderer _renderer;
+        private readonly TransformGizmo _gizmo;
+        private readonly SceneViewModel _sceneViewModel = new();
+
         public MainWindow()
         {
             InitializeComponent();
+
+            DataContext = _sceneViewModel;
 
             // The dark professional viewport preset (background gradient + matching
             // lighting) shared with any other JolieCat3D window that wants the same
@@ -24,16 +34,73 @@ namespace JolieCat3D.UI
             Viewport.Background = ViewportTheme.CreateDarkBackground();
 
             _renderer = new Scene3DRenderer(Viewport) { Lighting = ViewportTheme.CreateDarkThemeLighting() };
-            _renderer.Render(BuildDemoScene());
+            _gizmo = new TransformGizmo(Viewport);
+
+            // A gizmo drag changes the same Core Node a NodeViewModel wraps directly
+            // (TransformGizmo has no idea NodeViewModel exists) - re-render the mesh at
+            // its new transform, and tell the matching view model (if the edited node is
+            // the one currently shown) to re-read Position/Rotation/Scale, or the
+            // Properties Inspector would keep showing the pre-drag values.
+            _gizmo.TransformChanged += (_, _) =>
+            {
+                _renderer.Refresh();
+                _sceneViewModel.FindViewModel(_gizmo.Target)?.SyncFromCore();
+            };
+
+            // The reverse direction: a Properties Inspector field edit changes the Core
+            // Node directly through its NodeViewModel - re-render the mesh and
+            // reposition the gizmo (which sits at the node's world position) to match.
+            _sceneViewModel.SceneChanged += (_, _) =>
+            {
+                _renderer.Refresh();
+                _gizmo.Refresh();
+            };
+
+            var scene = BuildDemoScene();
+            _sceneViewModel.Load(scene);
+            _renderer.Render(scene);
         }
 
-        private readonly Scene3DRenderer _renderer;
+        /// <summary>
+        /// Click-to-select in the viewport. Only ever reached for a click the gizmo's
+        /// own manipulator handles didn't already consume themselves (WPF's routed
+        /// MouseLeftButtonDown only bubbles here unhandled - a manipulator marks its own
+        /// mouse-down Handled the moment it starts a drag), so dragging a gizmo handle
+        /// never gets misread as "clicked empty space, deselect" partway through the
+        /// gesture.
+        /// </summary>
+        private void Viewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            var position = e.GetPosition(Viewport);
+            var hitNode = _renderer.HitTest(position);
+            SelectNode(hitNode);
+        }
+
+        /// <summary>Selection made from the Scene Outliner instead of a viewport click -
+        /// the same <see cref="SelectNode"/> path either way, so the renderer's highlight,
+        /// the gizmo, and the Properties Inspector all stay in sync regardless of which
+        /// one the user actually clicked.</summary>
+        private void SceneTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e) =>
+            SelectNode((e.NewValue as NodeViewModel)?.UnderlyingNode);
+
+        private void SelectNode(Node? node)
+        {
+            _renderer.Select(node);
+            _gizmo.Attach(node);
+            _sceneViewModel.SelectedNode = _sceneViewModel.FindViewModel(node);
+        }
+
+        private void GizmoModeButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is not RadioButton { Tag: string modeName }) return;
+            if (Enum.TryParse<GizmoMode>(modeName, out var mode)) _gizmo.Mode = mode;
+        }
 
         /// <summary>
-        /// A small, self-contained scene proving every layer of the pipeline the task
-        /// this window exists to verify actually connects end to end: a
-        /// <see cref="JolieCat3D.Core"/> <see cref="Mesh"/> (from <see cref="Primitives.CreateCube"/>),
-        /// a <see cref="Material"/>, a parent/child <see cref="Node"/> hierarchy (proving
+        /// A small, self-contained scene proving every layer of the pipeline this window
+        /// exists to verify actually connects end to end: a <see cref="JolieCat3D.Core"/>
+        /// <see cref="Mesh"/> (from <see cref="Primitives.CreateCube"/>), a
+        /// <see cref="Material"/>, a parent/child <see cref="Node"/> hierarchy (proving
         /// <see cref="Node.GetWorldTransform"/>'s composition, not just one node's own
         /// local transform), assembled into a <see cref="Scene3D"/> and handed to
         /// <see cref="Scene3DRenderer.Render"/> - the exact same call any future
