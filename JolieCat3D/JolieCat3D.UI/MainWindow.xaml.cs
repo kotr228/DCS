@@ -16,7 +16,14 @@ namespace JolieCat3D.UI
         public MainWindow()
         {
             InitializeComponent();
-            _renderer = new Scene3DRenderer(Viewport);
+
+            // The dark professional viewport preset (background gradient + matching
+            // lighting) shared with any other JolieCat3D window that wants the same
+            // BlackCat/JolieCat-aligned look - see ViewportTheme's own remarks for why
+            // this isn't just baked into Scene3DRenderer's/LightingSettings' own defaults.
+            Viewport.Background = ViewportTheme.CreateDarkBackground();
+
+            _renderer = new Scene3DRenderer(Viewport) { Lighting = ViewportTheme.CreateDarkThemeLighting() };
             _renderer.Render(BuildDemoScene());
         }
 
@@ -36,9 +43,13 @@ namespace JolieCat3D.UI
         {
             var scene = new Scene3D("Demo Scene");
 
+            // Brand accent colors, not arbitrary/primary ones - the same hex the 2D
+            // JolieCat.UI editor's own AccentBrush/ActiveIndicatorBrush use, so a demo
+            // mesh in this viewport reads as part of the same product family rather
+            // than a generic 3D-engine placeholder cube.
             var goldMaterial = new Material("Gold")
             {
-                DiffuseColor = new Color4(0.85f, 0.65f, 0.13f),
+                DiffuseColor = Color4.FromBytes(0xC2, 0x9B, 0x58), // JolieCat AccentBrush
                 SpecularColor = new Color4(1f, 1f, 1f),
                 SpecularPower = 40.0,
             };
@@ -58,7 +69,7 @@ namespace JolieCat3D.UI
 
             var emeraldMaterial = new Material("Emerald")
             {
-                DiffuseColor = new Color4(0.1f, 0.6f, 0.35f),
+                DiffuseColor = Color4.FromBytes(0x5D, 0xA4, 0x53), // JolieCat ActiveIndicatorBrush
                 SpecularColor = new Color4(0.8f, 0.8f, 0.8f),
                 SpecularPower = 60.0,
             };
@@ -80,7 +91,7 @@ namespace JolieCat3D.UI
 
             var groundMaterial = new Material("Ground")
             {
-                DiffuseColor = new Color4(0.5f, 0.5f, 0.5f),
+                DiffuseColor = Color4.FromBytes(0x6B, 0x67, 0x70), // muted gray-brown, matches the brand palette's Panels & Toolbars tone
                 SpecularColor = Color4.Black,
             };
 
