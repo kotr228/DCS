@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -6,7 +6,20 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- This sandbox has no Windows Desktop runtime, only the reference assemblies
+         needed to let a Windows-targeted project restore/compile here at all (see
+         JolieCat.UI.csproj for the same setting, established in an earlier round). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- See JolieCat3D.Engine.csproj's own remarks: HelixToolkit.Wpf 2.24.0 only ships a
+         net462 build, resolved into this net8.0-windows project via the standard .NET
+         Framework compatibility shim - NU1701 is the expected, harmless advisory for that,
+         not a real problem to fix. -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="HelixToolkit.Wpf" Version="2.24.0" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\JolieCat3D.Core\JolieCat3D.Core.csproj" />

@@ -4,9 +4,16 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:JolieCat3D.UI"
+        xmlns:h="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="JolieCat3D" Height="600" Width="900">
     <Grid>
-
+        <!-- HelixToolkit.Wpf's own viewport control: hardware-accelerated (WPF's normal
+             Direct3D-backed 3D pipeline) rendering plus mouse-driven orbit/pan/zoom out
+             of the box (see JolieCat3D.Engine.Camera.CameraFraming's own remarks on why
+             this project configures that control rather than reimplementing it). Content
+             is populated entirely from code-behind, via JolieCat3D.Engine.Rendering.Scene3DRenderer -
+             nothing about a specific scene is declared here in XAML. -->
+        <h:HelixViewport3D x:Name="Viewport" ShowCoordinateSystem="True" />
     </Grid>
 </Window>
