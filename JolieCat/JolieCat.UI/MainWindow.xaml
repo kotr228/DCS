@@ -13,8 +13,29 @@
         Title="JolieCat" Height="720" Width="1280" MinHeight="480" MinWidth="720"
         Icon="/Assets/JolieCatLogo.ico"
         WindowStartupLocation="CenterScreen"
+        WindowStyle="None" ResizeMode="CanResize"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel, IsDesignTimeCreatable=True}">
+
+    <!-- Custom chrome, replacing the OS-drawn title bar with our own (below, in the
+         Grid's first row). WindowChrome - not a manually-transparent Window - does the
+         actual work: with WindowStyle="None" alone, a maximized borderless window would
+         overhang the screen edges and cover the taskbar, and every edge would lose its
+         resize handles. WindowChrome's attached behavior fixes both for free by still
+         participating in the OS's own non-client sizing/maximize logic, just with a
+         caption area of zero height (CaptionHeight="0") - our own title bar Border below
+         supplies the drag/double-click-to-maximize/min/max/close affordances instead
+         (MainWindow.xaml.cs), rather than WindowChrome's normal "mark this region as
+         caption" mechanism. GlassFrameThickness/CornerRadius are zeroed so nothing
+         Aero-glass or rounded leaks in - flat and square, matching the rest of the
+         flat/dark theme. -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
 
     <Window.InputBindings>
         <KeyBinding Key="Z" Modifiers="Control" Command="{Binding UndoCommand}" />
@@ -33,6 +54,55 @@
     </Window.InputBindings>
 
     <Window.Resources>
+        <!-- ================= Custom Title Bar ================= -->
+        <!-- Shared look for the Minimize/Maximize-Restore/Close buttons: no border, a
+             plain hover fill, sized to fill the whole 36px-tall title bar so there's no
+             dead click zone above/below each icon. -->
+        <Style x:Key="WindowControlButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Arrow" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Close gets its own hover color (a conventional warm red) rather than the
+             neutral hover every other title bar button uses - the one place this chrome
+             departs from the brand palette, matching the universal OS convention every
+             user already reads as "this one closes the app". -->
+        <Style x:Key="CloseButtonStyle" TargetType="Button" BasedOn="{StaticResource WindowControlButtonStyle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#FFE81123" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Column that hosts the Left panel: collapses to zero width when the panel is hidden. -->
         <Style x:Key="LeftPanelColumnStyle" TargetType="ColumnDefinition">
             <Setter Property="Width" Value="260" />
@@ -197,13 +267,84 @@
 
     <Grid Background="{StaticResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="36" /> <!-- Custom title bar -->
             <RowDefinition Height="Auto" /> <!-- Top toolbar -->
             <RowDefinition Height="*" MinHeight="150" /> <!-- Left / Center / Right -->
             <RowDefinition Height="Auto" /> <!-- Status bar -->
         </Grid.RowDefinitions>
 
-        <!-- ================= Top Toolbar ================= -->
+        <!-- ================= Custom Title Bar ================= -->
+        <!-- The whole Border drags the window (TitleBar_MouseLeftButtonDown, also
+             handling double-click-to-maximize) - the three window-control buttons sit on
+             top of it in their own column and simply consume their own clicks (WPF's
+             Button already marks IsMouseOver/click events Handled), so they never
+             trigger a drag themselves. -->
         <Border Grid.Row="0" Background="{StaticResource PanelAltBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="10,0,0,0" IsHitTestVisible="False">
+                    <Image Source="{Binding Icon, RelativeSource={RelativeSource AncestorType=Window}}"
+                           Width="18" Height="18" Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
+                               VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Style="{StaticResource WindowControlButtonStyle}" ToolTip="Minimize"
+                            Click="MinimizeButton_Click">
+                        <Rectangle Width="10" Height="1" Fill="{StaticResource TextPrimaryBrush}" />
+                    </Button>
+                    <Button Style="{StaticResource WindowControlButtonStyle}" ToolTip="Maximize/Restore"
+                            Click="MaximizeRestoreButton_Click">
+                        <Grid Width="10" Height="10">
+                            <Rectangle Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1">
+                                <Rectangle.Style>
+                                    <Style TargetType="Rectangle">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Rectangle.Style>
+                            </Rectangle>
+                            <Grid Visibility="Collapsed">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
+                                <Rectangle Width="7" Height="7" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1"
+                                           HorizontalAlignment="Right" VerticalAlignment="Top" />
+                                <Rectangle Width="7" Height="7" Fill="{StaticResource PanelAltBackgroundBrush}"
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom" />
+                                <Rectangle Width="7" Height="7" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1"
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom" />
+                            </Grid>
+                        </Grid>
+                    </Button>
+                    <Button Style="{StaticResource CloseButtonStyle}" ToolTip="Close"
+                            Click="CloseButton_Click">
+                        <Path Data="M0,0 L10,10 M10,0 L0,10" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1.2" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ================= Top Toolbar ================= -->
+        <Border Grid.Row="1" Background="{StaticResource PanelAltBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal" Margin="6">
                 <ToggleButton Content="Tools" Width="70" Margin="2,0"
@@ -272,7 +413,7 @@
         </Border>
 
         <!-- ================= Left / Center / Right ================= -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Style="{StaticResource LeftPanelColumnStyle}" />
                 <ColumnDefinition Style="{StaticResource LeftSplitterColumnStyle}" />
@@ -561,7 +702,7 @@
         <!-- Always present (unlike the docking zones above) rather than collapsing when
              idle - a conventional status bar's own footprint stays stable regardless of
              whether it currently has anything to say. -->
-        <Border Grid.Row="2" Background="{StaticResource PanelAltBackgroundBrush}"
+        <Border Grid.Row="3" Background="{StaticResource PanelAltBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
           <Grid>
             <Grid.ColumnDefinitions>
@@ -630,12 +771,15 @@
         </Border>
 
         <!-- ================= Saving Overlay ================= -->
-        <!-- Spans every row, including the toolbar - so Save/Open/Import/Undo/Redo are
-             all blocked too, not just the panels - blocking further edits for exactly
-             the span MainViewModel.IsSaving is true (the save's own write duration, via
-             SaveProjectAsync), which is deliberately shorter than how long the status
-             bar's success message stays up afterward (see MainViewModel's remarks). -->
-        <Border Grid.Row="0" Grid.RowSpan="5" Background="#B0000000"
+        <!-- Spans every row below the title bar, including the toolbar - so
+             Save/Open/Import/Undo/Redo are all blocked too, not just the panels -
+             blocking further edits for exactly the span MainViewModel.IsSaving is true
+             (the save's own write duration, via SaveProjectAsync), which is
+             deliberately shorter than how long the status bar's success message stays
+             up afterward (see MainViewModel's remarks). Deliberately starts at row 1,
+             not row 0: the custom title bar's minimize/restore/close buttons stay
+             clickable throughout a save, same as a native title bar's always would. -->
+        <Border Grid.Row="1" Grid.RowSpan="3" Background="#B0000000"
                 Visibility="{Binding IsSaving, Converter={StaticResource BoolToVisibility}}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Path Width="36" Height="36" Stretch="Uniform" HorizontalAlignment="Center"

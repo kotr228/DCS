@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Shell;
 using JolieCat.UI.ViewModels;
 using JolieCat.UI.ViewModels.Layers;
 
@@ -15,6 +16,45 @@ namespace JolieCat.UI
         {
             InitializeComponent();
             DataContext = new MainViewModel();
+        }
+
+        /// <summary>
+        /// Drives dragging and double-click-to-maximize for the custom title bar Border
+        /// (MainWindow.xaml sets WindowStyle="None" with a zero-height WindowChrome
+        /// CaptionHeight, so none of it is OS-recognized caption - this single handler is
+        /// what makes it act like one). A single click starts <see cref="Window.DragMove"/>
+        /// - safe to call unconditionally on a maximized window; WPF restores it to
+        /// normal size first and continues the drag from the same relative pointer
+        /// position, matching how every native title bar itself behaves. A double click
+        /// instead toggles Maximized/Normal, so it never also nudges the window from
+        /// whatever pixel the second click landed on.
+        /// </summary>
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount == 2)
+            {
+                ToggleMaximizeRestore();
+                return;
+            }
+
+            DragMove();
+        }
+
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+            => SystemCommands.MinimizeWindow(this);
+
+        private void MaximizeRestoreButton_Click(object sender, RoutedEventArgs e)
+            => ToggleMaximizeRestore();
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+            => SystemCommands.CloseWindow(this);
+
+        private void ToggleMaximizeRestore()
+        {
+            if (WindowState == WindowState.Maximized)
+                SystemCommands.RestoreWindow(this);
+            else
+                SystemCommands.MaximizeWindow(this);
         }
 
         /// <summary>Double-clicking a layer's name label swaps in its inline rename textbox.</summary>
