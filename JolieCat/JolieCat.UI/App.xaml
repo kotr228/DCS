@@ -73,6 +73,17 @@
                  family, against the new darker charcoal panels too. -->
             <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FFC9C2B8" />
 
+            <!-- Dark text/icon color for the rare spots where content sits directly on
+                 top of a light/warm accent fill instead of a dark panel - the custom
+                 title bar's own beige background, and a gold-selected list row/tab/tool
+                 tile. TextPrimaryBrush (warm milky white) reads fine on every dark
+                 surface in this app, but against #E6BA7C beige or #C29B58 gold it's a
+                 washed-out, near-invisible ~2:1 contrast; this dark tone (the same
+                 value as WindowBackgroundBrush, reused for exactly this reason - it's
+                 already the darkest neutral this palette has) restores a >9:1 contrast
+                 against either. -->
+            <SolidColorBrush x:Key="OnAccentTextBrush" Color="#FF1A1716" />
+
             <!-- ================= Base Styles ================= -->
 
             <Style TargetType="{x:Type Window}">
@@ -225,6 +236,161 @@
                                 </Trigger>
                                 <Trigger Property="IsChecked" Value="True">
                                     <Setter TargetName="ToggleBorder" Property="Background" Value="{StaticResource ActiveIndicatorBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Every TextBox in the app (the Layers panel's rename box, the color
+                 picker's hex field, dialog numeric fields, ...) was rendering with no
+                 style of its own at all - the default OS text box chrome, a light/white
+                 background, with this app's own Window-level Foreground (warm milky
+                 white, inherited) painted on top: white text on a white box, invisible
+                 until selected. This is the same bug class as the unstyled ComboBox
+                 below, just on a different control. CanvasView.xaml's inline text-edit
+                 overlay already sets its own explicit Background/Foreground/BorderBrush,
+                 so it's untouched by this - a local value always wins over a Style. -->
+            <Style TargetType="{x:Type TextBox}">
+                <Setter Property="Background" Value="{StaticResource PanelAltBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="4,2" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type TextBox}">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="3">
+                                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.5" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- ComboBoxItem: same idea as ToolListBoxItemStyle (MainWindow.xaml) -
+                 hover gets the neutral highlight, the chosen item gets the gold/beige
+                 selection language used everywhere else in the app. Foreground is set
+                 directly on the item itself (not via ControlTemplate/TargetName) because
+                 every ComboBox in this app shows plain strings with no per-item
+                 DataTemplate of its own, so the generated ContentPresenter's implicit
+                 TextBlock has no local Foreground override to fight - it simply inherits
+                 whatever this Style puts on the ComboBoxItem, unlike the hardcoded
+                 Foreground the Tools/Documents/Layers DataTemplates set explicitly
+                 (see the OnAccentTextBrush triggers added directly to those). -->
+            <Style TargetType="{x:Type ComboBoxItem}">
+                <Setter Property="Padding" Value="8,5" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ComboBoxItem}">
+                            <Border x:Name="ItemBorder" Background="{TemplateBinding Background}"
+                                    BorderBrush="Transparent" BorderThickness="1" CornerRadius="3">
+                                <ContentPresenter Margin="{TemplateBinding Padding}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+                <Style.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Foreground" Value="{StaticResource OnAccentTextBrush}" />
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- ComboBox: previously entirely unstyled, so its dropdown popup used the
+                 OS theme's own light popup background with this app's Window-level
+                 Foreground (warm milky white) inherited into it - invisible text,
+                 exactly like the unstyled TextBox above. Closed box matches the rest of
+                 the app's flat card buttons/inputs; the popup gets a solid
+                 PanelBackgroundBrush (the same dark charcoal every docked panel card
+                 uses) so ComboBoxItem's own text is never at risk of landing on a light
+                 background again. IsEditable isn't used anywhere in this app, so this
+                 template doesn't attempt to support it (no PART_EditableTextBox). -->
+            <Style TargetType="{x:Type ComboBox}">
+                <Setter Property="Background" Value="{StaticResource PanelAltBackgroundBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="8,4" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ComboBox}">
+                            <Grid>
+                                <Border x:Name="BoxBorder"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <ContentPresenter Grid.Column="0"
+                                                          Margin="{TemplateBinding Padding}"
+                                                          VerticalAlignment="Center"
+                                                          Content="{TemplateBinding SelectionBoxItem}"
+                                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                          ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"
+                                                          IsHitTestVisible="False" />
+
+                                        <Path Grid.Column="1" Data="M0,0 L6,0 L3,5 Z" Margin="0,0,10,0"
+                                              Fill="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+
+                                <ToggleButton Background="Transparent" BorderThickness="0"
+                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                              ClickMode="Press" Focusable="False">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="Transparent" />
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+
+                                <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}"
+                                       PlacementTarget="{Binding ElementName=BoxBorder}" Placement="Bottom"
+                                       AllowsTransparency="True" Focusable="False" StaysOpen="False"
+                                       PopupAnimation="Slide">
+                                    <Border Background="{StaticResource PanelBackgroundBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                            CornerRadius="4" Margin="0,2,0,0"
+                                            MinWidth="{TemplateBinding ActualWidth}"
+                                            MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                        <ScrollViewer Margin="2" SnapsToDevicePixels="True">
+                                            <ItemsPresenter />
+                                        </ScrollViewer>
+                                    </Border>
+                                </Popup>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="BoxBorder" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.5" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>

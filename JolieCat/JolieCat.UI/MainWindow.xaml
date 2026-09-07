@@ -73,8 +73,14 @@
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
+                            <!-- A lightening overlay, not HoverBackgroundBrush's dark
+                                 tint - the title bar itself is now the warm beige
+                                 background, where a dark hover fill would read as a
+                                 stray dark square rather than a highlight. Semi-
+                                 transparent white keeps the dark glyph/text legible in
+                                 both states instead of needing one. -->
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                                <Setter TargetName="Bg" Property="Background" Value="#33FFFFFF" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -279,7 +285,13 @@
              top of it in their own column and simply consume their own clicks (WPF's
              Button already marks IsMouseOver/click events Handled), so they never
              trigger a drag themselves. -->
-        <Border Grid.Row="0" Background="{StaticResource PanelAltBackgroundBrush}"
+        <!-- Background is the logo's own warm beige, not a panel-tier dark - the one
+             deliberately branded surface in the whole chrome, per the brand spec's own
+             "header" callout. Every glyph/text on it below uses OnAccentTextBrush (dark)
+             rather than the usual TextPrimaryBrush (warm milky white), which read at
+             under 2:1 contrast against this beige - see OnAccentTextBrush's own remarks
+             in App.xaml. -->
+        <Border Grid.Row="0" Background="{StaticResource BrandBeigeBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
                 MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
             <Grid>
@@ -294,18 +306,18 @@
                            Width="18" Height="18" Margin="0,0,8,0" />
                     <TextBlock Text="{Binding Title, RelativeSource={RelativeSource AncestorType=Window}}"
                                VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}" />
+                               Foreground="{StaticResource OnAccentTextBrush}" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <Button Style="{StaticResource WindowControlButtonStyle}" ToolTip="Minimize"
                             Click="MinimizeButton_Click">
-                        <Rectangle Width="10" Height="1" Fill="{StaticResource TextPrimaryBrush}" />
+                        <Rectangle Width="10" Height="1" Fill="{StaticResource OnAccentTextBrush}" />
                     </Button>
                     <Button Style="{StaticResource WindowControlButtonStyle}" ToolTip="Maximize/Restore"
                             Click="MaximizeRestoreButton_Click">
                         <Grid Width="10" Height="10">
-                            <Rectangle Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1">
+                            <Rectangle Stroke="{StaticResource OnAccentTextBrush}" StrokeThickness="1">
                                 <Rectangle.Style>
                                     <Style TargetType="Rectangle">
                                         <Style.Triggers>
@@ -326,18 +338,41 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Grid.Style>
-                                <Rectangle Width="7" Height="7" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1"
+                                <Rectangle Width="7" Height="7" Stroke="{StaticResource OnAccentTextBrush}" StrokeThickness="1"
                                            HorizontalAlignment="Right" VerticalAlignment="Top" />
-                                <Rectangle Width="7" Height="7" Fill="{StaticResource PanelAltBackgroundBrush}"
+                                <!-- This one isn't an outline - it's a solid mask matching
+                                     the title bar's own background, painted over the
+                                     first square's corner to fake the "two overlapping
+                                     squares" restore glyph. Its Fill has to track
+                                     whatever's actually behind it (now the beige title
+                                     bar, not PanelAltBackgroundBrush), or the mask
+                                     itself becomes a visible mismatched square. -->
+                                <Rectangle Width="7" Height="7" Fill="{StaticResource BrandBeigeBrush}"
                                            HorizontalAlignment="Left" VerticalAlignment="Bottom" />
-                                <Rectangle Width="7" Height="7" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1"
+                                <Rectangle Width="7" Height="7" Stroke="{StaticResource OnAccentTextBrush}" StrokeThickness="1"
                                            HorizontalAlignment="Left" VerticalAlignment="Bottom" />
                             </Grid>
                         </Grid>
                     </Button>
                     <Button Style="{StaticResource CloseButtonStyle}" ToolTip="Close"
                             Click="CloseButton_Click">
-                        <Path Data="M0,0 L10,10 M10,0 L0,10" Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1.2" />
+                        <!-- Close's hover fill is a strong, opaque red (unlike Minimize/
+                             Maximize's light overlay above), so its glyph needs its own
+                             color per state rather than one fixed color: dark against
+                             the idle beige, white against the hovered red - each about
+                             as high-contrast as the other gets. -->
+                        <Path Data="M0,0 L10,10 M10,0 L0,10" StrokeThickness="1.2">
+                            <Path.Style>
+                                <Style TargetType="Path">
+                                    <Setter Property="Stroke" Value="{StaticResource OnAccentTextBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Button}}" Value="True">
+                                            <Setter Property="Stroke" Value="{StaticResource TextPrimaryBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Path.Style>
+                        </Path>
                     </Button>
                 </StackPanel>
             </Grid>
@@ -452,9 +487,22 @@
                                                     <Border Style="{StaticResource ToolTileStyle}" ToolTip="{Binding DisplayName}">
                                                         <!-- EvenOdd is the mini-language's default fill rule, which several icons
                                                              (marquees, zoom lens, canvas-rotate ring) rely on to punch a hole. -->
-                                                        <Path Data="{Binding IconData}" Fill="{StaticResource TextPrimaryBrush}"
-                                                              Stretch="Uniform" Width="16" Height="16"
-                                                              HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                        <Path Data="{Binding IconData}" Stretch="Uniform" Width="16" Height="16"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <!-- The selected tool's tile fills gold (ToolListBoxItemStyle) - the
+                                                                 icon's own Fill has to switch to a dark tone there too, or it stays
+                                                                 the usual warm-white against a background it was never legible on. -->
+                                                            <Path.Style>
+                                                                <Style TargetType="Path">
+                                                                    <Setter Property="Fill" Value="{StaticResource TextPrimaryBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                                            <Setter Property="Fill" Value="{StaticResource OnAccentTextBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Path.Style>
+                                                        </Path>
                                                     </Border>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
@@ -507,8 +555,20 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" Margin="10,6">
-                                        <TextBlock Text="{Binding Title}" FontSize="11" VerticalAlignment="Center"
-                                                   Foreground="{StaticResource TextPrimaryBrush}" />
+                                        <!-- The active tab's own tile fills gold (ToolListBoxItemStyle) -
+                                             swaps to a dark tone there, same as the tool tile's icon above. -->
+                                        <TextBlock Text="{Binding Title}" FontSize="11" VerticalAlignment="Center">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource OnAccentTextBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <Button Content="&#x2715;" Width="16" Height="16" Margin="8,0,0,0" Padding="0"
                                                 FontSize="9" ToolTip="Close tab (Ctrl+W)"
                                                 Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.CloseDocumentCommand}"
@@ -642,10 +702,22 @@
                                         <!-- Plain label normally; double-clicking it swaps in the
                                              textbox below for an inline rename (see MainWindow's
                                              code-behind for the edit/commit/cancel handlers). -->
+                                        <!-- The active layer's own row fills gold (ToolListBoxItemStyle) -
+                                             swaps to a dark tone there, same as the tool tile/document tab above. -->
                                         <TextBlock Text="{Binding Name}" FontSize="11" VerticalAlignment="Center"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
                                                    Visibility="{Binding IsNotEditingName, Converter={StaticResource BoolToVisibility}}"
-                                                   MouseLeftButtonDown="LayerName_MouseLeftButtonDown" />
+                                                   MouseLeftButtonDown="LayerName_MouseLeftButtonDown">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                            <Setter Property="Foreground" Value="{StaticResource OnAccentTextBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <TextBox Text="{Binding Name, Mode=TwoWay}" FontSize="11" Width="120"
                                                  Visibility="{Binding IsEditingName, Converter={StaticResource BoolToVisibility}}"
                                                  Loaded="LayerNameEditBox_Loaded"
