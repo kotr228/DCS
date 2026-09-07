@@ -15,8 +15,10 @@
          no AllowsTransparency/rounded-corner complexity (not attempted here: nothing
          about it can be visually verified in a sandbox with no Windows Desktop
          runtime, so the simpler, reliably-correct rectangular option was chosen over a
-         fancier one this session has no way to actually check). -->
-    <Border BorderBrush="{StaticResource AccentBrush}" BorderThickness="2">
+         fancier one this session has no way to actually check). Beige, not gold - a
+         "subtle branding element" per the brand spec, distinct from the gold used for
+         active/selected UI state elsewhere. -->
+    <Border BorderBrush="{StaticResource BrandBeigeBrush}" BorderThickness="2">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
             <Image Source="/Assets/JolieCatLogo.png" Width="140" Height="140" Stretch="Uniform" />
 

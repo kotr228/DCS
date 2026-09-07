@@ -15,59 +15,62 @@
                  compiled UserControl's XAML. -->
             <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
-            <!-- ================= Warm "JolieCat" Theme Palette ================= -->
-            <!-- Flat, solid-color brushes only - no gradients, no theme packages.
-                 Derived from the logo's own five brand colors (see JolieCatLogo.ico/.png):
-                     Main Background / Canvas Framing - #E6BA7C (Warm Tan / Beige)
-                     Panels & Toolbars                - #6B6770 (Muted Warm Gray-Brown) / #3D3A42 (Deep Charcoal)
-                     Accents & Highlights              - #C29B58 (Golden Ochre)
-                     Active Toggles / Indicators        - #5DA453 (Emerald Green, the logo's own "cat eyes")
-                     Text & Off-white elements          - #F9F6F0 (Warm Milky White)
-                 A few further brushes below (BorderBrush, AccentHoverBrush,
-                 HoverBackgroundBrush, TextSecondaryBrush) aren't named in that five-color
-                 list - each is a tint/shade mixed from the same five rather than an
-                 unrelated color, so the whole app still reads as one warm, cohesive
-                 palette rather than five brand colors plus unrelated old leftovers. -->
+            <!-- ================= "JolieCat" Theme Palette ================= -->
+            <!-- Professional dark workspace (a "BlackCat"-style neutral-charcoal card
+                 UI), with the logo's own warm colors reserved strictly for small
+                 accents - never a large fill. A previous pass got this backwards
+                 (WindowBackgroundBrush itself was the warm beige, so the whole
+                 workspace read as one giant tan block) - every structural surface
+                 below (window/canvas framing, panel bodies, toolbars, borders, hover)
+                 is a neutral dark charcoal now; only the four accent brushes further
+                 down are ever the logo's own beige/gold/green.
+                 Flat, solid-color brushes only - no gradients, no theme packages. -->
 
-            <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFE6BA7C" />
+            <!-- Canvas framing / outermost window background - darkest tier, so every
+                 panel "card" on top of it reads as visibly raised. -->
+            <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FF1A1716" />
 
-            <!-- The two "Panels & Toolbars" colors: the lighter Gray-Brown for a
-                 panel's own body (Layers/Properties/Timeline content), the darker
-                 Charcoal for its toolbar/header strip and the document tab strip -
-                 giving every docked panel the same two-tier depth its dark-theme
-                 predecessor had, just in the new warm register. -->
-            <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FF6B6770" />
-            <SolidColorBrush x:Key="PanelAltBackgroundBrush" Color="#FF3D3A42" />
+            <!-- A panel's own card body (Layers/Properties/Timeline content) - one
+                 step lighter than the window behind it. -->
+            <SolidColorBrush x:Key="PanelBackgroundBrush" Color="#FF242020" />
 
-            <!-- A shade darker than Deep Charcoal - no single hex was specified for
-                 borders, so this is mixed from the palette's own darkest color rather
-                 than reusing an unrelated gray, keeping every divider/outline in the
-                 same warm-neutral family as the panels it separates. -->
-            <SolidColorBrush x:Key="BorderBrush" Color="#FF2E2B32" />
+            <!-- A panel's toolbar/header strip and the document tab strip - one step
+                 lighter again, reading as "raised" above the card body it tops. -->
+            <SolidColorBrush x:Key="PanelAltBackgroundBrush" Color="#FF2E2929" />
 
+            <!-- Divider/outline color - lighter than every panel tier above, so a
+                 hairline border is actually visible against any of them. -->
+            <SolidColorBrush x:Key="BorderBrush" Color="#FF3D3736" />
+
+            <!-- Neutral (non-branded) hover highlight - a touch lighter than
+                 BorderBrush, for a plain "something's under the cursor" cue that
+                 doesn't compete with the branded accents below. -->
+            <SolidColorBrush x:Key="HoverBackgroundBrush" Color="#FF453E3D" />
+
+            <!-- ================= Brand Accents (small elements only) ================= -->
+            <!-- Golden Ochre - active tab/selected-item highlights, handle/selection
+                 chrome on the canvas, and other small "this one is active" accents. -->
             <SolidColorBrush x:Key="AccentBrush" Color="#FFC29B58" />
-            <!-- A lighter tint of Golden Ochre for hover - no separate hover hex was
-                 specified, so this is Golden Ochre itself lightened, the same
-                 relationship the old theme's own Accent/AccentHover pair had. -->
             <SolidColorBrush x:Key="AccentHoverBrush" Color="#FFD8B87A" />
 
-            <!-- A lighter tint of the Muted Warm Gray-Brown panel color - a neutral
-                 hover highlight distinct from both the golden Accent (used for
-                 pressed/selected states) and the green Active Indicator below. -->
-            <SolidColorBrush x:Key="HoverBackgroundBrush" Color="#FF7D7982" />
+            <!-- Warm Beige - paired with Golden Ochre on the same accents (a thin
+                 border ring around a gold-filled selection highlight) and used alone
+                 for small branding touches (the splash screen's own accent ring) -
+                 never a fill of its own beyond that. -->
+            <SolidColorBrush x:Key="BrandBeigeBrush" Color="#FFE6BA7C" />
 
-            <!-- "Active Toggles / Indicators" - the logo's own cat-eye green. Reserved
-                 for a persistent on/active state specifically (a checked toggle button,
-                 the selected tool, a layer's mask as the active paint target) - not a
-                 general highlight, which stays the golden Accent above. -->
+            <!-- Emerald Green (the logo's own "cat eyes") - persistent on/active
+                 toggle states, run/success/loading indicators, and primary action
+                 buttons (see PrimaryButtonStyle below) - distinct from the golden
+                 Accent used for selection highlights. -->
             <SolidColorBrush x:Key="ActiveIndicatorBrush" Color="#FF5DA453" />
+            <SolidColorBrush x:Key="ActiveIndicatorHoverBrush" Color="#FF74BF69" />
+            <SolidColorBrush x:Key="ActiveIndicatorPressedBrush" Color="#FF4A8A44" />
 
             <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFF9F6F0" />
-            <!-- A muted, darkened tint of the Warm Milky White - no separate secondary-
-                 text hex was specified, so this dims that same color rather than
-                 reusing an unrelated gray, keeping secondary text in the same warm
-                 family as primary text while still reading as clearly de-emphasized
-                 against it. -->
+            <!-- A muted, darkened tint of the Warm Milky White - reads clearly
+                 de-emphasized against primary text while staying in the same warm
+                 family, against the new darker charcoal panels too. -->
             <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FFC9C2B8" />
 
             <!-- ================= Base Styles ================= -->
@@ -102,8 +105,9 @@
                 <Setter Property="ShowsPreview" Value="False" />
             </Style>
 
-            <!-- Clean, flat default Button style: solid background, no rounded corners,
-                 no drop shadows - only a simple hover/pressed color swap. -->
+            <!-- Clean, flat default Button style: solid background, a small corner
+                 radius (the "clean card" look, not sharp rectangles), no drop shadows -
+                 only a simple hover/pressed color swap. -->
             <Style TargetType="{x:Type Button}">
                 <Setter Property="Background" Value="{StaticResource PanelAltBackgroundBrush}" />
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
@@ -118,7 +122,8 @@
                             <Border x:Name="ButtonBorder"
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}">
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4">
                                 <ContentPresenter HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"
                                                   Margin="{TemplateBinding Padding}"
@@ -140,11 +145,60 @@
                 </Setter>
             </Style>
 
+            <!-- The "primary action button" BlackCat's own button styling calls for:
+                 a solid Emerald Green fill (not the neutral default above), for the
+                 single confirming/primary action in a toolbar or dialog - Save,
+                 Export, a dialog's own Apply/Create/Resize button, Slice & Export
+                 Frames, Derive Clipbar Animation. Its own green-family hover/pressed
+                 shades (not the neutral HoverBackgroundBrush/golden AccentBrush the
+                 default Button style swaps to) keep it reading as one consistent
+                 green button through every interaction state, matching "primary
+                 action buttons" being the green category's own named use case. -->
+            <Style x:Key="PrimaryButtonStyle" TargetType="{x:Type Button}">
+                <Setter Property="Background" Value="{StaticResource ActiveIndicatorBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ActiveIndicatorBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Padding" Value="10,4" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Button}">
+                            <Border x:Name="ButtonBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  RecognizesAccessKey="True" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource ActiveIndicatorHoverBrush}" />
+                                    <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource ActiveIndicatorHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="ButtonBorder" Property="Background" Value="{StaticResource ActiveIndicatorPressedBrush}" />
+                                    <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="{StaticResource ActiveIndicatorPressedBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.5" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!-- Toggle button used on the top toolbar to show/hide a docking zone;
                  renders with the Active Indicator (cat-eye) green while its panel is
                  visible - this is exactly the "active toggle" the warm palette
-                 reserves that color for, distinct from the golden Accent used for a
-                 plain momentary press elsewhere. -->
+                 reserves that color for, distinct from the golden Accent used for
+                 selection highlights elsewhere. -->
             <Style x:Key="PanelToggleButtonStyle" TargetType="{x:Type ToggleButton}">
                 <Setter Property="Background" Value="{StaticResource PanelAltBackgroundBrush}" />
                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
@@ -159,7 +213,8 @@
                             <Border x:Name="ToggleBorder"
                                     Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
-                                    BorderThickness="{TemplateBinding BorderThickness}">
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4">
                                 <ContentPresenter HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"
                                                   Margin="{TemplateBinding Padding}" />

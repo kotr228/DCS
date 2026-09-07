@@ -78,15 +78,20 @@
         </Style>
 
 
-        <!-- Shared look for the four docking zone containers. -->
+        <!-- Shared look for the four docking zone containers - the "card" treatment:
+             a dark panel body on a slightly rounded, subtly-bordered card. -->
         <Style x:Key="DockPanelBorderStyle" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
         </Style>
 
         <!-- Flat ListBoxItem style for tool entries: no default chrome, accent highlight
-             on the active tool, subtle hover otherwise. -->
+             on the active tool, subtle hover otherwise. Shared by the Tools palette, the
+             Document tab strip, and the Layers panel list, so this one style is what
+             makes "selected tool", "active document tab", and "selected layer" all read
+             the same way. -->
         <Style x:Key="ToolListBoxItemStyle" TargetType="ListBoxItem">
             <Setter Property="Padding" Value="0" />
             <Setter Property="Background" Value="Transparent" />
@@ -94,7 +99,8 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}">
+                        <Border x:Name="ItemBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="Transparent" BorderThickness="1" CornerRadius="4">
                             <ContentPresenter />
                         </Border>
                         <ControlTemplate.Triggers>
@@ -102,10 +108,13 @@
                                 <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <!-- The active/selected tool - an "active indicator" in
-                                     the warm palette's own terms, so it gets the cat-eye
-                                     green rather than the golden Accent. -->
-                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource ActiveIndicatorBrush}" />
+                                <!-- The active/selected tool, tab, or layer - a "selected
+                                     highlight"/"active tab border" in the brand spec's own
+                                     terms, so it gets the golden Accent fill ringed in the
+                                     warm Beige, not the cat-eye green (green is reserved
+                                     for toggles/run-success/primary buttons). -->
+                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource BrandBeigeBrush}" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -210,6 +219,7 @@
                 <Button Content="Open" Width="60" Margin="2,0" ToolTip="Open a .jolie project (Ctrl+O)"
                         Command="{Binding OpenProjectCommand}" />
                 <Button Content="Save" Width="60" Margin="2,0" ToolTip="Save this project as .jolie (Ctrl+S)"
+                        Style="{StaticResource PrimaryButtonStyle}"
                         Command="{Binding SaveProjectCommand}" />
                 <Button Content="Import..." Width="70" Margin="2,0"
                         ToolTip="Import image files (PNG/JPG/BMP/WEBP) as new layers - or just drag them onto the canvas"
@@ -219,6 +229,7 @@
                         Command="{Binding PlaceSmartObjectCommand}" />
                 <Button Content="Export..." Width="70" Margin="2,0"
                         ToolTip="Export the flattened image (or a single layer) as PNG/JPEG/WebP"
+                        Style="{StaticResource PrimaryButtonStyle}"
                         Command="{Binding ExportImageCommand}" />
                 <Button Content="Resize Canvas..." Width="100" Margin="2,0"
                         ToolTip="Resize the whole document - every layer and mask resizes with it, anchored at the top-left corner"
@@ -628,7 +639,7 @@
                 Visibility="{Binding IsSaving, Converter={StaticResource BoolToVisibility}}">
             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                 <Path Width="36" Height="36" Stretch="Uniform" HorizontalAlignment="Center"
-                      Stroke="{StaticResource AccentBrush}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                      Stroke="{StaticResource ActiveIndicatorBrush}" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
                     <Path.Data>
                         <PathGeometry>
                             <PathFigure StartPoint="18,2" IsClosed="False">

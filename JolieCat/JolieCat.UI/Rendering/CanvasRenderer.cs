@@ -28,7 +28,9 @@ namespace JolieCat.UI.Rendering
         private static readonly SKColor CheckerDark = new(0x2A, 0x2A, 0x2C);
 
         // "Main Background / Canvas Framing" - matches App.xaml's WindowBackgroundBrush.
-        private static readonly SKColor OutsideDocumentColor = new(0xE6, 0xBA, 0x7C);
+        // Neutral dark charcoal, not the brand beige - the workspace itself is never a
+        // solid brand-color fill; beige/gold are reserved for small accents only.
+        private static readonly SKColor OutsideDocumentColor = new(0x1A, 0x17, 0x16);
         private static readonly SKColor CropDarkenColor = new(0, 0, 0, 160);
         private static readonly SKColor HandleBorderColor = new(0xC2, 0x9B, 0x58); // matches AccentBrush (Golden Ochre)
 
