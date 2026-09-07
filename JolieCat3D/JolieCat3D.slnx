@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="JolieCat3D.Core/JolieCat3D.Core.csproj" />
+  <Project Path="JolieCat3D.Engine/JolieCat3D.Engine.csproj" />
+  <Project Path="JolieCat3D.Service/JolieCat3D.Service.csproj" />
+  <Project Path="JolieCat3D.UI/JolieCat3D.UI.csproj" />
+</Solution>
