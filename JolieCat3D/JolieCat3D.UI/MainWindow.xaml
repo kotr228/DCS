@@ -19,12 +19,29 @@
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /> <!-- File menu -->
             <RowDefinition Height="Auto" /> <!-- Gizmo mode toolbar -->
             <RowDefinition Height="*" />    <!-- Outliner | Viewport | Properties -->
         </Grid.RowDefinitions>
 
+        <!-- ================= File Menu ================= -->
+        <Menu Grid.Row="0">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New Scene" Command="ApplicationCommands.New" />
+                <MenuItem Header="_Open..." Command="ApplicationCommands.Open" />
+                <Separator />
+                <MenuItem Header="_Save" Command="ApplicationCommands.Save" />
+                <MenuItem Header="Save _As..." Command="ApplicationCommands.SaveAs" />
+                <Separator />
+                <MenuItem Header="_Import..." Click="ImportMenuItem_Click" InputGestureText="Ctrl+I" />
+                <MenuItem Header="_Export..." Click="ExportMenuItem_Click" InputGestureText="Ctrl+E" />
+                <Separator />
+                <MenuItem Header="E_xit" Click="ExitMenuItem_Click" />
+            </MenuItem>
+        </Menu>
+
         <!-- ================= Gizmo Mode Toolbar ================= -->
-        <Border Grid.Row="0" Background="{StaticResource PanelAltBackgroundBrush}"
+        <Border Grid.Row="1" Background="{StaticResource PanelAltBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal" Margin="8,6">
                 <TextBlock Text="Transform:" VerticalAlignment="Center" Margin="0,0,10,0"
@@ -41,7 +58,7 @@
             </StackPanel>
         </Border>
 
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="240" MinWidth="160" />
                 <ColumnDefinition Width="Auto" />

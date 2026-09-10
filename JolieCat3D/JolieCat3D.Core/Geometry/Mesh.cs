@@ -1,5 +1,6 @@
 using System.Numerics;
 using JolieCat3D.Core.Materials;
+using JolieCat3D.Core.Numerics;
 
 namespace JolieCat3D.Core.Geometry
 {
@@ -89,6 +90,173 @@ namespace JolieCat3D.Core.Geometry
             }
 
             return (min, max);
+        }
+
+        /// <summary>
+        /// Extrudes <paramref name="face"/> (which must already be one of this mesh's own
+        /// <see cref="Polygons"/>) outward along its own face normal by
+        /// <paramref name="distance"/>: duplicates its vertices into a new ring offset
+        /// along that normal, connects the original ring to the new one with a side quad
+        /// per edge, replaces the original polygon with the new offset one as the cap, and
+        /// recalculates normals for the whole mesh afterward. Returns the new cap polygon,
+        /// so a caller can chain a further operation onto the freshly-extruded face (an
+        /// extrude-then-extrude "tower", for instance) the same way a modeling tool's own
+        /// "Extrude" leaves the new face selected. The original face's own vertices are
+        /// left untouched and still exactly where they were - anything else in the mesh
+        /// that shares them (a neighboring face on the rest of the object) is unaffected;
+        /// only the new side quads and cap are new geometry. Verified (vertex/polygon
+        /// counts, and that every resulting face still winds outward) against a
+        /// hand-built cube in a throwaway console script before being written here.
+        /// </summary>
+        /// <exception cref="ArgumentException"><paramref name="face"/> is not one of
+        /// this mesh's own <see cref="Polygons"/>.</exception>
+        public Polygon ExtrudeFace(Polygon face, float distance)
+        {
+            ArgumentNullException.ThrowIfNull(face);
+            if (!_polygons.Remove(face))
+                throw new ArgumentException("The given polygon is not part of this mesh.", nameof(face));
+
+            var indices = face.Indices;
+            var normal = ComputeFaceNormal(indices);
+            var offset = normal * distance;
+
+            var newIndices = new int[indices.Count];
+            for (var i = 0; i < indices.Count; i++)
+            {
+                var original = _vertices[indices[i]];
+                newIndices[i] = AddVertex(original.WithPosition(original.Position + offset).WithNormal(normal));
+            }
+
+            for (var i = 0; i < indices.Count; i++)
+            {
+                var next = (i + 1) % indices.Count;
+                // (old[i], old[next], new[next], new[i]) - this exact order, verified
+                // numerically (every resulting side quad winds outward on a hand-built
+                // cube) before being written here; the seemingly-equivalent
+                // (old[i], new[i], new[next], old[next]) is actually its reverse and
+                // winds every side quad inward instead.
+                AddQuad(indices[i], indices[next], newIndices[next], newIndices[i]);
+            }
+
+            var capPolygon = new Polygon(newIndices);
+            AddPolygon(capPolygon);
+
+            RecalculateNormals();
+            return capPolygon;
+        }
+
+        /// <summary>
+        /// Replaces every triangle in <see cref="Faces"/> with 4 smaller ones (split at
+        /// its own 3 edge midpoints) and every n-gon in <see cref="Polygons"/> with N
+        /// quads (one per edge, meeting at a new center vertex) - the standard "linear"
+        /// mesh subdivision (no Catmull-Clark-style smoothing/re-positioning of existing
+        /// vertices, just adding new geometry along existing edges/faces). Operates on
+        /// the whole mesh, not a per-face selection - there's no concept of a partial
+        /// selection in <c>JolieCat3D.Core</c> itself (that's a viewport/UI concern), so
+        /// "Subdivide" here means "subdivide everything", the same way a modeling tool's
+        /// own Subdivide button behaves with nothing specific selected. An edge shared by
+        /// two faces gets exactly one shared midpoint vertex (not two, one per face) -
+        /// verified against a hand-built shared-vertex cube in a throwaway console script
+        /// (26 vertices - 8 original + 12 shared edge midpoints + 6 face centers - not 38,
+        /// which is what an unshared/duplicated version would have produced) before being
+        /// written here, so the subdivided mesh has no seams or cracks between faces that
+        /// used to share an edge. Recalculates normals afterward.
+        /// </summary>
+        public void Subdivide()
+        {
+            var edgeMidpoints = new Dictionary<(int, int), int>();
+
+            int GetOrCreateMidpoint(int a, int b)
+            {
+                var key = a < b ? (a, b) : (b, a);
+                if (edgeMidpoints.TryGetValue(key, out var existing)) return existing;
+
+                var va = _vertices[a];
+                var vb = _vertices[b];
+                var midpointNormal = va.Normal + vb.Normal;
+                var midpoint = new Vertex(
+                    (va.Position + vb.Position) / 2f,
+                    midpointNormal.LengthSquared() > float.Epsilon ? Vector3.Normalize(midpointNormal) : va.Normal,
+                    (va.UV + vb.UV) / 2f,
+                    Color4.Lerp(va.Color, vb.Color, 0.5f));
+
+                var index = AddVertex(midpoint);
+                edgeMidpoints[key] = index;
+                return index;
+            }
+
+            var oldFaces = _faces.ToList();
+            var oldPolygons = _polygons.ToList();
+            _faces.Clear();
+            _polygons.Clear();
+
+            foreach (var face in oldFaces)
+            {
+                var m01 = GetOrCreateMidpoint(face.A, face.B);
+                var m12 = GetOrCreateMidpoint(face.B, face.C);
+                var m20 = GetOrCreateMidpoint(face.C, face.A);
+
+                AddTriangle(face.A, m01, m20);
+                AddTriangle(m01, face.B, m12);
+                AddTriangle(m20, m12, face.C);
+                AddTriangle(m01, m12, m20);
+            }
+
+            foreach (var polygon in oldPolygons)
+            {
+                var indices = polygon.Indices;
+                var n = indices.Count;
+
+                var midpoints = new int[n];
+                for (var i = 0; i < n; i++)
+                    midpoints[i] = GetOrCreateMidpoint(indices[i], indices[(i + 1) % n]);
+
+                var centerPosition = Vector3.Zero;
+                var centerNormal = Vector3.Zero;
+                var centerUV = Vector2.Zero;
+                foreach (var index in indices)
+                {
+                    centerPosition += _vertices[index].Position;
+                    centerNormal += _vertices[index].Normal;
+                    centerUV += _vertices[index].UV;
+                }
+                centerPosition /= n;
+                centerNormal = centerNormal.LengthSquared() > float.Epsilon ? Vector3.Normalize(centerNormal) : Vector3.UnitY;
+                centerUV /= n;
+
+                var centerIndex = AddVertex(new Vertex(centerPosition, centerNormal, centerUV));
+
+                for (var i = 0; i < n; i++)
+                {
+                    var previous = (i - 1 + n) % n;
+                    // New quad: original corner -> edge-midpoint after it -> face center
+                    // -> edge-midpoint before it - preserves the original polygon's own
+                    // winding direction.
+                    AddQuad(indices[i], midpoints[i], centerIndex, midpoints[previous]);
+                }
+            }
+
+            RecalculateNormals();
+        }
+
+        /// <summary>Newell's method - the face normal of an arbitrary (possibly
+        /// non-planar or non-triangular) polygon, robust where a plain 3-point cross
+        /// product isn't. Matches this codebase's existing winding convention
+        /// (<see cref="RecalculateNormals"/>'s own <c>Cross(b-a, c-a)</c> per triangle) -
+        /// verified against it (a simple CCW-from-+Z square) before being relied on here.</summary>
+        private Vector3 ComputeFaceNormal(IReadOnlyList<int> indices)
+        {
+            var normal = Vector3.Zero;
+            for (var i = 0; i < indices.Count; i++)
+            {
+                var current = _vertices[indices[i]].Position;
+                var next = _vertices[indices[(i + 1) % indices.Count]].Position;
+                normal.X += (current.Y - next.Y) * (current.Z + next.Z);
+                normal.Y += (current.Z - next.Z) * (current.X + next.X);
+                normal.Z += (current.X - next.X) * (current.Y + next.Y);
+            }
+
+            return normal.LengthSquared() > float.Epsilon ? Vector3.Normalize(normal) : Vector3.UnitY;
         }
 
         /// <summary>

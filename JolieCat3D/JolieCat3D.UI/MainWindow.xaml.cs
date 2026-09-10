@@ -1,4 +1,5 @@
-﻿using System.Numerics;
+﻿using System.IO;
+using System.Numerics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -8,7 +9,9 @@ using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
 using JolieCat3D.Engine.Gizmos;
 using JolieCat3D.Engine.Rendering;
+using JolieCat3D.Service;
 using JolieCat3D.UI.ViewModels;
+using Microsoft.Win32;
 
 namespace JolieCat3D.UI
 {
@@ -17,9 +20,19 @@ namespace JolieCat3D.UI
     /// </summary>
     public partial class MainWindow : Window
     {
+        // "3D Models (*.obj;*.stl)" first, so it's the default choice in both dialogs;
+        // the format-specific entries after it are what actually determine each format's
+        // own default *extension* SaveFileDialog appends when a user types a bare name
+        // with no extension at all.
+        private const string FileDialogFilter =
+            $"{MeshFileService.AnyMeshFilter}|{MeshFileService.ObjFilter}|{MeshFileService.StlFilter}";
+
         private readonly Scene3DRenderer _renderer;
         private readonly TransformGizmo _gizmo;
         private readonly SceneViewModel _sceneViewModel = new();
+
+        private Scene3D _currentScene = new("Untitled");
+        private string? _currentFilePath;
 
         public MainWindow()
         {
@@ -56,9 +69,130 @@ namespace JolieCat3D.UI
                 _gizmo.Refresh();
             };
 
-            var scene = BuildDemoScene();
+            // File > New/Open/Save/Save As bind to WPF's own standard commands rather
+            // than ad-hoc ones - their default gestures (Ctrl+N/O/S, ...) and
+            // InputGestureText both come for free, and MenuItem.Command="ApplicationCommands.X"
+            // resolves them directly in XAML with no further wiring needed there.
+            CommandBindings.Add(new CommandBinding(ApplicationCommands.New, (_, _) => NewScene()));
+            CommandBindings.Add(new CommandBinding(ApplicationCommands.Open, (_, _) => OpenScene()));
+            CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_, _) => SaveScene()));
+            CommandBindings.Add(new CommandBinding(ApplicationCommands.SaveAs, (_, _) => SaveSceneAs()));
+
+            LoadScene(BuildDemoScene(), filePath: null);
+        }
+
+        // ================= File menu =================
+
+        /// <summary>Replaces the whole current scene - the Outliner, viewport, gizmo,
+        /// and selection all reset together, and <paramref name="filePath"/> becomes
+        /// what <see cref="SaveScene"/> writes back to (null, for a scene that isn't
+        /// backed by a file yet - New, or the built-in demo scene at startup).</summary>
+        private void LoadScene(Scene3D scene, string? filePath)
+        {
+            _currentScene = scene;
+            _currentFilePath = filePath;
+
+            SelectNode(null);
             _sceneViewModel.Load(scene);
             _renderer.Render(scene);
+
+            Title = $"JolieCat3D - {(filePath is null ? "Untitled" : Path.GetFileName(filePath))}";
+        }
+
+        private void NewScene()
+        {
+            if (!ConfirmDiscardIfNeeded("starting a new scene")) return;
+            LoadScene(new Scene3D("Untitled"), filePath: null);
+        }
+
+        private void OpenScene()
+        {
+            if (!ConfirmDiscardIfNeeded("opening another file")) return;
+
+            var dialog = new OpenFileDialog { Filter = FileDialogFilter, Title = "Open" };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Open", () => LoadScene(MeshFileService.ImportScene(dialog.FileName), dialog.FileName));
+        }
+
+        private void SaveScene()
+        {
+            if (_currentFilePath is null) { SaveSceneAs(); return; }
+            TryRun("Save", () => MeshFileService.ExportScene(_currentScene, _currentFilePath));
+        }
+
+        private void SaveSceneAs()
+        {
+            var dialog = new SaveFileDialog { Filter = FileDialogFilter, Title = "Save As", FileName = _currentFilePath ?? "Untitled.obj" };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Save", () =>
+            {
+                MeshFileService.ExportScene(_currentScene, dialog.FileName);
+                _currentFilePath = dialog.FileName;
+                Title = $"JolieCat3D - {Path.GetFileName(_currentFilePath)}";
+            });
+        }
+
+        /// <summary>Adds a file's content into the current scene as new root node(s) -
+        /// unlike Open, which replaces the whole scene, Import composes (a second model
+        /// brought in alongside whatever's already there).</summary>
+        private void ImportMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog { Filter = FileDialogFilter, Title = "Import" };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Import", () =>
+            {
+                var imported = MeshFileService.ImportScene(dialog.FileName);
+                foreach (var root in imported.RootNodes) _currentScene.AddRootNode(root);
+
+                _sceneViewModel.Load(_currentScene);
+                _renderer.Render(_currentScene);
+            });
+        }
+
+        /// <summary>Writes the current scene out to a file without adopting it as "the"
+        /// working file the way Save/Save As do - <see cref="_currentFilePath"/> (and
+        /// the window title) are left exactly as they were, so a one-off "send a copy as
+        /// STL" doesn't silently redirect a later Ctrl+S away from the OBJ someone's
+        /// actually been editing.</summary>
+        private void ExportMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new SaveFileDialog { Filter = FileDialogFilter, Title = "Export", FileName = _currentFilePath ?? "Untitled.obj" };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Export", () => MeshFileService.ExportScene(_currentScene, dialog.FileName));
+        }
+
+        private void ExitMenuItem_Click(object sender, RoutedEventArgs e) => Close();
+
+        /// <summary>No dirty/unsaved-changes tracking exists yet (every scene edit -
+        /// gizmo drag, Properties field, Import - would need to flip a flag this project
+        /// doesn't have), so this always just asks - a harmless extra confirmation on an
+        /// already-saved scene, and a real save against silently discarding one that
+        /// isn't. Skipped entirely for a brand-new, still-Untitled scene with no file of
+        /// its own (nothing meaningful to lose).</summary>
+        private bool ConfirmDiscardIfNeeded(string action)
+        {
+            if (_currentFilePath is null && _currentScene.RootNodes.Count == 0) return true;
+
+            var result = MessageBox.Show(
+                $"Discard the current scene before {action}? Any unsaved changes will be lost.",
+                "JolieCat3D", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+            return result == MessageBoxResult.Yes;
+        }
+
+        private void TryRun(string operationName, Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"{operationName} failed:\n{ex.Message}", "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         /// <summary>
