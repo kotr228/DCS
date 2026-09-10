@@ -3,6 +3,7 @@ using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
 using JolieCat3D.Engine.Camera;
+using JolieCat3D.Engine.Editing;
 using JolieCat3D.Engine.Geometry;
 using JolieCat3D.Engine.Lighting;
 using JolieCat3D.Engine.Selection;
@@ -30,6 +31,7 @@ namespace JolieCat3D.Engine.Rendering
         private readonly HelixViewport3D _viewport;
         private readonly ModelVisual3D _lightingVisual = new();
         private readonly ModelVisual3D _sceneVisual = new();
+        private readonly ModelVisual3D _componentOverlayVisual = new();
         private readonly Dictionary<GeometryModel3D, CoreNode> _modelToNode = new();
         private Visual3D? _selectionVisual;
         private CoreScene? _lastScene;
@@ -42,6 +44,14 @@ namespace JolieCat3D.Engine.Rendering
         /// (via <see cref="HitTest"/> then <see cref="Select"/>) to know which
         /// <c>NodeViewModel</c> to make the Properties Inspector show.</summary>
         public CoreNode? SelectedNode { get; private set; }
+
+        /// <summary>Edit Mode's own selection state (see <see cref="EnterEditMode"/>/
+        /// <see cref="ExitEditMode"/>) - always exists (never null itself), with
+        /// <see cref="MeshEditSession.Target"/> null whenever Edit Mode isn't active.
+        /// <c>JolieCat3D.UI</c> reads/mutates this directly (via
+        /// <c>Editing.ComponentHitTester</c> and its own selection methods) then calls
+        /// <see cref="RefreshComponentOverlay"/> to redraw the resulting markers.</summary>
+        public MeshEditSession EditSession { get; } = new();
 
         public Scene3DRenderer(HelixViewport3D viewport) =>
             _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
@@ -64,6 +74,7 @@ namespace JolieCat3D.Engine.Rendering
             _lightingVisual.Content = SceneLightingFactory.CreateStandardLighting(Lighting);
             _viewport.Children.Add(_lightingVisual);
             _viewport.Children.Add(_sceneVisual);
+            _viewport.Children.Add(_componentOverlayVisual);
 
             _isAttached = true;
         }
@@ -102,6 +113,7 @@ namespace JolieCat3D.Engine.Rendering
             if (zoomToFit) CameraFraming.ZoomToFit(_viewport, scene);
 
             RefreshSelectionHighlight();
+            RefreshComponentOverlay();
         }
 
         /// <summary>Re-renders the same scene <see cref="Render"/> was last called with
@@ -137,6 +149,41 @@ namespace JolieCat3D.Engine.Rendering
 
             _selectionVisual = SelectionHighlightFactory.CreateHighlight(SelectedNode, SelectionColor);
             if (_selectionVisual is not null) _viewport.Children.Add(_selectionVisual);
+        }
+
+        /// <summary>Switches <see cref="EditSession"/> onto <paramref name="node"/> (its
+        /// selection cleared, matching <see cref="MeshEditSession.Attach"/>) and draws
+        /// its (initially empty) marker overlay - <c>JolieCat3D.UI</c>'s cue that Edit
+        /// Mode is now active for this node.</summary>
+        public void EnterEditMode(CoreNode node)
+        {
+            ArgumentNullException.ThrowIfNull(node);
+            EditSession.Attach(node);
+            RefreshComponentOverlay();
+        }
+
+        /// <summary>Detaches <see cref="EditSession"/> (clearing its selection) and
+        /// removes the marker overlay - <c>JolieCat3D.UI</c>'s cue to switch back to
+        /// Object Mode.</summary>
+        public void ExitEditMode()
+        {
+            EditSession.Attach(null);
+            RefreshComponentOverlay();
+        }
+
+        /// <summary>Rebuilds the vertex/edge/face marker overlay from
+        /// <see cref="EditSession"/>'s current target and selection (see
+        /// <see cref="ComponentMarkerVisualFactory.CreateOverlay"/>) - call after any
+        /// selection change made directly against <see cref="EditSession"/> (a
+        /// vertex/edge/face pick via <c>Editing.ComponentHitTester</c>). <see cref="Render"/>
+        /// and <see cref="Refresh"/> already call this themselves, so a caller never
+        /// needs to after a <see cref="Editing.ComponentGizmo"/> drag - only after a
+        /// plain click-to-select.</summary>
+        public void RefreshComponentOverlay()
+        {
+            _componentOverlayVisual.Children.Clear();
+            foreach (var visual in ComponentMarkerVisualFactory.CreateOverlay(EditSession))
+                _componentOverlayVisual.Children.Add(visual);
         }
     }
 }

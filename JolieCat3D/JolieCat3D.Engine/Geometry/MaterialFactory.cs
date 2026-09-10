@@ -1,4 +1,7 @@
+using System.IO;
+using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using CoreMaterial = JolieCat3D.Core.Materials.Material;
 
@@ -26,9 +29,8 @@ namespace JolieCat3D.Engine.Geometry
         {
             material ??= CoreMaterial.CreateDefault();
 
-            var diffuseColor = ToWpfColor(material.DiffuseColor, material.Opacity);
             var group = new MaterialGroup();
-            group.Children.Add(new DiffuseMaterial(new SolidColorBrush(diffuseColor)));
+            group.Children.Add(new DiffuseMaterial(CreateDiffuseBrush(material)));
 
             // A specular contribution of pure black is indistinguishable from none at
             // all, so skip adding the SpecularMaterial entirely rather than pay for a
@@ -41,6 +43,58 @@ namespace JolieCat3D.Engine.Geometry
 
             group.Freeze();
             return group;
+        }
+
+        /// <summary>An <see cref="ImageBrush"/> sampling <see cref="CoreMaterial.DiffuseTexturePath"/>'s
+        /// own <see cref="CoreMaterial.DiffuseTextureOffset"/>/<see cref="CoreMaterial.DiffuseTextureScale"/>
+        /// sub-rectangle (via <see cref="ImageBrush.Viewbox"/> with
+        /// <see cref="BrushMappingMode.RelativeToBoundingBox"/> - exactly the "shared
+        /// atlas, many named sub-rects" shape those two properties document, so a
+        /// sprite-sheet cell built by <c>JolieCat3D.Service.Interop.TwoDAssetBridge</c>
+        /// renders as just that one cell, not the whole sheet) when a texture path is
+        /// set - the plain flat <see cref="SolidColorBrush"/> this project has always
+        /// used otherwise, for full backward compatibility with every material that has
+        /// no texture at all. A texture path that's missing, unreadable, or not a valid
+        /// image falls back to the flat color too, rather than throwing and taking the
+        /// whole scene's render down with it - a broken texture reference is a data
+        /// problem to recover from visibly (the mesh still renders, just untextured),
+        /// not a reason to crash.</summary>
+        private static Brush CreateDiffuseBrush(CoreMaterial material)
+        {
+            if (!string.IsNullOrWhiteSpace(material.DiffuseTexturePath) && File.Exists(material.DiffuseTexturePath))
+            {
+                try
+                {
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.UriSource = new Uri(Path.GetFullPath(material.DiffuseTexturePath), UriKind.Absolute);
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+
+                    var offset = material.DiffuseTextureOffset;
+                    var scale = material.DiffuseTextureScale;
+
+                    var brush = new ImageBrush(bitmap)
+                    {
+                        Viewbox = new Rect(offset.X, offset.Y, scale.X, scale.Y),
+                        ViewboxUnits = BrushMappingMode.RelativeToBoundingBox,
+                        TileMode = TileMode.None,
+                        Stretch = Stretch.Fill,
+                        Opacity = Clamp01(material.Opacity),
+                    };
+                    brush.Freeze();
+                    return brush;
+                }
+                catch (Exception)
+                {
+                    // Falls through to the flat-color brush below - see this method's
+                    // own remarks on why a broken texture reference shouldn't crash the
+                    // render.
+                }
+            }
+
+            return new SolidColorBrush(ToWpfColor(material.DiffuseColor, material.Opacity));
         }
 
         private static Color ToWpfColor(Core.Numerics.Color4 color, float opacity) => Color.FromScRgb(

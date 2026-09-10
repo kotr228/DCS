@@ -60,6 +60,55 @@ namespace JolieCat3D.Core.Geometry
             _polygons.Add(polygon);
         }
 
+        /// <summary>Replaces the position of the vertex at <paramref name="index"/> in
+        /// place, keeping its existing normal/UV/color - the one way to move an
+        /// existing vertex without re-adding it (see <see cref="Vertex"/>'s own remarks
+        /// on why it's otherwise an immutable struct). Used by
+        /// <c>JolieCat3D.Engine.Editing.MeshEditSession</c> to drag selected vertices in
+        /// Edit Mode. Deliberately does not recalculate normals itself - a caller moving
+        /// several vertices in one drag should call <see cref="RecalculateNormals"/>
+        /// once afterward, not once per vertex.</summary>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is not a valid vertex index.</exception>
+        public void SetVertexPosition(int index, Vector3 position)
+        {
+            if (index < 0 || index >= _vertices.Count)
+                throw new ArgumentOutOfRangeException(nameof(index));
+
+            _vertices[index] = _vertices[index].WithPosition(position);
+        }
+
+        /// <summary>Every distinct edge in this mesh: a deduplicated (normalized so
+        /// A &lt; B - the same edge shared by two adjacent faces is reported once, not
+        /// twice) unordered pair of vertex indices, derived from <see cref="Faces"/> and
+        /// <see cref="Polygons"/> (each face/polygon contributes the edge between every
+        /// pair of consecutive corners, wrapping back to its first). This mesh has no
+        /// separate "edge" data structure of its own - only faces/polygons that imply
+        /// them - so <c>JolieCat3D.Engine.Editing.ComponentHitTester</c> (Edge-mode
+        /// picking) and the edge-overlay marker visual both call this rather than
+        /// walking <see cref="Faces"/>/<see cref="Polygons"/> themselves.</summary>
+        public IEnumerable<(int A, int B)> GetEdges()
+        {
+            var seen = new HashSet<(int, int)>();
+
+            static IEnumerable<(int, int)> EdgesOf(IReadOnlyList<int> indices)
+            {
+                for (var i = 0; i < indices.Count; i++)
+                {
+                    var a = indices[i];
+                    var b = indices[(i + 1) % indices.Count];
+                    yield return a < b ? (a, b) : (b, a);
+                }
+            }
+
+            foreach (var face in _faces)
+                foreach (var edge in EdgesOf(new[] { face.A, face.B, face.C }))
+                    if (seen.Add(edge)) yield return edge;
+
+            foreach (var polygon in _polygons)
+                foreach (var edge in EdgesOf(polygon.Indices))
+                    if (seen.Add(edge)) yield return edge;
+        }
+
         /// <summary>Every triangle this mesh should render as: <see cref="Faces"/>
         /// verbatim, plus every <see cref="Polygon"/> in <see cref="Polygons"/>
         /// fan-triangulated (see <see cref="Polygon.Triangulate"/>). The one method

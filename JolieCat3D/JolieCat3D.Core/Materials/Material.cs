@@ -1,3 +1,4 @@
+using System.Numerics;
 using JolieCat3D.Core.Numerics;
 
 namespace JolieCat3D.Core.Materials
@@ -27,6 +28,33 @@ namespace JolieCat3D.Core.Materials
 
         /// <summary>1 = fully opaque, 0 = fully invisible.</summary>
         public float Opacity { get; set; } = 1f;
+
+        /// <summary>Optional path to an image file this material's diffuse color is
+        /// sampled from instead of (not blended with) <see cref="DiffuseColor"/> - null
+        /// (the default) means "flat-shaded, no texture", preserving every existing
+        /// material's look exactly. <c>JolieCat3D.Core</c> has no image codec of its own
+        /// (deliberately - see <c>JolieCat3D.Service.Interop.TwoDAssetBridge</c>'s own
+        /// remarks), so this is just a file path; whichever layer actually renders the
+        /// material (<c>JolieCat3D.Engine.Geometry.MaterialFactory</c>) is what loads
+        /// its bytes.</summary>
+        public string? DiffuseTexturePath { get; set; }
+
+        /// <summary>The UV-space origin (0-1, measured from the texture's own bottom-left)
+        /// of the sub-rectangle this material actually samples - (0,0), the default,
+        /// means "the whole image, from its own origin". Together with
+        /// <see cref="DiffuseTextureScale"/>, this is a WPF-<c>ImageBrush.Viewbox</c>-with-
+        /// <c>ViewboxUnits=RelativeToBoundingBox</c>-shaped sub-rect into a shared
+        /// texture, not a physically cropped image - what lets one exported sprite-sheet
+        /// bitmap back several different materials, each one a different cell of it,
+        /// the same "one shared bitmap, many named sub-rects" shape <c>JolieCat</c>'s
+        /// own 2D sprite-sheet workspace uses.</summary>
+        public Vector2 DiffuseTextureOffset { get; set; } = Vector2.Zero;
+
+        /// <summary>The UV-space size (0-1) of the sampled sub-rectangle, starting at
+        /// <see cref="DiffuseTextureOffset"/> - (1,1), the default, means "everything
+        /// from the offset to the image's own far edge", so a material with only
+        /// <see cref="DiffuseTexturePath"/> set still just shows the whole image.</summary>
+        public Vector2 DiffuseTextureScale { get; set; } = Vector2.One;
 
         public Material(string name = "Material") => Name = name;
 

@@ -21,6 +21,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" /> <!-- File menu -->
             <RowDefinition Height="Auto" /> <!-- Gizmo mode toolbar -->
+            <RowDefinition Height="Auto" /> <!-- Object/Edit mode + component toolbar -->
             <RowDefinition Height="*" />    <!-- Outliner | Viewport | Properties -->
         </Grid.RowDefinitions>
 
@@ -58,7 +59,34 @@
             </StackPanel>
         </Border>
 
-        <Grid Grid.Row="2">
+        <!-- ================= Object/Edit Mode + Component Toolbar ================= -->
+        <Border Grid.Row="2" Background="{StaticResource PanelAltBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="8,6">
+                <TextBlock Text="Mode:" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <RadioButton x:Name="ObjectModeButton" Content="Object" GroupName="EditorMode"
+                             IsChecked="True" Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,4,0" Checked="EditorModeButton_Checked" Tag="Object" />
+                <RadioButton x:Name="EditModeButton" Content="Edit" GroupName="EditorMode"
+                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,20,0" Checked="EditorModeButton_Checked" Tag="Edit" />
+
+                <TextBlock Text="Component:" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <RadioButton x:Name="VertexModeButton" Content="Vertex" GroupName="ComponentMode"
+                             IsChecked="True" IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,4,0" Checked="ComponentModeButton_Checked" Tag="Vertex" />
+                <RadioButton x:Name="EdgeModeButton" Content="Edge" GroupName="ComponentMode"
+                             IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,4,0" Checked="ComponentModeButton_Checked" Tag="Edge" />
+                <RadioButton x:Name="FaceModeButton" Content="Face" GroupName="ComponentMode"
+                             IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
+                             Checked="ComponentModeButton_Checked" Tag="Face" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="3">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="240" MinWidth="160" />
                 <ColumnDefinition Width="Auto" />
@@ -171,6 +199,16 @@
                                              Style="{StaticResource InspectorFieldTextBoxStyle}" Width="90"
                                              ToolTip="Diffuse color (hex)" />
                                 </StackPanel>
+                                <!-- Loads an image straight into this material's texture slot (see
+                                     JolieCat3D.Service.Interop.TwoDAssetBridge) - typically an
+                                     exported JolieCat 2D-editor asset (a plain texture, a sprite
+                                     sheet, or one frame of a clipbar sequence). -->
+                                <Button Content="Load Texture..." Margin="8,0,8,8" Padding="8,4"
+                                        HorizontalAlignment="Left" Click="LoadTextureButton_Click" />
+                                <TextBlock Text="{Binding DiffuseTextureFileName}" Margin="8,0,8,8"
+                                           TextTrimming="CharacterEllipsis" FontStyle="Italic"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Visibility="{Binding HasDiffuseTexture, Converter={StaticResource BoolToVisibility}}" />
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

@@ -7,9 +7,11 @@ using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Materials;
 using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
+using JolieCat3D.Engine.Editing;
 using JolieCat3D.Engine.Gizmos;
 using JolieCat3D.Engine.Rendering;
 using JolieCat3D.Service;
+using JolieCat3D.Service.Interop;
 using JolieCat3D.UI.ViewModels;
 using Microsoft.Win32;
 
@@ -29,6 +31,7 @@ namespace JolieCat3D.UI
 
         private readonly Scene3DRenderer _renderer;
         private readonly TransformGizmo _gizmo;
+        private readonly ComponentGizmo _componentGizmo;
         private readonly SceneViewModel _sceneViewModel = new();
 
         private Scene3D _currentScene = new("Untitled");
@@ -48,6 +51,7 @@ namespace JolieCat3D.UI
 
             _renderer = new Scene3DRenderer(Viewport) { Lighting = ViewportTheme.CreateDarkThemeLighting() };
             _gizmo = new TransformGizmo(Viewport);
+            _componentGizmo = new ComponentGizmo(Viewport);
 
             // A gizmo drag changes the same Core Node a NodeViewModel wraps directly
             // (TransformGizmo has no idea NodeViewModel exists) - re-render the mesh at
@@ -59,6 +63,14 @@ namespace JolieCat3D.UI
                 _renderer.Refresh();
                 _sceneViewModel.FindViewModel(_gizmo.Target)?.SyncFromCore();
             };
+
+            // A component-gizmo drag mutates the target mesh's own vertex positions
+            // directly (see MeshEditSession.ApplyTranslation) - Refresh() re-renders the
+            // scene from that updated Core.Geometry.Mesh AND rebuilds the marker overlay
+            // (Scene3DRenderer.Refresh already calls RefreshComponentOverlay itself), so
+            // both the mesh on screen and its vertex/edge/face dots catch up to the drag
+            // together - the "immediate GPU geometry update" Edit Mode needs.
+            _componentGizmo.EditApplied += (_, _) => _renderer.Refresh();
 
             // The reverse direction: a Properties Inspector field edit changes the Core
             // Node directly through its NodeViewModel - re-render the mesh and
@@ -196,16 +208,26 @@ namespace JolieCat3D.UI
         }
 
         /// <summary>
-        /// Click-to-select in the viewport. Only ever reached for a click the gizmo's
-        /// own manipulator handles didn't already consume themselves (WPF's routed
+        /// Click-to-select in the viewport - in Object Mode, a whole node (see
+        /// <see cref="SelectNode"/>); in Edit Mode, a single mesh component (see
+        /// <see cref="HandleComponentClick"/>) of whichever node Edit Mode is currently
+        /// targeting. Either way, only ever reached for a click the active gizmo's own
+        /// manipulator handles didn't already consume themselves (WPF's routed
         /// MouseLeftButtonDown only bubbles here unhandled - a manipulator marks its own
         /// mouse-down Handled the moment it starts a drag), so dragging a gizmo handle
-        /// never gets misread as "clicked empty space, deselect" partway through the
-        /// gesture.
+        /// never gets misread as "clicked empty space, deselect/clear" partway through
+        /// the gesture.
         /// </summary>
         private void Viewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             var position = e.GetPosition(Viewport);
+
+            if (IsEditMode)
+            {
+                HandleComponentClick(position, additive: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+                return;
+            }
+
             var hitNode = _renderer.HitTest(position);
             SelectNode(hitNode);
         }
@@ -217,17 +239,172 @@ namespace JolieCat3D.UI
         private void SceneTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e) =>
             SelectNode((e.NewValue as NodeViewModel)?.UnderlyingNode);
 
+        /// <summary>True once <see cref="EditModeButton"/> (rather than
+        /// <see cref="ObjectModeButton"/>) is the checked radio button - what every
+        /// Edit-Mode-vs-Object-Mode branch in this window reads.</summary>
+        private bool IsEditMode => EditModeButton.IsChecked == true;
+
         private void SelectNode(Node? node)
         {
             _renderer.Select(node);
-            _gizmo.Attach(node);
             _sceneViewModel.SelectedNode = _sceneViewModel.FindViewModel(node);
+
+            if (!IsEditMode)
+            {
+                _gizmo.Attach(node);
+                return;
+            }
+
+            // A selection change made WHILE already in Edit Mode (e.g. an Outliner
+            // click) re-targets editing at the newly selected node, rather than leaving
+            // Edit Mode pointed at whatever was selected before - the same "selection
+            // changed, so does everything driven by it" behavior Object Mode's own
+            // gizmo already has. A target with no mesh (or no selection at all) has
+            // nothing to edit, so this bounces back to Object Mode instead.
+            if (node?.Mesh is not null)
+            {
+                _renderer.EnterEditMode(node);
+                _componentGizmo.Attach(_renderer.EditSession);
+            }
+            else
+            {
+                ObjectModeButton.IsChecked = true;
+            }
         }
 
         private void GizmoModeButton_Checked(object sender, RoutedEventArgs e)
         {
             if (sender is not RadioButton { Tag: string modeName }) return;
             if (Enum.TryParse<GizmoMode>(modeName, out var mode)) _gizmo.Mode = mode;
+        }
+
+        /// <summary>Switches between Object Mode (the existing whole-node
+        /// Translate/Rotate/Scale gizmo) and Edit Mode (per-component selection and
+        /// <see cref="ComponentGizmo"/>) - enabling/disabling the Vertex/Edge/Face
+        /// buttons to match, and requiring a mesh-bearing node already selected before
+        /// Edit Mode can actually be entered (bouncing back to Object Mode with a
+        /// message otherwise - there is nothing to select vertices/edges/faces of with
+        /// nothing chosen to edit).</summary>
+        private void EditorModeButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is not RadioButton { Tag: string modeName }) return;
+            var enteringEditMode = modeName == "Edit";
+
+            VertexModeButton.IsEnabled = enteringEditMode;
+            EdgeModeButton.IsEnabled = enteringEditMode;
+            FaceModeButton.IsEnabled = enteringEditMode;
+
+            if (enteringEditMode)
+            {
+                if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { Mesh: not null } node)
+                {
+                    MessageBox.Show(this, "Select an object with a mesh before entering Edit Mode.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    ObjectModeButton.IsChecked = true;
+                    return;
+                }
+
+                // Object Mode's own whole-node gizmo and Edit Mode's own per-component
+                // one are never shown at once - hide the former while the latter is active.
+                _gizmo.Attach(null);
+                _renderer.EnterEditMode(node);
+                _componentGizmo.Attach(_renderer.EditSession);
+            }
+            else
+            {
+                _componentGizmo.Attach(null);
+                _renderer.ExitEditMode();
+                _gizmo.Attach(_sceneViewModel.SelectedNode?.UnderlyingNode);
+            }
+        }
+
+        private void ComponentModeButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is not RadioButton { Tag: string modeName }) return;
+            if (!Enum.TryParse<ComponentType>(modeName, out var mode)) return;
+
+            _renderer.EditSession.ComponentMode = mode;
+            // Switching what kind of component a click resolves to doesn't imply the
+            // existing selection (a set of vertex indices either way - see
+            // MeshEditSession's own remarks) is still meaningful to look at the same
+            // way, so clear it rather than leave, say, a single stray vertex "selected"
+            // while showing Face mode's own overlay.
+            _renderer.EditSession.Clear();
+            _renderer.RefreshComponentOverlay();
+            _componentGizmo.Attach(_renderer.EditSession);
+        }
+
+        /// <summary>Routes an Edit Mode viewport click through whichever
+        /// <see cref="ComponentHitTester"/> method matches the current
+        /// <see cref="MeshEditSession.ComponentMode"/>, applies the resulting
+        /// selection change (replacing the current selection, or adding to it for
+        /// <paramref name="additive"/> - a Shift-click), and rebuilds both the marker
+        /// overlay and the component gizmo (at the new selection's centroid) to match.
+        /// A click that hits nothing clears the selection entirely unless
+        /// <paramref name="additive"/> is set (a Shift-click on empty space is a no-op,
+        /// not a clear - the same convention a plain click already has for "add to",
+        /// not "replace, with nothing").</summary>
+        private void HandleComponentClick(Point position, bool additive)
+        {
+            var session = _renderer.EditSession;
+            if (session.Target is not { } node) return;
+
+            switch (session.ComponentMode)
+            {
+                case ComponentType.Vertex:
+                    if (ComponentHitTester.HitTestVertex(Viewport, node, position) is { } vertexIndex)
+                        session.SelectVertex(vertexIndex, additive);
+                    else if (!additive)
+                        session.Clear();
+                    break;
+
+                case ComponentType.Edge:
+                    if (ComponentHitTester.HitTestEdge(Viewport, node, position) is { } edge)
+                        session.SelectEdge(edge.A, edge.B, additive);
+                    else if (!additive)
+                        session.Clear();
+                    break;
+
+                case ComponentType.Face:
+                    if (ComponentHitTester.HitTestFace(Viewport, node, position) is { } face)
+                        session.SelectFace(face.Indices, additive);
+                    else if (!additive)
+                        session.Clear();
+                    break;
+            }
+
+            _renderer.RefreshComponentOverlay();
+            _componentGizmo.Attach(session);
+        }
+
+        /// <summary>The Properties panel's "Load Texture..." button - loads an image
+        /// (typically something exported from <c>JolieCat</c>'s own 2D editor workspace)
+        /// through <see cref="TwoDAssetBridge"/> and adopts it as the selected node's
+        /// material's whole-image diffuse texture (see <see cref="NodeViewModel.SetDiffuseTexture"/>).
+        /// Disabled implicitly by the same <c>HasMaterial</c> visibility the rest of the
+        /// Material section already uses - this can only ever be clicked with a
+        /// mesh+material actually selected.</summary>
+        private void LoadTextureButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
+
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|All files (*.*)|*.*",
+                Title = "Load Texture",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Load Texture", () =>
+            {
+                // TwoDAssetBridge.LoadTextureMaterial is the actual interop bridge (see
+                // its own remarks) - this adopts the DiffuseTexturePath it resolves onto
+                // the node's EXISTING material rather than replacing the whole material,
+                // which would also discard its DiffuseColor/specular settings.
+                var loaded = TwoDAssetBridge.LoadTextureMaterial(dialog.FileName);
+                nodeViewModel.SetDiffuseTexture(loaded.DiffuseTexturePath!);
+                _renderer.Refresh();
+            });
         }
 
         /// <summary>

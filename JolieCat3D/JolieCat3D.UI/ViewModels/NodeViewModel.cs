@@ -160,6 +160,38 @@ namespace JolieCat3D.UI.ViewModels
             }
         }
 
+        /// <summary>True once this node's material actually has a texture assigned
+        /// (<see cref="Core.Materials.Material.DiffuseTexturePath"/> set) - what the
+        /// Properties panel binds its "currently loaded texture" filename label's
+        /// Visibility to.</summary>
+        public bool HasDiffuseTexture => !string.IsNullOrEmpty(_node.Mesh?.Material?.DiffuseTexturePath);
+
+        /// <summary>Just the file name (not the full path - which may be a temp/import
+        /// location nobody but this project cares about) of the material's own
+        /// <see cref="Core.Materials.Material.DiffuseTexturePath"/>, or an empty string
+        /// with none set.</summary>
+        public string DiffuseTextureFileName =>
+            _node.Mesh?.Material?.DiffuseTexturePath is { } path ? System.IO.Path.GetFileName(path) : string.Empty;
+
+        /// <summary>Points this node's material's diffuse texture slot at
+        /// <paramref name="imagePath"/> (see <c>JolieCat3D.Service.Interop.TwoDAssetBridge</c>,
+        /// the actual bridge this loads through) sampling the whole image (offset (0,0),
+        /// scale (1,1)) - <c>MainWindow</c>'s "Load Texture..." button calls this after
+        /// its own file-picker dialog returns a path. A no-op if this node has no
+        /// mesh/material to set a texture on at all.</summary>
+        public void SetDiffuseTexture(string imagePath)
+        {
+            if (_node.Mesh?.Material is not { } material) return;
+
+            material.DiffuseTexturePath = imagePath;
+            material.DiffuseTextureOffset = System.Numerics.Vector2.Zero;
+            material.DiffuseTextureScale = System.Numerics.Vector2.One;
+
+            OnPropertyChanged(nameof(HasDiffuseTexture));
+            OnPropertyChanged(nameof(DiffuseTextureFileName));
+            _onChanged();
+        }
+
         private static float Clamp01(float value) => System.Math.Clamp(value, 0f, 1f);
 
         private void ApplyRotation() =>
