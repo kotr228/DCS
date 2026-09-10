@@ -63,7 +63,7 @@ namespace JolieCat3D.Service.Animation
 
             foreach (var track in timeline.Tracks)
             {
-                var trackData = new AnimationTrackExportData { NodePath = GetNodePath(track.Target) };
+                var trackData = new AnimationTrackExportData { NodePath = NodePathResolver.GetPath(track.Target) };
                 foreach (var keyframe in track.Keyframes)
                 {
                     trackData.Keyframes.Add(new KeyframeExportData
@@ -111,7 +111,7 @@ namespace JolieCat3D.Service.Animation
         /// <summary>Reads <paramref name="filePath"/> back and rebuilds every track it
         /// describes onto <paramref name="timeline"/>, resolving each
         /// <see cref="AnimationTrackExportData.NodePath"/>/<see cref="TextureTrackExportData.MaterialName"/>
-        /// against <paramref name="scene"/> (see <see cref="FindNodeByPath"/>/
+        /// against <paramref name="scene"/> (see <see cref="NodePathResolver.FindByPath"/>/
         /// <see cref="FindMaterialByName"/>). A path/name that no longer matches
         /// anything in <paramref name="scene"/> (the scene was re-shaped or re-named
         /// since export) is silently skipped rather than throwing - the rest of the file
@@ -164,7 +164,7 @@ namespace JolieCat3D.Service.Animation
 
             foreach (var trackData in data.Tracks)
             {
-                if (FindNodeByPath(scene, trackData.NodePath) is not { } node) continue;
+                if (NodePathResolver.FindByPath(scene, trackData.NodePath) is not { } node) continue;
 
                 var track = timeline.GetOrCreateTrack(node);
                 foreach (var keyframeData in trackData.Keyframes)
@@ -201,44 +201,6 @@ namespace JolieCat3D.Service.Animation
             }
 
             return appliedCount;
-        }
-
-        /// <summary>This node's own name, then its parent's, and so on up to its root,
-        /// slash-joined in root-to-node order - see <see cref="AnimationTrackExportData.NodePath"/>'s
-        /// own remarks.</summary>
-        private static string GetNodePath(Node node)
-        {
-            var segments = new List<string>();
-            for (var current = node; current is not null; current = current.Parent)
-                segments.Add(current.Name);
-
-            segments.Reverse();
-            return string.Join('/', segments);
-        }
-
-        /// <summary>The inverse of <see cref="GetNodePath"/>: walks <paramref name="scene"/>'s
-        /// own root nodes for a name matching the path's first segment, then descends
-        /// through <see cref="Node.Children"/> matching each subsequent segment in turn -
-        /// null the moment any segment fails to match, rather than partially resolving.
-        /// Where a name repeats among siblings, the first match wins (see
-        /// <see cref="AnimationTrackExportData.NodePath"/>'s own disclosed
-        /// ambiguity).</summary>
-        private static Node? FindNodeByPath(Scene3D scene, string nodePath)
-        {
-            if (string.IsNullOrEmpty(nodePath)) return null;
-
-            var segments = nodePath.Split('/');
-            var candidates = scene.RootNodes;
-            Node? current = null;
-
-            foreach (var segment in segments)
-            {
-                current = candidates.FirstOrDefault(n => n.Name == segment);
-                if (current is null) return null;
-                candidates = current.Children;
-            }
-
-            return current;
         }
 
         /// <summary>The first material, across every node's own mesh in

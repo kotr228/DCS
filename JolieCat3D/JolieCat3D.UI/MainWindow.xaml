@@ -68,6 +68,14 @@
                 <MenuItem Header="_Undo" Command="ApplicationCommands.Undo" />
                 <MenuItem Header="_Redo" Command="ApplicationCommands.Redo" />
             </MenuItem>
+            <!-- Scene composition entities (Core.Scene.CameraData/LightData) - added as
+                 a new ROOT node with default settings, selectable/editable afterward
+                 exactly like a meshed node (Position/Rotation/Scale, the Outliner, the
+                 Camera/Light Inspector sections above). -->
+            <MenuItem Header="_Scene">
+                <MenuItem Header="Add _Camera" Click="AddCameraMenuItem_Click" />
+                <MenuItem Header="Add _Light" Click="AddLightMenuItem_Click" />
+            </MenuItem>
         </Menu>
 
         <!-- ================= Gizmo Mode Toolbar ================= -->
@@ -377,6 +385,74 @@
                                         </DataTemplate>
                                     </ItemsControl.Resources>
                                 </ItemsControl>
+                            </StackPanel>
+
+                            <!-- Camera Inspector - hidden entirely for a non-camera node.
+                                 Position/Rotation/Scale above already drive where this
+                                 camera looks (see Node.GetWorldForward's own remarks) -
+                                 this section is only the CameraData-specific fields
+                                 (projection/FOV/near-far) plus which camera is active. -->
+                            <StackPanel Visibility="{Binding HasCamera, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="CAMERA" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                    <TextBlock Text="Projection:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <ComboBox SelectedValue="{Binding CameraProjectionMode, Mode=TwoWay}" SelectedValuePath="Content" Width="110">
+                                        <ComboBoxItem Content="Perspective" />
+                                        <ComboBoxItem Content="Orthographic" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
+                                            Visibility="{Binding IsPerspectiveCamera, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Field of View" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding CameraFieldOfView, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
+                                            Visibility="{Binding IsOrthographicCamera, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Width" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding CameraOrthographicWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="8,0">
+                                    <TextBlock Text="Near" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding CameraNearPlaneDistance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                    <TextBlock Text="Far" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding CameraFarPlaneDistance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                </StackPanel>
+                                <!-- Sets Scene3D.ActiveCamera to THIS node - Engine.Camera.SceneCameraSync
+                                     then pushes its world transform onto the viewport's
+                                     actual rendering camera on the very next render. -->
+                                <Button Content="Set as Active Camera" Margin="8,4,8,8" Padding="8,4"
+                                        HorizontalAlignment="Left" Click="SetActiveCameraButton_Click" />
+                            </StackPanel>
+
+                            <!-- Light Inspector - hidden entirely for a non-light node. -->
+                            <StackPanel Visibility="{Binding HasLight, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="LIGHT" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                    <TextBlock Text="Type:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <ComboBox SelectedValue="{Binding LightType, Mode=TwoWay}" SelectedValuePath="Content" Width="110">
+                                        <ComboBoxItem Content="Directional" />
+                                        <ComboBoxItem Content="Point" />
+                                        <ComboBoxItem Content="Spot" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                    <TextBlock Text="Color" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding LightColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                    <TextBlock Text="Intensity" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding LightIntensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
+                                            Visibility="{Binding IsPointOrSpotLight, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Range" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding LightRange, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,8"
+                                            Visibility="{Binding IsSpotLight, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Spot Angle" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding LightSpotAngle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                </StackPanel>
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

@@ -44,6 +44,7 @@ namespace JolieCat3D.Service.Project
             {
                 SceneName = scene.Name,
                 Animation = AnimationExporter.BuildExportData(timeline),
+                ActiveCameraNodePath = scene.ActiveCamera is { } activeCamera ? NodePathResolver.GetPath(activeCamera) : null,
             };
 
             foreach (var root in scene.RootNodes)
@@ -88,6 +89,8 @@ namespace JolieCat3D.Service.Project
             foreach (var rootData in data.RootNodes)
                 scene.AddRootNode(ConvertNodeData(rootData, filePath));
 
+            scene.ActiveCamera = NodePathResolver.FindByPath(scene, data.ActiveCameraNodePath);
+
             var timeline = new AnimationTimeline();
             AnimationExporter.ApplyExportData(data.Animation, timeline, scene);
 
@@ -114,6 +117,8 @@ namespace JolieCat3D.Service.Project
             };
 
             if (node.Mesh is { } mesh) data.Mesh = ConvertMesh(mesh);
+            if (node.Camera is { } camera) data.Camera = ConvertCamera(camera);
+            if (node.Light is { } light) data.Light = ConvertLight(light);
             foreach (var modifier in node.Modifiers) data.Modifiers.Add(ConvertModifier(modifier));
             foreach (var child in node.Children) data.Children.Add(ConvertNode(child));
 
@@ -130,11 +135,56 @@ namespace JolieCat3D.Service.Project
             };
 
             if (data.Mesh is { } meshData) node.Mesh = ConvertMeshData(meshData);
+            if (data.Camera is { } cameraData) node.Camera = ConvertCameraData(cameraData);
+            if (data.Light is { } lightData) node.Light = ConvertLightData(lightData);
             foreach (var modifierData in data.Modifiers) node.Modifiers.Add(ConvertModifierData(modifierData, sourceFilePath));
             foreach (var childData in data.Children) node.AddChild(ConvertNodeData(childData, sourceFilePath));
 
             return node;
         }
+
+        // ============================= Camera =============================
+
+        private static ProjectCameraData ConvertCamera(CameraData camera) => new()
+        {
+            ProjectionMode = camera.ProjectionMode.ToString(),
+            FieldOfView = camera.FieldOfView,
+            OrthographicWidth = camera.OrthographicWidth,
+            NearPlaneDistance = camera.NearPlaneDistance,
+            FarPlaneDistance = camera.FarPlaneDistance,
+        };
+
+        private static CameraData ConvertCameraData(ProjectCameraData data) => new()
+        {
+            ProjectionMode = Enum.TryParse<CameraProjectionMode>(data.ProjectionMode, out var mode) ? mode : CameraProjectionMode.Perspective,
+            FieldOfView = data.FieldOfView,
+            OrthographicWidth = data.OrthographicWidth,
+            NearPlaneDistance = data.NearPlaneDistance,
+            FarPlaneDistance = data.FarPlaneDistance,
+        };
+
+        // ============================= Light =============================
+
+        private static ProjectLightData ConvertLight(LightData light) => new()
+        {
+            Type = light.Type.ToString(),
+            ColorR = light.Color.R,
+            ColorG = light.Color.G,
+            ColorB = light.Color.B,
+            ColorA = light.Color.A,
+            Intensity = light.Intensity,
+            Range = light.Range,
+            SpotAngle = light.SpotAngle,
+        };
+
+        private static LightData ConvertLightData(ProjectLightData data) => new()
+        {
+            Type = Enum.TryParse<LightType>(data.Type, out var type) ? type : LightType.Directional,
+            Color = new Color4(data.ColorR, data.ColorG, data.ColorB, data.ColorA),
+            Intensity = data.Intensity,
+            Range = data.Range,
+            SpotAngle = data.SpotAngle,
+        };
 
         // ============================= Mesh =============================
 

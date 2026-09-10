@@ -30,6 +30,7 @@ namespace JolieCat3D.Engine.Rendering
 
         private readonly HelixViewport3D _viewport;
         private readonly ModelVisual3D _lightingVisual = new();
+        private readonly ModelVisual3D _sceneLightingVisual = new();
         private readonly ModelVisual3D _sceneVisual = new();
         private readonly ModelVisual3D _componentOverlayVisual = new();
         private readonly Dictionary<GeometryModel3D, CoreNode> _modelToNode = new();
@@ -92,6 +93,7 @@ namespace JolieCat3D.Engine.Rendering
 
             _lightingVisual.Content = SceneLightingFactory.CreateStandardLighting(Lighting);
             _viewport.Children.Add(_lightingVisual);
+            _viewport.Children.Add(_sceneLightingVisual);
             _viewport.Children.Add(_sceneVisual);
             _viewport.Children.Add(_componentOverlayVisual);
 
@@ -112,8 +114,20 @@ namespace JolieCat3D.Engine.Rendering
         /// <see cref="Model3DGroup"/>/<see cref="MeshGeometry3D"/> content (see
         /// <see cref="SceneGraphBuilder"/>) and shows it - replacing whatever this
         /// renderer showed last, so calling this again after editing
-        /// <paramref name="scene"/> is how a caller re-renders it. <paramref name="zoomToFit"/>
-        /// additionally reframes the camera on the scene's own bounds each time (see
+        /// <paramref name="scene"/> is how a caller re-renders it. Also rebuilds the
+        /// scene's own light-node lighting (see <see cref="SceneLightingFactory.CreateSceneLights"/> -
+        /// additive to the fixed <see cref="Lighting"/> rig, never a replacement for it)
+        /// every call, since a light node can move/animate the same way a mesh can.
+        ///
+        /// If <see cref="CoreScene.ActiveCamera"/> is set, this pushes ITS current world
+        /// transform onto the viewport's own rendering camera every call too (see
+        /// <see cref="SceneCameraSync.Apply"/>) - moving, rotating, or animating that
+        /// node updates the actual rendered view in real time, and <paramref name="zoomToFit"/>
+        /// is skipped entirely in that case (an active camera's own transform IS the
+        /// intended view; auto-framing the scene's bounds on top of it would fight with
+        /// it). With no active camera (every scene from before this feature existed),
+        /// <paramref name="zoomToFit"/> behaves exactly as it always has: reframes the
+        /// free orbit/pan/zoom camera on the scene's own bounds (see
         /// <see cref="CameraFraming.ZoomToFit"/>) - on by default since a freshly
         /// replaced scene is otherwise not guaranteed to still be inside the previous
         /// scene's own framing; a live edit re-render (see <see cref="Refresh"/>) turns
@@ -143,7 +157,10 @@ namespace JolieCat3D.Engine.Rendering
                 RefreshWireframeVisual(null);
             }
 
-            if (zoomToFit) CameraFraming.ZoomToFit(_viewport, scene);
+            _sceneLightingVisual.Content = SceneLightingFactory.CreateSceneLights(scene);
+
+            if (scene.ActiveCamera is { } activeCamera) SceneCameraSync.Apply(_viewport, activeCamera);
+            else if (zoomToFit) CameraFraming.ZoomToFit(_viewport, scene);
 
             RefreshSelectionHighlight();
             RefreshComponentOverlay();
@@ -159,11 +176,15 @@ namespace JolieCat3D.Engine.Rendering
             if (_lastScene is { } scene) Render(scene, zoomToFit: false);
         }
 
-        /// <summary>The <see cref="CoreNode"/> whose mesh is under <paramref name="position"/>
-        /// (in this renderer's own viewport's coordinates) - null if nothing was hit. Does
-        /// not itself change <see cref="SelectedNode"/>; call <see cref="Select"/> with
-        /// the result to actually select it.</summary>
-        public CoreNode? HitTest(Point position) => SceneHitTester.HitTest(_viewport, position, _modelToNode);
+        /// <summary>The <see cref="CoreNode"/> under <paramref name="position"/> (in
+        /// this renderer's own viewport's coordinates) - null if nothing was hit. A
+        /// meshed node is found via WPF's own precise per-triangle hit test; a
+        /// camera/light node (which has no mesh, and therefore no <see cref="GeometryModel3D"/>
+        /// for that test to ever find) via <see cref="SceneHitTester"/>'s own
+        /// bounding-box fallback against <see cref="_lastScene"/> - see its own remarks.
+        /// Does not itself change <see cref="SelectedNode"/>; call <see cref="Select"/>
+        /// with the result to actually select it.</summary>
+        public CoreNode? HitTest(Point position) => SceneHitTester.HitTest(_viewport, position, _modelToNode, _lastScene);
 
         /// <summary>Marks <paramref name="node"/> as selected (or clears selection, for
         /// null) and rebuilds the selection-outline visual around it. Deliberately

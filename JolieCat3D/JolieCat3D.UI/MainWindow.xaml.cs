@@ -8,8 +8,10 @@ using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Materials;
 using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
+using JolieCat3D.Engine.Camera;
 using JolieCat3D.Engine.Editing;
 using JolieCat3D.Engine.Gizmos;
+using JolieCat3D.Engine.Lighting;
 using JolieCat3D.Engine.Rendering;
 using JolieCat3D.Service;
 using JolieCat3D.Service.Animation;
@@ -252,6 +254,50 @@ namespace JolieCat3D.UI
                 _sceneViewModel.Load(_currentScene);
                 _renderer.Render(_currentScene);
             });
+        }
+
+        /// <summary>File > Scene > "Add Camera" - a new root node carrying a default
+        /// <see cref="CameraData"/>, immediately selectable/editable exactly like a
+        /// meshed node (its own Position/Rotation/Scale drive where it looks - see
+        /// <see cref="Node.GetWorldForward"/>'s own remarks - and it can be transformed/
+        /// keyframed on the timeline the same way). Not yet THE active camera (see
+        /// <see cref="SetActiveCameraButton_Click"/>) - adding one never silently
+        /// changes what the viewport is currently looking through.</summary>
+        private void AddCameraMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var node = new Node("Camera") { Camera = new CameraData() };
+            _currentScene.AddRootNode(node);
+
+            _sceneViewModel.Load(_currentScene);
+            _renderer.Render(_currentScene, zoomToFit: false);
+        }
+
+        /// <summary>File > Scene > "Add Light" - a new root node carrying a default
+        /// (Directional) <see cref="LightData"/> - see <see cref="AddCameraMenuItem_Click"/>'s
+        /// own remarks; unlike a camera, every light node ALWAYS contributes to the
+        /// scene's own lighting the moment it exists (see
+        /// <see cref="SceneLightingFactory.CreateSceneLights"/>), no separate
+        /// "active"/"set as active" step needed.</summary>
+        private void AddLightMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var node = new Node("Light") { Light = new LightData() };
+            _currentScene.AddRootNode(node);
+
+            _sceneViewModel.Load(_currentScene);
+            _renderer.Render(_currentScene, zoomToFit: false);
+        }
+
+        /// <summary>The Camera Inspector's "Set as Active Camera" button - makes the
+        /// currently selected node <see cref="Scene3D.ActiveCamera"/>, so the very next
+        /// render (<see cref="Scene3DRenderer.Refresh"/>, called here directly) looks
+        /// through it (see <see cref="SceneCameraSync.Apply"/>) instead of the free
+        /// orbit/pan/zoom camera.</summary>
+        private void SetActiveCameraButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
+
+            _currentScene.ActiveCamera = node;
+            _renderer.Refresh();
         }
 
         /// <summary>Writes the current scene out to a file without adopting it as "the"

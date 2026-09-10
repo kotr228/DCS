@@ -27,6 +27,22 @@ namespace JolieCat3D.Core.Scene
         /// rig's own pivot point, an empty parent transform, ...).</summary>
         public Mesh? Mesh { get; set; }
 
+        /// <summary>Optional - present only for a node meant to actually be a
+        /// renderable/selectable camera (see <see cref="CameraData"/>'s own remarks on
+        /// why this is optional DATA, not a subclass). Nothing here stops a node from
+        /// having both this AND <see cref="Mesh"/>/<see cref="Light"/> set at once
+        /// (nothing enforces "exactly one role per node") - a deliberately unconstrained
+        /// design, the same "additive, not mutually exclusive" shape every other optional
+        /// per-node concern in this class already has, though <c>JolieCat3D.UI</c>'s own
+        /// Properties Inspector only ever creates a node with exactly one role at a
+        /// time.</summary>
+        public CameraData? Camera { get; set; }
+
+        /// <summary>Optional - present only for a node meant to actually cast light (see
+        /// <see cref="LightData"/>'s own remarks). Same "additive data, not a subclass,
+        /// not mutually exclusive with the others" shape as <see cref="Camera"/>.</summary>
+        public LightData? Light { get; set; }
+
         /// <summary>This node's non-destructive modifier stack (see
         /// <see cref="Modifier"/>'s own remarks) - applied, in list order, to
         /// <see cref="Mesh"/> at render time only (by <c>JolieCat3D.Engine.Geometry.SceneGraphBuilder</c>,
@@ -106,6 +122,15 @@ namespace JolieCat3D.Core.Scene
         /// applied to the local origin. Where a selection outline or transform gizmo
         /// should be positioned.</summary>
         public Vector3 GetWorldPosition() => Vector3.Transform(Vector3.Zero, GetWorldTransform());
+
+        /// <summary>This node's own local +Z axis, rotated into world space by
+        /// <see cref="GetWorldRotation"/> - the standard "forward" convention a
+        /// <see cref="CameraData"/> (its own look direction) or a directional/spot
+        /// <see cref="LightData"/> (the direction it casts light toward) both use, so
+        /// aiming either is just a matter of rotating this node the same way aiming
+        /// anything else in the scene already is - no separate "look direction" field of
+        /// its own to keep in sync with <see cref="LocalRotation"/>.</summary>
+        public Vector3 GetWorldForward() => Vector3.Transform(Vector3.UnitZ, Matrix4x4.CreateFromQuaternion(GetWorldRotation()));
 
         /// <summary>The axis-aligned world-space bounding box of this node's own
         /// <see cref="Mesh"/> only - unlike <see cref="Scene3D.GetBounds"/>, descendants

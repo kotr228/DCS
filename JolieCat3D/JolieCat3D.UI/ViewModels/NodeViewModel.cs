@@ -245,6 +245,143 @@ namespace JolieCat3D.UI.ViewModels
         /// meshed node in the first place).</summary>
         public bool HasMesh => _node.Mesh is not null;
 
+        /// <summary>True once this node is actually a camera - what the Camera Inspector
+        /// section binds its own Visibility to.</summary>
+        public bool HasCamera => _node.Camera is not null;
+
+        /// <summary>"Perspective" or "Orthographic" - a plain string (rather than the
+        /// enum itself) so a Properties panel <c>ComboBox</c> can bind directly to it
+        /// with no <c>IValueConverter</c> of its own. A no-op set on a node with no
+        /// <see cref="Node.Camera"/> at all (nothing to change).</summary>
+        public string CameraProjectionMode
+        {
+            get => (_node.Camera?.ProjectionMode ?? Core.Scene.CameraProjectionMode.Perspective).ToString();
+            set
+            {
+                if (_node.Camera is not { } camera) return;
+                if (!Enum.TryParse<Core.Scene.CameraProjectionMode>(value, out var mode)) return;
+
+                camera.ProjectionMode = mode;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsPerspectiveCamera));
+                OnPropertyChanged(nameof(IsOrthographicCamera));
+                _onChanged();
+            }
+        }
+
+        /// <summary>Gates the Field of View field's own Visibility - only meaningful for
+        /// a <see cref="Core.Scene.CameraProjectionMode.Perspective"/> camera.</summary>
+        public bool IsPerspectiveCamera => _node.Camera?.ProjectionMode != Core.Scene.CameraProjectionMode.Orthographic;
+
+        /// <summary>Gates the Orthographic Width field's own Visibility.</summary>
+        public bool IsOrthographicCamera => _node.Camera?.ProjectionMode == Core.Scene.CameraProjectionMode.Orthographic;
+
+        public double CameraFieldOfView
+        {
+            get => _node.Camera?.FieldOfView ?? 45.0;
+            set { if (_node.Camera is not { } camera) return; camera.FieldOfView = (float)value; OnPropertyChanged(); _onChanged(); }
+        }
+
+        public double CameraOrthographicWidth
+        {
+            get => _node.Camera?.OrthographicWidth ?? 10.0;
+            set { if (_node.Camera is not { } camera) return; camera.OrthographicWidth = (float)value; OnPropertyChanged(); _onChanged(); }
+        }
+
+        public double CameraNearPlaneDistance
+        {
+            get => _node.Camera?.NearPlaneDistance ?? 0.1;
+            set { if (_node.Camera is not { } camera) return; camera.NearPlaneDistance = (float)value; OnPropertyChanged(); _onChanged(); }
+        }
+
+        public double CameraFarPlaneDistance
+        {
+            get => _node.Camera?.FarPlaneDistance ?? 1000.0;
+            set { if (_node.Camera is not { } camera) return; camera.FarPlaneDistance = (float)value; OnPropertyChanged(); _onChanged(); }
+        }
+
+        /// <summary>True once this node is actually a light - what the Light Inspector
+        /// section binds its own Visibility to.</summary>
+        public bool HasLight => _node.Light is not null;
+
+        /// <summary>"Directional", "Point", or "Spot" - see <see cref="CameraProjectionMode"/>'s
+        /// own remarks on why this is a plain string.</summary>
+        public string LightType
+        {
+            get => (_node.Light?.Type ?? Core.Scene.LightType.Directional).ToString();
+            set
+            {
+                if (_node.Light is not { } light) return;
+                if (!Enum.TryParse<Core.Scene.LightType>(value, out var type)) return;
+
+                light.Type = type;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsPointOrSpotLight));
+                OnPropertyChanged(nameof(IsSpotLight));
+                _onChanged();
+            }
+        }
+
+        /// <summary>Gates the Range field's own Visibility - meaningless for a
+        /// <see cref="Core.Scene.LightType.Directional"/> light.</summary>
+        public bool IsPointOrSpotLight => _node.Light?.Type is Core.Scene.LightType.Point or Core.Scene.LightType.Spot;
+
+        /// <summary>Gates the Spot Angle field's own Visibility.</summary>
+        public bool IsSpotLight => _node.Light?.Type == Core.Scene.LightType.Spot;
+
+        public Color LightColor
+        {
+            get
+            {
+                var color = _node.Light?.Color ?? Color4.White;
+                return Color.FromScRgb(1f, Clamp01(color.R), Clamp01(color.G), Clamp01(color.B));
+            }
+            set
+            {
+                if (_node.Light is not { } light) return;
+                light.Color = new Color4(value.ScR, value.ScG, value.ScB);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LightColorHex));
+                _onChanged();
+            }
+        }
+
+        /// <summary>The same color as <see cref="LightColor"/>, as a "#RRGGBB" string -
+        /// the same hex-field editing convention <see cref="DiffuseColorHex"/> already
+        /// uses.</summary>
+        public string LightColorHex
+        {
+            get => $"#{LightColor.R:X2}{LightColor.G:X2}{LightColor.B:X2}";
+            set
+            {
+                if (_node.Light is not { } light) return;
+                if (ColorConverter.ConvertFromString(value) is not Color parsed) return;
+
+                light.Color = new Color4(parsed.ScR, parsed.ScG, parsed.ScB);
+                OnPropertyChanged(nameof(LightColor));
+                OnPropertyChanged();
+                _onChanged();
+            }
+        }
+
+        public double LightIntensity
+        {
+            get => _node.Light?.Intensity ?? 1.0;
+            set { if (_node.Light is not { } light) return; light.Intensity = (float)System.Math.Max(0.0, value); OnPropertyChanged(); _onChanged(); }
+        }
+
+        public double LightRange
+        {
+            get => _node.Light?.Range ?? 10.0;
+            set { if (_node.Light is not { } light) return; light.Range = (float)System.Math.Max(0.0, value); OnPropertyChanged(); _onChanged(); }
+        }
+
+        public double LightSpotAngle
+        {
+            get => _node.Light?.SpotAngle ?? 45.0;
+            set { if (_node.Light is not { } light) return; light.SpotAngle = (float)System.Math.Clamp(value, 1.0, 179.0); OnPropertyChanged(); _onChanged(); }
+        }
+
         /// <summary>Mirrors <see cref="Node.Modifiers"/> as view models, one per entry,
         /// in the same order - the Modifiers panel's own <c>ItemsControl</c> binds
         /// directly to this. Rebuilt (not incrementally patched) by

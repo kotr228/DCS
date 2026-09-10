@@ -35,6 +35,13 @@ namespace JolieCat3D.Service.Project
         /// <see cref="AnimationExporter"/>'s own native shape - see this class's own
         /// remarks.</summary>
         public AnimationExportData Animation { get; set; } = new();
+
+        /// <summary>Mirrors <see cref="Core.Scene.Scene3D.ActiveCamera"/> - the same
+        /// slash-joined node-path scheme (<see cref="NodePathResolver"/>) the animation
+        /// timeline already uses to refer to a node from plain data, rather than a live
+        /// reference. Null (the default) means no active camera, matching that
+        /// property's own default.</summary>
+        public string? ActiveCameraNodePath { get; set; }
     }
 
     /// <summary>One <see cref="Core.Scene.Node"/>: its own local transform, optional
@@ -63,9 +70,52 @@ namespace JolieCat3D.Service.Project
         /// being optional.</summary>
         public ProjectMeshData? Mesh { get; set; }
 
+        /// <summary>Null unless this node is a camera - mirrors <see cref="Core.Scene.Node.Camera"/>
+        /// being optional.</summary>
+        public ProjectCameraData? Camera { get; set; }
+
+        /// <summary>Null unless this node is a light - mirrors <see cref="Core.Scene.Node.Light"/>
+        /// being optional.</summary>
+        public ProjectLightData? Light { get; set; }
+
         public List<ProjectModifierData> Modifiers { get; set; } = new();
 
         public List<ProjectNodeData> Children { get; set; } = new();
+    }
+
+    /// <summary>One <see cref="Core.Scene.CameraData"/> - field-for-field matching that
+    /// class's own properties, with <see cref="Core.Scene.CameraData.ProjectionMode"/>
+    /// kept as its own enum name string (the same "readable, no hard-coded enum ints"
+    /// convention every other DTO in this project already follows) rather than the raw
+    /// underlying integer.</summary>
+    public sealed class ProjectCameraData
+    {
+        /// <summary>"Perspective" or "Orthographic" - see <see cref="Core.Scene.CameraProjectionMode"/>.</summary>
+        public string ProjectionMode { get; set; } = nameof(Core.Scene.CameraProjectionMode.Perspective);
+
+        public float FieldOfView { get; set; } = 45f;
+        public float OrthographicWidth { get; set; } = 10f;
+        public float NearPlaneDistance { get; set; } = 0.1f;
+        public float FarPlaneDistance { get; set; } = 1000f;
+    }
+
+    /// <summary>One <see cref="Core.Scene.LightData"/> - field-for-field matching that
+    /// class's own properties, with <see cref="Core.Scene.LightData.Type"/> kept as its
+    /// own enum name string for the same reason <see cref="ProjectCameraData.ProjectionMode"/>
+    /// is.</summary>
+    public sealed class ProjectLightData
+    {
+        /// <summary>"Directional", "Point", or "Spot" - see <see cref="Core.Scene.LightType"/>.</summary>
+        public string Type { get; set; } = nameof(Core.Scene.LightType.Directional);
+
+        public float ColorR { get; set; } = 1f;
+        public float ColorG { get; set; } = 1f;
+        public float ColorB { get; set; } = 1f;
+        public float ColorA { get; set; } = 1f;
+
+        public float Intensity { get; set; } = 1f;
+        public float Range { get; set; } = 10f;
+        public float SpotAngle { get; set; } = 45f;
     }
 
     /// <summary>One <see cref="Core.Geometry.Mesh"/>'s complete geometry - every

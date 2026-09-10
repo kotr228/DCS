@@ -17,6 +17,17 @@ namespace JolieCat3D.Core.Scene
 
         public IReadOnlyList<Node> RootNodes => _rootNodes;
 
+        /// <summary>Which <see cref="Node"/> (if any) <c>JolieCat3D.Engine</c>'s renderer
+        /// should actually look through - null (the default) means the viewport keeps
+        /// using its own free orbit/pan/zoom camera (see <c>Engine.Camera.CameraFraming</c>),
+        /// exactly as it always has, rather than snapping to some arbitrary camera the
+        /// moment one exists anywhere in the scene. Not required to be a node with
+        /// <see cref="Node.Camera"/> actually set (nothing here enforces that), but
+        /// setting it to one that isn't leaves the renderer with nothing meaningful to
+        /// sync a projection from - <c>JolieCat3D.UI</c> only ever assigns this to a
+        /// node it just gave a <see cref="CameraData"/> to.</summary>
+        public Node? ActiveCamera { get; set; }
+
         public Scene3D(string name = "Scene") => Name = name;
 
         public void AddRootNode(Node node)
@@ -25,7 +36,17 @@ namespace JolieCat3D.Core.Scene
             _rootNodes.Add(node);
         }
 
-        public void RemoveRootNode(Node node) => _rootNodes.Remove(node);
+        /// <summary>Removes <paramref name="node"/> from <see cref="RootNodes"/> -
+        /// clearing <see cref="ActiveCamera"/> too if it was the one removed, so a
+        /// destroyed camera node is never left dangling as "the" active camera
+        /// reference (which would otherwise still resolve - nothing here nulls out a
+        /// removed node's own fields - but no longer be reachable from
+        /// <see cref="Traverse"/>/<see cref="RootNodes"/> at all).</summary>
+        public void RemoveRootNode(Node node)
+        {
+            _rootNodes.Remove(node);
+            if (ActiveCamera == node) ActiveCamera = null;
+        }
 
         /// <summary>Every node in the scene, root nodes and every descendant, depth-first
         /// per root in <see cref="RootNodes"/> order.</summary>
