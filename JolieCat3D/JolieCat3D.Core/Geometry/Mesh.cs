@@ -170,6 +170,21 @@ namespace JolieCat3D.Core.Geometry
         /// only the new side quads and cap are new geometry. Verified (vertex/polygon
         /// counts, and that every resulting face still winds outward) against a
         /// hand-built cube in a throwaway console script before being written here.
+        ///
+        /// The new side/cap vertices start out with the SAME UV their originating
+        /// vertex already had (<c>WithPosition</c> keeps every other field, UV
+        /// included) - meaningless once that vertex has been duplicated and moved
+        /// somewhere else entirely, so this re-projects the WHOLE mesh's UVs via
+        /// <see cref="UVProjector"/> (<see cref="UVProjectionMode.Box"/> - a per-vertex
+        /// dominant-axis projection, the closest thing to a general-purpose "just make
+        /// it look reasonable" unwrap for an arbitrarily extruded shape) before
+        /// returning, rather than leaving the freshly extruded geometry with stale,
+        /// duplicated texture coordinates a caller would otherwise have to remember to
+        /// fix up itself. This does replace any hand-authored/imported UVs the REST of
+        /// the mesh had too (<see cref="UVProjector.Apply"/> always re-projects
+        /// everything, not just what changed) - a deliberate trade, not an oversight:
+        /// "the whole mesh's UVs stay consistent with each other" matters more here than
+        /// "an edit never touches anything it didn't strictly have to".
         /// </summary>
         /// <exception cref="ArgumentException"><paramref name="face"/> is not one of
         /// this mesh's own <see cref="Polygons"/>.</exception>
@@ -205,6 +220,7 @@ namespace JolieCat3D.Core.Geometry
             AddPolygon(capPolygon);
 
             RecalculateNormals();
+            UVProjector.Apply(this, UVProjectionMode.Box);
             return capPolygon;
         }
 
@@ -223,7 +239,15 @@ namespace JolieCat3D.Core.Geometry
         /// (26 vertices - 8 original + 12 shared edge midpoints + 6 face centers - not 38,
         /// which is what an unshared/duplicated version would have produced) before being
         /// written here, so the subdivided mesh has no seams or cracks between faces that
-        /// used to share an edge. Recalculates normals afterward.
+        /// used to share an edge. Recalculates normals afterward, then (like
+        /// <see cref="ExtrudeFace"/> - see its own remarks) re-projects the WHOLE mesh's
+        /// UVs via <see cref="UVProjector"/>/<see cref="UVProjectionMode.Box"/>: the
+        /// interpolated-from-parents UV every new midpoint/center vertex gets below is a
+        /// reasonable INTERIM value (kept for the same "never construct a vertex with an
+        /// arbitrary placeholder" reason the interim per-vertex normal lerp below is
+        /// kept, even though <see cref="RecalculateNormals"/> immediately supersedes it
+        /// too), not the final word - a full re-projection afterward is what actually
+        /// keeps old and new geometry using one consistent, non-stretched mapping.
         /// </summary>
         public void Subdivide()
         {
@@ -300,6 +324,7 @@ namespace JolieCat3D.Core.Geometry
             }
 
             RecalculateNormals();
+            UVProjector.Apply(this, UVProjectionMode.Box);
         }
 
         /// <summary>Newell's method - the face normal of an arbitrary (possibly

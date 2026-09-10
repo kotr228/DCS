@@ -24,15 +24,36 @@ namespace JolieCat3D.Service.Animation
         private static readonly JsonSerializerOptions WriteOptions = new() { WriteIndented = true };
 
         /// <summary>Writes every track currently on <paramref name="timeline"/> to
-        /// <paramref name="filePath"/> as <see cref="AnimationExportData"/> JSON - a
-        /// track with zero keyframes (e.g. a node <see cref="AnimationTimeline.GetOrCreateTrack"/>
+        /// <paramref name="filePath"/> as <see cref="AnimationExportData"/> JSON (see
+        /// <see cref="BuildExportData"/> for the actual conversion) - a track with zero
+        /// keyframes (e.g. a node <see cref="AnimationTimeline.GetOrCreateTrack"/>
         /// created but nothing was ever recorded on) is still included, empty, so a
         /// later <see cref="ImportJson"/> doesn't need to guess whether that was
         /// deliberate or an omission.</summary>
         public static void ExportJson(AnimationTimeline timeline, string filePath)
         {
-            ArgumentNullException.ThrowIfNull(timeline);
             ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+
+            var data = BuildExportData(timeline);
+
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+
+            using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
+            JsonSerializer.Serialize(stream, data, WriteOptions);
+        }
+
+        /// <summary>The pure in-memory half of <see cref="ExportJson"/> - converts
+        /// <paramref name="timeline"/> into a plain <see cref="AnimationExportData"/>
+        /// tree with no file I/O of its own, so a caller that already has its OWN JSON
+        /// document to embed this into (<c>Project.Jolie3DProjectSerializer</c>, which
+        /// nests this as one property of a whole project file, rather than writing a
+        /// second, separate file just for the animation) can reuse the exact same
+        /// node-path/material-name conversion <see cref="ExportJson"/> itself uses,
+        /// instead of duplicating it.</summary>
+        public static AnimationExportData BuildExportData(AnimationTimeline timeline)
+        {
+            ArgumentNullException.ThrowIfNull(timeline);
 
             var data = new AnimationExportData
             {
@@ -84,11 +105,7 @@ namespace JolieCat3D.Service.Animation
                 data.TextureTracks.Add(trackData);
             }
 
-            var directory = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-
-            using var stream = new FileStream(filePath, FileMode.Create, FileAccess.Write);
-            JsonSerializer.Serialize(stream, data, WriteOptions);
+            return data;
         }
 
         /// <summary>Reads <paramref name="filePath"/> back and rebuilds every track it
@@ -107,8 +124,6 @@ namespace JolieCat3D.Service.Animation
         public static int ImportJson(string filePath, AnimationTimeline timeline, Scene3D scene)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
-            ArgumentNullException.ThrowIfNull(timeline);
-            ArgumentNullException.ThrowIfNull(scene);
 
             AnimationExportData? data;
             try
@@ -122,6 +137,25 @@ namespace JolieCat3D.Service.Animation
             }
 
             if (data is null) throw new InvalidDataException($"'{filePath}' is not a valid animation export file (empty).");
+
+            return ApplyExportData(data, timeline, scene);
+        }
+
+        /// <summary>The pure in-memory half of <see cref="ImportJson"/> - applies an
+        /// already-deserialized <see cref="AnimationExportData"/> onto
+        /// <paramref name="timeline"/>, resolving it against <paramref name="scene"/>
+        /// (see <see cref="ImportJson"/>'s own remarks on node-path/material-name
+        /// resolution and its "best effort" skip-don't-throw behavior). Exists
+        /// separately from <see cref="ImportJson"/> for the same reason
+        /// <see cref="BuildExportData"/> exists separately from <see cref="ExportJson"/>:
+        /// <c>Project.Jolie3DProjectSerializer</c> already has its own deserialized
+        /// <see cref="AnimationExportData"/> (nested inside a whole project file's own
+        /// JSON) with no separate animation file to read.</summary>
+        public static int ApplyExportData(AnimationExportData data, AnimationTimeline timeline, Scene3D scene)
+        {
+            ArgumentNullException.ThrowIfNull(data);
+            ArgumentNullException.ThrowIfNull(timeline);
+            ArgumentNullException.ThrowIfNull(scene);
 
             timeline.FrameRate = data.FrameRate;
             timeline.TotalFrames = data.TotalFrames;
