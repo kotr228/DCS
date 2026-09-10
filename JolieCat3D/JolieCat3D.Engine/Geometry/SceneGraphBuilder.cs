@@ -1,4 +1,5 @@
 using System.Windows.Media.Media3D;
+using JolieCat3D.Engine.Rendering;
 using CoreNode = JolieCat3D.Core.Scene.Node;
 using CoreScene = JolieCat3D.Core.Scene.Scene3D;
 using MediaQuaternion = System.Windows.Media.Media3D.Quaternion;
@@ -24,13 +25,13 @@ namespace JolieCat3D.Engine.Geometry
         /// it came from - what lets a viewport click (which WPF reports as a hit
         /// <see cref="GeometryModel3D"/>, not a <see cref="CoreNode"/>) resolve back to a
         /// selectable scene object at all; see <c>JolieCat3D.Engine.Selection.SceneHitTester</c>.</summary>
-        public static Model3DGroup Build(CoreScene scene, IDictionary<GeometryModel3D, CoreNode>? modelToNode = null)
+        public static Model3DGroup Build(CoreScene scene, IDictionary<GeometryModel3D, CoreNode>? modelToNode = null, ShadingMode shadingMode = ShadingMode.Rendered)
         {
             ArgumentNullException.ThrowIfNull(scene);
 
             var group = new Model3DGroup();
             foreach (var root in scene.RootNodes)
-                group.Children.Add(Build(root, modelToNode));
+                group.Children.Add(Build(root, modelToNode, shadingMode));
 
             return group;
         }
@@ -40,8 +41,13 @@ namespace JolieCat3D.Engine.Geometry
         /// <see cref="Model3DGroup"/> carrying this node's own local transform - so the
         /// result, placed anywhere in a visual tree, renders this node and its whole
         /// subtree exactly where <see cref="CoreNode.GetWorldTransform"/> would put them
-        /// relative to whatever <paramref name="node"/> is itself nested under.</summary>
-        public static Model3DGroup Build(CoreNode node, IDictionary<GeometryModel3D, CoreNode>? modelToNode = null)
+        /// relative to whatever <paramref name="node"/> is itself nested under.
+        /// <paramref name="shadingMode"/> only changes which <see cref="Material"/>
+        /// <see cref="MaterialFactory.Create(Core.Materials.Material?,ShadingMode)"/>
+        /// builds - the geometry and transform are identical either way (a caller
+        /// wanting <see cref="ShadingMode.Wireframe"/>'s own "no filled geometry at all"
+        /// behavior skips calling this in the first place - see <see cref="Scene3DRenderer.Render"/>).</summary>
+        public static Model3DGroup Build(CoreNode node, IDictionary<GeometryModel3D, CoreNode>? modelToNode = null, ShadingMode shadingMode = ShadingMode.Rendered)
         {
             ArgumentNullException.ThrowIfNull(node);
 
@@ -49,20 +55,21 @@ namespace JolieCat3D.Engine.Geometry
 
             if (node.Mesh is { } mesh)
             {
-                var model = new GeometryModel3D(MeshGeometryFactory.Create(mesh), MaterialFactory.Create(mesh.Material))
+                var material = MaterialFactory.Create(mesh.Material, shadingMode);
+                var model = new GeometryModel3D(MeshGeometryFactory.Create(mesh), material)
                 {
                     // Lets the same material shade the mesh from either side - a mesh
                     // authored with outward-only normals (Primitives.CreateCube included)
                     // would otherwise render invisible/black from behind its own faces,
                     // which reads as a bug to anyone orbiting the camera around it.
-                    BackMaterial = MaterialFactory.Create(mesh.Material),
+                    BackMaterial = material,
                 };
                 group.Children.Add(model);
                 if (modelToNode is not null) modelToNode[model] = node;
             }
 
             foreach (var child in node.Children)
-                group.Children.Add(Build(child, modelToNode));
+                group.Children.Add(Build(child, modelToNode, shadingMode));
 
             return group;
         }

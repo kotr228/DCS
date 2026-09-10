@@ -34,10 +34,29 @@ namespace JolieCat3D.Engine.Rendering
         private readonly ModelVisual3D _componentOverlayVisual = new();
         private readonly Dictionary<GeometryModel3D, CoreNode> _modelToNode = new();
         private Visual3D? _selectionVisual;
+        private Visual3D? _wireframeVisual;
+        private ShadingMode _shadingMode = ShadingMode.Rendered;
         private CoreScene? _lastScene;
         private bool _isAttached;
 
         public LightingSettings Lighting { get; set; } = LightingSettings.CreateDefault();
+
+        /// <summary>Which viewport shading style <see cref="Render"/>/<see cref="Refresh"/>
+        /// currently draw the scene in - see <see cref="Rendering.ShadingMode"/>'s own
+        /// remarks for what each mode actually changes. Setting this re-renders
+        /// immediately (a no-op before any scene has ever been shown), the same
+        /// "setting the mode also applies it" shape <c>Gizmos.TransformGizmo.Mode</c>
+        /// already uses.</summary>
+        public ShadingMode ShadingMode
+        {
+            get => _shadingMode;
+            set
+            {
+                if (_shadingMode == value) return;
+                _shadingMode = value;
+                Refresh();
+            }
+        }
 
         /// <summary>The object the last <see cref="Select"/> call marked as selected -
         /// null if nothing is. <c>JolieCat3D.UI</c> reads this after a viewport click
@@ -108,7 +127,21 @@ namespace JolieCat3D.Engine.Rendering
 
             _lastScene = scene;
             _modelToNode.Clear();
-            _sceneVisual.Content = SceneGraphBuilder.Build(scene, _modelToNode);
+
+            if (ShadingMode == ShadingMode.Wireframe)
+            {
+                // No filled geometry at all in Wireframe mode - see ShadingMode.Wireframe's
+                // own remarks. _modelToNode stays empty, so HitTest/click-to-select finds
+                // nothing (there is no GeometryModel3D to click); Edit Mode's own
+                // ComponentHitTester works regardless, since it never uses WPF hit-testing.
+                _sceneVisual.Content = new Model3DGroup();
+                RefreshWireframeVisual(scene);
+            }
+            else
+            {
+                _sceneVisual.Content = SceneGraphBuilder.Build(scene, _modelToNode, ShadingMode);
+                RefreshWireframeVisual(null);
+            }
 
             if (zoomToFit) CameraFraming.ZoomToFit(_viewport, scene);
 
@@ -149,6 +182,19 @@ namespace JolieCat3D.Engine.Rendering
 
             _selectionVisual = SelectionHighlightFactory.CreateHighlight(SelectedNode, SelectionColor);
             if (_selectionVisual is not null) _viewport.Children.Add(_selectionVisual);
+        }
+
+        /// <summary>Rebuilds (or removes, for a null <paramref name="scene"/>) the
+        /// <see cref="ShadingMode.Wireframe"/>-only edge overlay - see
+        /// <see cref="WireframeVisualFactory"/>. <see cref="Render"/> is the only caller;
+        /// kept as its own method for the same "swap out one tracked Visual3D" shape
+        /// <see cref="RefreshSelectionHighlight"/> already uses.</summary>
+        private void RefreshWireframeVisual(CoreScene? scene)
+        {
+            if (_wireframeVisual is not null) _viewport.Children.Remove(_wireframeVisual);
+
+            _wireframeVisual = scene is not null ? WireframeVisualFactory.CreateSceneWireframe(scene) : null;
+            if (_wireframeVisual is not null) _viewport.Children.Add(_wireframeVisual);
         }
 
         /// <summary>Switches <see cref="EditSession"/> onto <paramref name="node"/> (its

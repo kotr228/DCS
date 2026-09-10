@@ -22,6 +22,7 @@
             <RowDefinition Height="Auto" /> <!-- File menu -->
             <RowDefinition Height="Auto" /> <!-- Gizmo mode toolbar -->
             <RowDefinition Height="Auto" /> <!-- Object/Edit mode + component toolbar -->
+            <RowDefinition Height="Auto" /> <!-- Shading mode toolbar -->
             <RowDefinition Height="*" />    <!-- Outliner | Viewport | Properties -->
         </Grid.RowDefinitions>
 
@@ -36,6 +37,13 @@
                 <Separator />
                 <MenuItem Header="_Import..." Click="ImportMenuItem_Click" InputGestureText="Ctrl+I" />
                 <MenuItem Header="_Export..." Click="ExportMenuItem_Click" InputGestureText="Ctrl+E" />
+                <Separator />
+                <!-- Starts JolieCat3D.Service.Interop.JolieWorkspaceWatcher on a chosen
+                     folder - any .jolie project or exported image later created/changed
+                     there automatically refreshes whichever node(s) last loaded a
+                     texture from it (see MainWindow.xaml.cs's own remarks on
+                     _textureSources/HandleWorkspaceAssetChanged). -->
+                <MenuItem Header="_Watch JolieCat Workspace..." Click="WatchWorkspaceMenuItem_Click" />
                 <Separator />
                 <MenuItem Header="E_xit" Click="ExitMenuItem_Click" />
             </MenuItem>
@@ -86,7 +94,28 @@
             </StackPanel>
         </Border>
 
-        <Grid Grid.Row="3">
+        <!-- ================= Shading Mode Toolbar ================= -->
+        <Border Grid.Row="3" Background="{StaticResource PanelAltBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="8,6">
+                <TextBlock Text="Shading:" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <RadioButton x:Name="WireframeShadingButton" Content="Wireframe" GroupName="ShadingMode"
+                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,4,0" Checked="ShadingModeButton_Checked" Tag="Wireframe" />
+                <RadioButton x:Name="SolidShadingButton" Content="Solid" GroupName="ShadingMode"
+                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,4,0" Checked="ShadingModeButton_Checked" Tag="Solid" />
+                <RadioButton x:Name="MaterialShadingButton" Content="Material" GroupName="ShadingMode"
+                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,4,0" Checked="ShadingModeButton_Checked" Tag="Material" />
+                <RadioButton x:Name="RenderedShadingButton" Content="Rendered" GroupName="ShadingMode"
+                             IsChecked="True" Style="{StaticResource GizmoModeButtonStyle}"
+                             Checked="ShadingModeButton_Checked" Tag="Rendered" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="4">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="240" MinWidth="160" />
                 <ColumnDefinition Width="Auto" />
@@ -187,28 +216,62 @@
                                 <TextBox Text="{Binding ScaleZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                             </StackPanel>
 
-                            <!-- Material - hidden entirely for a mesh-less/materialless node. -->
+                            <!-- Material Inspector - hidden entirely for a mesh-less/materialless node. -->
                             <StackPanel Visibility="{Binding HasMaterial, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="Material" Style="{StaticResource PanelHeaderStyle}" Margin="8,0,8,2" />
+                                <TextBlock Text="MATERIAL INSPECTOR" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+
+                                <!-- Diffuse/albedo -->
                                 <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
                                     <Border Width="26" Height="26" Margin="0,0,8,0"
                                             Background="{Binding DiffuseColor, Converter={StaticResource ColorToBrush}}"
                                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                            ToolTip="Diffuse color" />
+                                            ToolTip="Diffuse/albedo color" />
                                     <TextBox Text="{Binding DiffuseColorHex, Mode=TwoWay}"
                                              Style="{StaticResource InspectorFieldTextBoxStyle}" Width="90"
-                                             ToolTip="Diffuse color (hex)" />
+                                             ToolTip="Diffuse/albedo color (hex)" />
                                 </StackPanel>
-                                <!-- Loads an image straight into this material's texture slot (see
-                                     JolieCat3D.Service.Interop.TwoDAssetBridge) - typically an
-                                     exported JolieCat 2D-editor asset (a plain texture, a sprite
-                                     sheet, or one frame of a clipbar sequence). -->
-                                <Button Content="Load Texture..." Margin="8,0,8,8" Padding="8,4"
+
+                                <!-- Roughness/Metallic - see Core.Materials.Material's own
+                                     remarks for what these do and how Engine.Geometry.MaterialFactory
+                                     approximates them on WPF's fixed-function pipeline. -->
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
+                                    <TextBlock Text="Roughness" Width="70" VerticalAlignment="Center"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <TextBlock Text="{Binding Roughness, StringFormat={}{0:0.00}}" Width="36" VerticalAlignment="Center"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                </StackPanel>
+                                <Slider Margin="8,0,8,8" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1"
+                                        Value="{Binding Roughness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
+                                    <TextBlock Text="Metallic" Width="70" VerticalAlignment="Center"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <TextBlock Text="{Binding Metallic, StringFormat={}{0:0.00}}" Width="36" VerticalAlignment="Center"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                </StackPanel>
+                                <Slider Margin="8,0,8,8" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1"
+                                        Value="{Binding Metallic, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                <!-- Texture - either a plain exported image, or one layer of a
+                                     whole .jolie project (see JolieCat3D.Service.Interop). -->
+                                <Button Content="Load Texture..." Margin="8,0,8,4" Padding="8,4"
                                         HorizontalAlignment="Left" Click="LoadTextureButton_Click" />
+                                <Button Content="Load From JolieCat Project..." Margin="8,0,8,4" Padding="8,4"
+                                        HorizontalAlignment="Left" Click="LoadFromJolieProjectButton_Click" />
                                 <TextBlock Text="{Binding DiffuseTextureFileName}" Margin="8,0,8,8"
                                            TextTrimming="CharacterEllipsis" FontStyle="Italic"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            Visibility="{Binding HasDiffuseTexture, Converter={StaticResource BoolToVisibility}}" />
+
+                                <!-- UV Projection - (re)maps this mesh's own UVs, for a custom
+                                     primitive or an Edit-Mode-reshaped mesh whose authored UVs
+                                     no longer make sense (see Core.Geometry.UVProjector). -->
+                                <TextBlock Text="UV Projection" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
+                                    <Button Content="Planar" Margin="0,0,4,0" Padding="8,4" Click="PlanarProjectionButton_Click" />
+                                    <Button Content="Box" Margin="0,0,4,0" Padding="8,4" Click="BoxProjectionButton_Click" />
+                                    <Button Content="Spherical" Padding="8,4" Click="SphericalProjectionButton_Click" />
+                                </StackPanel>
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

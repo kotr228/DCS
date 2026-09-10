@@ -34,8 +34,20 @@ namespace JolieCat3D.UI
         private readonly ComponentGizmo _componentGizmo;
         private readonly SceneViewModel _sceneViewModel = new();
 
+        // Where a node's currently-loaded diffuse texture came from - either a plain
+        // image file, or one layer of a whole .jolie project (see
+        // LoadFromJolieProjectButton_Click) - so a later JolieWorkspaceWatcher.AssetChanged
+        // for that same path knows how to redo the load (see ReloadNodeTexture). Keyed by
+        // the Core Node itself, not its Material, since a node's material can be swapped
+        // out entirely by an Import/Open and the tracking should just quietly stop
+        // mattering at that point rather than point at a stale material instance.
+        private readonly Dictionary<Node, TextureSource> _textureSources = new();
+        private JolieWorkspaceWatcher? _workspaceWatcher;
+
         private Scene3D _currentScene = new("Untitled");
         private string? _currentFilePath;
+
+        private sealed record TextureSource(string SourcePath, bool IsJolieProject);
 
         public MainWindow()
         {
@@ -89,6 +101,11 @@ namespace JolieCat3D.UI
             CommandBindings.Add(new CommandBinding(ApplicationCommands.Open, (_, _) => OpenScene()));
             CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_, _) => SaveScene()));
             CommandBindings.Add(new CommandBinding(ApplicationCommands.SaveAs, (_, _) => SaveSceneAs()));
+
+            // A watched JolieWorkspaceWatcher owns a real OS file-system handle - stop
+            // and dispose it when the window closes rather than leaking it for the rest
+            // of the process's lifetime.
+            Closed += (_, _) => _workspaceWatcher?.Dispose();
 
             LoadScene(BuildDemoScene(), filePath: null);
         }
@@ -278,6 +295,17 @@ namespace JolieCat3D.UI
             if (Enum.TryParse<GizmoMode>(modeName, out var mode)) _gizmo.Mode = mode;
         }
 
+        /// <summary>The viewport shading toolbar - see <see cref="ShadingMode"/>'s own
+        /// remarks for what each of the 4 modes actually changes. Setting
+        /// <see cref="Scene3DRenderer.ShadingMode"/> re-renders immediately on its own,
+        /// the same "setting the mode applies it too" shape <see cref="GizmoModeButton_Checked"/>
+        /// already uses for <see cref="TransformGizmo.Mode"/>.</summary>
+        private void ShadingModeButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is not RadioButton { Tag: string modeName }) return;
+            if (Enum.TryParse<ShadingMode>(modeName, out var mode)) _renderer.ShadingMode = mode;
+        }
+
         /// <summary>Switches between Object Mode (the existing whole-node
         /// Translate/Rotate/Scale gizmo) and Edit Mode (per-component selection and
         /// <see cref="ComponentGizmo"/>) - enabling/disabling the Vertex/Edge/Face
@@ -403,6 +431,107 @@ namespace JolieCat3D.UI
                 // which would also discard its DiffuseColor/specular settings.
                 var loaded = TwoDAssetBridge.LoadTextureMaterial(dialog.FileName);
                 nodeViewModel.SetDiffuseTexture(loaded.DiffuseTexturePath!);
+                _textureSources[nodeViewModel.UnderlyingNode] = new TextureSource(dialog.FileName, IsJolieProject: false);
+                _renderer.Refresh();
+            });
+        }
+
+        /// <summary>The Material Inspector's "Load From JolieCat Project..." button -
+        /// picks a <c>.jolie</c> project file and extracts its active layer's own bitmap
+        /// (via <see cref="JolieProjectReader.ExtractActiveLayerTexture"/>) as this
+        /// node's diffuse texture. Remembers the source <c>.jolie</c> path against this
+        /// node (see <see cref="_textureSources"/>) so a later
+        /// <see cref="JolieWorkspaceWatcher.AssetChanged"/> for that same file
+        /// re-extracts and refreshes automatically - see <see cref="ReloadNodeTexture"/>.</summary>
+        private void LoadFromJolieProjectButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
+
+            var dialog = new OpenFileDialog
+            {
+                Filter = "JolieCat Projects (*.jolie)|*.jolie",
+                Title = "Load From JolieCat Project",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Load From JolieCat Project", () =>
+            {
+                var texturePath = JolieProjectReader.ExtractActiveLayerTexture(dialog.FileName, GetTextureCacheDirectory());
+                nodeViewModel.SetDiffuseTexture(texturePath);
+                _textureSources[nodeViewModel.UnderlyingNode] = new TextureSource(dialog.FileName, IsJolieProject: true);
+                _renderer.Refresh();
+            });
+        }
+
+        private void PlanarProjectionButton_Click(object sender, RoutedEventArgs e) => ApplyUVProjection(UVProjectionMode.Planar);
+        private void BoxProjectionButton_Click(object sender, RoutedEventArgs e) => ApplyUVProjection(UVProjectionMode.Box);
+        private void SphericalProjectionButton_Click(object sender, RoutedEventArgs e) => ApplyUVProjection(UVProjectionMode.Spherical);
+
+        private void ApplyUVProjection(UVProjectionMode mode)
+        {
+            if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
+
+            nodeViewModel.ApplyUVProjection(mode);
+            _renderer.Refresh();
+        }
+
+        /// <summary>Where extracted <c>.jolie</c> layer textures are cached - a
+        /// subfolder of the temp directory, not the project file's own folder (which
+        /// may not even be writable, or may be a location JolieCat 2D itself watches).</summary>
+        private static string GetTextureCacheDirectory() => Path.Combine(Path.GetTempPath(), "JolieCat3D", "JolieTextureCache");
+
+        /// <summary>File > Watch JolieCat Workspace... - picks a folder and starts a
+        /// <see cref="JolieWorkspaceWatcher"/> on it, stopping/disposing whichever one
+        /// was already running first (only one active watch at a time). Every
+        /// subsequent <see cref="JolieWorkspaceWatcher.AssetChanged"/> is handled by
+        /// <see cref="HandleWorkspaceAssetChanged"/> - the actual "automatically detect,
+        /// load, or refresh" bridge in action.</summary>
+        private void WatchWorkspaceMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFolderDialog { Title = "Watch JolieCat Workspace Folder" };
+            if (dialog.ShowDialog(this) != true) return;
+
+            _workspaceWatcher?.Dispose();
+
+            var watcher = new JolieWorkspaceWatcher(dialog.FolderName);
+            // FileSystemWatcher raises its events on a ThreadPool thread, never this
+            // window's own dispatcher thread - every access to _textureSources, a
+            // NodeViewModel, or _renderer from the handler MUST be marshaled back via
+            // Dispatcher.Invoke first, or it risks a cross-thread WPF access exception
+            // (or, for the plain Dictionary read, a race with the UI thread).
+            watcher.AssetChanged += (_, args) => Dispatcher.Invoke(() => HandleWorkspaceAssetChanged(args));
+            watcher.Start();
+            _workspaceWatcher = watcher;
+
+            Title = $"JolieCat3D - {(_currentFilePath is null ? "Untitled" : Path.GetFileName(_currentFilePath))} [watching {dialog.FolderName}]";
+        }
+
+        /// <summary>Reloads every node whose currently-tracked texture source (see
+        /// <see cref="_textureSources"/>) is the exact file <paramref name="args"/>
+        /// reports changed - a <c>.jolie</c> project re-saved, or a plain image
+        /// re-exported, by JolieCat 2D. Silently does nothing for a changed file no
+        /// node is currently tracking (the common case - most workspace activity has
+        /// nothing to do with whatever's loaded into this scene right now).</summary>
+        private void HandleWorkspaceAssetChanged(WorkspaceAssetChangedEventArgs args)
+        {
+            foreach (var (node, source) in _textureSources)
+            {
+                if (!string.Equals(source.SourcePath, args.FilePath, StringComparison.OrdinalIgnoreCase)) continue;
+                ReloadNodeTexture(node, source);
+            }
+        }
+
+        private void ReloadNodeTexture(Node node, TextureSource source)
+        {
+            if (_sceneViewModel.FindViewModel(node) is not { } nodeViewModel) return;
+
+            TryRun("Refresh Texture", () =>
+            {
+                var texturePath = source.IsJolieProject
+                    ? JolieProjectReader.ExtractActiveLayerTexture(source.SourcePath, GetTextureCacheDirectory())
+                    : source.SourcePath;
+
+                nodeViewModel.SetDiffuseTexture(texturePath);
                 _renderer.Refresh();
             });
         }

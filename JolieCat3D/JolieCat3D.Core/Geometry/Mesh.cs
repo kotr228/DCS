@@ -77,6 +77,20 @@ namespace JolieCat3D.Core.Geometry
             _vertices[index] = _vertices[index].WithPosition(position);
         }
 
+        /// <summary>Replaces the texture coordinate of the vertex at
+        /// <paramref name="index"/> in place, keeping its existing position/normal/color -
+        /// the mutation <see cref="UVProjector"/> uses to (re)map every vertex's UV from
+        /// its own position/normal, the same way <see cref="SetVertexPosition"/> is the
+        /// mutation Edit Mode uses for position.</summary>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is not a valid vertex index.</exception>
+        public void SetVertexUV(int index, Vector2 uv)
+        {
+            if (index < 0 || index >= _vertices.Count)
+                throw new ArgumentOutOfRangeException(nameof(index));
+
+            _vertices[index] = _vertices[index].WithUV(uv);
+        }
+
         /// <summary>Every distinct edge in this mesh: a deduplicated (normalized so
         /// A &lt; B - the same edge shared by two adjacent faces is reported once, not
         /// twice) unordered pair of vertex indices, derived from <see cref="Faces"/> and

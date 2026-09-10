@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Numerics;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
 
@@ -160,6 +161,37 @@ namespace JolieCat3D.UI.ViewModels
             }
         }
 
+        /// <summary>0 (mirror-smooth) to 1 (fully matte) - see <see cref="Core.Materials.Material.Roughness"/>'s
+        /// own remarks. 0.5 (the same neutral default <see cref="Core.Materials.Material"/>
+        /// itself uses) for a material-less node, so the Material Inspector's slider
+        /// still shows a sane position rather than snapping to 0 when nothing is
+        /// selected to actually read from.</summary>
+        public double Roughness
+        {
+            get => _node.Mesh?.Material?.Roughness ?? 0.5;
+            set
+            {
+                if (_node.Mesh?.Material is not { } material) return;
+                material.Roughness = (float)System.Math.Clamp(value, 0.0, 1.0);
+                OnPropertyChanged();
+                _onChanged();
+            }
+        }
+
+        /// <summary>0 (dielectric) to 1 (fully metallic) - see <see cref="Core.Materials.Material.Metallic"/>'s
+        /// own remarks.</summary>
+        public double Metallic
+        {
+            get => _node.Mesh?.Material?.Metallic ?? 0.0;
+            set
+            {
+                if (_node.Mesh?.Material is not { } material) return;
+                material.Metallic = (float)System.Math.Clamp(value, 0.0, 1.0);
+                OnPropertyChanged();
+                _onChanged();
+            }
+        }
+
         /// <summary>True once this node's material actually has a texture assigned
         /// (<see cref="Core.Materials.Material.DiffuseTexturePath"/> set) - what the
         /// Properties panel binds its "currently loaded texture" filename label's
@@ -189,6 +221,18 @@ namespace JolieCat3D.UI.ViewModels
 
             OnPropertyChanged(nameof(HasDiffuseTexture));
             OnPropertyChanged(nameof(DiffuseTextureFileName));
+            _onChanged();
+        }
+
+        /// <summary>(Re)maps this node's mesh's own vertex UVs via <paramref name="mode"/>
+        /// (see <see cref="UVProjector.Apply"/>) - <c>MainWindow</c>'s Material
+        /// Inspector "Planar"/"Box"/"Spherical" buttons call this. A no-op if this node
+        /// has no mesh at all.</summary>
+        public void ApplyUVProjection(UVProjectionMode mode)
+        {
+            if (_node.Mesh is not { } mesh) return;
+
+            UVProjector.Apply(mesh, mode);
             _onChanged();
         }
 
