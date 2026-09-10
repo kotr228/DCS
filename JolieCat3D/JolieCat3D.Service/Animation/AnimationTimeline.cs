@@ -30,6 +30,12 @@ namespace JolieCat3D.Service.Animation
 
         public IReadOnlyCollection<AnimationTrack> Tracks => _tracks.Values;
 
+        /// <summary>Every <see cref="Material"/>'s own texture track - <see cref="Tracks"/>'s
+        /// texture-animation twin, read by <see cref="Interop.ClipbarAnimationBridge"/>'s
+        /// own callers and <see cref="AnimationExporter"/> alike (neither needs to reach
+        /// into a private dictionary to enumerate what's actually animated).</summary>
+        public IReadOnlyCollection<TextureAnimationTrack> TextureTracks => _textureTracks.Values;
+
         /// <summary>Frames per second - purely a display/scrubber unit conversion
         /// (<see cref="CurrentFrame"/>/<see cref="TotalFrames"/> divide or multiply by
         /// this); every <see cref="Keyframe"/>/<see cref="AnimationTrack.Evaluate"/>

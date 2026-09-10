@@ -39,6 +39,18 @@
                 <MenuItem Header="_Import..." Click="ImportMenuItem_Click" InputGestureText="Ctrl+I" />
                 <MenuItem Header="_Export..." Click="ExportMenuItem_Click" InputGestureText="Ctrl+E" />
                 <Separator />
+                <!-- Saves the whole AnimationTimeline (every node's transform keyframes,
+                     every material's texture-frame track) out to a file - two flavors
+                     picked by which of the SaveFileDialog's own filter entries is
+                     chosen: JolieCat3D's own native, full-fidelity interchange JSON, or
+                     a JolieCat-2D-compatible "TimelineTracks" JSON fragment (keyframe
+                     TIMES only - see JolieAnimationExporter's own remarks). -->
+                <MenuItem Header="Export _Animation..." Click="ExportAnimationMenuItem_Click" />
+                <!-- Bakes the current AnimationTimeline out to a numbered PNG sequence -
+                     one High-res HelixToolkit.Wpf.Viewport3DHelper.SaveBitmap capture per
+                     frame (see ViewportCaptureService's own remarks). -->
+                <MenuItem Header="_Render Animation Frames..." Click="RenderAnimationFramesMenuItem_Click" />
+                <Separator />
                 <!-- Starts JolieCat3D.Service.Interop.JolieWorkspaceWatcher on a chosen
                      folder - any .jolie project or exported image later created/changed
                      there automatically refreshes whichever node(s) last loaded a

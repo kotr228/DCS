@@ -217,6 +217,83 @@ namespace JolieCat3D.UI
             TryRun("Export", () => MeshFileService.ExportScene(_currentScene, dialog.FileName));
         }
 
+        /// <summary>Writes the whole <see cref="_timeline"/> (every node's transform
+        /// keyframes, every material's texture-frame track) out to a file - the
+        /// SaveFileDialog's own two filter entries pick which of the two formats this
+        /// application supports: <see cref="AnimationExporter.ExportJson"/> (this app's
+        /// own native, full-fidelity interchange JSON - "*.j3danim.json" by convention),
+        /// the default/first filter, or <see cref="JolieAnimationExporter.ExportTimelineTracksJson"/>
+        /// (a JolieCat-2D-compatible "TimelineTracks" fragment - keyframe TIMES only, no
+        /// transform curves - see that class's own remarks on why), the second. Neither
+        /// touches <see cref="_currentFilePath"/> - exporting animation data is a
+        /// separate concern from "the file Save/Save As write the scene itself to",
+        /// the same distinction <see cref="ExportMenuItem_Click"/> already draws for
+        /// mesh data.</summary>
+        private void ExportAnimationMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Filter = "JolieCat3D Animation (*.j3danim.json)|*.j3danim.json|JolieCat-Compatible Timeline (*.json)|*.json",
+                Title = "Export Animation",
+                FileName = "Animation.j3danim.json",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Export Animation", () =>
+            {
+                if (dialog.FilterIndex == 2) JolieAnimationExporter.ExportTimelineTracksJson(_timeline, dialog.FileName);
+                else AnimationExporter.ExportJson(_timeline, dialog.FileName);
+            });
+        }
+
+        /// <summary>Bakes the current <see cref="_timeline"/> out to a numbered PNG
+        /// sequence, one <see cref="ViewportCaptureService.CaptureFrame"/> per frame
+        /// across the timeline's own <see cref="AnimationTimeline.TotalFrames"/> - the
+        /// "render out this animation as pictures" counterpart to
+        /// <see cref="ExportAnimationMenuItem_Click"/>'s "save the CURVES themselves"
+        /// (see <see cref="ViewportCaptureService"/>'s own remarks on why a caller-driven
+        /// per-frame callback, rather than this method knowing anything about
+        /// <see cref="AnimationTimeline"/> itself, is what actually advances the scene
+        /// between captures). Playback is paused first (a render capture scrubbing frame
+        /// by frame while <see cref="AnimationTimeline.IsPlaying"/> was also independently
+        /// advancing the SAME timeline from <see cref="OnPlaybackTick"/> would fight over
+        /// <see cref="AnimationTimeline.CurrentTime"/>), and resumed afterward only if it
+        /// was actually playing before.</summary>
+        private void RenderAnimationFramesMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Filter = "PNG Image Sequence (*.png)|*.png",
+                Title = "Render Animation Frames",
+                FileName = "Frame.png",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Render Animation Frames", () =>
+            {
+                var outputDirectory = Path.GetDirectoryName(dialog.FileName);
+                if (string.IsNullOrEmpty(outputDirectory)) outputDirectory = ".";
+                var baseFileName = Path.GetFileNameWithoutExtension(dialog.FileName);
+
+                var wasPlaying = _timeline.IsPlaying;
+                _timeline.Pause();
+
+                var paths = ViewportCaptureService.CaptureSequence(Viewport, _timeline.TotalFrames, frameIndex =>
+                {
+                    _timeline.CurrentFrame = frameIndex;
+                    _timeline.Apply();
+                    _renderer.Refresh();
+                }, outputDirectory, baseFileName);
+
+                _sceneViewModel.SelectedNode?.SyncFromCore();
+                RefreshAnimationUI();
+                if (wasPlaying) _timeline.Play();
+
+                MessageBox.Show(this, $"Rendered {paths.Count} frame(s) to '{outputDirectory}'.",
+                    "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+            });
+        }
+
         private void ExitMenuItem_Click(object sender, RoutedEventArgs e) => Close();
 
         /// <summary>No dirty/unsaved-changes tracking exists yet (every scene edit -
