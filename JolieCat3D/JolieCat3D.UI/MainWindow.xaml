@@ -227,7 +227,15 @@
 
                             <!-- Records this node's CURRENT Position/Rotation/Scale as a
                                  keyframe at the timeline's own current frame (see
-                                 JolieCat3D.Service.Animation.AnimationTrack.AddKeyframeFromCurrentTransform). -->
+                                 JolieCat3D.Service.Animation.AnimationTrack.AddKeyframeFromCurrentTransform),
+                                 leaving the segment AFTER it blended per whichever of
+                                 these two is checked (see JolieCat3D.Service.Animation.InterpolationMode). -->
+                            <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                <RadioButton x:Name="LinearInterpolationButton" Content="Linear" GroupName="Interpolation"
+                                             IsChecked="True" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                <RadioButton x:Name="BezierInterpolationButton" Content="Bezier" GroupName="Interpolation"
+                                             VerticalAlignment="Center" />
+                            </StackPanel>
                             <Button Content="Add Keyframe" Margin="8,0,8,8" Padding="8,4"
                                     HorizontalAlignment="Left" Click="AddKeyframeButton_Click" />
 
@@ -273,6 +281,13 @@
                                         HorizontalAlignment="Left" Click="LoadTextureButton_Click" />
                                 <Button Content="Load From JolieCat Project..." Margin="8,0,8,4" Padding="8,4"
                                         HorizontalAlignment="Left" Click="LoadFromJolieProjectButton_Click" />
+                                <!-- Imports a JolieCat 2D Clipbar Animation (one frame
+                                     per "Frame NNN" layer) or Sprite Sheet (one frame
+                                     per grid cell) project as an animated texture
+                                     sequence, driven by the playback transport below
+                                     (see JolieCat3D.Service.Interop.ClipbarAnimationBridge). -->
+                                <Button Content="Load Clipbar Animation..." Margin="8,0,8,4" Padding="8,4"
+                                        HorizontalAlignment="Left" Click="LoadClipbarAnimationButton_Click" />
                                 <TextBlock Text="{Binding DiffuseTextureFileName}" Margin="8,0,8,8"
                                            TextTrimming="CharacterEllipsis" FontStyle="Italic"
                                            Foreground="{StaticResource TextSecondaryBrush}"

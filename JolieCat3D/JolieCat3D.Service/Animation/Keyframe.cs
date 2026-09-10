@@ -7,6 +7,13 @@ namespace JolieCat3D.Service.Animation
     /// convenience, never baked into a keyframe's own storage) on an
     /// <see cref="AnimationTrack"/> - the fundamental unit a 3D animation timeline
     /// interpolates between, the same way a 2D animation tool's own timeline keyframes a
-    /// layer's properties.</summary>
-    public readonly record struct Keyframe(double Time, Vector3 Position, Quaternion Rotation, Vector3 Scale);
+    /// layer's properties. <see cref="Interpolation"/> governs the segment LEAVING this
+    /// keyframe toward the next one - see <see cref="InterpolationMode"/>'s own
+    /// remarks.</summary>
+    public readonly record struct Keyframe(
+        double Time,
+        Vector3 Position,
+        Quaternion Rotation,
+        Vector3 Scale,
+        InterpolationMode Interpolation = InterpolationMode.Linear);
 }

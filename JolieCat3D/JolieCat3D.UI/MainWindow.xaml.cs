@@ -513,13 +513,64 @@ namespace JolieCat3D.UI
 
         /// <summary>The Properties panel's "Add Keyframe" button - records the selected
         /// node's CURRENT Position/Rotation/Scale at the timeline's own current playback
-        /// position (see <see cref="AnimationTrack.AddKeyframeFromCurrentTransform"/>).
+        /// position, using whichever of <see cref="LinearInterpolationButton"/>/<see cref="BezierInterpolationButton"/>
+        /// is checked for the segment LEAVING this keyframe (see
+        /// <see cref="AnimationTrack.AddKeyframeFromCurrentTransform"/>/<see cref="InterpolationMode"/>).
         /// Recording a keyframe at exactly the transform the node already has never
         /// changes its appearance, so no re-render is needed here.</summary>
         private void AddKeyframeButton_Click(object sender, RoutedEventArgs e)
         {
             if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
-            _timeline.GetOrCreateTrack(node).AddKeyframeFromCurrentTransform(_timeline.CurrentTime);
+
+            var interpolation = BezierInterpolationButton.IsChecked == true ? InterpolationMode.Bezier : InterpolationMode.Linear;
+            _timeline.GetOrCreateTrack(node).AddKeyframeFromCurrentTransform(_timeline.CurrentTime, interpolation);
+        }
+
+        /// <summary>The Material Inspector's "Load Clipbar Animation..." button - picks
+        /// a <c>.jolie</c> project and imports it as an animated texture sequence on the
+        /// selected node's material (see <see cref="ClipbarAnimationBridge"/>): a real
+        /// Clipbar Animation project (one frame per "Frame NNN" layer) or a Sprite
+        /// Sheet project (one frame per grid cell) both work; anything else is reported
+        /// rather than silently failing. Installs the resulting track via
+        /// <see cref="AnimationTimeline.SetTextureTrack"/> and applies/renders
+        /// immediately, so the first frame shows right away rather than only once
+        /// playback starts.</summary>
+        private void LoadClipbarAnimationButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
+            if (nodeViewModel.UnderlyingNode.Mesh?.Material is not { } material) return;
+
+            var dialog = new OpenFileDialog
+            {
+                Filter = "JolieCat Projects (*.jolie)|*.jolie",
+                Title = "Load Clipbar Animation",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Load Clipbar Animation", () =>
+            {
+                var manifest = JolieProjectReader.ReadManifest(dialog.FileName);
+                var cacheDirectory = GetTextureCacheDirectory();
+
+                TextureAnimationTrack track;
+                if (ClipbarReader.IsClipbarProject(manifest))
+                    track = ClipbarAnimationBridge.CreateFromClipbarProject(material, dialog.FileName, cacheDirectory);
+                else if (string.Equals(manifest.ProjectType, "SpriteSheet", StringComparison.OrdinalIgnoreCase))
+                    track = ClipbarAnimationBridge.CreateFromSpriteSheetProject(material, dialog.FileName, cacheDirectory);
+                else
+                {
+                    MessageBox.Show(this,
+                        $"'{Path.GetFileName(dialog.FileName)}' is a '{manifest.ProjectType}' project - "
+                        + "only Clipbar Animation and Sprite Sheet projects can be imported as an animated texture sequence.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                _timeline.SetTextureTrack(track);
+                _timeline.Apply();
+                nodeViewModel.SyncFromCore();
+                _renderer.Refresh();
+            });
         }
 
         // ================= Animation playback transport =================

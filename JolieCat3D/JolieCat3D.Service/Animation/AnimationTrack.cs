@@ -32,10 +32,12 @@ namespace JolieCat3D.Service.Animation
 
         /// <summary>Adds a keyframe at <paramref name="time"/> - replacing any existing
         /// one within <see cref="TimeEpsilon"/> of it (re-recording the same moment,
-        /// rather than accumulating near-duplicates), keeping the list sorted by time.</summary>
-        public void AddKeyframe(double time, Vector3 position, Quaternion rotation, Vector3 scale)
+        /// rather than accumulating near-duplicates), keeping the list sorted by time.
+        /// <paramref name="interpolation"/> governs the segment LEAVING this keyframe
+        /// (see <see cref="InterpolationMode"/>'s own remarks) - Linear by default.</summary>
+        public void AddKeyframe(double time, Vector3 position, Quaternion rotation, Vector3 scale, InterpolationMode interpolation = InterpolationMode.Linear)
         {
-            var keyframe = new Keyframe(time, position, rotation, scale);
+            var keyframe = new Keyframe(time, position, rotation, scale, interpolation);
             var existingIndex = _keyframes.FindIndex(k => Math.Abs(k.Time - time) < TimeEpsilon);
 
             if (existingIndex >= 0) { _keyframes[existingIndex] = keyframe; return; }
@@ -50,8 +52,8 @@ namespace JolieCat3D.Service.Animation
         /// keyframe from where the object already is right now" convenience a Properties
         /// panel's own "Add Keyframe" button uses, rather than a caller needing to read
         /// and pass all three values itself.</summary>
-        public void AddKeyframeFromCurrentTransform(double time) =>
-            AddKeyframe(time, Target.LocalPosition, Target.LocalRotation, Target.LocalScale);
+        public void AddKeyframeFromCurrentTransform(double time, InterpolationMode interpolation = InterpolationMode.Linear) =>
+            AddKeyframe(time, Target.LocalPosition, Target.LocalRotation, Target.LocalScale, interpolation);
 
         /// <summary>Removes the keyframe within <see cref="TimeEpsilon"/> of
         /// <paramref name="time"/>, if any - a no-op if none is that close.</summary>
@@ -63,7 +65,11 @@ namespace JolieCat3D.Service.Animation
         /// <see cref="AnimationTimeline.Apply"/> to apply). A single keyframe reads as a
         /// constant value at every time; <paramref name="time"/> before the first or
         /// after the last keyframe clamps to that keyframe's own value, rather than
-        /// extrapolating.</summary>
+        /// extrapolating. The BEFORE keyframe's own <see cref="Keyframe.Interpolation"/>
+        /// governs this segment (see <see cref="InterpolationMode"/>'s own remarks) -
+        /// <see cref="InterpolationMode.Bezier"/> re-maps the raw time fraction through
+        /// <see cref="CubicBezierEasing"/> before it's used to Lerp/Slerp, so the
+        /// segment eases in and out rather than blending at a constant rate.</summary>
         public (Vector3 Position, Quaternion Rotation, Vector3 Scale)? Evaluate(double time)
         {
             if (_keyframes.Count == 0) return null;
@@ -90,6 +96,8 @@ namespace JolieCat3D.Service.Animation
 
             var span = after.Time - before.Time;
             var t = span > TimeEpsilon ? (float)((time - before.Time) / span) : 0f;
+
+            if (before.Interpolation == InterpolationMode.Bezier) t = CubicBezierEasing.Evaluate(t);
 
             var position = Vector3.Lerp(before.Position, after.Position, t);
             var rotation = Quaternion.Slerp(before.Rotation, after.Rotation, t);

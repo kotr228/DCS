@@ -10,8 +10,12 @@ namespace JolieCat3D.Service.Interop
     /// <see cref="System.Text.Json"/>'s default camelCase-agnostic behavior - both sides
     /// use PascalCase property names, so no <c>JsonPropertyName</c> attributes are
     /// needed either side), but only the subset of fields <see cref="JolieProjectReader"/>
-    /// actually needs (timeline data has no meaning for a 3D material texture slot, so
-    /// isn't reproduced here).
+    /// actually needs - the individual clips/keyframes of the source project's own
+    /// Timeline have no meaning here and aren't reproduced (see
+    /// <c>JolieCat.Core.Serialization.TimelineTrackData</c>), but its overall
+    /// <see cref="TimelineFrameRate"/>/<see cref="TimelineTotalFrames"/> ARE, since
+    /// <c>Interop.ClipbarAnimationBridge</c> uses them to time a clipbar's own frame
+    /// sequence the same way the 2D project itself was authored to play back.
     /// </summary>
     public sealed class JolieProjectManifestInfo
     {
@@ -33,6 +37,18 @@ namespace JolieCat3D.Service.Interop
         /// texture" default when loading a whole project rather than one named layer -
         /// see <see cref="JolieProjectReader.ExtractActiveLayerTexture"/>.</summary>
         public int ActiveLayerIndex { get; set; } = -1;
+
+        /// <summary>The source project's own Timeline frame rate - what
+        /// <c>Interop.ClipbarAnimationBridge</c> spaces a clipbar's own frames by
+        /// default, so an imported animated texture sequence plays back at the same
+        /// speed it was authored at in JolieCat 2D.</summary>
+        public double TimelineFrameRate { get; set; }
+
+        /// <summary>The source project's own Timeline length, in frames - not directly
+        /// used by <c>Interop.ClipbarAnimationBridge</c> (a clipbar's own frame COUNT
+        /// comes from how many "Frame NNN" layers actually exist, not this), but
+        /// available for a caller that wants it anyway.</summary>
+        public double TimelineTotalFrames { get; set; }
     }
 
     /// <summary>One layer's metadata, plus which zip entry holds its pixels - mirrors

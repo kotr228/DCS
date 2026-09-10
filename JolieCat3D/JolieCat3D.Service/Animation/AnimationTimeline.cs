@@ -1,24 +1,29 @@
+using JolieCat3D.Core.Materials;
 using JolieCat3D.Core.Scene;
 
 namespace JolieCat3D.Service.Animation
 {
     /// <summary>
     /// A whole scene's keyframe animation: one <see cref="AnimationTrack"/> per animated
-    /// <see cref="Node"/>, a playback position (<see cref="CurrentTime"/>, in seconds -
-    /// <see cref="CurrentFrame"/>/<see cref="TotalFrames"/>/<see cref="FrameRate"/> are
-    /// display/scrubber conveniences derived from/onto it, never a second source of
+    /// <see cref="Node"/> (Position/Rotation/Scale) plus one <see cref="TextureAnimationTrack"/>
+    /// per animated <see cref="Material"/> (a clipbar/sprite-sheet frame sequence - see
+    /// <c>Interop.ClipbarAnimationBridge"/>), a playback position (<see cref="CurrentTime"/>,
+    /// in seconds - <see cref="CurrentFrame"/>/<see cref="TotalFrames"/>/<see cref="FrameRate"/>
+    /// are display/scrubber conveniences derived from/onto it, never a second source of
     /// truth), and <see cref="Advance"/>/<see cref="Apply"/>, the two calls a playback
     /// transport UI ticks every frame to actually preview the animation: <see cref="Advance"/>
     /// moves <see cref="CurrentTime"/> forward while <see cref="IsPlaying"/>, and
-    /// <see cref="Apply"/> pushes every track's interpolated value at that time straight
-    /// onto its own <see cref="Node.LocalPosition"/>/<see cref="Node.LocalRotation"/>/
-    /// <see cref="Node.LocalScale"/> - the actual scene mutation a
-    /// <c>JolieCat3D.Engine.Rendering.Scene3DRenderer.Refresh</c> then picks up and
-    /// renders.
+    /// <see cref="Apply"/> pushes every track's interpolated/stepped value at that time
+    /// straight onto its own <see cref="Node.LocalPosition"/>/<see cref="Node.LocalRotation"/>/
+    /// <see cref="Node.LocalScale"/> or <see cref="Material.DiffuseTexturePath"/>/
+    /// <see cref="Material.DiffuseTextureOffset"/>/<see cref="Material.DiffuseTextureScale"/> -
+    /// the actual scene mutation a <c>JolieCat3D.Engine.Rendering.Scene3DRenderer.Refresh</c>
+    /// then picks up and renders.
     /// </summary>
     public sealed class AnimationTimeline
     {
         private readonly Dictionary<Node, AnimationTrack> _tracks = new();
+        private readonly Dictionary<Material, TextureAnimationTrack> _textureTracks = new();
 
         private double _frameRate = 24.0;
         private int _totalFrames = 120;
@@ -91,6 +96,31 @@ namespace JolieCat3D.Service.Animation
         /// no longer in it.</summary>
         public void RemoveTrack(Node node) => _tracks.Remove(node);
 
+        /// <summary>The <see cref="TextureAnimationTrack"/> already recording
+        /// <paramref name="material"/>'s own frame sequence, or a brand new (empty) one
+        /// added and returned if none exists yet.</summary>
+        public TextureAnimationTrack GetOrCreateTextureTrack(Material material)
+        {
+            ArgumentNullException.ThrowIfNull(material);
+            if (!_textureTracks.TryGetValue(material, out var track)) _textureTracks[material] = track = new TextureAnimationTrack(material);
+            return track;
+        }
+
+        /// <summary>Installs <paramref name="track"/> as <paramref name="track"/>'s own
+        /// <see cref="TextureAnimationTrack.Target"/> material's texture track,
+        /// replacing any existing one for that material entirely - what
+        /// <c>Interop.ClipbarAnimationBridge</c>'s own factory methods hand off to after
+        /// building a whole track's worth of frames in one call, rather than a caller
+        /// adding each frame through <see cref="GetOrCreateTextureTrack"/> one at a
+        /// time.</summary>
+        public void SetTextureTrack(TextureAnimationTrack track)
+        {
+            ArgumentNullException.ThrowIfNull(track);
+            _textureTracks[track.Target] = track;
+        }
+
+        public void RemoveTextureTrack(Material material) => _textureTracks.Remove(material);
+
         public void Play() => IsPlaying = true;
         public void Pause() => IsPlaying = false;
 
@@ -141,6 +171,15 @@ namespace JolieCat3D.Service.Animation
                 track.Target.LocalPosition = result.Position;
                 track.Target.LocalRotation = result.Rotation;
                 track.Target.LocalScale = result.Scale;
+            }
+
+            foreach (var track in _textureTracks.Values)
+            {
+                if (track.Evaluate(CurrentTime) is not { } frame) continue;
+
+                track.Target.DiffuseTexturePath = frame.TexturePath;
+                track.Target.DiffuseTextureOffset = frame.Offset;
+                track.Target.DiffuseTextureScale = frame.Scale;
             }
         }
     }
