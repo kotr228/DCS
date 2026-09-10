@@ -60,6 +60,34 @@ namespace JolieCat3D.Core.Geometry
             _polygons.Add(polygon);
         }
 
+        /// <summary>A complete, fully independent copy - every <see cref="Vertex"/>/
+        /// <see cref="Face"/> (both plain structs, copied by value automatically) plus a
+        /// brand new <see cref="Polygon"/> instance per entry in <see cref="Polygons"/>
+        /// (a <see cref="Polygon"/> is a reference type wrapping its own mutable-looking
+        /// index list, so sharing the same instances would let an edit to the clone's
+        /// polygon list somehow reach back into this mesh's own, or vice versa - the same
+        /// "new Polygon(polygon.Indices)" copy <see cref="Modifiers.MirrorModifier.Apply"/>
+        /// already uses for exactly this reason). <see cref="Material"/> itself is copied
+        /// by REFERENCE, not deep-cloned - the same "materials are shared, not owned
+        /// per-mesh" assumption every other part of this project already makes (see e.g.
+        /// <c>Service.Animation.AnimationTimeline.TextureTracks</c>, keyed by the actual
+        /// <see cref="Material"/> instance). The one caller today
+        /// (<c>Service.Commands.MeshEditCommandFactory</c>) uses this to capture an
+        /// Undo/Redo snapshot BEFORE a structural edit (Extrude/Subdivide) that mutates a
+        /// mesh in place - a full independent copy is what makes "restore the exact
+        /// pre-edit geometry" possible without <see cref="Mesh"/> needing any kind of
+        /// "undo log"/inverse-operation of its own.</summary>
+        public Mesh Clone()
+        {
+            var clone = new Mesh(Name) { Material = Material };
+
+            foreach (var vertex in _vertices) clone.AddVertex(vertex);
+            foreach (var face in _faces) clone.AddFace(face);
+            foreach (var polygon in _polygons) clone.AddPolygon(new Polygon(polygon.Indices));
+
+            return clone;
+        }
+
         /// <summary>Replaces the position of the vertex at <paramref name="index"/> in
         /// place, keeping its existing normal/UV/color - the one way to move an
         /// existing vertex without re-adding it (see <see cref="Vertex"/>'s own remarks

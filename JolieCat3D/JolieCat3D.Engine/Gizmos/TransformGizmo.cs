@@ -8,6 +8,30 @@ using Quaternion = System.Numerics.Quaternion;
 
 namespace JolieCat3D.Engine.Gizmos
 {
+    /// <summary>One whole drag gesture's own before/after transform, raised by
+    /// <see cref="TransformGizmo.TransformCommitted"/> - the Undo/Redo system's own
+    /// entry point (<c>Service.Commands.TransformNodeCommand</c>) for turning a
+    /// completed drag into one recorded command, as opposed to
+    /// <see cref="TransformGizmo.TransformChanged"/>'s per-TICK firing (meant for live
+    /// visual feedback while the drag is still happening, not for deciding when a whole
+    /// gesture is "done").</summary>
+    public sealed class TransformCommittedEventArgs : EventArgs
+    {
+        public CoreNode Target { get; }
+        public (Vector3 Position, Quaternion Rotation, Vector3 Scale) Before { get; }
+        public (Vector3 Position, Quaternion Rotation, Vector3 Scale) After { get; }
+
+        public TransformCommittedEventArgs(
+            CoreNode target,
+            (Vector3 Position, Quaternion Rotation, Vector3 Scale) before,
+            (Vector3 Position, Quaternion Rotation, Vector3 Scale) after)
+        {
+            Target = target;
+            Before = before;
+            After = after;
+        }
+    }
+
     /// <summary>
     /// The on-screen Translate/Rotate/Scale handles for whichever <see cref="CoreNode"/>
     /// is currently attached (see <see cref="Attach"/>) - built from
@@ -50,8 +74,21 @@ namespace JolieCat3D.Engine.Gizmos
         /// <summary>Raised after any drag actually changes <see cref="Target"/>'s
         /// transform - the caller's cue to re-render the scene (see
         /// <c>Rendering.Scene3DRenderer.Refresh"/>) and refresh any UI (a Properties
-        /// Inspector's Position/Rotation/Scale fields) still showing the old values.</summary>
+        /// Inspector's Position/Rotation/Scale fields) still showing the old values.
+        /// Fires on every intermediate tick of an in-progress drag, for live visual
+        /// feedback - see <see cref="TransformCommitted"/> for the "the WHOLE drag
+        /// gesture just finished" signal instead.</summary>
         public event EventHandler? TransformChanged;
+
+        /// <summary>Raised exactly once when a WHOLE drag gesture ends (the manipulator
+        /// releases mouse capture - see <see cref="TrackDelta"/>), carrying the
+        /// before/after transform the entire gesture produced - <c>JolieCat3D.UI</c>'s
+        /// own cue to record ONE <c>Service.Commands.TransformNodeCommand</c> for the
+        /// whole drag, not one per <see cref="TransformChanged"/> tick (which would turn
+        /// a single mouse drag into dozens of individually-undoable micro-steps). Not
+        /// raised at all if the drag ended exactly where it started (nothing changed, so
+        /// nothing to undo) - see <see cref="TrackDelta"/>'s own comparison.</summary>
+        public event EventHandler<TransformCommittedEventArgs>? TransformCommitted;
 
         public TransformGizmo(HelixViewport3D viewport) =>
             _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
@@ -200,6 +237,35 @@ namespace JolieCat3D.Engine.Gizmos
 
             var descriptor = DependencyPropertyDescriptor.FromProperty(Manipulator.ValueProperty, typeof(Manipulator));
             descriptor?.AddValueChanged(manipulator, handler);
+
+            // GotMouseCapture/LostMouseCapture bracket exactly one whole drag gesture -
+            // the standard WPF convention every mouse-driven manipulator relies on for
+            // its own dragging (capture the mouse on press, release it on release), used
+            // here purely to know WHEN one whole gesture starts/ends for
+            // TransformCommitted's own sake, not to drive the drag itself (TrackDelta's
+            // own Value-changed handler above still does that, exactly as before).
+            // Plain CLR event subscriptions, unlike the DependencyPropertyDescriptor one
+            // above - no explicit unsubscription needed in Rebuild(): once a discarded
+            // manipulator has no other reference keeping it alive, it (and these two
+            // handlers along with it) become garbage-collectible together regardless.
+            (Vector3 Position, Quaternion Rotation, Vector3 Scale)? dragStartState = null;
+
+            manipulator.GotMouseCapture += (_, _) =>
+            {
+                if (Target is { } node) dragStartState = (node.LocalPosition, node.LocalRotation, node.LocalScale);
+            };
+
+            manipulator.LostMouseCapture += (_, _) =>
+            {
+                if (Target is { } node && dragStartState is { } before)
+                {
+                    var after = (node.LocalPosition, node.LocalRotation, node.LocalScale);
+                    if (before.Position != after.LocalPosition || before.Rotation != after.LocalRotation || before.Scale != after.LocalScale)
+                        TransformCommitted?.Invoke(this, new TransformCommittedEventArgs(node, before, after));
+                }
+
+                dragStartState = null;
+            };
 
             _viewport.Children.Add(manipulator);
             _activeManipulators.Add((manipulator, handler));

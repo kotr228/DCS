@@ -60,6 +60,14 @@
                 <Separator />
                 <MenuItem Header="E_xit" Click="ExitMenuItem_Click" />
             </MenuItem>
+            <!-- Plain, unstyled functional entries (this whole UI is a temporary test
+                 layout) - ApplicationCommands.Undo/Redo already carry their own default
+                 Ctrl+Z/Ctrl+Y gestures and InputGestureText, wired to
+                 MainWindow's own CommandHistory in its constructor. -->
+            <MenuItem Header="_Edit">
+                <MenuItem Header="_Undo" Command="ApplicationCommands.Undo" />
+                <MenuItem Header="_Redo" Command="ApplicationCommands.Redo" />
+            </MenuItem>
         </Menu>
 
         <!-- ================= Gizmo Mode Toolbar ================= -->

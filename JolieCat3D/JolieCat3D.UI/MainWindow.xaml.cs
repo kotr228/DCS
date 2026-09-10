@@ -13,6 +13,7 @@ using JolieCat3D.Engine.Gizmos;
 using JolieCat3D.Engine.Rendering;
 using JolieCat3D.Service;
 using JolieCat3D.Service.Animation;
+using JolieCat3D.Service.Commands;
 using JolieCat3D.Service.Interop;
 using JolieCat3D.UI.ViewModels;
 using Microsoft.Win32;
@@ -62,6 +63,15 @@ namespace JolieCat3D.UI
         // remarks.
         private bool _isRenderingFrames;
 
+        // The Undo/Redo stack (see Service.Commands.CommandHistory's own remarks) -
+        // every gizmo drag (via _gizmo.TransformCommitted, wired below) and every
+        // Extrude/Subdivide (see ExtrudeButton_Click/SubdivideButton_Click) is recorded
+        // here; ApplicationCommands.Undo/Redo (bound below - their own default gestures
+        // ARE Ctrl+Z/Ctrl+Y) drive it. Cleared whenever the whole scene is replaced (see
+        // LoadScene) - a recorded command references THAT scene's own Node/Mesh
+        // instances, meaningless against a completely different one.
+        private readonly CommandHistory _commandHistory = new();
+
         private Scene3D _currentScene = new("Untitled");
         private string? _currentFilePath;
 
@@ -94,6 +104,22 @@ namespace JolieCat3D.UI
                 _sceneViewModel.FindViewModel(_gizmo.Target)?.SyncFromCore();
             };
 
+            // A WHOLE gizmo drag gesture just ended (see TransformGizmo.TransformCommitted's
+            // own remarks) - record it as ONE undoable command, not one per
+            // TransformChanged tick. The command's own onChanged callback mirrors
+            // TransformChanged's handler above exactly, since Undo/Redo need the same
+            // "re-render + resync the Properties Inspector" refresh a live drag tick does.
+            _gizmo.TransformCommitted += (_, args) =>
+            {
+                var command = new TransformNodeCommand(args.Target, args.Before, args.After, "Transform Object", onChanged: () =>
+                {
+                    _renderer.Refresh();
+                    _gizmo.Refresh();
+                    _sceneViewModel.FindViewModel(args.Target)?.SyncFromCore();
+                });
+                _commandHistory.Record(command);
+            };
+
             // A component-gizmo drag mutates the target mesh's own vertex positions
             // directly (see MeshEditSession.ApplyTranslation) - Refresh() re-renders the
             // scene from that updated Core.Geometry.Mesh AND rebuilds the marker overlay
@@ -119,6 +145,19 @@ namespace JolieCat3D.UI
             CommandBindings.Add(new CommandBinding(ApplicationCommands.Open, (_, _) => OpenScene()));
             CommandBindings.Add(new CommandBinding(ApplicationCommands.Save, (_, _) => SaveScene()));
             CommandBindings.Add(new CommandBinding(ApplicationCommands.SaveAs, (_, _) => SaveSceneAs()));
+
+            // Ctrl+Z/Ctrl+Y - ApplicationCommands.Undo/Redo's own DEFAULT gestures
+            // already are exactly that, the same "let WPF's own standard command supply
+            // the gesture/InputGestureText for free" reasoning as New/Open/Save/SaveAs
+            // above. CanExecute is wired to CommandHistory's own CanUndo/CanRedo so the
+            // key (and any menu item bound to the same command) is a no-op, not a
+            // confusing error, once there's genuinely nothing left to undo/redo.
+            CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo,
+                (_, _) => _commandHistory.Undo(),
+                (_, e) => e.CanExecute = _commandHistory.CanUndo));
+            CommandBindings.Add(new CommandBinding(ApplicationCommands.Redo,
+                (_, _) => _commandHistory.Redo(),
+                (_, e) => e.CanExecute = _commandHistory.CanRedo));
 
             // A watched JolieWorkspaceWatcher owns a real OS file-system handle - stop
             // and dispose it when the window closes rather than leaking it for the rest
@@ -152,6 +191,12 @@ namespace JolieCat3D.UI
             SelectNode(null);
             _sceneViewModel.Load(scene);
             _renderer.Render(scene);
+
+            // Every recorded command references THIS scene's own Node/Mesh instances -
+            // undoing one against a completely different, freshly loaded scene would be
+            // meaningless (see CommandHistory.Clear's own remarks), so a whole-scene
+            // replacement always starts Undo/Redo completely fresh too.
+            _commandHistory.Clear();
 
             Title = $"JolieCat3D - {(filePath is null ? "Untitled" : Path.GetFileName(filePath))}";
         }
@@ -566,20 +611,30 @@ namespace JolieCat3D.UI
 
         /// <summary>The Edit Mode toolbar's "Extrude" button - extrudes whichever face
         /// is currently fully selected (Face mode) via <see cref="MeshEditSession.ExtrudeSelectedFace"/>,
-        /// then re-renders (<see cref="Scene3DRenderer.Refresh"/> rebuilds the viewport's
-        /// geometry straight from the now-extruded <c>Core.Geometry.Mesh</c>, the same
-        /// "real-time" update mechanism every other Edit Mode operation already uses)
-        /// and rebuilds the component gizmo at the new cap face's own centroid. Tells the
-        /// user what to do instead if nothing extrudable is currently selected, rather
-        /// than silently doing nothing.</summary>
+        /// wrapped into an undoable <see cref="MeshEditCommand"/> via
+        /// <see cref="MeshEditCommandFactory.Capture"/> and recorded onto
+        /// <see cref="_commandHistory"/>, then re-renders (<see cref="Scene3DRenderer.Refresh"/>
+        /// rebuilds the viewport's geometry straight from the now-extruded
+        /// <c>Core.Geometry.Mesh</c>, the same "real-time" update mechanism every other
+        /// Edit Mode operation already uses) and rebuilds the component gizmo at the new
+        /// cap face's own centroid. Tells the user what to do instead if nothing
+        /// extrudable is currently selected, rather than silently doing nothing.</summary>
         private void ExtrudeButton_Click(object sender, RoutedEventArgs e)
         {
             var session = _renderer.EditSession;
-            if (session.Target is null) return;
+            if (session.Target is not { } node) return;
 
             TryRun("Extrude", () =>
             {
-                if (!session.ExtrudeSelectedFace(DefaultExtrudeDistance))
+                var command = MeshEditCommandFactory.Capture(node, "Extrude Face",
+                    () => session.ExtrudeSelectedFace(DefaultExtrudeDistance),
+                    onChanged: () =>
+                    {
+                        _renderer.Refresh();
+                        _componentGizmo.Attach(session);
+                    });
+
+                if (command is null)
                 {
                     MessageBox.Show(this,
                         "Select a single quad/n-gon face (Face mode) to extrude - a triangle "
@@ -588,6 +643,7 @@ namespace JolieCat3D.UI
                     return;
                 }
 
+                _commandHistory.Record(command);
                 _renderer.Refresh();
                 _componentGizmo.Attach(session);
             });
@@ -595,17 +651,28 @@ namespace JolieCat3D.UI
 
         /// <summary>The Edit Mode toolbar's "Subdivide" button - subdivides the WHOLE
         /// target mesh via <see cref="MeshEditSession.SubdivideMesh"/> (see its own
-        /// remarks on why this is never a partial/selection-scoped operation) and
+        /// remarks on why this is never a partial/selection-scoped operation), likewise
+        /// wrapped into an undoable, recorded <see cref="MeshEditCommand"/>, and
         /// re-renders/rebuilds the gizmo the same way <see cref="ExtrudeButton_Click"/>
         /// does.</summary>
         private void SubdivideButton_Click(object sender, RoutedEventArgs e)
         {
             var session = _renderer.EditSession;
-            if (session.Target is null) return;
+            if (session.Target is not { } node) return;
 
             TryRun("Subdivide", () =>
             {
-                session.SubdivideMesh();
+                var command = MeshEditCommandFactory.Capture(node, "Subdivide Mesh",
+                    () => session.SubdivideMesh(),
+                    onChanged: () =>
+                    {
+                        _renderer.Refresh();
+                        _componentGizmo.Attach(session);
+                    });
+
+                if (command is null) return; // no mesh on this node at all - nothing to subdivide or undo
+
+                _commandHistory.Record(command);
                 _renderer.Refresh();
                 _componentGizmo.Attach(session);
             });
