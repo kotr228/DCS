@@ -123,5 +123,61 @@ namespace JolieCat3D.Engine.Editing
 
             mesh.RecalculateNormals();
         }
+
+        /// <summary>
+        /// Extrudes the currently fully-selected face outward by <paramref name="distance"/>
+        /// along its own normal (see <see cref="Mesh.ExtrudeFace"/>), replacing the
+        /// current selection with the freshly-created cap face's own vertices - the
+        /// modeling-tool convention of an Extrude leaving the new face selected, ready
+        /// for a further drag (via <see cref="ComponentGizmo"/>) or another Extrude.
+        /// Only ever finds a match among <see cref="Mesh.Polygons"/> (the first one
+        /// whose every vertex is selected, per <see cref="IsFaceSelected"/>) - a
+        /// <see cref="Mesh.Faces"/> triangle isn't itself a <see cref="Polygon"/>
+        /// <see cref="Mesh.ExtrudeFace"/> could remove/replace, so an all-triangle mesh
+        /// (an STL import, or the result of <see cref="SubdivideMesh"/>) has nothing
+        /// this can extrude - a real, disclosed limitation of <see cref="Mesh.ExtrudeFace"/>
+        /// itself, not something this method works around. Returns false (a no-op) with
+        /// no fully-selected polygon face found, or no <see cref="Target"/> at all.
+        /// </summary>
+        public bool ExtrudeSelectedFace(float distance)
+        {
+            if (Target?.Mesh is not { } mesh) return false;
+
+            var selectedPolygon = FindFullySelectedPolygon(mesh);
+            if (selectedPolygon is null) return false;
+
+            var cap = mesh.ExtrudeFace(selectedPolygon, distance);
+            SelectFace(cap.Indices);
+            return true;
+        }
+
+        private Polygon? FindFullySelectedPolygon(Mesh mesh)
+        {
+            foreach (var polygon in mesh.Polygons)
+                if (IsFaceSelected(polygon.Indices)) return polygon;
+            return null;
+        }
+
+        /// <summary>
+        /// Subdivides the WHOLE target mesh (see <see cref="Mesh.Subdivide"/>'s own
+        /// remarks on why this is never a partial/selection-scoped operation in
+        /// <c>JolieCat3D.Core</c> itself - there is no concept of "subdivide just this
+        /// selected face" there) and clears the current selection. The mesh's topology
+        /// (which faces/polygons exist at all) has completely changed - a selection made
+        /// against the PRE-subdivide face layout has no single coherent "face" left to
+        /// refer to (each original face is now several smaller ones), even though the
+        /// original vertices themselves are untouched and still present at the same
+        /// indices (<see cref="Mesh.Subdivide"/> only ever appends new vertices, never
+        /// removes or reorders existing ones). Returns false (a no-op) with no
+        /// <see cref="Target"/> at all.
+        /// </summary>
+        public bool SubdivideMesh()
+        {
+            if (Target?.Mesh is not { } mesh) return false;
+
+            mesh.Subdivide();
+            Clear();
+            return true;
+        }
     }
 }

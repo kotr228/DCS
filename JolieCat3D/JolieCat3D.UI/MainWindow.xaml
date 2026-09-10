@@ -91,6 +91,14 @@
                 <RadioButton x:Name="FaceModeButton" Content="Face" GroupName="ComponentMode"
                              IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
                              Checked="ComponentModeButton_Checked" Tag="Face" />
+
+                <!-- Extrude needs a single fully-selected Polygon face (Face mode);
+                     Subdivide always applies to the whole target mesh regardless of the
+                     current selection - see MeshEditSession's own remarks on both. -->
+                <Button x:Name="ExtrudeButton" Content="Extrude" IsEnabled="False"
+                        Margin="16,0,4,0" Padding="8,2" Click="ExtrudeButton_Click" />
+                <Button x:Name="SubdivideButton" Content="Subdivide" IsEnabled="False"
+                        Padding="8,2" Click="SubdivideButton_Click" />
             </StackPanel>
         </Border>
 

@@ -321,6 +321,8 @@ namespace JolieCat3D.UI
             VertexModeButton.IsEnabled = enteringEditMode;
             EdgeModeButton.IsEnabled = enteringEditMode;
             FaceModeButton.IsEnabled = enteringEditMode;
+            ExtrudeButton.IsEnabled = enteringEditMode;
+            SubdivideButton.IsEnabled = enteringEditMode;
 
             if (enteringEditMode)
             {
@@ -403,6 +405,63 @@ namespace JolieCat3D.UI
 
             _renderer.RefreshComponentOverlay();
             _componentGizmo.Attach(session);
+        }
+
+        /// <summary>A modest, fixed initial offset for the Extrude toolbar button -
+        /// enough to visibly separate the new cap face from the original one so the
+        /// result is never a degenerate zero-thickness extrusion, while still leaving
+        /// the freshly-extruded (now selected - see <see cref="MeshEditSession.ExtrudeSelectedFace"/>)
+        /// face for <see cref="ComponentGizmo"/> to drag further afterward - the same
+        /// "Extrude immediately creates geometry a small amount out, then let the user
+        /// drag it" convention most modeling tools use for a toolbar/menu-triggered
+        /// Extrude (as opposed to one dragged out live from the very first mouse-move).</summary>
+        private const float DefaultExtrudeDistance = 0.5f;
+
+        /// <summary>The Edit Mode toolbar's "Extrude" button - extrudes whichever face
+        /// is currently fully selected (Face mode) via <see cref="MeshEditSession.ExtrudeSelectedFace"/>,
+        /// then re-renders (<see cref="Scene3DRenderer.Refresh"/> rebuilds the viewport's
+        /// geometry straight from the now-extruded <c>Core.Geometry.Mesh</c>, the same
+        /// "real-time" update mechanism every other Edit Mode operation already uses)
+        /// and rebuilds the component gizmo at the new cap face's own centroid. Tells the
+        /// user what to do instead if nothing extrudable is currently selected, rather
+        /// than silently doing nothing.</summary>
+        private void ExtrudeButton_Click(object sender, RoutedEventArgs e)
+        {
+            var session = _renderer.EditSession;
+            if (session.Target is null) return;
+
+            TryRun("Extrude", () =>
+            {
+                if (!session.ExtrudeSelectedFace(DefaultExtrudeDistance))
+                {
+                    MessageBox.Show(this,
+                        "Select a single quad/n-gon face (Face mode) to extrude - a triangle "
+                        + "(from an STL import, or after Subdivide) can't be extruded directly.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                _renderer.Refresh();
+                _componentGizmo.Attach(session);
+            });
+        }
+
+        /// <summary>The Edit Mode toolbar's "Subdivide" button - subdivides the WHOLE
+        /// target mesh via <see cref="MeshEditSession.SubdivideMesh"/> (see its own
+        /// remarks on why this is never a partial/selection-scoped operation) and
+        /// re-renders/rebuilds the gizmo the same way <see cref="ExtrudeButton_Click"/>
+        /// does.</summary>
+        private void SubdivideButton_Click(object sender, RoutedEventArgs e)
+        {
+            var session = _renderer.EditSession;
+            if (session.Target is null) return;
+
+            TryRun("Subdivide", () =>
+            {
+                session.SubdivideMesh();
+                _renderer.Refresh();
+                _componentGizmo.Attach(session);
+            });
         }
 
         /// <summary>The Properties panel's "Load Texture..." button - loads an image
