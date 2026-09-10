@@ -57,6 +57,11 @@ namespace JolieCat3D.UI
         private readonly DispatcherTimer _playbackTimer;
         private bool _isUpdatingAnimationUI;
 
+        // Guards RenderAnimationFramesMenuItem_Click against a second, overlapping
+        // render being started while one is already in flight - see that method's own
+        // remarks.
+        private bool _isRenderingFrames;
+
         private Scene3D _currentScene = new("Untitled");
         private string? _currentFilePath;
 
@@ -247,20 +252,35 @@ namespace JolieCat3D.UI
         }
 
         /// <summary>Bakes the current <see cref="_timeline"/> out to a numbered PNG
-        /// sequence, one <see cref="ViewportCaptureService.CaptureFrame"/> per frame
+        /// sequence, one <see cref="ViewportCaptureService.CaptureFrameAsync"/> per frame
         /// across the timeline's own <see cref="AnimationTimeline.TotalFrames"/> - the
         /// "render out this animation as pictures" counterpart to
         /// <see cref="ExportAnimationMenuItem_Click"/>'s "save the CURVES themselves"
         /// (see <see cref="ViewportCaptureService"/>'s own remarks on why a caller-driven
         /// per-frame callback, rather than this method knowing anything about
         /// <see cref="AnimationTimeline"/> itself, is what actually advances the scene
-        /// between captures). Playback is paused first (a render capture scrubbing frame
-        /// by frame while <see cref="AnimationTimeline.IsPlaying"/> was also independently
-        /// advancing the SAME timeline from <see cref="OnPlaybackTick"/> would fight over
-        /// <see cref="AnimationTimeline.CurrentTime"/>), and resumed afterward only if it
-        /// was actually playing before.</summary>
-        private void RenderAnimationFramesMenuItem_Click(object sender, RoutedEventArgs e)
+        /// between captures). Runs via <see cref="ViewportCaptureService.CaptureSequenceAsync"/>,
+        /// so this whole method is itself <c>async</c> - a many-hundred-frame render
+        /// would otherwise freeze the window for its entire duration (no Cancel button,
+        /// no repaint, an unresponsive title bar) the way a fully synchronous version
+        /// of this same loop would. <see cref="_isRenderingFrames"/> refuses a second,
+        /// overlapping render (two capture loops racing over the same
+        /// <see cref="_timeline"/>/viewport would corrupt both) rather than queuing or
+        /// silently ignoring the second click. Playback is paused first (a render
+        /// capture scrubbing frame by frame while <see cref="AnimationTimeline.IsPlaying"/>
+        /// was also independently advancing the SAME timeline from
+        /// <see cref="OnPlaybackTick"/> would fight over <see cref="AnimationTimeline.CurrentTime"/>),
+        /// and resumed afterward (success OR failure) only if it was actually playing
+        /// before.</summary>
+        private async void RenderAnimationFramesMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            if (_isRenderingFrames)
+            {
+                MessageBox.Show(this, "A render is already in progress - please wait for it to finish.",
+                    "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             var dialog = new SaveFileDialog
             {
                 Filter = "PNG Image Sequence (*.png)|*.png",
@@ -269,7 +289,7 @@ namespace JolieCat3D.UI
             };
             if (dialog.ShowDialog(this) != true) return;
 
-            TryRun("Render Animation Frames", () =>
+            await TryRunAsync("Render Animation Frames", async () =>
             {
                 var outputDirectory = Path.GetDirectoryName(dialog.FileName);
                 if (string.IsNullOrEmpty(outputDirectory)) outputDirectory = ".";
@@ -278,19 +298,27 @@ namespace JolieCat3D.UI
                 var wasPlaying = _timeline.IsPlaying;
                 _timeline.Pause();
 
-                var paths = ViewportCaptureService.CaptureSequence(Viewport, _timeline.TotalFrames, frameIndex =>
+                _isRenderingFrames = true;
+                try
                 {
-                    _timeline.CurrentFrame = frameIndex;
-                    _timeline.Apply();
-                    _renderer.Refresh();
-                }, outputDirectory, baseFileName);
+                    var paths = await ViewportCaptureService.CaptureSequenceAsync(Viewport, _timeline.TotalFrames, frameIndex =>
+                    {
+                        _timeline.CurrentFrame = frameIndex;
+                        _timeline.Apply();
+                        _renderer.Refresh();
+                    }, outputDirectory, baseFileName);
 
-                _sceneViewModel.SelectedNode?.SyncFromCore();
-                RefreshAnimationUI();
-                if (wasPlaying) _timeline.Play();
+                    _sceneViewModel.SelectedNode?.SyncFromCore();
+                    RefreshAnimationUI();
 
-                MessageBox.Show(this, $"Rendered {paths.Count} frame(s) to '{outputDirectory}'.",
-                    "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show(this, $"Rendered {paths.Count} frame(s) to '{outputDirectory}'.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                finally
+                {
+                    _isRenderingFrames = false;
+                    if (wasPlaying) _timeline.Play();
+                }
             });
         }
 
@@ -317,6 +345,25 @@ namespace JolieCat3D.UI
             try
             {
                 action();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"{operationName} failed:\n{ex.Message}", "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>The async-<see cref="Task"/> twin of <see cref="TryRun"/> - for an
+        /// operation (like <see cref="RenderAnimationFramesMenuItem_Click"/>'s own
+        /// render loop) that itself needs to <c>await</c> without freezing this window
+        /// in the meantime. Same catch-and-report behavior: any exception the awaited
+        /// action lets through (a missing/inaccessible output directory, a locked file,
+        /// a cancelled operation, ...) ends up as one friendly message box instead of an
+        /// unhandled exception on this window's dispatcher.</summary>
+        private async Task TryRunAsync(string operationName, Func<Task> action)
+        {
+            try
+            {
+                await action();
             }
             catch (Exception ex)
             {
@@ -816,29 +863,46 @@ namespace JolieCat3D.UI
         private static string GetTextureCacheDirectory() => Path.Combine(Path.GetTempPath(), "JolieCat3D", "JolieTextureCache");
 
         /// <summary>File > Watch JolieCat Workspace... - picks a folder and starts a
-        /// <see cref="JolieWorkspaceWatcher"/> on it, stopping/disposing whichever one
-        /// was already running first (only one active watch at a time). Every
-        /// subsequent <see cref="JolieWorkspaceWatcher.AssetChanged"/> is handled by
+        /// <see cref="JolieWorkspaceWatcher"/> on it. Every subsequent
+        /// <see cref="JolieWorkspaceWatcher.AssetChanged"/> is handled by
         /// <see cref="HandleWorkspaceAssetChanged"/> - the actual "automatically detect,
-        /// load, or refresh" bridge in action.</summary>
+        /// load, or refresh" bridge in action. The PREVIOUS watch (if any) is only
+        /// stopped/disposed once the NEW one has successfully started - constructing or
+        /// starting a <see cref="JolieWorkspaceWatcher"/> can throw (the chosen folder
+        /// was deleted/unmounted between the picker dialog and this call, a permissions
+        /// error, ...), and a failed attempt to switch folders should never leave the
+        /// user with NO active watch at all when they already had a working one; see
+        /// <see cref="TryRun"/> for how that failure itself is reported.</summary>
         private void WatchWorkspaceMenuItem_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new OpenFolderDialog { Title = "Watch JolieCat Workspace Folder" };
             if (dialog.ShowDialog(this) != true) return;
 
-            _workspaceWatcher?.Dispose();
+            TryRun("Watch JolieCat Workspace", () =>
+            {
+                var watcher = new JolieWorkspaceWatcher(dialog.FolderName);
+                // FileSystemWatcher raises its events on a ThreadPool thread, never this
+                // window's own dispatcher thread - every access to _textureSources, a
+                // NodeViewModel, or _renderer from the handler MUST be marshaled back via
+                // Dispatcher.Invoke first, or it risks a cross-thread WPF access exception
+                // (or, for the plain Dictionary read, a race with the UI thread).
+                watcher.AssetChanged += (_, args) => Dispatcher.Invoke(() => HandleWorkspaceAssetChanged(args));
 
-            var watcher = new JolieWorkspaceWatcher(dialog.FolderName);
-            // FileSystemWatcher raises its events on a ThreadPool thread, never this
-            // window's own dispatcher thread - every access to _textureSources, a
-            // NodeViewModel, or _renderer from the handler MUST be marshaled back via
-            // Dispatcher.Invoke first, or it risks a cross-thread WPF access exception
-            // (or, for the plain Dictionary read, a race with the UI thread).
-            watcher.AssetChanged += (_, args) => Dispatcher.Invoke(() => HandleWorkspaceAssetChanged(args));
-            watcher.Start();
-            _workspaceWatcher = watcher;
+                try
+                {
+                    watcher.Start();
+                }
+                catch
+                {
+                    watcher.Dispose();
+                    throw;
+                }
 
-            Title = $"JolieCat3D - {(_currentFilePath is null ? "Untitled" : Path.GetFileName(_currentFilePath))} [watching {dialog.FolderName}]";
+                _workspaceWatcher?.Dispose();
+                _workspaceWatcher = watcher;
+
+                Title = $"JolieCat3D - {(_currentFilePath is null ? "Untitled" : Path.GetFileName(_currentFilePath))} [watching {dialog.FolderName}]";
+            });
         }
 
         /// <summary>Reloads every node whose currently-tracked texture source (see
