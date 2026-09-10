@@ -1,4 +1,5 @@
 using System.Windows.Media.Media3D;
+using JolieCat3D.Core.Modifiers;
 using JolieCat3D.Engine.Rendering;
 using CoreNode = JolieCat3D.Core.Scene.Node;
 using CoreScene = JolieCat3D.Core.Scene.Scene3D;
@@ -14,7 +15,14 @@ namespace JolieCat3D.Engine.Geometry
     /// as a WPF <see cref="Transform3DGroup"/> - nesting a child's <see cref="Model3DGroup"/>
     /// inside its parent's is what makes WPF's own model tree compose parent/child
     /// transforms the same way <see cref="CoreNode.GetWorldTransform"/> does, so this never
-    /// needs to flatten a node's world matrix by hand.
+    /// needs to flatten a node's world matrix by hand. Before actually building GPU
+    /// geometry for a node's mesh, its own <see cref="CoreNode.Modifiers"/> stack is
+    /// evaluated first (see <see cref="ModifierStack.Evaluate"/>) - so <em>every</em>
+    /// consumer of this class (the main viewport, but also anything else that ever calls
+    /// it) always sees a node's mesh WITH its modifier stack already applied, never the
+    /// raw <see cref="CoreNode.Mesh"/> a Mirror/Subdivision Surface modifier is meant to
+    /// hide/replace for display purposes. <see cref="CoreNode.Mesh"/> itself is never
+    /// touched by this - Edit Mode still edits exactly the base geometry.
     /// </summary>
     public static class SceneGraphBuilder
     {
@@ -55,8 +63,15 @@ namespace JolieCat3D.Engine.Geometry
 
             if (node.Mesh is { } mesh)
             {
-                var material = MaterialFactory.Create(mesh.Material, shadingMode);
-                var model = new GeometryModel3D(MeshGeometryFactory.Create(mesh), material)
+                // The evaluated (post-modifier-stack) mesh is what actually gets built
+                // into GPU geometry and shaded - node.Mesh itself, with an empty or
+                // all-disabled Modifiers list, IS this value unchanged (see
+                // ModifierStack.Evaluate's own remarks), so a node with no modifiers at
+                // all costs nothing beyond the empty loop.
+                var evaluatedMesh = ModifierStack.Evaluate(mesh, node.Modifiers);
+
+                var material = MaterialFactory.Create(evaluatedMesh.Material, shadingMode);
+                var model = new GeometryModel3D(MeshGeometryFactory.Create(evaluatedMesh), material)
                 {
                     // Lets the same material shade the mesh from either side - a mesh
                     // authored with outward-only normals (Primitives.CreateCube included)

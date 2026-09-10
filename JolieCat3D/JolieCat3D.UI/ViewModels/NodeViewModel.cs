@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using JolieCat3D.Core.Geometry;
+using JolieCat3D.Core.Modifiers;
 using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
 
@@ -48,6 +49,7 @@ namespace JolieCat3D.UI.ViewModels
             _node = node ?? throw new ArgumentNullException(nameof(node));
             _onChanged = onChanged ?? throw new ArgumentNullException(nameof(onChanged));
             SyncFromCore();
+            RefreshModifiers();
         }
 
         public string Name
@@ -233,6 +235,67 @@ namespace JolieCat3D.UI.ViewModels
             if (_node.Mesh is not { } mesh) return;
 
             UVProjector.Apply(mesh, mode);
+            _onChanged();
+        }
+
+        /// <summary>True once this node actually has a <see cref="Node.Mesh"/> at all -
+        /// what the Modifiers panel binds its own Visibility to (a modifier stack on a
+        /// pure pivot/grouping node with no mesh would never do anything -
+        /// <see cref="Core.Modifiers.ModifierStack.Evaluate"/> is only ever called for a
+        /// meshed node in the first place).</summary>
+        public bool HasMesh => _node.Mesh is not null;
+
+        /// <summary>Mirrors <see cref="Node.Modifiers"/> as view models, one per entry,
+        /// in the same order - the Modifiers panel's own <c>ItemsControl</c> binds
+        /// directly to this. Rebuilt (not incrementally patched) by
+        /// <see cref="RefreshModifiers"/> whenever the underlying list itself changes
+        /// (added/removed) - <see cref="ModifierViewModelBase"/>'s own properties (like
+        /// <see cref="ModifierViewModelBase.IsEnabled"/>) still update in place for an
+        /// existing entry without needing a rebuild.</summary>
+        public ObservableCollection<ModifierViewModelBase> Modifiers { get; } = new();
+
+        private void RefreshModifiers()
+        {
+            Modifiers.Clear();
+            foreach (var modifier in _node.Modifiers)
+            {
+                ModifierViewModelBase? viewModel = modifier switch
+                {
+                    MirrorModifier mirror => new MirrorModifierViewModel(mirror, _onChanged),
+                    SubdivisionSurfaceModifier subsurf => new SubdivisionSurfaceModifierViewModel(subsurf, _onChanged),
+                    _ => null,
+                };
+                if (viewModel is not null) Modifiers.Add(viewModel);
+            }
+        }
+
+        /// <summary>Appends a new, default-settings <see cref="MirrorModifier"/> to this
+        /// node's own stack - the Modifiers panel's "Add Mirror" button.</summary>
+        public void AddMirrorModifier()
+        {
+            _node.Modifiers.Add(new MirrorModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
+        /// <summary>Appends a new, default-settings <see cref="SubdivisionSurfaceModifier"/>
+        /// to this node's own stack - the Modifiers panel's "Add Subsurf" button.</summary>
+        public void AddSubdivisionSurfaceModifier()
+        {
+            _node.Modifiers.Add(new SubdivisionSurfaceModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
+        /// <summary>Removes <paramref name="modifier"/> (identified by its own
+        /// <see cref="ModifierViewModelBase.Underlying"/> reference) from this node's
+        /// stack - a no-op if it isn't (any longer) actually in it.</summary>
+        public void RemoveModifier(ModifierViewModelBase modifier)
+        {
+            ArgumentNullException.ThrowIfNull(modifier);
+            if (!_node.Modifiers.Remove(modifier.Underlying)) return;
+
+            RefreshModifiers();
             _onChanged();
         }
 

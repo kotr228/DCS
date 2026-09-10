@@ -1,5 +1,6 @@
 using System.Numerics;
 using JolieCat3D.Core.Geometry;
+using JolieCat3D.Core.Modifiers;
 
 namespace JolieCat3D.Core.Scene
 {
@@ -25,6 +26,18 @@ namespace JolieCat3D.Core.Scene
         /// <summary>Optional - a node with no mesh is a pure grouping/pivot (a camera
         /// rig's own pivot point, an empty parent transform, ...).</summary>
         public Mesh? Mesh { get; set; }
+
+        /// <summary>This node's non-destructive modifier stack (see
+        /// <see cref="Modifier"/>'s own remarks) - applied, in list order, to
+        /// <see cref="Mesh"/> at render time only (by <c>JolieCat3D.Engine.Geometry.SceneGraphBuilder</c>,
+        /// via <see cref="ModifierStack.Evaluate"/>) to produce what actually gets drawn.
+        /// <see cref="Mesh"/> itself is never mutated by any modifier - Edit Mode's own
+        /// vertex/face operations (Extrude, Subdivide, a component drag) all still see
+        /// and edit the same base geometry regardless of what's in this stack. Empty by
+        /// default, in which case the rendered mesh is exactly <see cref="Mesh"/> itself,
+        /// unchanged - every node authored before modifiers existed keeps looking exactly
+        /// as it always did.</summary>
+        public List<Modifier> Modifiers { get; } = new();
 
         public Node? Parent { get; private set; }
 
@@ -100,7 +113,12 @@ namespace JolieCat3D.Core.Scene
         /// around exactly the selected object, not its children too) needs.
         /// <c>(GetWorldPosition(), GetWorldPosition())</c> for a node with no mesh (or an
         /// empty one), so the box collapses to a point rather than being reported as
-        /// nonexistent.</summary>
+        /// nonexistent. Measured against <see cref="Mesh"/>'s own raw vertices, not
+        /// <see cref="Modifiers"/>'s evaluated result - a Mirror/Subdivision Surface
+        /// modifier can make the actually-rendered geometry extend beyond (Mirror) or
+        /// stay within (a smoothing Subsurf) this box, a known, disclosed simplification
+        /// rather than re-evaluating the whole modifier stack just for a selection
+        /// outline/camera-framing bounds calculation.</summary>
         public (Vector3 Min, Vector3 Max) GetWorldBounds()
         {
             var world = GetWorldTransform();

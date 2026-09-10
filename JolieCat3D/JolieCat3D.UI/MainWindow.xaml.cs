@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Materials;
 using JolieCat3D.Core.Numerics;
@@ -11,6 +12,7 @@ using JolieCat3D.Engine.Editing;
 using JolieCat3D.Engine.Gizmos;
 using JolieCat3D.Engine.Rendering;
 using JolieCat3D.Service;
+using JolieCat3D.Service.Animation;
 using JolieCat3D.Service.Interop;
 using JolieCat3D.UI.ViewModels;
 using Microsoft.Win32;
@@ -43,6 +45,17 @@ namespace JolieCat3D.UI
         // mattering at that point rather than point at a stale material instance.
         private readonly Dictionary<Node, TextureSource> _textureSources = new();
         private JolieWorkspaceWatcher? _workspaceWatcher;
+
+        // The 3D animation timeline (Core.Scene.Node Position/Rotation/Scale keyframes -
+        // see JolieCat3D.Service.Animation's own remarks) plus the WPF-side clock that
+        // actually advances it: a DispatcherTimer ticking at a fixed ~60Hz regardless of
+        // the timeline's own FrameRate (that's a display/scrubber unit only - see
+        // AnimationTimeline.FrameRate's own remarks), each tick moving CurrentTime
+        // forward by its own nominal interval and pushing the result onto every
+        // animated node via Apply().
+        private readonly AnimationTimeline _timeline = new();
+        private readonly DispatcherTimer _playbackTimer;
+        private bool _isUpdatingAnimationUI;
 
         private Scene3D _currentScene = new("Untitled");
         private string? _currentFilePath;
@@ -107,7 +120,17 @@ namespace JolieCat3D.UI
             // of the process's lifetime.
             Closed += (_, _) => _workspaceWatcher?.Dispose();
 
+            // The playback transport's own clock - runs for the window's whole lifetime
+            // (stopped on Closed, alongside the workspace watcher above); each tick is a
+            // no-op unless _timeline.IsPlaying (see OnPlaybackTick), so idling at frame 0
+            // with nothing playing costs only the empty check every ~16ms.
+            _playbackTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.0 / 60.0) };
+            _playbackTimer.Tick += OnPlaybackTick;
+            _playbackTimer.Start();
+            Closed += (_, _) => _playbackTimer.Stop();
+
             LoadScene(BuildDemoScene(), filePath: null);
+            RefreshAnimationUI();
         }
 
         // ================= File menu =================
@@ -462,6 +485,131 @@ namespace JolieCat3D.UI
                 _renderer.Refresh();
                 _componentGizmo.Attach(session);
             });
+        }
+
+        /// <summary>The Modifiers panel's "Add Mirror"/"Add Subsurf" buttons - append a
+        /// new, default-settings modifier to the selected node's own stack.
+        /// <see cref="NodeViewModel.AddMirrorModifier"/>/<see cref="NodeViewModel.AddSubdivisionSurfaceModifier"/>
+        /// already call this view model's own "something changed" callback themselves
+        /// (the same one wired to <see cref="SceneViewModel.SceneChanged"/> in this
+        /// window's own constructor), so no explicit <see cref="Scene3DRenderer.Refresh"/>
+        /// is needed here - it happens automatically, the same real-time-update path
+        /// every other Properties Inspector edit already goes through.</summary>
+        private void AddMirrorModifierButton_Click(object sender, RoutedEventArgs e) =>
+            _sceneViewModel.SelectedNode?.AddMirrorModifier();
+
+        private void AddSubsurfModifierButton_Click(object sender, RoutedEventArgs e) =>
+            _sceneViewModel.SelectedNode?.AddSubdivisionSurfaceModifier();
+
+        /// <summary>The Modifiers panel's own per-entry "Remove" button - the clicked
+        /// <see cref="Button"/>'s own DataContext (from its enclosing <c>DataTemplate</c>)
+        /// IS the <see cref="ModifierViewModelBase"/> to remove, since each list item's
+        /// template is data-bound to exactly one.</summary>
+        private void RemoveModifierButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { DataContext: ModifierViewModelBase modifierViewModel }) return;
+            _sceneViewModel.SelectedNode?.RemoveModifier(modifierViewModel);
+        }
+
+        /// <summary>The Properties panel's "Add Keyframe" button - records the selected
+        /// node's CURRENT Position/Rotation/Scale at the timeline's own current playback
+        /// position (see <see cref="AnimationTrack.AddKeyframeFromCurrentTransform"/>).
+        /// Recording a keyframe at exactly the transform the node already has never
+        /// changes its appearance, so no re-render is needed here.</summary>
+        private void AddKeyframeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
+            _timeline.GetOrCreateTrack(node).AddKeyframeFromCurrentTransform(_timeline.CurrentTime);
+        }
+
+        // ================= Animation playback transport =================
+
+        /// <summary>Fires roughly every 1/60th of a second for the whole window's
+        /// lifetime (started once in the constructor, stopped on Closed) - a no-op
+        /// unless <see cref="AnimationTimeline.IsPlaying"/>, in which case it advances
+        /// the timeline by its own nominal tick interval, applies the result to every
+        /// animated node, and re-renders - the actual "preview 3D animations" loop.</summary>
+        private void OnPlaybackTick(object? sender, EventArgs e)
+        {
+            if (!_timeline.IsPlaying) return;
+
+            _timeline.Advance(_playbackTimer.Interval.TotalSeconds);
+            _timeline.Apply();
+            _sceneViewModel.SelectedNode?.SyncFromCore();
+            _renderer.Refresh();
+            RefreshAnimationUI();
+        }
+
+        private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_timeline.IsPlaying) _timeline.Pause();
+            else _timeline.Play();
+
+            RefreshAnimationUI();
+        }
+
+        private void StopButton_Click(object sender, RoutedEventArgs e)
+        {
+            _timeline.Stop();
+            _timeline.Apply();
+            _sceneViewModel.SelectedNode?.SyncFromCore();
+            _renderer.Refresh();
+            RefreshAnimationUI();
+        }
+
+        /// <summary>The frame scrubber - dragging it moves the timeline directly to
+        /// that frame (rather than only while playing) and re-renders immediately, the
+        /// standard "scrub to preview any moment" behavior an animation timeline needs.
+        /// Guarded by <see cref="_isUpdatingAnimationUI"/> so <see cref="RefreshAnimationUI"/>
+        /// setting <c>FrameScrubber.Value</c> to reflect a PLAYING timeline's own
+        /// already-applied position doesn't loop back into re-applying (harmless, since
+        /// it would just reassign the same value, but doubling the render work every
+        /// single playback tick for nothing).</summary>
+        private void FrameScrubber_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_isUpdatingAnimationUI) return;
+
+            _timeline.CurrentFrame = e.NewValue;
+            _timeline.Apply();
+            _sceneViewModel.SelectedNode?.SyncFromCore();
+            _renderer.Refresh();
+            RefreshAnimationUI();
+        }
+
+        /// <summary>The FPS field - purely a display/scrubber-granularity unit (see
+        /// <see cref="AnimationTimeline.FrameRate"/>'s own remarks); an unparsable or
+        /// non-positive value is simply ignored (the field re-reads as whatever it last
+        /// validly was on the next <see cref="RefreshAnimationUI"/>, rather than
+        /// throwing mid-edit).</summary>
+        private void FpsTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_isUpdatingAnimationUI) return;
+            if (!double.TryParse(FpsTextBox.Text, out var fps) || fps <= 0) return;
+
+            _timeline.FrameRate = fps;
+            RefreshAnimationUI();
+        }
+
+        /// <summary>Syncs the transport panel's own controls (scrubber position/range,
+        /// frame label, Play/Pause button text) from <see cref="_timeline"/>'s current
+        /// state - called after anything changes it (a tick, Play/Pause/Stop, a scrub,
+        /// an FPS edit). Guards every write with <see cref="_isUpdatingAnimationUI"/> so
+        /// setting <c>FrameScrubber.Value</c> here doesn't re-trigger
+        /// <see cref="FrameScrubber_ValueChanged"/> as if the user had dragged it.</summary>
+        private void RefreshAnimationUI()
+        {
+            _isUpdatingAnimationUI = true;
+            try
+            {
+                FrameScrubber.Maximum = _timeline.TotalFrames;
+                FrameScrubber.Value = _timeline.CurrentFrame;
+                FrameLabel.Text = $"{_timeline.CurrentFrame:0} / {_timeline.TotalFrames}";
+                PlayPauseButton.Content = _timeline.IsPlaying ? "Pause" : "Play";
+            }
+            finally
+            {
+                _isUpdatingAnimationUI = false;
+            }
         }
 
         /// <summary>The Properties panel's "Load Texture..." button - loads an image

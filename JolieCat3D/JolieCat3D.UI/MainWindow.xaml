@@ -24,6 +24,7 @@
             <RowDefinition Height="Auto" /> <!-- Object/Edit mode + component toolbar -->
             <RowDefinition Height="Auto" /> <!-- Shading mode toolbar -->
             <RowDefinition Height="*" />    <!-- Outliner | Viewport | Properties -->
+            <RowDefinition Height="Auto" /> <!-- Animation playback transport -->
         </Grid.RowDefinitions>
 
         <!-- ================= File Menu ================= -->
@@ -224,6 +225,12 @@
                                 <TextBox Text="{Binding ScaleZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                             </StackPanel>
 
+                            <!-- Records this node's CURRENT Position/Rotation/Scale as a
+                                 keyframe at the timeline's own current frame (see
+                                 JolieCat3D.Service.Animation.AnimationTrack.AddKeyframeFromCurrentTransform). -->
+                            <Button Content="Add Keyframe" Margin="8,0,8,8" Padding="8,4"
+                                    HorizontalAlignment="Left" Click="AddKeyframeButton_Click" />
+
                             <!-- Material Inspector - hidden entirely for a mesh-less/materialless node. -->
                             <StackPanel Visibility="{Binding HasMaterial, Converter={StaticResource BoolToVisibility}}">
                                 <TextBlock Text="MATERIAL INSPECTOR" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
@@ -281,10 +288,83 @@
                                     <Button Content="Spherical" Padding="8,4" Click="SphericalProjectionButton_Click" />
                                 </StackPanel>
                             </StackPanel>
+
+                            <!-- Modifiers - a non-destructive stack evaluated at render
+                                 time only (see Core.Modifiers.ModifierStack); hidden
+                                 entirely for a mesh-less node, which no modifier would
+                                 ever have anything to evaluate against. -->
+                            <StackPanel Visibility="{Binding HasMesh, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="MODIFIERS" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                    <Button Content="Add Mirror" Margin="0,0,4,0" Padding="8,2" Click="AddMirrorModifierButton_Click" />
+                                    <Button Content="Add Subsurf" Padding="8,2" Click="AddSubsurfModifierButton_Click" />
+                                </StackPanel>
+
+                                <ItemsControl ItemsSource="{Binding Modifiers}" Margin="8,0,8,8">
+                                    <ItemsControl.Resources>
+                                        <DataTemplate DataType="{x:Type vm:MirrorModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Axis:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <ComboBox SelectedValue="{Binding Axis, Mode=TwoWay}" SelectedValuePath="Content" Width="60">
+                                                            <ComboBoxItem Content="X" />
+                                                            <ComboBoxItem Content="Y" />
+                                                            <ComboBoxItem Content="Z" />
+                                                        </ComboBox>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                        <DataTemplate DataType="{x:Type vm:SubdivisionSurfaceModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Iterations:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding Iterations, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="40" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.Resources>
+                                </ItemsControl>
+                            </StackPanel>
                         </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
             </Border>
         </Grid>
+
+        <!-- ================= Animation Playback Transport ================= -->
+        <Border Grid.Row="5" Background="{StaticResource PanelAltBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" Margin="8,6">
+                <Button x:Name="PlayPauseButton" Content="Play" Padding="12,2" Margin="0,0,4,0" Click="PlayPauseButton_Click" />
+                <Button Content="Stop" Padding="12,2" Margin="0,0,16,0" Click="StopButton_Click" />
+
+                <TextBlock Text="Frame:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" />
+                <Slider x:Name="FrameScrubber" Width="280" Minimum="0" VerticalAlignment="Center"
+                        ValueChanged="FrameScrubber_ValueChanged" />
+                <TextBlock x:Name="FrameLabel" Text="0 / 120" VerticalAlignment="Center" Margin="8,0,16,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" MinWidth="60" />
+
+                <TextBlock Text="FPS:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" />
+                <TextBox x:Name="FpsTextBox" Width="50" Text="24" TextChanged="FpsTextBox_TextChanged" />
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>
