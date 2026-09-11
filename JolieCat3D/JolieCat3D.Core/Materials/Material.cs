@@ -87,6 +87,40 @@ namespace JolieCat3D.Core.Materials
         /// <see cref="DiffuseTexturePath"/> set still just shows the whole image.</summary>
         public Vector2 DiffuseTextureScale { get; set; } = Vector2.One;
 
+        /// <summary>Optional path to a tangent-space normal map - null (the default)
+        /// means "use the smooth per-vertex <see cref="Vertex.Normal"/> as-is, no
+        /// per-pixel surface detail", preserving every existing material's look exactly.
+        /// A REAL, structural limitation applies here that doesn't apply to
+        /// <see cref="DiffuseTexturePath"/>: WPF's fixed-function <c>Model3D</c> materials
+        /// have no per-pixel shader hook at all (see this class's own remarks), so
+        /// <c>JolieCat3D.Engine</c>'s live viewport can never actually bump-map a surface
+        /// from this - the path is still stored, round-tripped, and (this being the
+        /// primary reason it exists at all) written into the exported glTF's own
+        /// <c>normalTexture</c> slot (see <c>Service.Export.GltfExporter</c>), where a
+        /// real PBR renderer (a modern game engine, a glTF viewer with an actual per-pixel
+        /// pipeline) CAN sample it correctly.</summary>
+        public string? NormalTexturePath { get; set; }
+
+        /// <summary>Optional path to a single packed metallic-roughness map, in the exact
+        /// channel layout the glTF 2.0 "metallicRoughnessTexture" convention already uses
+        /// (roughness in the GREEN channel, metallic in the BLUE channel; red/alpha
+        /// unused) - a deliberate choice to store it pre-packed in this same layout,
+        /// rather than as two separate grayscale textures, so
+        /// <c>Service.Export.GltfExporter</c> can hand this straight to glTF with no
+        /// repacking step at all (see that class's own remarks). Null (the default) means
+        /// "use the flat scalar <see cref="Roughness"/>/<see cref="Metallic"/> values
+        /// instead", matching every material authored before this property existed.
+        /// <c>JolieCat3D.Engine.Geometry.MaterialFactory</c> cannot sample this per-pixel
+        /// either (the same structural WPF limitation <see cref="NormalTexturePath"/>'s
+        /// own remarks describe) - it instead averages this image's own G/B channels ONCE
+        /// and feeds that single averaged value in place of the scalar
+        /// <see cref="Roughness"/>/<see cref="Metallic"/> wherever this is set (see
+        /// <c>MaterialFactory.ComputeSpecular</c>'s own remarks), the closest a
+        /// fixed-function per-material (not per-pixel) specular calculation can get to
+        /// "the texture is actually driving the shading" without a real per-pixel
+        /// pipeline to sample it in.</summary>
+        public string? MetallicRoughnessTexturePath { get; set; }
+
         public Material(string name = "Material") => Name = name;
 
         /// <summary>A flat, unlit-looking default - a plain mid-gray diffuse with no

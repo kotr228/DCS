@@ -119,6 +119,78 @@ namespace JolieCat3D.Core.Geometry
             _vertices[index] = _vertices[index].WithUV(uv);
         }
 
+        /// <summary>
+        /// Removes every vertex index in <paramref name="indices"/> from this mesh, along
+        /// with any <see cref="Face"/>/<see cref="Polygon"/> that references ANY of them -
+        /// a face missing even one of its own corners isn't a valid face anymore, the same
+        /// "delete this vertex, and everything touching it goes too" convention most
+        /// modeling tools use for a bare "Delete Vertices" command (as opposed to a
+        /// topology-preserving "Dissolve", which this is not). Every SURVIVING face/polygon
+        /// is then re-indexed to account for the gap the removal leaves in
+        /// <see cref="Vertices"/> - indices are positional, so deleting vertex 3 shifts
+        /// every vertex after it down by one - and normals are recalculated for what's left
+        /// (a deleted neighboring face can change a surviving vertex's own smooth-shaded
+        /// normal, e.g. an edge that used to be interior becoming a boundary).
+        ///
+        /// Existing UVs on every SURVIVING vertex are left completely untouched - unlike
+        /// <see cref="ExtrudeFace"/>/<see cref="Subdivide"/> (which invent brand new
+        /// vertices with only an interim, immediately-stale UV that a full
+        /// <see cref="UVProjector"/> re-projection is needed to fix up), deleting never
+        /// creates new geometry, so there is nothing here that actually needs a fresh UV
+        /// projection - doing one anyway would needlessly discard a hand-authored or
+        /// imported UV layout this operation never even touched.
+        ///
+        /// A no-op if <paramref name="indices"/> contains nothing currently valid (already
+        /// out of range, or the mesh is empty) - <see cref="RecalculateNormals"/> is not
+        /// even called in that case, so calling this with an empty/invalid selection is
+        /// always safe and never mutates the mesh.
+        /// </summary>
+        public void RemoveVertices(IEnumerable<int> indices)
+        {
+            ArgumentNullException.ThrowIfNull(indices);
+
+            var toRemove = new HashSet<int>();
+            foreach (var index in indices)
+                if (index >= 0 && index < _vertices.Count) toRemove.Add(index);
+
+            if (toRemove.Count == 0) return;
+
+            // Drop every face/polygon touching a removed vertex FIRST, while their own
+            // indices still refer to the OLD (pre-removal) vertex numbering - the same
+            // numbering `toRemove` itself was built against.
+            _faces.RemoveAll(face => toRemove.Contains(face.A) || toRemove.Contains(face.B) || toRemove.Contains(face.C));
+            _polygons.RemoveAll(polygon => polygon.Indices.Any(toRemove.Contains));
+
+            // old index -> new index, built against the STILL-UNCHANGED _vertices.Count -
+            // -1 marks a removed vertex, never actually read back out (every face/polygon
+            // that could have referenced one was already dropped above).
+            var remap = new int[_vertices.Count];
+            var nextIndex = 0;
+            for (var oldIndex = 0; oldIndex < _vertices.Count; oldIndex++)
+                remap[oldIndex] = toRemove.Contains(oldIndex) ? -1 : nextIndex++;
+
+            for (var i = 0; i < _faces.Count; i++)
+            {
+                var face = _faces[i];
+                _faces[i] = new Face(remap[face.A], remap[face.B], remap[face.C]);
+            }
+
+            for (var i = 0; i < _polygons.Count; i++)
+            {
+                var polygon = _polygons[i];
+                _polygons[i] = new Polygon(polygon.Indices.Select(index => remap[index]));
+            }
+
+            var survivors = new List<Vertex>(_vertices.Count - toRemove.Count);
+            for (var oldIndex = 0; oldIndex < _vertices.Count; oldIndex++)
+                if (!toRemove.Contains(oldIndex)) survivors.Add(_vertices[oldIndex]);
+
+            _vertices.Clear();
+            _vertices.AddRange(survivors);
+
+            RecalculateNormals();
+        }
+
         /// <summary>Every distinct edge in this mesh: a deduplicated (normalized so
         /// A &lt; B - the same edge shared by two adjacent faces is reported once, not
         /// twice) unordered pair of vertex indices, derived from <see cref="Faces"/> and

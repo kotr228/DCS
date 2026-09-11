@@ -16,6 +16,7 @@ using JolieCat3D.Engine.Rendering;
 using JolieCat3D.Service;
 using JolieCat3D.Service.Animation;
 using JolieCat3D.Service.Commands;
+using JolieCat3D.Service.Export;
 using JolieCat3D.Service.Interop;
 using JolieCat3D.UI.ViewModels;
 using Microsoft.Win32;
@@ -353,6 +354,29 @@ namespace JolieCat3D.UI
             TryRun("Export", () => MeshFileService.ExportScene(_currentScene, dialog.FileName));
         }
 
+        /// <summary>File > "Export GLB/glTF..." - the modern, animation/PBR-capable
+        /// counterpart to <see cref="ExportMenuItem_Click"/>'s own OBJ/STL (see
+        /// <see cref="GltfExporter"/>'s own remarks): a single self-contained
+        /// <c>.glb</c> carrying the real node hierarchy, every material's PBR channels
+        /// (diffuse/normal/metallic-roughness textures included), and every keyframe
+        /// currently on <see cref="_timeline"/> - a separate, parallel File menu action
+        /// from <see cref="ExportMenuItem_Click"/> rather than one more
+        /// <see cref="MeshFileService"/> format, the same "animation export is its own
+        /// path" precedent <see cref="ExportAnimationMenuItem_Click"/> already set (OBJ/STL
+        /// take only a <c>Scene3D</c>; this needs the timeline too).</summary>
+        private void ExportGltfMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new SaveFileDialog
+            {
+                Filter = "glTF Binary (*.glb)|*.glb|glTF (*.gltf)|*.gltf",
+                Title = "Export GLB/glTF",
+                FileName = Path.GetFileNameWithoutExtension(_currentFilePath) is { Length: > 0 } baseName ? baseName + ".glb" : "Untitled.glb",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Export GLB/glTF", () => GltfExporter.Export(_currentScene, _timeline, dialog.FileName));
+        }
+
         /// <summary>Writes the whole <see cref="_timeline"/> (every node's transform
         /// keyframes, every material's texture-frame track) out to a file - the
         /// SaveFileDialog's own two filter entries pick which of the two formats this
@@ -601,6 +625,7 @@ namespace JolieCat3D.UI
             FaceModeButton.IsEnabled = enteringEditMode;
             ExtrudeButton.IsEnabled = enteringEditMode;
             SubdivideButton.IsEnabled = enteringEditMode;
+            DeleteButton.IsEnabled = enteringEditMode;
 
             if (enteringEditMode)
             {
@@ -762,6 +787,74 @@ namespace JolieCat3D.UI
                 _renderer.Refresh();
                 _componentGizmo.Attach(session);
             });
+        }
+
+        /// <summary>The Edit Mode toolbar's "Delete" button - deletes whichever
+        /// vertices/edges/faces are currently selected via
+        /// <see cref="MeshEditSession.DeleteSelected"/>, wrapped into an undoable
+        /// <see cref="MeshEditCommand"/> exactly the same way <see cref="ExtrudeButton_Click"/>/
+        /// <see cref="SubdivideButton_Click"/> already are (deletion changes the mesh's own
+        /// vertex COUNT/numbering, so a full before/after <see cref="Mesh.Clone"/> snapshot
+        /// is the right undo strategy here too - not the lightweight per-index
+        /// <see cref="VertexTranslateCommand"/> a plain drag uses, since a delete
+        /// renumbers every surviving index out from under any "before/after position"
+        /// pairing that command relies on). Also reachable via the Delete key - see
+        /// <see cref="MainWindow_PreviewKeyDown"/> - this button exists purely so the same
+        /// command has a mouse-only path too.</summary>
+        private void DeleteButton_Click(object sender, RoutedEventArgs e) => DeleteSelectedComponents();
+
+        /// <summary>The actual "Delete Vertices/Edges/Faces" command both
+        /// <see cref="DeleteButton_Click"/> and the Delete key (see
+        /// <see cref="MainWindow_PreviewKeyDown"/>) funnel into - a no-op (not even an
+        /// undoable no-op command recorded) with nothing currently selected, matching
+        /// <see cref="MeshEditSession.DeleteSelected"/>'s own "false = nothing happened"
+        /// return.</summary>
+        private void DeleteSelectedComponents()
+        {
+            var session = _renderer.EditSession;
+            if (session.Target is not { } node) return;
+
+            TryRun("Delete", () =>
+            {
+                var command = MeshEditCommandFactory.Capture(node, "Delete Selected",
+                    () => session.DeleteSelected(),
+                    onChanged: () =>
+                    {
+                        _renderer.Refresh();
+                        _componentGizmo.Attach(session);
+                    });
+
+                if (command is null) return; // nothing selected (or no mesh) - nothing to delete or undo
+
+                _commandHistory.Record(command);
+                _renderer.Refresh();
+                _componentGizmo.Attach(session);
+            });
+        }
+
+        /// <summary>Window-wide Delete-key handling for Edit Mode's own "Delete
+        /// Vertices/Edges/Faces" command (see <see cref="DeleteSelectedComponents"/>) -
+        /// <see cref="PreviewKeyDown"/> (a tunneling event reaching this window before any
+        /// child control's own bubbling <c>KeyDown</c>) rather than a routed
+        /// <see cref="System.Windows.Input.KeyBinding"/>/<see cref="RoutedCommand"/>, so the
+        /// Delete key works regardless of which control inside the window currently has
+        /// keyboard focus (the viewport, the Outliner tree, a Properties panel field) -
+        /// the same "reachable from anywhere in the window" reasoning
+        /// <see cref="ApplicationCommands.Undo"/>/<see cref="ApplicationCommands.Redo"/>'s
+        /// own <see cref="CommandBindings"/> already rely on (their default Ctrl+Z/Ctrl+Y
+        /// gestures), just via a plain key check instead of a full <c>RoutedCommand</c>
+        /// since there's no menu item/<c>InputGestureText</c> this needs to also drive.
+        /// Deliberately a no-op outside Edit Mode (Object Mode has no per-component
+        /// selection to delete, and "Delete" there would be a completely different,
+        /// unrelated command - deleting the whole selected NODE - this project doesn't
+        /// implement and was never asked for here) rather than silently doing nothing
+        /// useful with an ambiguous meaning.</summary>
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Delete || !IsEditMode) return;
+
+            DeleteSelectedComponents();
+            e.Handled = true;
         }
 
         /// <summary>The Modifiers panel's "Add Mirror"/"Add Subsurf" buttons - append a
@@ -967,6 +1060,55 @@ namespace JolieCat3D.UI
                 var loaded = TwoDAssetBridge.LoadTextureMaterial(dialog.FileName);
                 nodeViewModel.SetDiffuseTexture(loaded.DiffuseTexturePath!);
                 _textureSources[nodeViewModel.UnderlyingNode] = new TextureSource(dialog.FileName, IsJolieProject: false);
+                _renderer.Refresh();
+            });
+        }
+
+        /// <summary>The Properties panel's "Load Normal Map..." button - a plain file path
+        /// assignment (see <see cref="NodeViewModel.SetNormalTexture"/>), unlike
+        /// <see cref="LoadTextureButton_Click"/> this doesn't go through
+        /// <see cref="TwoDAssetBridge"/>/<see cref="_textureSources"/> at all: a normal map
+        /// is never something <c>JolieCat</c>'s own 2D editor exports or live-watches, so
+        /// there is no equivalent "reload when this file changes" bridge for it to
+        /// register with.</summary>
+        private void LoadNormalMapButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
+
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|All files (*.*)|*.*",
+                Title = "Load Normal Map",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Load Normal Map", () =>
+            {
+                nodeViewModel.SetNormalTexture(dialog.FileName);
+                _renderer.Refresh();
+            });
+        }
+
+        /// <summary>The Properties panel's "Load Metallic/Roughness Map..." button - see
+        /// <see cref="LoadNormalMapButton_Click"/>'s own remarks; the picked image is
+        /// expected to already be packed in the glTF metallicRoughness convention
+        /// (roughness in green, metallic in blue - see
+        /// <see cref="Core.Materials.Material.MetallicRoughnessTexturePath"/>'s own
+        /// remarks), this button does no repacking of its own.</summary>
+        private void LoadMetallicRoughnessMapButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
+
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|All files (*.*)|*.*",
+                Title = "Load Metallic/Roughness Map",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Load Metallic/Roughness Map", () =>
+            {
+                nodeViewModel.SetMetallicRoughnessTexture(dialog.FileName);
                 _renderer.Refresh();
             });
         }

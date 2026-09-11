@@ -268,6 +268,8 @@ namespace JolieCat3D.Service.Project
             DiffuseTextureOffsetY = material.DiffuseTextureOffset.Y,
             DiffuseTextureScaleX = material.DiffuseTextureScale.X,
             DiffuseTextureScaleY = material.DiffuseTextureScale.Y,
+            NormalTexturePath = material.NormalTexturePath,
+            MetallicRoughnessTexturePath = material.MetallicRoughnessTexturePath,
         };
 
         private static Material ConvertMaterialData(ProjectMaterialData data) => new(data.Name)
@@ -281,6 +283,8 @@ namespace JolieCat3D.Service.Project
             DiffuseTexturePath = data.DiffuseTexturePath,
             DiffuseTextureOffset = new Vector2(data.DiffuseTextureOffsetX, data.DiffuseTextureOffsetY),
             DiffuseTextureScale = new Vector2(data.DiffuseTextureScaleX, data.DiffuseTextureScaleY),
+            NormalTexturePath = data.NormalTexturePath,
+            MetallicRoughnessTexturePath = data.MetallicRoughnessTexturePath,
         };
 
         // ============================= Modifier =============================

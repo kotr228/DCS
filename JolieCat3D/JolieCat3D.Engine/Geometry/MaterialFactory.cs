@@ -88,28 +88,31 @@ namespace JolieCat3D.Engine.Geometry
         /// <summary>
         /// The effective specular color/power for <see cref="ShadingMode.Rendered"/>,
         /// factoring in <see cref="CoreMaterial.Roughness"/>/<see cref="CoreMaterial.Metallic"/>
-        /// on top of <paramref name="material"/>'s own hand-authored
-        /// <see cref="CoreMaterial.SpecularColor"/>/<see cref="CoreMaterial.SpecularPower"/> -
+        /// (or, when <see cref="CoreMaterial.MetallicRoughnessTexturePath"/> is set, the
+        /// AVERAGED roughness/metallic sampled from it instead - see
+        /// <see cref="SampleAverageMetallicRoughness"/>'s own remarks on why an average,
+        /// not a per-pixel sample, is the most this fixed-function pipeline can ever
+        /// derive from a texture here) on top of <paramref name="material"/>'s own
+        /// hand-authored <see cref="CoreMaterial.SpecularColor"/>/<see cref="CoreMaterial.SpecularPower"/> -
         /// WPF's <see cref="SpecularMaterial"/> has no roughness/metallic concept of its
         /// own to hand these to directly, so this is the approximation that stands in
         /// for one:
         /// <list type="bullet">
-        /// <item><description><see cref="CoreMaterial.Metallic"/> blends
-        /// <see cref="CoreMaterial.SpecularColor"/> toward <see cref="CoreMaterial.DiffuseColor"/>
-        /// - the standard metallic-workflow rule (a fully metallic surface's
-        /// reflections are tinted by its own albedo; a fully dielectric one's are
-        /// neutral).</description></item>
-        /// <item><description><see cref="CoreMaterial.Roughness"/> scales
-        /// <see cref="CoreMaterial.SpecularPower"/> down toward (never quite reaching)
-        /// zero - smoother is a tighter/brighter highlight (closer to the material's own
-        /// authored power), rougher is broader/dimmer, without ever fully extinguishing
-        /// it (a "fully rough" surface still shows *some* highlight, just a very broad,
-        /// faint one) or letting <see cref="SpecularMaterial"/>'s own power argument hit
-        /// an invalid non-positive value.</description></item>
+        /// <item><description>Metallic blends <see cref="CoreMaterial.SpecularColor"/>
+        /// toward <see cref="CoreMaterial.DiffuseColor"/> - the standard metallic-workflow
+        /// rule (a fully metallic surface's reflections are tinted by its own albedo; a
+        /// fully dielectric one's are neutral).</description></item>
+        /// <item><description>Roughness scales <see cref="CoreMaterial.SpecularPower"/>
+        /// down toward (never quite reaching) zero - smoother is a tighter/brighter
+        /// highlight (closer to the material's own authored power), rougher is
+        /// broader/dimmer, without ever fully extinguishing it (a "fully rough" surface
+        /// still shows *some* highlight, just a very broad, faint one) or letting
+        /// <see cref="SpecularMaterial"/>'s own power argument hit an invalid
+        /// non-positive value.</description></item>
         /// </list>
-        /// At the default Roughness (0.5)/Metallic (0), every existing material (created
-        /// before these two properties existed) now renders with roughly half its
-        /// previously-authored specular power, rather than pixel-identically - an
+        /// At the default Roughness (0.5)/Metallic (0) with no texture set, every existing
+        /// material (created before these properties existed) now renders with roughly
+        /// half its previously-authored specular power, rather than pixel-identically - an
         /// accepted, disclosed consequence of Roughness actually affecting shading at
         /// all (a "no-op unless deliberately tuned away from default" formula would make
         /// it a cosmetic-only property that never does anything unasked), not a
@@ -119,13 +122,130 @@ namespace JolieCat3D.Engine.Geometry
         /// </summary>
         private static (CoreColor4 Color, double Power) ComputeSpecular(CoreMaterial material)
         {
-            var metallic = Math.Clamp(material.Metallic, 0f, 1f);
+            var roughnessScalar = material.Roughness;
+            var metallicScalar = material.Metallic;
+
+            // A texture path present OVERRIDES the scalar fields, exactly the same
+            // "present means instead-of, not blended-with" convention DiffuseTexturePath
+            // already established - not a blend of the two, and not applied at all if the
+            // path is missing/unreadable (SampleAverageMetallicRoughness returns null,
+            // same "broken texture reference degrades to the flat fallback, never
+            // crashes" reasoning CreateDiffuseBrush already follows).
+            if (!string.IsNullOrWhiteSpace(material.MetallicRoughnessTexturePath) &&
+                SampleAverageMetallicRoughness(material.MetallicRoughnessTexturePath) is { } averaged)
+            {
+                roughnessScalar = averaged.Roughness;
+                metallicScalar = averaged.Metallic;
+            }
+
+            var metallic = Math.Clamp(metallicScalar, 0f, 1f);
             var tintedColor = CoreColor4.Lerp(material.SpecularColor, material.DiffuseColor, metallic);
 
-            var roughness = Math.Clamp(material.Roughness, 0f, 1f);
+            var roughness = Math.Clamp(roughnessScalar, 0f, 1f);
             var power = Math.Max(1.0, material.SpecularPower * (1.0 - roughness) + roughness);
 
             return (tintedColor, power);
+        }
+
+        /// <summary>Cache of the last-computed average (roughness, metallic) pair for a
+        /// given resolved file path, alongside the file's own <see cref="File.GetLastWriteTimeUtc(string)"/>
+        /// at the time it was computed - keyed on the full path so a live file-watcher
+        /// re-export (the same "the same path can legitimately change bytes underneath
+        /// it while the app is running" scenario <see cref="CreateDiffuseBrush"/>'s own
+        /// remarks describe for <see cref="CoreMaterial.DiffuseTexturePath"/>) is picked
+        /// up on the next render rather than serving a stale average forever - this
+        /// method is called on every single <see cref="Create(CoreMaterial?,ShadingMode)"/>
+        /// (once per node, per render/refresh), so caching is what keeps repeatedly
+        /// re-decoding and re-averaging the same unchanged texture off the hot path.</summary>
+        private static readonly Dictionary<string, (DateTime WriteTimeUtc, float AverageRoughness, float AverageMetallic)> MetallicRoughnessAverageCache = new();
+
+        /// <summary>
+        /// The average roughness (image GREEN channel)/metallic (image BLUE channel)
+        /// across <paramref name="path"/>'s own pixels, per the packed glTF
+        /// metallicRoughness convention <see cref="CoreMaterial.MetallicRoughnessTexturePath"/>'s
+        /// own remarks describe - null if the path is missing, unreadable, or not a valid
+        /// image (degrades to the flat scalar fallback in <see cref="ComputeSpecular"/>,
+        /// never throws). This is deliberately an AVERAGE, not a per-pixel sample: WPF's
+        /// fixed-function <see cref="SpecularMaterial"/> takes one scalar
+        /// <see cref="SpecularMaterial.SpecularPower"/> for the WHOLE material, with no
+        /// per-pixel roughness/metallic hook of any kind to feed a real sample into (the
+        /// same structural limitation <see cref="CoreMaterial.NormalTexturePath"/>'s own
+        /// remarks describe for bump-mapping) - an average is the closest a
+        /// once-per-material calculation can get to "the texture is actually
+        /// influencing the shading" at all, and is exactly what the true per-pixel result
+        /// in a real PBR renderer (the exported glTF, opened in a modern engine) averages
+        /// out to look like from a distance on a roughly-uniform surface.
+        ///
+        /// Decodes at a small fixed 32x32 size rather than the image's own real
+        /// resolution - an average is insensitive to resolution (a 32x32 downsample of
+        /// even a 4K map still averages out to essentially the same result a full-size
+        /// decode would), so this keeps the cost of computing it low regardless of how
+        /// large the source texture actually is.
+        /// </summary>
+        private static (float Roughness, float Metallic)? SampleAverageMetallicRoughness(string path)
+        {
+            string fullPath;
+            DateTime writeTimeUtc;
+            try
+            {
+                fullPath = Path.GetFullPath(path);
+                if (!File.Exists(fullPath)) return null;
+                writeTimeUtc = File.GetLastWriteTimeUtc(fullPath);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+
+            if (MetallicRoughnessAverageCache.TryGetValue(fullPath, out var cached) && cached.WriteTimeUtc == writeTimeUtc)
+                return (cached.AverageRoughness, cached.AverageMetallic);
+
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+                bitmap.DecodePixelWidth = 32;
+                bitmap.DecodePixelHeight = 32;
+                bitmap.UriSource = new Uri(fullPath, UriKind.Absolute);
+                bitmap.EndInit();
+                bitmap.Freeze();
+
+                var converted = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
+                var width = converted.PixelWidth;
+                var height = converted.PixelHeight;
+                if (width <= 0 || height <= 0) return null;
+
+                var stride = width * 4;
+                var pixels = new byte[stride * height];
+                converted.CopyPixels(pixels, stride, 0);
+
+                long roughnessSum = 0;
+                long metallicSum = 0;
+                var pixelCount = width * height;
+
+                for (var i = 0; i < pixels.Length; i += 4)
+                {
+                    // Bgra32's own byte order is [B, G, R, A] per pixel - the packed
+                    // glTF metallicRoughness convention puts metallic in the image's
+                    // BLUE channel (byte offset 0 here) and roughness in GREEN (offset 1).
+                    metallicSum += pixels[i];
+                    roughnessSum += pixels[i + 1];
+                }
+
+                var averageRoughness = roughnessSum / 255f / pixelCount;
+                var averageMetallic = metallicSum / 255f / pixelCount;
+
+                MetallicRoughnessAverageCache[fullPath] = (writeTimeUtc, averageRoughness, averageMetallic);
+                return (averageRoughness, averageMetallic);
+            }
+            catch (Exception)
+            {
+                // Same "a broken texture reference degrades visibly, never crashes the
+                // render" reasoning CreateDiffuseBrush's own remarks disclose.
+                return null;
+            }
         }
 
         /// <summary>An <see cref="ImageBrush"/> sampling <see cref="CoreMaterial.DiffuseTexturePath"/>'s

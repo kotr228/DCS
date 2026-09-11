@@ -125,6 +125,30 @@ namespace JolieCat3D.Engine.Editing
         }
 
         /// <summary>
+        /// Deletes every currently selected vertex (see <see cref="Mesh.RemoveVertices"/>'s
+        /// own remarks on what that takes with it: any face/polygon touching a deleted
+        /// vertex, plus a full renumbering of what's left) - Edit Mode's own "Delete"
+        /// command, and (per this class's own remarks on how an Edge/Face selection is
+        /// ALWAYS represented as the set of vertices it touches) the exact same single
+        /// operation regardless of whether <see cref="ComponentMode"/> is currently Vertex,
+        /// Edge, or Face: "delete this edge" already means "delete both its endpoint
+        /// vertices" here, exactly like "delete this face" already means "delete every one
+        /// of its own vertices" - there is no separate "delete just this edge, keep its
+        /// vertices" (dissolve) concept in this selection model at all. Clears the
+        /// selection afterward (every one of its own indices is now either gone or
+        /// meaningless against the shifted vertex numbering). Returns false (a no-op, mesh
+        /// untouched) if nothing is selected, or there is no <see cref="Target"/> at all.
+        /// </summary>
+        public bool DeleteSelected()
+        {
+            if (Target?.Mesh is not { } mesh || _selectedVertexIndices.Count == 0) return false;
+
+            mesh.RemoveVertices(_selectedVertexIndices);
+            Clear();
+            return true;
+        }
+
+        /// <summary>
         /// Extrudes the currently fully-selected face outward by <paramref name="distance"/>
         /// along its own normal (see <see cref="Mesh.ExtrudeFace"/>), replacing the
         /// current selection with the freshly-created cap face's own vertices - the

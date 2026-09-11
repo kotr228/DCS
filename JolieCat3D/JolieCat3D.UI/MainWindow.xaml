@@ -9,7 +9,8 @@
         xmlns:converters="clr-namespace:JolieCat3D.UI.Converters"
         mc:Ignorable="d"
         Title="JolieCat3D" Height="700" Width="1200"
-        d:DataContext="{d:DesignInstance Type=vm:SceneViewModel, IsDesignTimeCreatable=True}">
+        d:DataContext="{d:DesignInstance Type=vm:SceneViewModel, IsDesignTimeCreatable=True}"
+        PreviewKeyDown="MainWindow_PreviewKeyDown">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
@@ -38,6 +39,11 @@
                 <Separator />
                 <MenuItem Header="_Import..." Click="ImportMenuItem_Click" InputGestureText="Ctrl+I" />
                 <MenuItem Header="_Export..." Click="ExportMenuItem_Click" InputGestureText="Ctrl+E" />
+                <!-- The modern, animation/PBR-capable export path (JolieCat3D.Service.Export.GltfExporter) -
+                     unlike ExportMenuItem_Click's own OBJ/STL, this carries the real node
+                     hierarchy, PBR materials (diffuse/normal/metallic-roughness textures),
+                     and every keyframe on _timeline, in one self-contained .glb. -->
+                <MenuItem Header="Export _GLB/glTF..." Click="ExportGltfMenuItem_Click" />
                 <Separator />
                 <!-- Saves the whole AnimationTimeline (every node's transform keyframes,
                      every material's texture-frame track) out to a file - two flavors
@@ -131,7 +137,14 @@
                 <Button x:Name="ExtrudeButton" Content="Extrude" IsEnabled="False"
                         Margin="16,0,4,0" Padding="8,2" Click="ExtrudeButton_Click" />
                 <Button x:Name="SubdivideButton" Content="Subdivide" IsEnabled="False"
-                        Padding="8,2" Click="SubdivideButton_Click" />
+                        Margin="0,0,4,0" Padding="8,2" Click="SubdivideButton_Click" />
+                <!-- Same selection (a set of vertex indices, whatever the current
+                     Vertex/Edge/Face component mode - see MeshEditSession's own remarks)
+                     the Delete key already acts on in the viewport (see
+                     MainWindow_PreviewKeyDown) - this button is here purely so the
+                     command is also reachable without a keyboard. -->
+                <Button x:Name="DeleteButton" Content="Delete" IsEnabled="False"
+                        Padding="8,2" Click="DeleteButton_Click" />
             </StackPanel>
         </Border>
 
@@ -324,6 +337,26 @@
                                            TextTrimming="CharacterEllipsis" FontStyle="Italic"
                                            Foreground="{StaticResource TextSecondaryBrush}"
                                            Visibility="{Binding HasDiffuseTexture, Converter={StaticResource BoolToVisibility}}" />
+
+                                <!-- Normal map / packed metallic-roughness map - see
+                                     Core.Materials.Material's own remarks on why the live
+                                     viewport can only approximate these (a normal map not
+                                     at all; metallic-roughness as one averaged scalar),
+                                     while the exported glTF (Service.Export.GltfExporter)
+                                     samples both correctly, per-pixel. -->
+                                <Button Content="Load Normal Map..." Margin="8,0,8,4" Padding="8,4"
+                                        HorizontalAlignment="Left" Click="LoadNormalMapButton_Click" />
+                                <TextBlock Text="{Binding NormalTextureFileName}" Margin="8,0,8,8"
+                                           TextTrimming="CharacterEllipsis" FontStyle="Italic"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Visibility="{Binding HasNormalTexture, Converter={StaticResource BoolToVisibility}}" />
+
+                                <Button Content="Load Metallic/Roughness Map..." Margin="8,0,8,4" Padding="8,4"
+                                        HorizontalAlignment="Left" Click="LoadMetallicRoughnessMapButton_Click" />
+                                <TextBlock Text="{Binding MetallicRoughnessTextureFileName}" Margin="8,0,8,8"
+                                           TextTrimming="CharacterEllipsis" FontStyle="Italic"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Visibility="{Binding HasMetallicRoughnessTexture, Converter={StaticResource BoolToVisibility}}" />
 
                                 <!-- UV Projection - (re)maps this mesh's own UVs, for a custom
                                      primitive or an Edit-Mode-reshaped mesh whose authored UVs

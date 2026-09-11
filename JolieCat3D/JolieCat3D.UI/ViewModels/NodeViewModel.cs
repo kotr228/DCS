@@ -226,6 +226,56 @@ namespace JolieCat3D.UI.ViewModels
             _onChanged();
         }
 
+        /// <summary>True once this node's material has a normal map assigned (see
+        /// <see cref="Core.Materials.Material.NormalTexturePath"/>'s own remarks on why
+        /// the live viewport can't actually render it, but the exported glTF can) - the
+        /// Properties panel's own "currently loaded normal map" filename label binds its
+        /// Visibility to this, mirroring <see cref="HasDiffuseTexture"/>.</summary>
+        public bool HasNormalTexture => !string.IsNullOrEmpty(_node.Mesh?.Material?.NormalTexturePath);
+
+        public string NormalTextureFileName =>
+            _node.Mesh?.Material?.NormalTexturePath is { } path ? System.IO.Path.GetFileName(path) : string.Empty;
+
+        /// <summary>Points this node's material's normal-map slot at
+        /// <paramref name="imagePath"/> - <c>MainWindow</c>'s "Load Normal Map..." button
+        /// calls this after its own file-picker dialog returns a path. A no-op if this
+        /// node has no mesh/material at all.</summary>
+        public void SetNormalTexture(string imagePath)
+        {
+            if (_node.Mesh?.Material is not { } material) return;
+
+            material.NormalTexturePath = imagePath;
+
+            OnPropertyChanged(nameof(HasNormalTexture));
+            OnPropertyChanged(nameof(NormalTextureFileName));
+            _onChanged();
+        }
+
+        /// <summary>True once this node's material has a packed metallic-roughness map
+        /// assigned (see <see cref="Core.Materials.Material.MetallicRoughnessTexturePath"/>'s
+        /// own remarks on its channel layout) - mirrors <see cref="HasDiffuseTexture"/>.</summary>
+        public bool HasMetallicRoughnessTexture => !string.IsNullOrEmpty(_node.Mesh?.Material?.MetallicRoughnessTexturePath);
+
+        public string MetallicRoughnessTextureFileName =>
+            _node.Mesh?.Material?.MetallicRoughnessTexturePath is { } path ? System.IO.Path.GetFileName(path) : string.Empty;
+
+        /// <summary>Points this node's material's metallic-roughness slot at
+        /// <paramref name="imagePath"/> - <c>MainWindow</c>'s "Load Metallic/Roughness
+        /// Map..." button calls this after its own file-picker dialog returns a path
+        /// (the picked image is expected to already be packed roughness-in-green,
+        /// metallic-in-blue - see that property's own remarks; this method does no
+        /// repacking of its own). A no-op if this node has no mesh/material at all.</summary>
+        public void SetMetallicRoughnessTexture(string imagePath)
+        {
+            if (_node.Mesh?.Material is not { } material) return;
+
+            material.MetallicRoughnessTexturePath = imagePath;
+
+            OnPropertyChanged(nameof(HasMetallicRoughnessTexture));
+            OnPropertyChanged(nameof(MetallicRoughnessTextureFileName));
+            _onChanged();
+        }
+
         /// <summary>(Re)maps this node's mesh's own vertex UVs via <paramref name="mode"/>
         /// (see <see cref="UVProjector.Apply"/>) - <c>MainWindow</c>'s Material
         /// Inspector "Planar"/"Box"/"Spherical" buttons call this. A no-op if this node

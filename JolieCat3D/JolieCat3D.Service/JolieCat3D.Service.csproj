@@ -10,4 +10,8 @@
     <ProjectReference Include="..\JolieCat3D.Core\JolieCat3D.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="SharpGLTF.Toolkit" Version="1.0.6" />
+  </ItemGroup>
+
 </Project>

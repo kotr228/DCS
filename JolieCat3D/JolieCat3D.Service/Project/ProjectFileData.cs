@@ -210,6 +210,16 @@ namespace JolieCat3D.Service.Project
         public float DiffuseTextureOffsetY { get; set; }
         public float DiffuseTextureScaleX { get; set; } = 1f;
         public float DiffuseTextureScaleY { get; set; } = 1f;
+
+        /// <summary>Mirrors <see cref="Core.Materials.Material.NormalTexturePath"/> - same
+        /// "just a file path, saved/reloaded exactly as authored" simplification
+        /// <see cref="DiffuseTexturePath"/>'s own remarks disclose. Null by default, so
+        /// every material saved before this property existed reloads with none.</summary>
+        public string? NormalTexturePath { get; set; }
+
+        /// <summary>Mirrors <see cref="Core.Materials.Material.MetallicRoughnessTexturePath"/> -
+        /// see that property's own remarks on its packed glTF-convention channel layout.</summary>
+        public string? MetallicRoughnessTexturePath { get; set; }
     }
 
     /// <summary>One <see cref="Core.Modifiers.Modifier"/>'s configuration - a small,
