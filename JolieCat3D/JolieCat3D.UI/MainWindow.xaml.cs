@@ -62,6 +62,18 @@ namespace JolieCat3D.UI
         private readonly DispatcherTimer _playbackTimer;
         private bool _isUpdatingAnimationUI;
 
+        // WPF can (and does) invoke a XAML-wired event handler (Checked/Unchecked,
+        // TextChanged, SelectedItemChanged, ...) SYNCHRONOUSLY from inside
+        // InitializeComponent() itself, the moment a declared initial value is applied -
+        // a RadioButton/CheckBox's own IsChecked="True", a TextBox's own Text="1" - well
+        // before this window's own constructor has reached the point where _renderer/
+        // _gizmo/_componentGizmo (all assigned later in the constructor, never via a
+        // field initializer) actually exist. Every one of this window's own event
+        // handlers checks this FIRST and returns immediately if it isn't set yet -
+        // flipped to true as the very last statement in the constructor, once every
+        // field any handler could possibly touch is guaranteed to be assigned.
+        private bool _isInitialized;
+
         // Guards RenderAnimationFramesMenuItem_Click against a second, overlapping
         // render being started while one is already in flight - see that method's own
         // remarks.
@@ -195,6 +207,10 @@ namespace JolieCat3D.UI
 
             LoadScene(BuildDemoScene(), filePath: null);
             RefreshAnimationUI();
+
+            // Only past this point is every field this window's own event handlers touch
+            // actually assigned - see _isInitialized's own remarks.
+            _isInitialized = true;
         }
 
         // ================= File menu =================
@@ -270,6 +286,8 @@ namespace JolieCat3D.UI
         /// brought in alongside whatever's already there).</summary>
         private void ImportMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
+
             var dialog = new OpenFileDialog { Filter = FileDialogFilter, Title = "Import" };
             if (dialog.ShowDialog(this) != true) return;
 
@@ -290,17 +308,29 @@ namespace JolieCat3D.UI
         /// command in the sense that system models - see <see cref="ExtrudeButton_Click"/>'s
         /// own remarks on what DOES) - the same precedent <see cref="ImportMenuItem_Click"/>'s
         /// own new root nodes already set.</summary>
-        private void AddCubeMenuItem_Click(object sender, RoutedEventArgs e) =>
+        private void AddCubeMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
             AddNodeToScene(new Node("Cube") { Mesh = Primitives.CreateCube() });
+        }
 
-        private void AddSphereMenuItem_Click(object sender, RoutedEventArgs e) =>
+        private void AddSphereMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
             AddNodeToScene(new Node("Sphere") { Mesh = Primitives.CreateSphere() });
+        }
 
-        private void AddPlaneMenuItem_Click(object sender, RoutedEventArgs e) =>
+        private void AddPlaneMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
             AddNodeToScene(new Node("Plane") { Mesh = Primitives.CreatePlane() });
+        }
 
-        private void AddCylinderMenuItem_Click(object sender, RoutedEventArgs e) =>
+        private void AddCylinderMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
             AddNodeToScene(new Node("Cylinder") { Mesh = Primitives.CreateCylinder() });
+        }
 
         /// <summary>File > Scene > "Add Camera" - a new root node carrying a default
         /// <see cref="CameraData"/>, immediately selectable/editable exactly like a
@@ -309,8 +339,11 @@ namespace JolieCat3D.UI
         /// keyframed on the timeline the same way). Not yet THE active camera (see
         /// <see cref="SetActiveCameraButton_Click"/>) - adding one never silently
         /// changes what the viewport is currently looking through.</summary>
-        private void AddCameraMenuItem_Click(object sender, RoutedEventArgs e) =>
+        private void AddCameraMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
             AddNodeToScene(new Node("Camera") { Camera = new CameraData() });
+        }
 
         /// <summary>File > Scene > "Add Light" - a new root node carrying a default
         /// (Directional) <see cref="LightData"/> - see <see cref="AddCameraMenuItem_Click"/>'s
@@ -318,8 +351,11 @@ namespace JolieCat3D.UI
         /// scene's own lighting the moment it exists (see
         /// <see cref="SceneLightingFactory.CreateSceneLights"/>), no separate
         /// "active"/"set as active" step needed.</summary>
-        private void AddLightMenuItem_Click(object sender, RoutedEventArgs e) =>
+        private void AddLightMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
             AddNodeToScene(new Node("Light") { Light = new LightData() });
+        }
 
         /// <summary>Adds <paramref name="node"/> as a new root of <see cref="_currentScene"/>
         /// and refreshes the Outliner/viewport immediately - the shared plumbing every
@@ -345,6 +381,7 @@ namespace JolieCat3D.UI
         /// orbit/pan/zoom camera.</summary>
         private void SetActiveCameraButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
 
             _currentScene.ActiveCamera = node;
@@ -358,6 +395,8 @@ namespace JolieCat3D.UI
         /// actually been editing.</summary>
         private void ExportMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
+
             var dialog = new SaveFileDialog { Filter = FileDialogFilter, Title = "Export", FileName = _currentFilePath ?? "Untitled.obj" };
             if (dialog.ShowDialog(this) != true) return;
 
@@ -376,6 +415,8 @@ namespace JolieCat3D.UI
         /// take only a <c>Scene3D</c>; this needs the timeline too).</summary>
         private void ExportGltfMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
+
             var dialog = new SaveFileDialog
             {
                 Filter = "glTF Binary (*.glb)|*.glb|glTF (*.gltf)|*.gltf",
@@ -400,6 +441,8 @@ namespace JolieCat3D.UI
         /// other trigger.</summary>
         private void SetSkyboxMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
+
             var dialog = new OpenFileDialog
             {
                 Filter = "Skybox face image (e.g. cube_f.jpg)|*.jpg;*.jpeg;*.png;*.bmp",
@@ -428,6 +471,8 @@ namespace JolieCat3D.UI
         /// one set.</summary>
         private void ClearSkyboxMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
+
             _currentScene.Environment = null;
             _renderer.Render(_currentScene, zoomToFit: false);
         }
@@ -456,6 +501,7 @@ namespace JolieCat3D.UI
         /// point exactly - only the PROJECTION changes.</summary>
         private void CameraProjectionButton_Checked(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (sender is not RadioButton { Tag: string modeName }) return;
 
             if (modeName == "Orthographic") CameraFraming.SetOrthographic(Viewport);
@@ -470,6 +516,7 @@ namespace JolieCat3D.UI
         /// establish.</summary>
         private void ViewPresetButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (sender is not Button { Tag: string presetName }) return;
             if (!Enum.TryParse<ViewPreset>(presetName, out var preset)) return;
 
@@ -478,8 +525,11 @@ namespace JolieCat3D.UI
 
         /// <summary>The Camera toolbar's "Grid" checkbox - shows/hides the reference grid
         /// (<see cref="Scene3DRenderer.ShowGrid"/>).</summary>
-        private void ShowGridCheckBox_Changed(object sender, RoutedEventArgs e) =>
+        private void ShowGridCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
             _renderer.ShowGrid = ShowGridCheckBox.IsChecked == true;
+        }
 
         /// <summary>The Camera toolbar's grid size field - keeps the reference grid
         /// visual (<see cref="Scene3DRenderer.GridSize"/>) AND both gizmos' own
@@ -492,6 +542,7 @@ namespace JolieCat3D.UI
         /// blocking the TextBox itself.</summary>
         private void GridSizeTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (!float.TryParse(GridSizeTextBox.Text, out var size) || size <= 0f) return;
 
             _renderer.GridSize = size;
@@ -513,6 +564,8 @@ namespace JolieCat3D.UI
         /// mesh data.</summary>
         private void ExportAnimationMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
+
             var dialog = new SaveFileDialog
             {
                 Filter = "JolieCat3D Animation (*.j3danim.json)|*.j3danim.json|JolieCat-Compatible Timeline (*.json)|*.json",
@@ -551,6 +604,7 @@ namespace JolieCat3D.UI
         /// before.</summary>
         private async void RenderAnimationFramesMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (_isRenderingFrames)
             {
                 MessageBox.Show(this, "A render is already in progress - please wait for it to finish.",
@@ -599,7 +653,11 @@ namespace JolieCat3D.UI
             });
         }
 
-        private void ExitMenuItem_Click(object sender, RoutedEventArgs e) => Close();
+        private void ExitMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            Close();
+        }
 
         /// <summary>No dirty/unsaved-changes tracking exists yet (every scene edit -
         /// gizmo drag, Properties field, Import - would need to flip a flag this project
@@ -661,6 +719,8 @@ namespace JolieCat3D.UI
         /// </summary>
         private void Viewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (!_isInitialized) return;
+
             var position = e.GetPosition(Viewport);
 
             if (IsEditMode)
@@ -677,8 +737,11 @@ namespace JolieCat3D.UI
         /// the same <see cref="SelectNode"/> path either way, so the renderer's highlight,
         /// the gizmo, and the Properties Inspector all stay in sync regardless of which
         /// one the user actually clicked.</summary>
-        private void SceneTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e) =>
+        private void SceneTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
+        {
+            if (!_isInitialized) return;
             SelectNode((e.NewValue as NodeViewModel)?.UnderlyingNode);
+        }
 
         /// <summary>True once <see cref="EditModeButton"/> (rather than
         /// <see cref="ObjectModeButton"/>) is the checked radio button - what every
@@ -715,6 +778,7 @@ namespace JolieCat3D.UI
 
         private void GizmoModeButton_Checked(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (sender is not RadioButton { Tag: string modeName }) return;
             if (Enum.TryParse<GizmoMode>(modeName, out var mode)) _gizmo.Mode = mode;
         }
@@ -726,6 +790,7 @@ namespace JolieCat3D.UI
         /// already uses for <see cref="TransformGizmo.Mode"/>.</summary>
         private void ShadingModeButton_Checked(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (sender is not RadioButton { Tag: string modeName }) return;
             if (Enum.TryParse<ShadingMode>(modeName, out var mode)) _renderer.ShadingMode = mode;
         }
@@ -739,6 +804,7 @@ namespace JolieCat3D.UI
         /// nothing chosen to edit).</summary>
         private void EditorModeButton_Checked(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (sender is not RadioButton { Tag: string modeName }) return;
             var enteringEditMode = modeName == "Edit";
 
@@ -775,6 +841,7 @@ namespace JolieCat3D.UI
 
         private void ComponentModeButton_Checked(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (sender is not RadioButton { Tag: string modeName }) return;
             if (!Enum.TryParse<ComponentType>(modeName, out var mode)) return;
 
@@ -854,6 +921,8 @@ namespace JolieCat3D.UI
         /// extrudable is currently selected, rather than silently doing nothing.</summary>
         private void ExtrudeButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
+
             var session = _renderer.EditSession;
             if (session.Target is not { } node) return;
 
@@ -890,6 +959,8 @@ namespace JolieCat3D.UI
         /// does.</summary>
         private void SubdivideButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
+
             var session = _renderer.EditSession;
             if (session.Target is not { } node) return;
 
@@ -923,7 +994,11 @@ namespace JolieCat3D.UI
         /// pairing that command relies on). Also reachable via the Delete key - see
         /// <see cref="MainWindow_PreviewKeyDown"/> - this button exists purely so the same
         /// command has a mouse-only path too.</summary>
-        private void DeleteButton_Click(object sender, RoutedEventArgs e) => DeleteSelectedComponents();
+        private void DeleteButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            DeleteSelectedComponents();
+        }
 
         /// <summary>The actual "Delete Vertices/Edges/Faces" command both
         /// <see cref="DeleteButton_Click"/> and the Delete key (see
@@ -973,6 +1048,7 @@ namespace JolieCat3D.UI
         /// useful with an ambiguous meaning.</summary>
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
+            if (!_isInitialized) return;
             if (e.Key != Key.Delete || !IsEditMode) return;
 
             DeleteSelectedComponents();
@@ -987,11 +1063,17 @@ namespace JolieCat3D.UI
         /// window's own constructor), so no explicit <see cref="Scene3DRenderer.Refresh"/>
         /// is needed here - it happens automatically, the same real-time-update path
         /// every other Properties Inspector edit already goes through.</summary>
-        private void AddMirrorModifierButton_Click(object sender, RoutedEventArgs e) =>
+        private void AddMirrorModifierButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
             _sceneViewModel.SelectedNode?.AddMirrorModifier();
+        }
 
-        private void AddSubsurfModifierButton_Click(object sender, RoutedEventArgs e) =>
+        private void AddSubsurfModifierButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
             _sceneViewModel.SelectedNode?.AddSubdivisionSurfaceModifier();
+        }
 
         /// <summary>The Modifiers panel's own per-entry "Remove" button - the clicked
         /// <see cref="Button"/>'s own DataContext (from its enclosing <c>DataTemplate</c>)
@@ -999,6 +1081,7 @@ namespace JolieCat3D.UI
         /// template is data-bound to exactly one.</summary>
         private void RemoveModifierButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (sender is not FrameworkElement { DataContext: ModifierViewModelBase modifierViewModel }) return;
             _sceneViewModel.SelectedNode?.RemoveModifier(modifierViewModel);
         }
@@ -1012,6 +1095,7 @@ namespace JolieCat3D.UI
         /// changes its appearance, so no re-render is needed here.</summary>
         private void AddKeyframeButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
 
             var interpolation = BezierInterpolationButton.IsChecked == true ? InterpolationMode.Bezier : InterpolationMode.Linear;
@@ -1029,6 +1113,7 @@ namespace JolieCat3D.UI
         /// playback starts.</summary>
         private void LoadClipbarAnimationButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
             if (nodeViewModel.UnderlyingNode.Mesh?.Material is not { } material) return;
 
@@ -1085,6 +1170,7 @@ namespace JolieCat3D.UI
 
         private void PlayPauseButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (_timeline.IsPlaying) _timeline.Pause();
             else _timeline.Play();
 
@@ -1093,6 +1179,7 @@ namespace JolieCat3D.UI
 
         private void StopButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             _timeline.Stop();
             _timeline.Apply();
             _sceneViewModel.SelectedNode?.SyncFromCore();
@@ -1110,6 +1197,7 @@ namespace JolieCat3D.UI
         /// single playback tick for nothing).</summary>
         private void FrameScrubber_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
+            if (!_isInitialized) return;
             if (_isUpdatingAnimationUI) return;
 
             _timeline.CurrentFrame = e.NewValue;
@@ -1126,6 +1214,7 @@ namespace JolieCat3D.UI
         /// throwing mid-edit).</summary>
         private void FpsTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (_isUpdatingAnimationUI) return;
             if (!double.TryParse(FpsTextBox.Text, out var fps) || fps <= 0) return;
 
@@ -1164,6 +1253,7 @@ namespace JolieCat3D.UI
         /// mesh+material actually selected.</summary>
         private void LoadTextureButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
 
             var dialog = new OpenFileDialog
@@ -1195,6 +1285,7 @@ namespace JolieCat3D.UI
         /// register with.</summary>
         private void LoadNormalMapButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
 
             var dialog = new OpenFileDialog
@@ -1219,6 +1310,7 @@ namespace JolieCat3D.UI
         /// remarks), this button does no repacking of its own.</summary>
         private void LoadMetallicRoughnessMapButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
 
             var dialog = new OpenFileDialog
@@ -1244,6 +1336,7 @@ namespace JolieCat3D.UI
         /// re-extracts and refreshes automatically - see <see cref="ReloadNodeTexture"/>.</summary>
         private void LoadFromJolieProjectButton_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
             if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
 
             var dialog = new OpenFileDialog
@@ -1262,9 +1355,23 @@ namespace JolieCat3D.UI
             });
         }
 
-        private void PlanarProjectionButton_Click(object sender, RoutedEventArgs e) => ApplyUVProjection(UVProjectionMode.Planar);
-        private void BoxProjectionButton_Click(object sender, RoutedEventArgs e) => ApplyUVProjection(UVProjectionMode.Box);
-        private void SphericalProjectionButton_Click(object sender, RoutedEventArgs e) => ApplyUVProjection(UVProjectionMode.Spherical);
+        private void PlanarProjectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            ApplyUVProjection(UVProjectionMode.Planar);
+        }
+
+        private void BoxProjectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            ApplyUVProjection(UVProjectionMode.Box);
+        }
+
+        private void SphericalProjectionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            ApplyUVProjection(UVProjectionMode.Spherical);
+        }
 
         private void ApplyUVProjection(UVProjectionMode mode)
         {
@@ -1292,6 +1399,8 @@ namespace JolieCat3D.UI
         /// <see cref="TryRun"/> for how that failure itself is reported.</summary>
         private void WatchWorkspaceMenuItem_Click(object sender, RoutedEventArgs e)
         {
+            if (!_isInitialized) return;
+
             var dialog = new OpenFolderDialog { Title = "Watch JolieCat Workspace Folder" };
             if (dialog.ShowDialog(this) != true) return;
 
