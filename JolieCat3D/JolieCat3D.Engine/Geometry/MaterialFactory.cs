@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
+using JolieCat3D.Core.Caching;
 using JolieCat3D.Engine.Rendering;
 using CoreColor4 = JolieCat3D.Core.Numerics.Color4;
 using CoreMaterial = JolieCat3D.Core.Materials.Material;
@@ -32,6 +33,29 @@ namespace JolieCat3D.Engine.Geometry
         /// returns for a null material, matching <see cref="CoreMaterial.CreateDefault"/>'s
         /// own look without needing a live Core instance to build it from.</summary>
         public static Material CreateDefault() => Create(null);
+
+        /// <summary>The current scene's own Image-Based Lighting tint - null (the
+        /// default, matching every scene with no <c>Core.Scene.Scene3D.Environment</c>
+        /// set) means every material's specular highlight is computed exactly as it
+        /// always was, with no environment influence at all. Set by
+        /// <c>Rendering.Scene3DRenderer</c> whenever the scene's own environment changes
+        /// (via <c>Rendering.EnvironmentVisualFactory.TrySampleAverageColor</c>) - a
+        /// plain static settable property, the same "static class doubling as a small
+        /// piece of shared render-session state" shape this class's own
+        /// <see cref="MetallicRoughnessAverageCache"/> already has.
+        ///
+        /// WPF's fixed-function <see cref="Model3D"/> pipeline has no real environment-
+        /// reflection-mapping capability at all (the same structural limitation
+        /// <see cref="ComputeSpecular"/>'s own remarks already disclose for Roughness/
+        /// Metallic textures, and <c>CoreMaterial.NormalTexturePath</c>'s for bump
+        /// mapping) - there is no way for a <see cref="SpecularMaterial"/> to actually
+        /// sample a skybox. What THIS property enables instead is an honest, disclosed
+        /// APPROXIMATION: a metallic, smooth (low-roughness) material's specular tint
+        /// blends further toward this color, the same way a real mirror-like surface
+        /// visibly picks up its surroundings' own dominant color even before you can make
+        /// out a sharp reflection in it - see <see cref="ComputeSpecular"/>'s own blend
+        /// formula for exactly how much.</summary>
+        public static CoreColor4? EnvironmentTint { get; set; }
 
         /// <summary>The <see cref="ShadingMode.Rendered"/> (full-quality, this project's
         /// long-standing default) material for <paramref name="material"/> - see the
@@ -141,6 +165,18 @@ namespace JolieCat3D.Engine.Geometry
             var metallic = Math.Clamp(metallicScalar, 0f, 1f);
             var tintedColor = CoreColor4.Lerp(material.SpecularColor, material.DiffuseColor, metallic);
 
+            // See EnvironmentTint's own remarks: only a fairly metallic AND fairly smooth
+            // surface blends toward it at all (a rough or dielectric material shows
+            // little to no clear "reflection" of its surroundings in reality either), and
+            // not applied at all with no environment set - every scene without one keeps
+            // rendering pixel-identically to before this feature existed.
+            if (EnvironmentTint is { } environmentTint)
+            {
+                var roughnessForReflectivity = Math.Clamp(roughnessScalar, 0f, 1f);
+                var reflectivity = Math.Clamp(metallic * (1f - roughnessForReflectivity), 0f, 1f);
+                tintedColor = CoreColor4.Lerp(tintedColor, environmentTint, reflectivity);
+            }
+
             var roughness = Math.Clamp(roughnessScalar, 0f, 1f);
             var power = Math.Max(1.0, material.SpecularPower * (1.0 - roughness) + roughness);
 
@@ -156,8 +192,13 @@ namespace JolieCat3D.Engine.Geometry
         /// up on the next render rather than serving a stale average forever - this
         /// method is called on every single <see cref="Create(CoreMaterial?,ShadingMode)"/>
         /// (once per node, per render/refresh), so caching is what keeps repeatedly
-        /// re-decoding and re-averaging the same unchanged texture off the hot path.</summary>
-        private static readonly Dictionary<string, (DateTime WriteTimeUtc, float AverageRoughness, float AverageMetallic)> MetallicRoughnessAverageCache = new();
+        /// re-decoding and re-averaging the same unchanged texture off the hot path.
+        /// Bounded (<see cref="BoundedCache{TKey,TValue}"/>), not a plain ever-growing
+        /// Dictionary - a session that loads/hot-reloads many DIFFERENT texture files
+        /// over its own lifetime (not just re-saving the same one) would otherwise never
+        /// release the entries for textures nobody references anymore, a real,
+        /// accumulating memory leak a bounded LRU cache doesn't have.</summary>
+        private static readonly BoundedCache<string, (DateTime WriteTimeUtc, float AverageRoughness, float AverageMetallic)> MetallicRoughnessAverageCache = new(capacity: 64);
 
         /// <summary>
         /// The average roughness (image GREEN channel)/metallic (image BLUE channel)
@@ -200,52 +241,27 @@ namespace JolieCat3D.Engine.Geometry
             if (MetallicRoughnessAverageCache.TryGetValue(fullPath, out var cached) && cached.WriteTimeUtc == writeTimeUtc)
                 return (cached.AverageRoughness, cached.AverageMetallic);
 
-            try
+            if (ImageAverageSampler.TryDecodeSmallBgra32(fullPath, out var width, out var height) is not { } pixels)
+                return null; // missing/unreadable/invalid image - see CreateDiffuseBrush's own remarks on why this degrades rather than throws
+
+            long roughnessSum = 0;
+            long metallicSum = 0;
+            var pixelCount = width * height;
+
+            for (var i = 0; i < pixels.Length; i += 4)
             {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
-                bitmap.DecodePixelWidth = 32;
-                bitmap.DecodePixelHeight = 32;
-                bitmap.UriSource = new Uri(fullPath, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
-
-                var converted = new FormatConvertedBitmap(bitmap, PixelFormats.Bgra32, null, 0);
-                var width = converted.PixelWidth;
-                var height = converted.PixelHeight;
-                if (width <= 0 || height <= 0) return null;
-
-                var stride = width * 4;
-                var pixels = new byte[stride * height];
-                converted.CopyPixels(pixels, stride, 0);
-
-                long roughnessSum = 0;
-                long metallicSum = 0;
-                var pixelCount = width * height;
-
-                for (var i = 0; i < pixels.Length; i += 4)
-                {
-                    // Bgra32's own byte order is [B, G, R, A] per pixel - the packed
-                    // glTF metallicRoughness convention puts metallic in the image's
-                    // BLUE channel (byte offset 0 here) and roughness in GREEN (offset 1).
-                    metallicSum += pixels[i];
-                    roughnessSum += pixels[i + 1];
-                }
-
-                var averageRoughness = roughnessSum / 255f / pixelCount;
-                var averageMetallic = metallicSum / 255f / pixelCount;
-
-                MetallicRoughnessAverageCache[fullPath] = (writeTimeUtc, averageRoughness, averageMetallic);
-                return (averageRoughness, averageMetallic);
+                // Bgra32's own byte order is [B, G, R, A] per pixel - the packed
+                // glTF metallicRoughness convention puts metallic in the image's
+                // BLUE channel (byte offset 0 here) and roughness in GREEN (offset 1).
+                metallicSum += pixels[i];
+                roughnessSum += pixels[i + 1];
             }
-            catch (Exception)
-            {
-                // Same "a broken texture reference degrades visibly, never crashes the
-                // render" reasoning CreateDiffuseBrush's own remarks disclose.
-                return null;
-            }
+
+            var averageRoughness = roughnessSum / 255f / pixelCount;
+            var averageMetallic = metallicSum / 255f / pixelCount;
+
+            MetallicRoughnessAverageCache.Set(fullPath, (writeTimeUtc, averageRoughness, averageMetallic));
+            return (averageRoughness, averageMetallic);
         }
 
         /// <summary>An <see cref="ImageBrush"/> sampling <see cref="CoreMaterial.DiffuseTexturePath"/>'s

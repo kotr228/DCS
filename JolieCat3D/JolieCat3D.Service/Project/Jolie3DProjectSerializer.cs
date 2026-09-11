@@ -45,6 +45,7 @@ namespace JolieCat3D.Service.Project
                 SceneName = scene.Name,
                 Animation = AnimationExporter.BuildExportData(timeline),
                 ActiveCameraNodePath = scene.ActiveCamera is { } activeCamera ? NodePathResolver.GetPath(activeCamera) : null,
+                EnvironmentSkyboxSource = scene.Environment?.SkyboxSource,
             };
 
             foreach (var root in scene.RootNodes)
@@ -90,6 +91,9 @@ namespace JolieCat3D.Service.Project
                 scene.AddRootNode(ConvertNodeData(rootData, filePath));
 
             scene.ActiveCamera = NodePathResolver.FindByPath(scene, data.ActiveCameraNodePath);
+            scene.Environment = data.EnvironmentSkyboxSource is { Length: > 0 } skyboxSource
+                ? new EnvironmentSettings { SkyboxSource = skyboxSource }
+                : null;
 
             var timeline = new AnimationTimeline();
             AnimationExporter.ApplyExportData(data.Animation, timeline, scene);

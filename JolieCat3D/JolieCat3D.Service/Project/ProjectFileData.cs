@@ -42,6 +42,15 @@ namespace JolieCat3D.Service.Project
         /// reference. Null (the default) means no active camera, matching that
         /// property's own default.</summary>
         public string? ActiveCameraNodePath { get; set; }
+
+        /// <summary>Mirrors <see cref="Core.Scene.EnvironmentSettings.SkyboxSource"/> -
+        /// null (the default) means no <see cref="Core.Scene.Scene3D.Environment"/> at
+        /// all, matching that property's own default. Flattened straight to the one
+        /// string it actually carries rather than a nested object, since
+        /// <see cref="Core.Scene.EnvironmentSettings"/> has exactly one field today - the
+        /// same "don't nest a whole object for one value" simplicity
+        /// <see cref="ActiveCameraNodePath"/> itself already follows.</summary>
+        public string? EnvironmentSkyboxSource { get; set; }
     }
 
     /// <summary>One <see cref="Core.Scene.Node"/>: its own local transform, optional

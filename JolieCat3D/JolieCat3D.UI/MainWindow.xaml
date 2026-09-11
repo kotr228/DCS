@@ -24,6 +24,7 @@
             <RowDefinition Height="Auto" /> <!-- Gizmo mode toolbar -->
             <RowDefinition Height="Auto" /> <!-- Object/Edit mode + component toolbar -->
             <RowDefinition Height="Auto" /> <!-- Shading mode toolbar -->
+            <RowDefinition Height="Auto" /> <!-- Camera precision toolbar -->
             <RowDefinition Height="*" />    <!-- Outliner | Viewport | Properties -->
             <RowDefinition Height="Auto" /> <!-- Animation playback transport -->
         </Grid.RowDefinitions>
@@ -85,6 +86,17 @@
                 <Separator />
                 <MenuItem Header="Add Ca_mera" Click="AddCameraMenuItem_Click" />
                 <MenuItem Header="Add _Light" Click="AddLightMenuItem_Click" />
+                <Separator />
+                <!-- A scene-wide skybox/IBL setting (Core.Scene.Scene3D.Environment) -
+                     round-trips through the .jolie3d project file, the same "a real
+                     scene-level setting, not a per-node one" shape ActiveCamera already
+                     has. See Engine.Rendering.EnvironmentVisualFactory's own remarks on
+                     what picking one actually does (a real skybox visual, plus an
+                     honest, approximated tint on metallic/smooth materials - not true
+                     per-pixel reflection, which WPF's fixed-function pipeline has no way
+                     to do at all). -->
+                <MenuItem Header="Set _Skybox..." Click="SetSkyboxMenuItem_Click" />
+                <MenuItem Header="Clear Skybox" Click="ClearSkyboxMenuItem_Click" />
             </MenuItem>
         </Menu>
 
@@ -169,7 +181,46 @@
             </StackPanel>
         </Border>
 
-        <Grid Grid.Row="4">
+        <!-- ================= Camera Precision Toolbar ================= -->
+        <!-- Precision Modeling Tools: Perspective/Orthographic toggle, the 6 standard
+             axis-aligned view presets (framed on the SELECTED node when one exists,
+             the whole scene otherwise - see MainWindow.xaml.cs's own
+             ViewPresetButton_Click), and the reference-grid visibility/spacing controls
+             the Translate gizmos' own Ctrl-drag snapping (Gizmos.TransformGizmo.GridSize/
+             Editing.ComponentGizmo.GridSize) is kept in step with. -->
+        <Border Grid.Row="4" Background="{StaticResource PanelAltBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="8,6">
+                <TextBlock Text="Camera:" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <RadioButton x:Name="PerspectiveCameraButton" Content="Perspective" GroupName="CameraProjection"
+                             IsChecked="True" Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,4,0" Checked="CameraProjectionButton_Checked" Tag="Perspective" />
+                <RadioButton x:Name="OrthographicCameraButton" Content="Orthographic" GroupName="CameraProjection"
+                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,20,0" Checked="CameraProjectionButton_Checked" Tag="Orthographic" />
+
+                <TextBlock Text="View:" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <Button Content="Top" Margin="0,0,2,0" Padding="8,2" Click="ViewPresetButton_Click" Tag="Top" />
+                <Button Content="Bottom" Margin="0,0,2,0" Padding="8,2" Click="ViewPresetButton_Click" Tag="Bottom" />
+                <Button Content="Front" Margin="0,0,2,0" Padding="8,2" Click="ViewPresetButton_Click" Tag="Front" />
+                <Button Content="Back" Margin="0,0,2,0" Padding="8,2" Click="ViewPresetButton_Click" Tag="Back" />
+                <Button Content="Left" Margin="0,0,2,0" Padding="8,2" Click="ViewPresetButton_Click" Tag="Left" />
+                <Button Content="Right" Margin="0,0,20,0" Padding="8,2" Click="ViewPresetButton_Click" Tag="Right" />
+
+                <CheckBox x:Name="ShowGridCheckBox" Content="Grid" IsChecked="True" VerticalAlignment="Center"
+                          Margin="0,0,10,0" Checked="ShowGridCheckBox_Changed" Unchecked="ShowGridCheckBox_Changed" />
+                <TextBlock Text="Size" VerticalAlignment="Center" Margin="0,0,4,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <!-- The SAME value both the reference grid visual AND a Ctrl-held
+                     Translate drag's own snapping increment use - see MainWindow.xaml.cs's
+                     own GridSizeTextBox_TextChanged. -->
+                <TextBox x:Name="GridSizeTextBox" Width="50" Text="1" TextChanged="GridSizeTextBox_TextChanged" />
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="240" MinWidth="160" />
                 <ColumnDefinition Width="Auto" />
@@ -498,7 +549,7 @@
         </Grid>
 
         <!-- ================= Animation Playback Transport ================= -->
-        <Border Grid.Row="5" Background="{StaticResource PanelAltBackgroundBrush}"
+        <Border Grid.Row="6" Background="{StaticResource PanelAltBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
             <StackPanel Orientation="Horizontal" Margin="8,6">
                 <Button x:Name="PlayPauseButton" Content="Play" Padding="12,2" Margin="0,0,4,0" Click="PlayPauseButton_Click" />

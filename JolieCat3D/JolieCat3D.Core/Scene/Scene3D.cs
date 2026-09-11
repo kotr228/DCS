@@ -28,6 +28,12 @@ namespace JolieCat3D.Core.Scene
         /// node it just gave a <see cref="CameraData"/> to.</summary>
         public Node? ActiveCamera { get; set; }
 
+        /// <summary>The scene-wide skybox/Image-Based Lighting setting - null (the
+        /// default, matching every scene authored before this existed) means no skybox
+        /// and no environment tint at all, exactly as this project has always rendered.
+        /// See <see cref="EnvironmentSettings"/>'s own remarks.</summary>
+        public EnvironmentSettings? Environment { get; set; }
+
         public Scene3D(string name = "Scene") => Name = name;
 
         public void AddRootNode(Node node)

@@ -7,6 +7,7 @@ using JolieCat3D.Engine.Editing;
 using JolieCat3D.Engine.Geometry;
 using JolieCat3D.Engine.Lighting;
 using JolieCat3D.Engine.Selection;
+using CoreColor4 = JolieCat3D.Core.Numerics.Color4;
 using CoreNode = JolieCat3D.Core.Scene.Node;
 using CoreScene = JolieCat3D.Core.Scene.Scene3D;
 
@@ -28,6 +29,14 @@ namespace JolieCat3D.Engine.Rendering
     {
         private static readonly Color SelectionColor = Color.FromRgb(0xC2, 0x9B, 0x58); // JolieCat AccentBrush (gold)
 
+        /// <summary>A faint, neutral reference-grid brush - translucent so it reads as a
+        /// subtle floor reference at any zoom level rather than competing with the scene
+        /// itself, and light enough to stay visible against <see cref="ViewportTheme.CreateDarkBackground"/>'s
+        /// own near-black tones without introducing a new brand color of its own (unlike
+        /// <see cref="SelectionColor"/>, which is deliberately reserved for selection so
+        /// the two visual cues never get confused with one another).</summary>
+        private static readonly Brush GridLineBrush = FreezeBrush(new SolidColorBrush(Color.FromArgb(0x40, 0xFF, 0xFF, 0xFF)));
+
         private readonly HelixViewport3D _viewport;
         private readonly ModelVisual3D _lightingVisual = new();
         private readonly ModelVisual3D _sceneLightingVisual = new();
@@ -36,11 +45,49 @@ namespace JolieCat3D.Engine.Rendering
         private readonly Dictionary<GeometryModel3D, CoreNode> _modelToNode = new();
         private Visual3D? _selectionVisual;
         private Visual3D? _wireframeVisual;
+        private Visual3D? _skyboxVisual;
+        private Visual3D? _gridVisual;
         private ShadingMode _shadingMode = ShadingMode.Rendered;
         private CoreScene? _lastScene;
         private bool _isAttached;
 
         public LightingSettings Lighting { get; set; } = LightingSettings.CreateDefault();
+
+        /// <summary>Whether <see cref="Render"/>/<see cref="Refresh"/> draw a faint,
+        /// world-space reference grid on the ground plane (Y=0) - Precision Modeling's own
+        /// visual complement to grid SNAPPING (<c>Gizmos.TransformGizmo.GridSize</c>/
+        /// <c>Editing.ComponentGizmo.GridSize</c>): seeing the grid a drag snaps to is
+        /// most of the point of having one at all. On by default; setting this re-renders
+        /// immediately, the same "setting a display option also applies it" shape
+        /// <see cref="ShadingMode"/> already uses.</summary>
+        public bool ShowGrid
+        {
+            get => _showGrid;
+            set
+            {
+                if (_showGrid == value) return;
+                _showGrid = value;
+                RefreshGridVisual();
+            }
+        }
+        private bool _showGrid = true;
+
+        /// <summary>The world-space spacing between minor grid lines - see
+        /// <see cref="ShowGrid"/>'s own remarks on keeping this in step with whatever grid
+        /// size a caller's gizmos actually snap to. Setting this rebuilds the grid visual
+        /// immediately (a no-op if <see cref="ShowGrid"/> is currently off).</summary>
+        public float GridSize
+        {
+            get => _gridSize;
+            set
+            {
+                var clamped = System.Math.Max(0.01f, value);
+                if (_gridSize == clamped) return;
+                _gridSize = clamped;
+                RefreshGridVisual();
+            }
+        }
+        private float _gridSize = 1f;
 
         /// <summary>Which viewport shading style <see cref="Render"/>/<see cref="Refresh"/>
         /// currently draw the scene in - see <see cref="Rendering.ShadingMode"/>'s own
@@ -98,6 +145,7 @@ namespace JolieCat3D.Engine.Rendering
             _viewport.Children.Add(_componentOverlayVisual);
 
             _isAttached = true;
+            RefreshGridVisual();
         }
 
         /// <summary>Rebuilds the lighting visual from <see cref="Lighting"/>'s current
@@ -164,6 +212,32 @@ namespace JolieCat3D.Engine.Rendering
 
             RefreshSelectionHighlight();
             RefreshComponentOverlay();
+            RefreshEnvironment(scene);
+        }
+
+        /// <summary>Rebuilds the skybox visual (<see cref="EnvironmentVisualFactory.CreateSkybox"/>,
+        /// swapped the same "remove the old one, add the new one" way
+        /// <see cref="RefreshWireframeVisual"/> already handles <see cref="_wireframeVisual"/>)
+        /// and updates <see cref="MaterialFactory.EnvironmentTint"/> (<see cref="EnvironmentVisualFactory.TrySampleAverageColor"/>)
+        /// from <paramref name="scene"/>'s own <see cref="CoreScene.Environment"/> - called
+        /// by every <see cref="Render"/>, so a scene loaded/replaced with a different (or
+        /// no) environment always picks it up, and a live edit re-render (see
+        /// <see cref="Refresh"/>) keeps whatever's already there in sync too (e.g. after
+        /// the workspace watcher hot-reloads a skybox face file on disk).
+        ///
+        /// <see cref="MaterialFactory.EnvironmentTint"/> being a STATIC property (shared
+        /// across every <see cref="Scene3DRenderer"/> instance, of which this app only
+        /// ever has one live at a time) is a known, accepted simplification - see that
+        /// property's own remarks on why it takes this shape.</summary>
+        private void RefreshEnvironment(CoreScene scene)
+        {
+            if (_skyboxVisual is not null) _viewport.Children.Remove(_skyboxVisual);
+            _skyboxVisual = EnvironmentVisualFactory.CreateSkybox(scene.Environment);
+            if (_skyboxVisual is not null) _viewport.Children.Add(_skyboxVisual);
+
+            MaterialFactory.EnvironmentTint = EnvironmentVisualFactory.TrySampleAverageColor(scene.Environment, out var averageColor)
+                ? new CoreColor4(averageColor.X, averageColor.Y, averageColor.Z)
+                : null;
         }
 
         /// <summary>Re-renders the same scene <see cref="Render"/> was last called with
@@ -216,6 +290,42 @@ namespace JolieCat3D.Engine.Rendering
 
             _wireframeVisual = scene is not null ? WireframeVisualFactory.CreateSceneWireframe(scene) : null;
             if (_wireframeVisual is not null) _viewport.Children.Add(_wireframeVisual);
+        }
+
+        /// <summary>Rebuilds (or removes, for <see cref="ShowGrid"/> off) the ground-plane
+        /// (Y=0) reference grid - <see cref="HelixToolkit.Wpf.GridLinesVisual3D"/>, not a
+        /// hand-built mesh, the same "use the library's own ready-made visual" reasoning
+        /// <see cref="Camera.CameraFraming"/>'s own remarks already apply to orbit/pan/zoom.
+        /// A fixed, generous size (100x100 world units, centered on the origin) rather
+        /// than one derived from the current scene's own bounds - a reference grid is
+        /// meant to represent the WORLD's own coordinate system, not shrink-wrap around
+        /// whatever happens to be in the scene right now.</summary>
+        private void RefreshGridVisual()
+        {
+            if (_gridVisual is not null) _viewport.Children.Remove(_gridVisual);
+            _gridVisual = null;
+
+            if (!ShowGrid || !_isAttached) return;
+
+            _gridVisual = new GridLinesVisual3D
+            {
+                Width = 100,
+                Length = 100,
+                MinorDistance = GridSize,
+                MajorDistance = GridSize * 5,
+                Thickness = 0.02,
+                Center = new Point3D(0, 0, 0),
+                Normal = new Vector3D(0, 1, 0), // this project's own Y-up ground plane - see CameraFraming.ConfigureOrbitPanZoom's own remarks
+                LengthDirection = new Vector3D(1, 0, 0),
+                Fill = GridLineBrush,
+            };
+            _viewport.Children.Add(_gridVisual);
+        }
+
+        private static Brush FreezeBrush(Brush brush)
+        {
+            brush.Freeze();
+            return brush;
         }
 
         /// <summary>Switches <see cref="EditSession"/> onto <paramref name="node"/> (its

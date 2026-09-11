@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using JolieCat3D.Core.Camera;
 using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Materials;
 using JolieCat3D.Core.Numerics;
@@ -217,6 +218,15 @@ namespace JolieCat3D.UI
             // replacement always starts Undo/Redo completely fresh too.
             _commandHistory.Clear();
 
+            // _textureSources keys are the PREVIOUS scene's own Node instances - keeping
+            // them around after that whole scene is gone is a real, unbounded memory leak
+            // over a session that opens/creates many scenes in turn (every one of THEIR
+            // own now-unreachable nodes stays referenced here forever, keeping the
+            // Dictionary - and every Node it points to - alive well past the point
+            // anything else in the app can still reach them). A fresh scene starts with
+            // no tracked texture sources of its own regardless, so this is never a loss.
+            _textureSources.Clear();
+
             Title = $"JolieCat3D - {(filePath is null ? "Untitled" : Path.GetFileName(filePath))}";
         }
 
@@ -375,6 +385,118 @@ namespace JolieCat3D.UI
             if (dialog.ShowDialog(this) != true) return;
 
             TryRun("Export GLB/glTF", () => GltfExporter.Export(_currentScene, _timeline, dialog.FileName));
+        }
+
+        /// <summary>File > Scene > "Set Skybox..." - picks ONE of a skybox's own 6 face
+        /// image files (see <see cref="EnvironmentSettings.SkyboxSource"/>'s own remarks
+        /// on the naming convention every face is expected to follow) and derives the
+        /// shared prefix the other 5 are expected to share, rather than asking for a
+        /// whole folder - a plain <see cref="OpenFileDialog"/> is already the established
+        /// picker everywhere else in this window (see <see cref="LoadTextureButton_Click"/>),
+        /// so this reuses that same, familiar flow instead of introducing a folder-browse
+        /// dialog type this project has never needed before. Immediately re-renders so
+        /// the skybox visual and its environment tint (see
+        /// <see cref="MaterialFactory.EnvironmentTint"/>) take effect without needing any
+        /// other trigger.</summary>
+        private void SetSkyboxMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Skybox face image (e.g. cube_f.jpg)|*.jpg;*.jpeg;*.png;*.bmp",
+                Title = "Set Skybox - pick any ONE of its 6 face images",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            TryRun("Set Skybox", () =>
+            {
+                if (DeriveSkyboxPrefix(dialog.FileName) is not { } prefix)
+                {
+                    MessageBox.Show(this,
+                        "The chosen file doesn't look like one of a skybox's own 6 named faces "
+                        + "(expected a name ending in _f/_b/_l/_r/_u/_d before its extension, e.g. 'cube_f.jpg').",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                _currentScene.Environment = new EnvironmentSettings { SkyboxSource = prefix };
+                _renderer.Render(_currentScene, zoomToFit: false);
+            });
+        }
+
+        /// <summary>File > Scene > "Clear Skybox" - back to no environment at all
+        /// (<see cref="Scene3D.Environment"/> null), matching every scene that never had
+        /// one set.</summary>
+        private void ClearSkyboxMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            _currentScene.Environment = null;
+            _renderer.Render(_currentScene, zoomToFit: false);
+        }
+
+        private static readonly string[] SkyboxFaceSuffixes = { "_f", "_b", "_l", "_r", "_u", "_d" };
+
+        /// <summary>Strips a recognized face suffix (and extension) off
+        /// <paramref name="facePath"/> to recover the shared prefix every one of a
+        /// skybox's own 6 faces is expected to share - null if the file name doesn't end
+        /// in one of <see cref="EnvironmentSettings.SkyboxSource"/>'s own documented
+        /// suffixes at all.</summary>
+        private static string? DeriveSkyboxPrefix(string facePath)
+        {
+            var withoutExtension = Path.Combine(Path.GetDirectoryName(facePath) ?? string.Empty, Path.GetFileNameWithoutExtension(facePath));
+
+            foreach (var suffix in SkyboxFaceSuffixes)
+                if (withoutExtension.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                    return withoutExtension[..^suffix.Length];
+
+            return null;
+        }
+
+        /// <summary>The Camera toolbar's Perspective/Orthographic toggle - swaps the
+        /// viewport's own projection (see <see cref="CameraFraming.SetPerspective"/>/
+        /// <see cref="CameraFraming.SetOrthographic"/>), preserving the current vantage
+        /// point exactly - only the PROJECTION changes.</summary>
+        private void CameraProjectionButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (sender is not RadioButton { Tag: string modeName }) return;
+
+            if (modeName == "Orthographic") CameraFraming.SetOrthographic(Viewport);
+            else CameraFraming.SetPerspective(Viewport);
+        }
+
+        /// <summary>The Camera toolbar's Top/Bottom/Front/Back/Left/Right buttons -
+        /// aligns the viewport to that preset (see <see cref="CameraFraming.AlignToPreset"/>),
+        /// framed on the currently selected node when one exists, or the whole scene
+        /// otherwise - the same "prefer the selection, fall back to the whole scene"
+        /// precedent <see cref="CameraFraming"/>'s own <c>ZoomToFit</c> overloads already
+        /// establish.</summary>
+        private void ViewPresetButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { Tag: string presetName }) return;
+            if (!Enum.TryParse<ViewPreset>(presetName, out var preset)) return;
+
+            CameraFraming.AlignToPreset(Viewport, preset, _currentScene, _sceneViewModel.SelectedNode?.UnderlyingNode);
+        }
+
+        /// <summary>The Camera toolbar's "Grid" checkbox - shows/hides the reference grid
+        /// (<see cref="Scene3DRenderer.ShowGrid"/>).</summary>
+        private void ShowGridCheckBox_Changed(object sender, RoutedEventArgs e) =>
+            _renderer.ShowGrid = ShowGridCheckBox.IsChecked == true;
+
+        /// <summary>The Camera toolbar's grid size field - keeps the reference grid
+        /// visual (<see cref="Scene3DRenderer.GridSize"/>) AND both gizmos' own
+        /// Ctrl-held-drag snap increment (<see cref="TransformGizmo.GridSize"/>/
+        /// <see cref="ComponentGizmo.GridSize"/>) in step with the same one value, so
+        /// what's drawn on the ground is exactly what a snapped drag actually snaps to.
+        /// Silently ignores anything that doesn't parse as a positive number (the same
+        /// "an in-progress/invalid edit just isn't applied yet, never a crash" tolerance
+        /// <see cref="FpsTextBox_TextChanged"/> already has) rather than validating/
+        /// blocking the TextBox itself.</summary>
+        private void GridSizeTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!float.TryParse(GridSizeTextBox.Text, out var size) || size <= 0f) return;
+
+            _renderer.GridSize = size;
+            _gizmo.GridSize = size;
+            _componentGizmo.GridSize = size;
         }
 
         /// <summary>Writes the whole <see cref="_timeline"/> (every node's transform

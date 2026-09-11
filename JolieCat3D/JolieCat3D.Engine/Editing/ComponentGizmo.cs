@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.Numerics;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
+using JolieCat3D.Core.Numerics;
 using CoreNode = JolieCat3D.Core.Scene.Node;
 
 namespace JolieCat3D.Engine.Editing
@@ -52,6 +54,20 @@ namespace JolieCat3D.Engine.Editing
         /// <summary>The session this gizmo currently drags - null when Edit Mode isn't
         /// active, or nothing in it is selected, in which case no handles are shown.</summary>
         public MeshEditSession? Session { get; private set; }
+
+        /// <summary>The LOCAL-space grid increment a vertex drag snaps to while Ctrl is
+        /// held - see <c>Gizmos.TransformGizmo.GridSize</c>'s own remarks; no effect
+        /// unless Ctrl is actually down during the drag. 1 by default.</summary>
+        public float GridSize { get; set; } = 1f;
+
+        /// <summary>This drag gesture's own running total (unsnapped) LOCAL delta since
+        /// it began, and the portion of it already applied to the selection so far - see
+        /// <see cref="ApplyTranslate"/>'s own remarks on why an incremental operation
+        /// (<see cref="MeshEditSession.ApplyTranslation"/> moves every selected vertex by
+        /// whatever delta it's given, not to an absolute position) needs to track both,
+        /// not just the raw per-tick delta, to grid-snap correctly without drifting.</summary>
+        private Vector3 _accumulatedRawDelta;
+        private Vector3 _previouslyAppliedDelta;
 
         /// <summary>Raised after any drag actually moves the selection - the caller's
         /// cue to re-render the scene (which also refreshes the marker overlay - see
@@ -172,6 +188,9 @@ namespace JolieCat3D.Engine.Editing
                     dragStartPositions = Session.SelectedVertexIndices
                         .Select(index => (index, mesh.Vertices[index].Position))
                         .ToList();
+
+                _accumulatedRawDelta = Vector3.Zero;
+                _previouslyAppliedDelta = Vector3.Zero;
             };
 
             manipulator.LostMouseCapture += (_, _) =>
@@ -188,6 +207,8 @@ namespace JolieCat3D.Engine.Editing
                 }
 
                 dragStartPositions = null;
+                _accumulatedRawDelta = Vector3.Zero;
+                _previouslyAppliedDelta = Vector3.Zero;
             };
 
             _viewport.Children.Add(manipulator);
@@ -203,7 +224,20 @@ namespace JolieCat3D.Engine.Editing
         /// unwinds the whole target node's <see cref="Core.Scene.Node.GetWorldTransform"/>
         /// linear (scale+rotation) part instead, via the same
         /// <see cref="Matrix4x4.Decompose"/>-then-invert approach, before applying it
-        /// through <see cref="MeshEditSession.ApplyTranslation"/>.</summary>
+        /// through <see cref="MeshEditSession.ApplyTranslation"/>.
+        ///
+        /// While Ctrl is held (checked fresh every tick, so toggling it mid-drag takes
+        /// effect immediately), the selection snaps to <see cref="GridSize"/> increments -
+        /// see <see cref="_accumulatedRawDelta"/>'s own remarks. Since
+        /// <see cref="MeshEditSession.ApplyTranslation"/> takes an INCREMENTAL delta (it
+        /// moves every selected vertex by whatever it's given, it has no absolute
+        /// "position" of its own to overwrite the way <c>Gizmos.TransformGizmo.ApplyTranslate</c>
+        /// can just set <c>LocalPosition</c> to an absolute value), the snapped TOTAL is
+        /// diffed against whatever total was already applied on a previous tick, and only
+        /// that difference is actually passed to <see cref="MeshEditSession.ApplyTranslation"/> -
+        /// applying the full snapped total again every tick would move the selection by
+        /// that amount ON TOP OF what a previous tick already moved it, compounding far
+        /// past the intended offset.</summary>
         private void ApplyTranslate(Vector3 worldAxis, double delta)
         {
             if (Session?.Target is not { } node) return;
@@ -216,7 +250,12 @@ namespace JolieCat3D.Engine.Editing
             Matrix4x4.Invert(linear, out var invLinear);
             var localDelta = Vector3.TransformNormal(worldDelta, invLinear);
 
-            Session.ApplyTranslation(localDelta);
+            _accumulatedRawDelta += localDelta;
+            var snapRequested = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+            var (incrementToApply, newAppliedTotal) = GridSnapping.ComputeSnappedIncrement(_accumulatedRawDelta, _previouslyAppliedDelta, snapRequested, GridSize);
+            _previouslyAppliedDelta = newAppliedTotal;
+
+            Session.ApplyTranslation(incrementToApply);
             Refresh();
             EditApplied?.Invoke(this, EventArgs.Empty);
         }

@@ -1,8 +1,10 @@
 using System.ComponentModel;
 using System.Numerics;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
+using JolieCat3D.Core.Numerics;
 using CoreNode = JolieCat3D.Core.Scene.Node;
 using Quaternion = System.Numerics.Quaternion;
 
@@ -70,6 +72,25 @@ namespace JolieCat3D.Engine.Gizmos
         /// <summary>The node the gizmo is currently attached to and driving - null when
         /// nothing is selected, in which case the gizmo shows no handles at all.</summary>
         public CoreNode? Target { get; private set; }
+
+        /// <summary>The world-space grid increment a Translate drag snaps to while the
+        /// Ctrl key is held (see <see cref="ApplyTranslate"/>'s own remarks) - has no
+        /// effect at all unless Ctrl is actually down during the drag, so this can be
+        /// freely set (from a UI numeric field) without changing anything about ordinary,
+        /// unmodified dragging. 1 world unit by default - this project's own primitives
+        /// (<c>Core.Geometry.Primitives</c>) are all authored at a similar 1-unit scale,
+        /// so a plain "1" is a reasonable, unsurprising starting increment.</summary>
+        public float GridSize { get; set; } = 1f;
+
+        /// <summary>The Translate drag gesture's own running total LOCAL-space offset
+        /// since <see cref="Target"/>'s position at the moment the CURRENTLY-captured
+        /// handle first grabbed the mouse - null whenever no Translate drag is in
+        /// progress. Tracked separately from what's actually written to
+        /// <see cref="CoreNode.LocalPosition"/> (see <see cref="ApplyTranslate"/>'s own
+        /// remarks on why) so grid-snapping a drag never accumulates rounding drift the
+        /// way repeatedly re-snapping an already-snapped value tick after tick would.</summary>
+        private Vector3? _translateDragStartPosition;
+        private Vector3 _translateAccumulatedDelta;
 
         /// <summary>Raised after any drag actually changes <see cref="Target"/>'s
         /// transform - the caller's cue to re-render the scene (see
@@ -170,6 +191,25 @@ namespace JolieCat3D.Engine.Gizmos
                 Diameter = 0.15,
                 Length = 1.2,
                 Color = color,
+            };
+
+            // A SEPARATE GotMouseCapture/LostMouseCapture pair from the one TrackDelta
+            // already subscribes for TransformCommitted's own before/after snapshot -
+            // WPF routed events support multiple independent subscribers on the same
+            // element, and these two do genuinely independent things (one tracks
+            // Undo/Redo's own before-state, this one tracks grid-snapping's own running
+            // total - see ApplyTranslate's own remarks), so there is no need to fold this
+            // into TrackDelta itself, which Rotate/Scale handles share and neither of
+            // which grid-snaps at all.
+            manipulator.GotMouseCapture += (_, _) =>
+            {
+                _translateDragStartPosition = Target?.LocalPosition;
+                _translateAccumulatedDelta = Vector3.Zero;
+            };
+            manipulator.LostMouseCapture += (_, _) =>
+            {
+                _translateDragStartPosition = null;
+                _translateAccumulatedDelta = Vector3.Zero;
             };
 
             TrackDelta(manipulator, delta => ApplyTranslate(worldAxis, delta));
@@ -278,7 +318,23 @@ namespace JolieCat3D.Engine.Gizmos
         /// of the parent's world transform - verified against a hand-built parent/child
         /// case (a rotated, non-uniformly-scaled parent) before being written here; a
         /// world-space drag on a child node moves it by exactly that amount in world
-        /// space, not some skewed amount.</summary>
+        /// space, not some skewed amount.
+        ///
+        /// While the Ctrl key is held (checked fresh on every tick, via
+        /// <see cref="Keyboard.Modifiers"/> - so toggling it mid-drag takes effect
+        /// immediately, not just at the moment the drag started), the position actually
+        /// written to <see cref="CoreNode.LocalPosition"/> is grid-snapped
+        /// (<see cref="GridSnapping.Snap"/>) instead of applied raw. Snapping is done
+        /// against <see cref="_translateAccumulatedDelta"/> - this WHOLE drag gesture's
+        /// own running total offset from <see cref="_translateDragStartPosition"/>, not
+        /// each tiny per-tick delta individually - and the result is written as an
+        /// ABSOLUTE new position (<c>start + snap(total)</c>), never accumulated onto the
+        /// previous tick's already-written value: repeatedly re-snapping an
+        /// already-snapped running position tick after tick would silently drift off the
+        /// true grid over a long drag (each small unsnapped sub-grid remainder getting
+        /// rounded away again and again); snapping the same fixed starting point's own
+        /// total offset fresh every tick cannot drift, no matter how many ticks the drag
+        /// produces.</summary>
         private void ApplyTranslate(Vector3 worldAxis, double delta)
         {
             if (Target is not { } node) return;
@@ -299,7 +355,21 @@ namespace JolieCat3D.Engine.Gizmos
                 localDelta = Vector3.TransformNormal(worldDelta, invLinear);
             }
 
-            node.LocalPosition += localDelta;
+            if (_translateDragStartPosition is { } startPosition)
+            {
+                _translateAccumulatedDelta += localDelta;
+                var snapRequested = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+                node.LocalPosition = GridSnapping.ComputeSnappedPosition(startPosition, _translateAccumulatedDelta, snapRequested, GridSize);
+            }
+            else
+            {
+                // No drag-start snapshot on record (GotMouseCapture always fires before
+                // any Value-changed tick in the ordinary case - this is only reachable if
+                // something applies a delta outside a real mouse-driven drag) - fall back
+                // to the plain incremental behavior rather than silently doing nothing.
+                node.LocalPosition += localDelta;
+            }
+
             Refresh();
         }
 
