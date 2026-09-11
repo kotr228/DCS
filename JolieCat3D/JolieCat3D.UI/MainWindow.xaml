@@ -68,12 +68,16 @@
                 <MenuItem Header="_Undo" Command="ApplicationCommands.Undo" />
                 <MenuItem Header="_Redo" Command="ApplicationCommands.Redo" />
             </MenuItem>
-            <!-- Scene composition entities (Core.Scene.CameraData/LightData) - added as
-                 a new ROOT node with default settings, selectable/editable afterward
-                 exactly like a meshed node (Position/Rotation/Scale, the Outliner, the
-                 Camera/Light Inspector sections above). -->
+            <!-- Dynamic scene population - every entry adds one new ROOT node with
+                 default settings, selectable/editable afterward exactly like any other
+                 node (Position/Rotation/Scale, the Outliner, the Properties Inspector). -->
             <MenuItem Header="_Scene">
-                <MenuItem Header="Add _Camera" Click="AddCameraMenuItem_Click" />
+                <MenuItem Header="Add _Cube" Click="AddCubeMenuItem_Click" />
+                <MenuItem Header="Add _Sphere" Click="AddSphereMenuItem_Click" />
+                <MenuItem Header="Add _Plane" Click="AddPlaneMenuItem_Click" />
+                <MenuItem Header="Add C_ylinder" Click="AddCylinderMenuItem_Click" />
+                <Separator />
+                <MenuItem Header="Add Ca_mera" Click="AddCameraMenuItem_Click" />
                 <MenuItem Header="Add _Light" Click="AddLightMenuItem_Click" />
             </MenuItem>
         </Menu>

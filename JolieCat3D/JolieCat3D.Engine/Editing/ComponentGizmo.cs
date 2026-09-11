@@ -3,9 +3,30 @@ using System.Numerics;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
+using CoreNode = JolieCat3D.Core.Scene.Node;
 
 namespace JolieCat3D.Engine.Editing
 {
+    /// <summary>One whole vertex-drag gesture's own before/after positions, raised by
+    /// <see cref="ComponentGizmo.TranslationCommitted"/> - the Undo/Redo system's own
+    /// entry point (<c>Service.Commands.VertexTranslateCommand</c>) for turning a
+    /// completed component drag into one recorded command, mirroring
+    /// <c>Gizmos.TransformCommittedEventArgs</c>'s own role for whole-node drags.
+    /// Carries only the vertices that actually moved (see
+    /// <see cref="ComponentGizmo.TrackDelta"/>'s own before/after comparison), not
+    /// necessarily every vertex that was selected.</summary>
+    public sealed class VertexTranslationCommittedEventArgs : EventArgs
+    {
+        public CoreNode Target { get; }
+        public IReadOnlyList<(int Index, Vector3 Before, Vector3 After)> Changes { get; }
+
+        public VertexTranslationCommittedEventArgs(CoreNode target, IReadOnlyList<(int Index, Vector3 Before, Vector3 After)> changes)
+        {
+            Target = target;
+            Changes = changes;
+        }
+    }
+
     /// <summary>
     /// Edit Mode's own translate-only gizmo: a single set of Translate handles
     /// (mirroring <c>Gizmos.TransformGizmo</c>'s own Translate mode exactly - same
@@ -35,8 +56,21 @@ namespace JolieCat3D.Engine.Editing
         /// <summary>Raised after any drag actually moves the selection - the caller's
         /// cue to re-render the scene (which also refreshes the marker overlay - see
         /// <c>Rendering.Scene3DRenderer.Render</c>/<c>Refresh</c>) so both catch up to
-        /// the new vertex positions.</summary>
+        /// the new vertex positions. Fires on every intermediate tick of an in-progress
+        /// drag, for live visual feedback - see <see cref="TranslationCommitted"/> for
+        /// the "the WHOLE drag gesture just finished" signal instead.</summary>
         public event EventHandler? EditApplied;
+
+        /// <summary>Raised exactly once when a WHOLE vertex-drag gesture ends (the
+        /// manipulator releases mouse capture - see <see cref="TrackDelta"/>), carrying
+        /// the before/after position of every vertex the gesture actually moved -
+        /// <c>JolieCat3D.UI</c>'s own cue to record ONE
+        /// <c>Service.Commands.VertexTranslateCommand</c> for the whole drag, not one per
+        /// <see cref="EditApplied"/> tick, mirroring
+        /// <c>Gizmos.TransformGizmo.TransformCommitted</c>'s exact role for whole-node
+        /// drags. Not raised at all if the drag ended exactly where it started, or if
+        /// nothing was selected when the drag began.</summary>
+        public event EventHandler<VertexTranslationCommittedEventArgs>? TranslationCommitted;
 
         public ComponentGizmo(HelixViewport3D viewport) =>
             _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
@@ -103,7 +137,11 @@ namespace JolieCat3D.Engine.Editing
         /// <summary>Same delta-tracking approach as <c>Gizmos.TransformGizmo.TrackDelta</c>
         /// - see its own remarks for why (newValue - lastValue) is correct regardless of
         /// whether <see cref="Manipulator.Value"/> itself resets each drag or runs
-        /// cumulatively.</summary>
+        /// cumulatively. Also mirrors that method's own GotMouseCapture/LostMouseCapture
+        /// bracketing of one whole drag gesture, here snapshotting every currently
+        /// selected vertex's own position at drag-start and comparing it against the
+        /// same vertices' positions at drag-end to raise <see cref="TranslationCommitted"/>
+        /// with only the ones that actually moved.</summary>
         private void TrackDelta(Manipulator manipulator, Action<double> applyDelta)
         {
             var lastValue = manipulator.Value;
@@ -120,6 +158,37 @@ namespace JolieCat3D.Engine.Editing
 
             var descriptor = DependencyPropertyDescriptor.FromProperty(Manipulator.ValueProperty, typeof(Manipulator));
             descriptor?.AddValueChanged(manipulator, handler);
+
+            // Plain CLR event subscriptions, unlike the DependencyPropertyDescriptor one
+            // above - no explicit unsubscription needed in Rebuild(): once a discarded
+            // manipulator has no other reference keeping it alive, it (and these two
+            // handlers along with it) become garbage-collectible together regardless -
+            // the same reasoning TransformGizmo.TrackDelta's own remarks disclose.
+            List<(int Index, Vector3 Position)>? dragStartPositions = null;
+
+            manipulator.GotMouseCapture += (_, _) =>
+            {
+                if (Session?.Target?.Mesh is { } mesh && Session.SelectedVertexIndices.Count > 0)
+                    dragStartPositions = Session.SelectedVertexIndices
+                        .Select(index => (index, mesh.Vertices[index].Position))
+                        .ToList();
+            };
+
+            manipulator.LostMouseCapture += (_, _) =>
+            {
+                if (Session?.Target is { } node && node.Mesh is { } mesh && dragStartPositions is { } before)
+                {
+                    var changes = before
+                        .Select(entry => (entry.Index, Before: entry.Position, After: mesh.Vertices[entry.Index].Position))
+                        .Where(change => change.Before != change.After)
+                        .ToList();
+
+                    if (changes.Count > 0)
+                        TranslationCommitted?.Invoke(this, new VertexTranslationCommittedEventArgs(node, changes));
+                }
+
+                dragStartPositions = null;
+            };
 
             _viewport.Children.Add(manipulator);
             _activeManipulators.Add((manipulator, handler));

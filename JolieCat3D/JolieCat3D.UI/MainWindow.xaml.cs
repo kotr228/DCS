@@ -130,6 +130,22 @@ namespace JolieCat3D.UI
             // together - the "immediate GPU geometry update" Edit Mode needs.
             _componentGizmo.EditApplied += (_, _) => _renderer.Refresh();
 
+            // A WHOLE component-gizmo drag gesture just ended (see
+            // ComponentGizmo.TranslationCommitted's own remarks) - record it as ONE
+            // undoable command, not one per EditApplied tick, mirroring _gizmo's own
+            // TransformCommitted wiring above exactly (same "re-render, reposition the
+            // gizmo, resync the Properties Inspector" onChanged callback shape).
+            _componentGizmo.TranslationCommitted += (_, args) =>
+            {
+                var command = new VertexTranslateCommand(args.Target, args.Changes, "Move Vertices", onChanged: () =>
+                {
+                    _renderer.Refresh();
+                    _componentGizmo.Refresh();
+                    _sceneViewModel.FindViewModel(args.Target)?.SyncFromCore();
+                });
+                _commandHistory.Record(command);
+            };
+
             // The reverse direction: a Properties Inspector field edit changes the Core
             // Node directly through its NodeViewModel - re-render the mesh and
             // reposition the gizmo (which sits at the node's world position) to match.
@@ -256,6 +272,25 @@ namespace JolieCat3D.UI
             });
         }
 
+        /// <summary>File > Scene > "Add Cube"/"Add Sphere"/"Add Plane"/"Add Cylinder" -
+        /// one new root node wrapping a default-settings <see cref="Primitives"/> mesh
+        /// each. Dynamic scene population never participates in
+        /// <see cref="_commandHistory"/> (adding a node isn't a transform/mesh-edit
+        /// command in the sense that system models - see <see cref="ExtrudeButton_Click"/>'s
+        /// own remarks on what DOES) - the same precedent <see cref="ImportMenuItem_Click"/>'s
+        /// own new root nodes already set.</summary>
+        private void AddCubeMenuItem_Click(object sender, RoutedEventArgs e) =>
+            AddNodeToScene(new Node("Cube") { Mesh = Primitives.CreateCube() });
+
+        private void AddSphereMenuItem_Click(object sender, RoutedEventArgs e) =>
+            AddNodeToScene(new Node("Sphere") { Mesh = Primitives.CreateSphere() });
+
+        private void AddPlaneMenuItem_Click(object sender, RoutedEventArgs e) =>
+            AddNodeToScene(new Node("Plane") { Mesh = Primitives.CreatePlane() });
+
+        private void AddCylinderMenuItem_Click(object sender, RoutedEventArgs e) =>
+            AddNodeToScene(new Node("Cylinder") { Mesh = Primitives.CreateCylinder() });
+
         /// <summary>File > Scene > "Add Camera" - a new root node carrying a default
         /// <see cref="CameraData"/>, immediately selectable/editable exactly like a
         /// meshed node (its own Position/Rotation/Scale drive where it looks - see
@@ -263,14 +298,8 @@ namespace JolieCat3D.UI
         /// keyframed on the timeline the same way). Not yet THE active camera (see
         /// <see cref="SetActiveCameraButton_Click"/>) - adding one never silently
         /// changes what the viewport is currently looking through.</summary>
-        private void AddCameraMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var node = new Node("Camera") { Camera = new CameraData() };
-            _currentScene.AddRootNode(node);
-
-            _sceneViewModel.Load(_currentScene);
-            _renderer.Render(_currentScene, zoomToFit: false);
-        }
+        private void AddCameraMenuItem_Click(object sender, RoutedEventArgs e) =>
+            AddNodeToScene(new Node("Camera") { Camera = new CameraData() });
 
         /// <summary>File > Scene > "Add Light" - a new root node carrying a default
         /// (Directional) <see cref="LightData"/> - see <see cref="AddCameraMenuItem_Click"/>'s
@@ -278,11 +307,22 @@ namespace JolieCat3D.UI
         /// scene's own lighting the moment it exists (see
         /// <see cref="SceneLightingFactory.CreateSceneLights"/>), no separate
         /// "active"/"set as active" step needed.</summary>
-        private void AddLightMenuItem_Click(object sender, RoutedEventArgs e)
-        {
-            var node = new Node("Light") { Light = new LightData() };
-            _currentScene.AddRootNode(node);
+        private void AddLightMenuItem_Click(object sender, RoutedEventArgs e) =>
+            AddNodeToScene(new Node("Light") { Light = new LightData() });
 
+        /// <summary>Adds <paramref name="node"/> as a new root of <see cref="_currentScene"/>
+        /// and refreshes the Outliner/viewport immediately - the shared plumbing every
+        /// File > Scene > "Add ..." handler above uses, so a freshly added primitive/
+        /// camera/light node is instantly visible in the Outliner (<see cref="SceneViewModel.Load"/>
+        /// rebuilds the whole tree), selectable via <see cref="Scene3DRenderer.HitTest"/>
+        /// (which reads straight from <see cref="_currentScene"/>/<c>Editing.MeshEditSession</c>'s
+        /// own live state, nothing cached to go stale), and rendered
+        /// (<see cref="Scene3DRenderer.Render"/>) all in one call - never zooming to fit,
+        /// so adding a second object doesn't yank the camera away from whatever the user
+        /// was already looking at.</summary>
+        private void AddNodeToScene(Node node)
+        {
+            _currentScene.AddRootNode(node);
             _sceneViewModel.Load(_currentScene);
             _renderer.Render(_currentScene, zoomToFit: false);
         }
