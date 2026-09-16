@@ -53,13 +53,17 @@ namespace JolieCat3D.Engine.Editing
         /// at <see cref="ReferenceDistance"/> world units from the camera - see
         /// <c>Gizmos.TransformGizmo</c>'s own matching constants/remarks for why these are
         /// deliberately much slimmer/shorter than this class used before (Diameter 0.1,
-        /// Length 0.9), and <see cref="RescaleHandles"/> for how they're scaled for the
-        /// camera's current distance/zoom.</summary>
-        private const double TranslateDiameter = 0.035;
-        private const double TranslateLength = 0.6;
+        /// Length 0.9, then 0.035/0.6 - still oversized in practice), and
+        /// <see cref="RescaleHandles"/> for how they're scaled for the camera's current
+        /// distance/zoom.</summary>
+        private const double TranslateDiameter = 0.015;
+        private const double TranslateLength = 0.4;
         private const double ReferenceDistance = 10.0;
         private const double MinScale = 0.15;
-        private const double MaxScale = 8.0;
+
+        /// <summary>See <c>Gizmos.TransformGizmo.MaxScale</c>'s own remarks - kept tight so a
+        /// zoomed-out view can't balloon a handle back to an oversized one.</summary>
+        private const double MaxScale = 3.0;
 
         private readonly HelixViewport3D _viewport;
         private readonly List<(Manipulator Manipulator, EventHandler ValueChangedHandler)> _activeManipulators = new();

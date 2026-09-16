@@ -54,25 +54,47 @@ namespace JolieCat3D.Engine.Gizmos
         private static readonly Color AxisYColor = Color.FromRgb(0x50, 0xC0, 0x50);
         private static readonly Color AxisZColor = Color.FromRgb(0x40, 0x80, 0xE0);
 
-        /// <summary>The Translate handle's own nominal <see cref="TranslateManipulator.Diameter"/>/
-        /// <see cref="TranslateManipulator.Length"/> at <see cref="ReferenceDistance"/> world
-        /// units from the camera - deliberately much slimmer/shorter than the values this
-        /// class used before (Diameter 0.15, Length 1.2), which visually obscured the model
-        /// and, at that thickness, gave WPF's native 3D hit-testing enough of a fighting
-        /// chance to sometimes still win against an occluding mesh - <see cref="GizmoHitTester"/>
-        /// (see <see cref="Rendering.Visual3DExtensions"/>'s neighbor of the same purpose)
-        /// is what makes the arrow reliably clickable now, not the handle's own size, so
-        /// there's no more reason to keep it large. See <see cref="RescaleTranslateHandles"/>
-        /// for how these nominal values get scaled for the camera's CURRENT distance/zoom.</summary>
-        private const double TranslateDiameter = 0.045;
-        private const double TranslateLength = 0.8;
+        /// <summary>Every handle's own nominal size at <see cref="ReferenceDistance"/> world
+        /// units from the camera - <see cref="GizmoHitTester"/> (see
+        /// <see cref="Rendering.Visual3DExtensions"/>'s neighbor of the same purpose) is what
+        /// makes a handle reliably clickable, not its own rendered size, so these are sized
+        /// purely for a slim, professional LOOK: thin enough that the model underneath is
+        /// never obscured, distinct enough between axes/modes to still read clearly. Cut
+        /// drastically twice over now - once from this class's very first values (Translate
+        /// Diameter 0.15/Length 1.2; Rotate Diameter 2.2/InnerDiameter 1.9, an outer ring
+        /// diameter more than double a typical unit-scale object), and again after the first
+        /// cut (Translate 0.045/0.8) still rendered oversized in practice. See
+        /// <see cref="RescaleHandles"/> for how these get scaled for the camera's CURRENT
+        /// distance/zoom.</summary>
+        private const double TranslateDiameter = 0.02;
+        private const double TranslateLength = 0.55;
+
+        /// <summary>Scale mode's own reused <see cref="TranslateManipulator"/> (no dedicated
+        /// scale manipulator ships with HelixToolkit.Wpf 2.24.0 - see this class's own
+        /// remarks) - a visibly THINNER <see cref="TranslateDiameter"/> is what distinguishes
+        /// it from Translate mode at a glance, matching <see cref="AddScaleHandle"/>'s own
+        /// intent (its Diameter used to actually be LARGER than Translate's, the reverse of
+        /// what its own comment there claimed - fixed here).</summary>
+        private const double ScaleDiameter = 0.014;
+        private const double ScaleLength = 0.55;
+
+        /// <summary>The Rotate ring's own outer/inner diameter - a thin torus (tube radius =
+        /// (<see cref="RotateDiameter"/> - <see cref="RotateInnerDiameter"/>) / 2 =~ 0.035),
+        /// roughly the same overall reach as <see cref="TranslateLength"/> so Translate and
+        /// Rotate mode read as the same size gizmo, not one dwarfing the other.</summary>
+        private const double RotateDiameter = 1.0;
+        private const double RotateInnerDiameter = 0.93;
 
         /// <summary>The camera distance (perspective) / <see cref="OrthographicCamera.Width"/>
-        /// (orthographic) at which <see cref="TranslateDiameter"/>/<see cref="TranslateLength"/>
-        /// are exactly correct - see <see cref="RescaleTranslateHandles"/>.</summary>
+        /// (orthographic) at which the nominal sizes above are exactly correct - see
+        /// <see cref="RescaleHandles"/>. <see cref="MaxScale"/> is deliberately tight (a
+        /// zoomed-out view can be MANY times <see cref="ReferenceDistance"/> away, and an
+        /// unbounded scale-up would just reproduce the original "gizmo swallows the model"
+        /// complaint at a different zoom level) - a handle can grow at most 3x its nominal
+        /// size, never back to anything resembling the original oversized geometry.</summary>
         private const double ReferenceDistance = 10.0;
         private const double MinScale = 0.15;
-        private const double MaxScale = 8.0;
+        private const double MaxScale = 3.0;
 
         private readonly HelixViewport3D _viewport;
         private readonly List<(Manipulator Manipulator, EventHandler ValueChangedHandler)> _activeManipulators = new();
@@ -147,7 +169,7 @@ namespace JolieCat3D.Engine.Gizmos
             // that the camera actually moved, confirmed to exist via the same reflection
             // technique used to design GizmoHitTester's own RaiseEvent dispatch (this
             // project can't run the real control to observe it firing at runtime).
-            _viewport.CameraChanged += (_, _) => RescaleTranslateHandles();
+            _viewport.CameraChanged += (_, _) => RescaleHandles();
         }
 
         /// <summary>Attaches the gizmo to <paramref name="node"/> (or detaches it
@@ -189,7 +211,7 @@ namespace JolieCat3D.Engine.Gizmos
                 if (manipulator is RotateManipulator rotateManipulator) rotateManipulator.Pivot = position;
             }
 
-            RescaleTranslateHandles();
+            RescaleHandles();
         }
 
         private void Rebuild()
@@ -242,47 +264,60 @@ namespace JolieCat3D.Engine.Gizmos
                     break;
             }
 
-            RescaleTranslateHandles();
+            RescaleHandles();
         }
 
-        /// <summary>Rescales every currently-active <see cref="TranslateManipulator"/>
-        /// Translate handle (a no-op outside <see cref="GizmoMode.Translate"/> - Scale's own
-        /// reused <see cref="TranslateManipulator"/> handles are deliberately left alone,
-        /// out of this bug report's own "Translate arrows" scope) so its on-screen size
-        /// stays roughly constant as the camera zooms in/out, rather than growing to
-        /// swallow the model at close range or shrinking to an unclickable sliver far away -
-        /// HelixToolkit.Wpf 2.24.0's <see cref="Manipulator"/>/<see cref="TranslateManipulator"/>
-        /// expose no built-in option for this (confirmed by inspecting the compiled
-        /// assembly's full public property list), so this reimplements it directly: for a
-        /// perspective camera, screen-projected size scales with distance-from-camera, so
-        /// <see cref="TranslateDiameter"/>/<see cref="TranslateLength"/> are scaled by
-        /// (distance / <see cref="ReferenceDistance"/>); for an orthographic camera, there
-        /// is no such distance-based foreshortening at all (a parallel projection) - its
-        /// zoom is instead <see cref="OrthographicCamera.Width"/>, so that is what's scaled
-        /// against instead. Clamped to [<see cref="MinScale"/>, <see cref="MaxScale"/>] so
-        /// an extreme zoom can't collapse the handle to nothing or balloon it back to the
-        /// exact problem this exists to fix.</summary>
-        private void RescaleTranslateHandles()
+        /// <summary>Rescales every currently-active Translate or Rotate handle so its
+        /// on-screen size stays roughly constant as the camera zooms in/out, rather than
+        /// growing to swallow the model at close range or shrinking to an unclickable
+        /// sliver far away - HelixToolkit.Wpf 2.24.0's <see cref="Manipulator"/>-derived
+        /// controls expose no built-in option for this (confirmed by inspecting the
+        /// compiled assembly's full public property list), so this reimplements it
+        /// directly: for a perspective camera, screen-projected size scales with
+        /// distance-from-camera, so each mode's own nominal size is scaled by (distance /
+        /// <see cref="ReferenceDistance"/>); for an orthographic camera, there is no such
+        /// distance-based foreshortening at all (a parallel projection) - its zoom is
+        /// instead <see cref="OrthographicCamera.Width"/>, so that is what's scaled against
+        /// instead. Clamped to [<see cref="MinScale"/>, <see cref="MaxScale"/>] so an
+        /// extreme zoom can't collapse a handle to nothing or balloon it back to the exact
+        /// problem this exists to fix.
+        ///
+        /// Scale mode's own reused <see cref="TranslateManipulator"/> handles are
+        /// deliberately left at their fixed <see cref="ScaleDiameter"/>/<see cref="ScaleLength"/> -
+        /// out of this bug report's own Translate/Rotate scope, and rescaling them here
+        /// would need their own separate nominal pair to avoid fighting Translate mode's
+        /// (the <c>manipulator is TranslateManipulator</c> match below would otherwise catch
+        /// Scale's handles too, since it reuses the very same control type).</summary>
+        private void RescaleHandles()
         {
-            if (Mode != GizmoMode.Translate || Target is null) return;
-
-            var scale = _viewport.Camera switch
-            {
-                PerspectiveCamera perspective => ComputeDistanceScale(perspective.Position),
-                OrthographicCamera orthographic => Math.Clamp(orthographic.Width / ReferenceDistance, MinScale, MaxScale),
-                _ => (double?)null,
-            };
-            if (scale is not { } s) return;
+            if (Target is null) return;
+            if (ComputeCameraScale() is not { } scale) return;
 
             foreach (var (manipulator, _) in _activeManipulators)
             {
-                if (manipulator is not TranslateManipulator translate) continue;
-                if (translate.GetViewport3DOrNull() is null) continue;
+                if (manipulator.GetViewport3DOrNull() is null) continue;
 
-                translate.Diameter = TranslateDiameter * s;
-                translate.Length = TranslateLength * s;
+                switch (manipulator)
+                {
+                    case RotateManipulator rotate:
+                        rotate.Diameter = RotateDiameter * scale;
+                        rotate.InnerDiameter = RotateInnerDiameter * scale;
+                        break;
+
+                    case TranslateManipulator translate when Mode == GizmoMode.Translate:
+                        translate.Diameter = TranslateDiameter * scale;
+                        translate.Length = TranslateLength * scale;
+                        break;
+                }
             }
         }
+
+        private double? ComputeCameraScale() => _viewport.Camera switch
+        {
+            PerspectiveCamera perspective => ComputeDistanceScale(perspective.Position),
+            OrthographicCamera orthographic => Math.Clamp(orthographic.Width / ReferenceDistance, MinScale, MaxScale),
+            _ => null,
+        };
 
         private double ComputeDistanceScale(Point3D cameraPosition)
         {
@@ -332,8 +367,8 @@ namespace JolieCat3D.Engine.Gizmos
                 Position = position,
                 Pivot = position,
                 Axis = axis,
-                Diameter = 2.2,
-                InnerDiameter = 1.9,
+                Diameter = RotateDiameter,
+                InnerDiameter = RotateInnerDiameter,
                 Color = color,
             };
 
@@ -351,8 +386,8 @@ namespace JolieCat3D.Engine.Gizmos
             {
                 Position = position,
                 Direction = direction,
-                Diameter = 0.22,
-                Length = 0.8,
+                Diameter = ScaleDiameter,
+                Length = ScaleLength,
                 Color = color,
             };
 

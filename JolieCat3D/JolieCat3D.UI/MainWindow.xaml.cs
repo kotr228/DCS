@@ -719,7 +719,7 @@ namespace JolieCat3D.UI
         /// <see cref="SelectNode"/>); in Edit Mode, a single mesh component (see
         /// <see cref="HandleComponentClick"/>) of whichever node Edit Mode is currently
         /// targeting. Either way, only ever reached for a click the active gizmo's own
-        /// Translate arrow didn't already claim first (see <see cref="TryBeginGizmoDrag"/>),
+        /// handle didn't already claim first (see <see cref="TryBeginGizmoDrag"/>),
         /// so dragging a gizmo handle never gets misread as "clicked empty space,
         /// deselect/clear" partway through the gesture - WPF's own native 3D hit-testing
         /// alone can't be relied on for that (see <see cref="GizmoHitTester"/>'s own
@@ -749,16 +749,19 @@ namespace JolieCat3D.UI
         }
 
         /// <summary>Checks <paramref name="position"/> against the currently-active gizmo's
-        /// own Translate arrows (<see cref="ComponentGizmo.Handles"/> in Edit Mode,
+        /// own handles - Translate/Scale arrows AND Rotate rings alike, whichever <c>Mode</c>
+        /// currently has handles built (<see cref="ComponentGizmo.Handles"/> in Edit Mode,
         /// <see cref="TransformGizmo.Handles"/> otherwise - never both, mirroring which one
-        /// is actually attached/visible at a time) BEFORE either mode's own mesh/component
+        /// is actually attached/visible at a time) - BEFORE either mode's own mesh/component
         /// selection logic runs, via <see cref="GizmoHitTester"/> - an explicit,
         /// occlusion-independent check WPF's own native 3D hit-testing on the manipulator
-        /// itself can't be relied on for (see that class's own remarks). Starts the hit
-        /// arrow's own real drag (<see cref="GizmoHitTester.BeginDrag"/>) and returns true
-        /// the moment one is found, so the caller can consume <paramref name="sourceArgs"/>
-        /// and skip selection entirely - a hit is never ambiguous with a selection click,
-        /// since an arrow is never itself a selectable mesh.
+        /// itself can't be relied on for (see that class's own remarks - a Rotate ring
+        /// suffered the exact same occlusion bug as a Translate arrow, so it gets the exact
+        /// same fix here, not a separate one). Starts the hit handle's own real drag
+        /// (<see cref="GizmoHitTester.BeginDrag"/>) and returns true the moment one is found,
+        /// so the caller can consume <paramref name="sourceArgs"/> and skip selection
+        /// entirely - a hit is never ambiguous with a selection click, since a gizmo handle
+        /// is never itself a selectable mesh.
         ///
         /// <see cref="GizmoHitTester.BeginDrag"/>'s own <c>RaiseEvent</c> call is
         /// SYNCHRONOUS, and (confirmed by an actual observed <see cref="StackOverflowException"/>
@@ -767,12 +770,15 @@ namespace JolieCat3D.UI
         /// <c>MouseLeftButtonDownEvent</c> regardless of whether the manipulator's own
         /// <c>OnMouseDown</c> already marked the ORIGINAL event handled - and that
         /// promoted event bubbles right back out to this same <see cref="Viewport_MouseLeftButtonDown"/>
-        /// handler, with the mouse still sitting on the very same arrow, which would hit-test
-        /// and dispatch again, forever. <see cref="_isDispatchingGizmoMouseDown"/> is set for
-        /// the exact duration of the <c>BeginDrag</c> call so that reentrant, WPF-generated
-        /// invocation (and only that one - it happens nested inside THIS call's own stack
-        /// frame, never on a later dispatcher tick) bails out immediately instead of
-        /// hit-testing and dispatching again.</summary>
+        /// handler, with the mouse still sitting on the very same handle, which would
+        /// hit-test and dispatch again, forever - true of a Rotate ring's own drag exactly as
+        /// much as a Translate arrow's, since the recursion is a property of RaiseEvent
+        /// itself, not of which manipulator subtype raised it.
+        /// <see cref="_isDispatchingGizmoMouseDown"/> is set for the exact duration of the
+        /// <c>BeginDrag</c> call so that reentrant, WPF-generated invocation (and only that
+        /// one - it happens nested inside THIS call's own stack frame, never on a later
+        /// dispatcher tick) bails out immediately instead of hit-testing and dispatching
+        /// again.</summary>
         private bool TryBeginGizmoDrag(Point position, MouseButtonEventArgs sourceArgs)
         {
             var handles = IsEditMode ? _componentGizmo.Handles : _gizmo.Handles;
