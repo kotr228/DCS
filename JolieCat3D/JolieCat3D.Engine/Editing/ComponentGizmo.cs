@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
 using JolieCat3D.Core.Numerics;
+using JolieCat3D.Engine.Rendering;
 using CoreNode = JolieCat3D.Core.Scene.Node;
 
 namespace JolieCat3D.Engine.Editing
@@ -111,7 +112,16 @@ namespace JolieCat3D.Engine.Editing
             var position = new Point3D(centroid.X, centroid.Y, centroid.Z);
 
             foreach (var (manipulator, _) in _activeManipulators)
+            {
+                // A manipulator can be asked to refresh a moment after it's actually been
+                // detached from the viewport (see Rebuild()'s own remarks) - HelixToolkit.Wpf's
+                // own internal handling of a Position change on a detached manipulator
+                // resolves its own Viewport3D and THROWS rather than returning null once
+                // it isn't attached (see Rendering.Visual3DExtensions.GetViewport3DOrNull's
+                // own remarks) - skip a detached manipulator entirely rather than crash.
+                if (manipulator.GetViewport3DOrNull() is null) continue;
                 manipulator.Position = position;
+            }
         }
 
         /// <summary>Tears down and recreates every handle at the selection's current
@@ -123,6 +133,15 @@ namespace JolieCat3D.Engine.Editing
             var descriptor = DependencyPropertyDescriptor.FromProperty(Manipulator.ValueProperty, typeof(Manipulator));
             foreach (var (manipulator, handler) in _activeManipulators)
             {
+                // A manipulator being torn down can still hold an ACTIVE mouse capture -
+                // this Rebuild() call itself is reachable reentrantly mid-drag (see
+                // Gizmos.TransformGizmo.Rebuild's own remarks on the exact scenario this
+                // guards against - the same reasoning applies here). Releasing capture
+                // FIRST, before removing the visual, is what stops WPF from delivering any
+                // further mouse event to a manipulator HelixToolkit.Wpf's own code would
+                // otherwise crash trying to resolve the (by-then-detached) Viewport3D of.
+                if (manipulator.IsMouseCaptured) manipulator.ReleaseMouseCapture();
+
                 descriptor?.RemoveValueChanged(manipulator, handler);
                 _viewport.Children.Remove(manipulator);
             }
