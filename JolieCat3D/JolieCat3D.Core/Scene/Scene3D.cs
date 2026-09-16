@@ -63,6 +63,63 @@ namespace JolieCat3D.Core.Scene
         /// per root in <see cref="RootNodes"/> order.</summary>
         public IEnumerable<Node> Traverse() => _rootNodes.SelectMany(root => root.Traverse());
 
+        /// <summary>Moves <paramref name="node"/> to become a child of
+        /// <paramref name="newParent"/> - or a new root of this scene, for a null
+        /// <paramref name="newParent"/> - the Scene Outliner's own drag-and-drop
+        /// reparenting (drag onto another node) and un-parenting (drop into empty
+        /// space) operation. Unlike <see cref="Node.AddChild"/> alone (which leaves
+        /// <see cref="Node.LocalPosition"/>/<see cref="Node.LocalRotation"/>/
+        /// <see cref="Node.LocalScale"/> completely untouched, so the object's WORLD
+        /// transform would visibly jump the moment its parent chain changes), this
+        /// recomputes those three from <paramref name="node"/>'s own CURRENT world
+        /// transform (captured before anything changes) re-expressed in
+        /// <paramref name="newParent"/>'s own local space (or world space directly, with
+        /// no parent) - <see cref="Node.GetWorldTransform"/> reads back out exactly the
+        /// same afterward, the crucial "reparenting never moves the object on screen"
+        /// guarantee a Scene Outliner drag has to uphold.
+        ///
+        /// Returns false, changing nothing at all, for: <paramref name="newParent"/>
+        /// being <paramref name="node"/> itself or one of its own descendants (the
+        /// structural cycle no tree can represent - <see cref="Node.Traverse"/> already
+        /// includes <paramref name="node"/> itself, so this one check covers both); or
+        /// a parent chain whose combined scale/rotation is too degenerate for
+        /// <see cref="Matrix4x4.Decompose"/> to recover a Position/Rotation/Scale triple
+        /// from at all (an extreme, disclosed edge case - a non-uniformly-scaled,
+        /// rotated ancestor chain can in principle introduce shear no TRS decomposition
+        /// represents losslessly, the same accepted limitation
+        /// <c>Engine.Gizmos.TransformGizmo.ApplyTranslate</c>'s own parent-conversion
+        /// already carries) - refusing outright rather than silently leaving the node
+        /// LOOKING like it moved.</summary>
+        public bool Reparent(Node node, Node? newParent)
+        {
+            ArgumentNullException.ThrowIfNull(node);
+            if (newParent is not null && node.Traverse().Contains(newParent)) return false;
+
+            var worldTransform = node.GetWorldTransform();
+
+            var newParentWorld = newParent?.GetWorldTransform() ?? Matrix4x4.Identity;
+            if (!Matrix4x4.Invert(newParentWorld, out var newParentWorldToLocal)) return false;
+            var newLocalMatrix = worldTransform * newParentWorldToLocal;
+            if (!Matrix4x4.Decompose(newLocalMatrix, out var scale, out var rotation, out var translation)) return false;
+
+            // Detach from wherever node currently sits - either this scene's own root
+            // list, or its current parent's children (Node.RemoveChild) - before
+            // attaching it at its new spot; Node.AddChild below would otherwise ALSO try
+            // to detach it from a non-null Parent itself, but never from _rootNodes (a
+            // root node's own Parent is already null, so AddChild's own detach step
+            // wouldn't find or remove it from here on its own).
+            if (node.Parent is null) _rootNodes.Remove(node);
+            else node.Parent.RemoveChild(node);
+
+            if (newParent is null) _rootNodes.Add(node);
+            else newParent.AddChild(node);
+
+            node.LocalPosition = translation;
+            node.LocalRotation = rotation;
+            node.LocalScale = scale;
+            return true;
+        }
+
         /// <summary>The axis-aligned world-space bounding box of every meshed node's
         /// world-transformed geometry - <c>(Vector3.Zero, Vector3.Zero)</c> for an empty
         /// scene or one with no mesh anywhere in it. <c>JolieCat3D.Engine</c>'s camera

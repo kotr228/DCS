@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
@@ -50,6 +51,7 @@ namespace JolieCat3D.Engine.Rendering
         private Visual3D? _wireframeVisual;
         private Visual3D? _skyboxVisual;
         private Visual3D? _gridVisual;
+        private Visual3D? _shadowVisual;
         private ShadingMode _shadingMode = ShadingMode.Rendered;
         private CoreScene? _lastScene;
         private bool _isAttached;
@@ -91,6 +93,62 @@ namespace JolieCat3D.Engine.Rendering
             }
         }
         private float _gridSize = 1f;
+
+        /// <summary>Whether <see cref="Render"/>/<see cref="Refresh"/> draw the planar
+        /// projected shadow every Directional/Spot light node casts (see
+        /// <see cref="ShadowVisualFactory"/>'s own remarks on why this - not a real
+        /// depth-buffer shadow map, which this project's fixed-function WPF pipeline has
+        /// no way to build - is what "Shadow Mapping" means here). On by default;
+        /// setting this re-renders immediately, the same "setting a display option also
+        /// applies it" shape <see cref="ShowGrid"/>/<see cref="ShadingMode"/> already
+        /// use. A caller with a performance concern (this recomputes every shadow-casting
+        /// mesh's own projected geometry fresh on every single <see cref="Render"/> call,
+        /// same as <see cref="WireframeVisualFactory"/>'s own always-rebuild convention)
+        /// can turn it off entirely.</summary>
+        public bool ShowShadows
+        {
+            get => _showShadows;
+            set
+            {
+                if (_showShadows == value) return;
+                _showShadows = value;
+                Refresh();
+            }
+        }
+        private bool _showShadows = true;
+
+        /// <summary>Whether the viewport's own 3D content renders anti-aliased. WPF's
+        /// classic <see cref="System.Windows.Controls.Viewport3D"/> pipeline (Direct3D9
+        /// media integration, the same fixed-function pipeline
+        /// <see cref="Core.Materials.Material"/>'s own remarks describe) has no MSAA/FXAA
+        /// setting of its own to toggle - hardware-accelerated Tier 2 3D rendering in
+        /// WPF does not anti-alias <see cref="Viewport3D"/> geometry AT ALL, full stop
+        /// (a real, well-documented platform limitation, not a missing setting this
+        /// class simply hasn't found yet). The one real, working fix in this pipeline is
+        /// forcing WPF's own SOFTWARE rasterizer via
+        /// <see cref="System.Windows.Media.RenderOptions.ProcessRenderMode"/> - unlike
+        /// the hardware path, software-rendered WPF 3D content IS anti-aliased - which
+        /// is exactly what this property does (see <see cref="ApplyAntiAliasing"/>).
+        /// Unlike every other per-viewport setting in this class,
+        /// <c>ProcessRenderMode</c> is a plain GLOBAL static property in .NET's WPF (a
+        /// real, verified difference from classic .NET Framework WPF, where it was a
+        /// per-<see cref="System.Windows.UIElement"/> attached property instead) - so
+        /// this affects the whole process's own WPF rendering, not just this one
+        /// viewport; this project only ever has one <see cref="HelixViewport3D"/> live
+        /// at a time, so that distinction has no practical consequence here. On by
+        /// default; a caller trading this project's own visual polish back for
+        /// hardware-rendering performance can turn it off.</summary>
+        public bool AntiAliasingEnabled
+        {
+            get => _antiAliasingEnabled;
+            set
+            {
+                if (_antiAliasingEnabled == value) return;
+                _antiAliasingEnabled = value;
+                ApplyAntiAliasing();
+            }
+        }
+        private bool _antiAliasingEnabled = true;
 
         /// <summary>Which viewport shading style <see cref="Render"/>/<see cref="Refresh"/>
         /// currently draw the scene in - see <see cref="Rendering.ShadingMode"/>'s own
@@ -167,7 +225,18 @@ namespace JolieCat3D.Engine.Rendering
 
             _isAttached = true;
             RefreshGridVisual();
+            ApplyAntiAliasing();
         }
+
+        /// <summary>Applies <see cref="AntiAliasingEnabled"/>'s current value - see that
+        /// property's own remarks on why forcing WPF's software rasterizer is what
+        /// actually anti-aliases <see cref="Viewport3D"/> content in this pipeline, and
+        /// on why this is a process-global switch in .NET's WPF, not a per-viewport one.
+        /// Called once by <see cref="Attach"/> (so the default takes effect immediately
+        /// with no caller action needed) and again whenever the property's own setter
+        /// changes it.</summary>
+        private void ApplyAntiAliasing() =>
+            RenderOptions.ProcessRenderMode = _antiAliasingEnabled ? RenderMode.SoftwareOnly : RenderMode.Default;
 
         /// <summary>Rebuilds the lighting visual from <see cref="Lighting"/>'s current
         /// settings - call after changing them; <see cref="Attach"/>/<see cref="Render"/>
@@ -233,6 +302,7 @@ namespace JolieCat3D.Engine.Rendering
             }
 
             _sceneLightingVisual.Content = SceneLightingFactory.CreateSceneLights(scene);
+            RefreshShadowVisual(ShadingMode == ShadingMode.Wireframe ? null : scene);
 
             if (IsPilotingActiveCamera)
             {
@@ -449,6 +519,23 @@ namespace JolieCat3D.Engine.Rendering
 
             _wireframeVisual = scene is not null ? WireframeVisualFactory.CreateSceneWireframe(scene) : null;
             if (_wireframeVisual is not null) _viewport.Children.Add(_wireframeVisual);
+        }
+
+        /// <summary>Rebuilds (or removes, for <see cref="ShowShadows"/> off, a null
+        /// <paramref name="scene"/> - <see cref="Render"/> passes null in
+        /// <see cref="ShadingMode.Wireframe"/>, matching how it already skips filled
+        /// geometry there too - or a scene with nothing to actually project) the shadow
+        /// visual - see <see cref="ShadowVisualFactory"/>.</summary>
+        private void RefreshShadowVisual(CoreScene? scene)
+        {
+            if (_shadowVisual is not null) _viewport.Children.Remove(_shadowVisual);
+            _shadowVisual = null;
+
+            if (!ShowShadows || scene is null) return;
+            if (ShadowVisualFactory.CreateShadows(scene) is not { } shadowModel) return;
+
+            _shadowVisual = new ModelVisual3D { Content = shadowModel };
+            _viewport.Children.Add(_shadowVisual);
         }
 
         /// <summary>Rebuilds (or removes, for <see cref="ShowGrid"/> off) the ground-plane

@@ -4,9 +4,12 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
+using JolieCat3D.Core.Geometry;
+using JolieCat3D.Core.Modifiers;
 using JolieCat3D.Core.Numerics;
 using JolieCat3D.Engine.Rendering;
 using CoreNode = JolieCat3D.Core.Scene.Node;
+using CoreRay = JolieCat3D.Core.Geometry.Ray;
 using Quaternion = System.Numerics.Quaternion;
 
 namespace JolieCat3D.Engine.Gizmos
@@ -159,6 +162,17 @@ namespace JolieCat3D.Engine.Gizmos
         /// (<c>Core.Geometry.Primitives</c>) are all authored at a similar 1-unit scale,
         /// so a plain "1" is a reasonable, unsurprising starting increment.</summary>
         public float GridSize { get; set; } = 1f;
+
+        /// <summary>Every node CURRENTLY in the scene - a live delegate, not a one-time
+        /// snapshot (the same "always reflects what's there right now" shape
+        /// <c>UI.ViewModels.SceneViewModel</c>'s own <c>AllNodes</c> provider already
+        /// established for exactly this kind of cross-cutting need), what Vertex/Edge
+        /// Snapping (see <see cref="TryFindVertexEdgeSnapPoint"/>) raycasts against
+        /// (excluding <see cref="Target"/> itself). Null (the default) disables
+        /// Vertex/Edge Snapping entirely - a Shift-held Translate drag simply behaves as
+        /// an unmodified one, rather than throwing for a caller that never wires this
+        /// up.</summary>
+        public Func<IEnumerable<CoreNode>>? SceneNodes { get; set; }
 
         /// <summary>The Translate drag gesture's own running total LOCAL-space offset
         /// since <see cref="Target"/>'s position at the moment the CURRENTLY-captured
@@ -579,8 +593,28 @@ namespace JolieCat3D.Engine.Gizmos
             if (_translateDragStartPosition is { } startPosition)
             {
                 _translateAccumulatedDelta += localDelta;
-                var snapRequested = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
-                node.LocalPosition = GridSnapping.ComputeSnappedPosition(startPosition, _translateAccumulatedDelta, snapRequested, GridSize);
+
+                // Vertex/Edge Snapping (see TryFindVertexEdgeSnapPoint's own remarks)
+                // takes priority over the plain axis-constrained drag entirely for this
+                // tick while Shift is held and the cursor is actually over some other
+                // mesh's geometry: the object plants exactly on the nearest vertex/edge
+                // the cursor is pointing at, not merely somewhere along the dragged
+                // axis. _translateAccumulatedDelta is kept in sync with whatever
+                // actually gets written below so releasing Shift (or aiming off any
+                // geometry) resumes the plain axis-constrained/grid-snapped behavior
+                // from wherever the snap left the object, rather than jumping back to
+                // wherever the un-snapped running total alone would have placed it.
+                if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && TryFindVertexEdgeSnapPoint() is { } snapWorldPoint)
+                {
+                    var snappedLocalPosition = ConvertWorldPointToLocal(node, snapWorldPoint);
+                    node.LocalPosition = snappedLocalPosition;
+                    _translateAccumulatedDelta = snappedLocalPosition - startPosition;
+                }
+                else
+                {
+                    var snapRequested = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+                    node.LocalPosition = GridSnapping.ComputeSnappedPosition(startPosition, _translateAccumulatedDelta, snapRequested, GridSize);
+                }
             }
             else
             {
@@ -593,6 +627,78 @@ namespace JolieCat3D.Engine.Gizmos
 
             Refresh();
         }
+
+        /// <summary>Converts <paramref name="worldPoint"/> into <paramref name="node"/>'s
+        /// own PARENT-relative local space - a straight pass-through for a root node,
+        /// or (for a node under a parent) the point re-expressed via the inverse of that
+        /// parent's own world transform, the same "world -> owner/parent-local"
+        /// conversion this project already established for
+        /// <c>Core.Modifiers.BooleanModifier.Apply</c> and
+        /// <c>Rendering.Scene3DRenderer.OnPilotedCameraChanged</c>.</summary>
+        private static Vector3 ConvertWorldPointToLocal(CoreNode node, Vector3 worldPoint)
+        {
+            if (node.Parent is null) return worldPoint;
+            if (!Matrix4x4.Invert(node.Parent.GetWorldTransform(), out var parentWorldToLocal)) return node.LocalPosition;
+            return Vector3.Transform(worldPoint, parentWorldToLocal);
+        }
+
+        /// <summary>Vertex/Edge Snapping's own raycast: casts a ray from the viewport's
+        /// CURRENT mouse cursor position - read fresh here via
+        /// <see cref="Mouse.GetPosition(IInputElement)"/> rather than tracked through a
+        /// separate MouseMove subscription, since this method's only caller
+        /// (<see cref="ApplyTranslate"/>, itself only ever invoked from a manipulator's
+        /// own Value-changed callback) already runs synchronously as part of the very
+        /// same mouse-move that's driving the drag, so the cursor position read here is
+        /// always the current one with no cross-event-ordering assumptions needed at
+        /// all - against every OTHER meshed node currently in <see cref="SceneNodes"/>
+        /// (evaluated through its own Modifier stack - see
+        /// <see cref="ModifierStack.Evaluate"/> - the same DISPLAYED geometry the
+        /// viewport itself renders, not necessarily <see cref="Target"/>'s raw base
+        /// mesh). See <see cref="VertexEdgeSnapping.FindNearestVertexOrEdge"/> for the
+        /// actual snap math. Null with no <see cref="SceneNodes"/> provider set, no
+        /// <see cref="Target"/>, nothing hit, or on ANY unexpected exception from the
+        /// WPF-side ray conversion - a live mouse-drag calculation is not a place to let
+        /// a rare edge case throw and take the whole drag (and, by extension, the whole
+        /// app) down with it.</summary>
+        private Vector3? TryFindVertexEdgeSnapPoint()
+        {
+            if (Target is not { } target) return null;
+            if (SceneNodes is not { } sceneNodesProvider) return null;
+
+            try
+            {
+                var viewport3D = _viewport.Viewport;
+                var cursor = Mouse.GetPosition(viewport3D);
+                var ray3D = Viewport3DHelper.Point2DtoRay3D(viewport3D, cursor);
+                var ray = new CoreRay(ToVector3(ray3D.Origin), ToVector3(ray3D.Direction));
+
+                var triangles = new List<(Vector3 A, Vector3 B, Vector3 C)>();
+                foreach (var candidate in sceneNodesProvider())
+                {
+                    if (candidate == target || candidate.Mesh is not { } mesh) continue;
+
+                    var evaluatedMesh = ModifierStack.Evaluate(mesh, candidate.Modifiers, candidate);
+                    var world = candidate.GetWorldTransform();
+
+                    foreach (var face in evaluatedMesh.GetRenderFaces())
+                    {
+                        triangles.Add((
+                            Vector3.Transform(evaluatedMesh.Vertices[face.A].Position, world),
+                            Vector3.Transform(evaluatedMesh.Vertices[face.B].Position, world),
+                            Vector3.Transform(evaluatedMesh.Vertices[face.C].Position, world)));
+                    }
+                }
+
+                return VertexEdgeSnapping.FindNearestVertexOrEdge(ray, triangles);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private static Vector3 ToVector3(Point3D p) => new((float)p.X, (float)p.Y, (float)p.Z);
+        private static Vector3 ToVector3(Vector3D v) => new((float)v.X, (float)v.Y, (float)v.Z);
 
         /// <summary>Rotates <see cref="Target"/> further around the fixed world axis
         /// <paramref name="worldAxis"/> by <paramref name="delta"/> radians, converting

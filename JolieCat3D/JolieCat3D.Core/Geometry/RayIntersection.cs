@@ -78,8 +78,19 @@ namespace JolieCat3D.Core.Geometry
         /// with the segment's own parameter clamped to [0,1] so the result is always a
         /// point actually ON the segment, never its infinite extension. Returns the same
         /// (DistanceAlongRay, PerpendicularDistance) shape as <see cref="DistanceToPoint"/>,
-        /// for the same reason. Null only for a degenerate ray direction.</summary>
-        public static (float DistanceAlongRay, float PerpendicularDistance)? DistanceToSegment(Ray ray, Vector3 a, Vector3 b)
+        /// for the same reason - the two actual POINTS this derivation also computes
+        /// along the way are in <see cref="ClosestPoints"/>, which this is now a thin
+        /// projection of. Null only for a degenerate ray direction.</summary>
+        public static (float DistanceAlongRay, float PerpendicularDistance)? DistanceToSegment(Ray ray, Vector3 a, Vector3 b) =>
+            ClosestPoints(ray, a, b) is { } result ? (result.DistanceAlongRay, result.PerpendicularDistance) : null;
+
+        /// <summary>The same closest-approach derivation <see cref="DistanceToSegment"/>
+        /// summarizes into just its own two distances, but also returning the actual
+        /// POINTS themselves - <c>Engine.Gizmos</c>'s own Vertex/Edge Snapping (Shift-held
+        /// Transform Gizmo dragging) needs the real point ON the segment to snap TO, not
+        /// merely how far away it is. Null only for a degenerate ray direction (matching
+        /// <see cref="DistanceToSegment"/> exactly).</summary>
+        public static (Vector3 PointOnRay, Vector3 PointOnSegment, float DistanceAlongRay, float PerpendicularDistance)? ClosestPoints(Ray ray, Vector3 a, Vector3 b)
         {
             if (ray.Direction == Vector3.Zero) return null;
 
@@ -87,7 +98,11 @@ namespace JolieCat3D.Core.Geometry
             var segmentLengthSquared = segmentVector.LengthSquared();
 
             // A degenerate (zero-length) segment is really just a point.
-            if (segmentLengthSquared < 1e-12f) return DistanceToPoint(ray, a);
+            if (segmentLengthSquared < 1e-12f)
+            {
+                if (DistanceToPoint(ray, a) is not { } pointResult) return null;
+                return (ray.GetPoint(pointResult.DistanceAlongRay), a, pointResult.DistanceAlongRay, pointResult.PerpendicularDistance);
+            }
 
             var originToA = ray.Origin - a;
             var rayDotSegment = Vector3.Dot(ray.Direction, segmentVector);
@@ -124,7 +139,7 @@ namespace JolieCat3D.Core.Geometry
             var pointOnSegment = a + segmentVector * segmentParameter;
             var perpendicularDistance = Vector3.Distance(pointOnRay, pointOnSegment);
 
-            return (rayParameter, perpendicularDistance);
+            return (pointOnRay, pointOnSegment, rayParameter, perpendicularDistance);
         }
 
         /// <summary>The standard "slab" ray-vs-axis-aligned-bounding-box test - the

@@ -268,6 +268,20 @@
                      Translate drag's own snapping increment use - see MainWindow.xaml.cs's
                      own GridSizeTextBox_TextChanged. -->
                 <TextBox x:Name="GridSizeTextBox" Width="50" Text="1" TextChanged="GridSizeTextBox_TextChanged" />
+
+                <!-- Shadows: a planar-projected shadow onto the ground plane for every
+                     Directional/Spot light node - see Engine.Rendering.ShadowVisualFactory's
+                     own remarks on why this, not a real depth-buffer shadow map, is what
+                     "Shadow Mapping" means in this project's fixed-function WPF pipeline. -->
+                <CheckBox x:Name="ShowShadowsCheckBox" Content="Shadows" IsChecked="True" VerticalAlignment="Center"
+                          Margin="20,0,10,0" Checked="ShowShadowsCheckBox_Changed" Unchecked="ShowShadowsCheckBox_Changed" />
+
+                <!-- Anti-Aliasing: forces WPF's own software rasterizer, the one real
+                     way to anti-alias Viewport3D content in this pipeline (WPF's
+                     hardware-accelerated 3D path does not anti-alias at all) - see
+                     Engine.Rendering.Scene3DRenderer.AntiAliasingEnabled's own remarks. -->
+                <CheckBox x:Name="AntiAliasingCheckBox" Content="Anti-Aliasing" IsChecked="True" VerticalAlignment="Center"
+                          Checked="AntiAliasingCheckBox_Changed" Unchecked="AntiAliasingCheckBox_Changed" />
             </StackPanel>
         </Border>
 
@@ -286,12 +300,25 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="SCENE OUTLINER" Style="{StaticResource PanelHeaderStyle}" />
 
+                    <!-- Drag-and-drop reparenting: dragging an item onto another node
+                         re-parents it (Core.Scene.Scene3D.Reparent, which recomputes the
+                         node's own Local Position/Rotation/Scale so its WORLD transform
+                         never visibly jumps); dropping into the TreeView's own empty
+                         background (see SceneTreeView_Drop) un-parents it to the scene
+                         root instead. See MainWindow.xaml.cs's own
+                         SceneTreeViewItem_PreviewMouseMove/_DragOver/_Drop. -->
                     <TreeView x:Name="SceneTreeView" ItemsSource="{Binding RootNodes}"
-                              Background="Transparent"
-                              SelectedItemChanged="SceneTreeView_SelectedItemChanged">
+                              Background="Transparent" AllowDrop="True"
+                              SelectedItemChanged="SceneTreeView_SelectedItemChanged"
+                              Drop="SceneTreeView_Drop">
                         <TreeView.ItemContainerStyle>
                             <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
                                 <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                                <Setter Property="AllowDrop" Value="True" />
+                                <EventSetter Event="PreviewMouseLeftButtonDown" Handler="SceneTreeViewItem_PreviewMouseLeftButtonDown" />
+                                <EventSetter Event="PreviewMouseMove" Handler="SceneTreeViewItem_PreviewMouseMove" />
+                                <EventSetter Event="DragOver" Handler="SceneTreeViewItem_DragOver" />
+                                <EventSetter Event="Drop" Handler="SceneTreeViewItem_Drop" />
                             </Style>
                         </TreeView.ItemContainerStyle>
                         <TreeView.ItemTemplate>

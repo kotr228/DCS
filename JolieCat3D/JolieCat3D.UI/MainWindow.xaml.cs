@@ -115,7 +115,7 @@ namespace JolieCat3D.UI
             Viewport.Background = ViewportTheme.CreateDarkBackground();
 
             _renderer = new Scene3DRenderer(Viewport) { Lighting = ViewportTheme.CreateDarkThemeLighting() };
-            _gizmo = new TransformGizmo(Viewport);
+            _gizmo = new TransformGizmo(Viewport) { SceneNodes = () => _currentScene.Traverse() };
             _componentGizmo = new ComponentGizmo(Viewport);
 
             // A gizmo drag changes the same Core Node a NodeViewModel wraps directly
@@ -586,6 +586,20 @@ namespace JolieCat3D.UI
             _renderer.ShowGrid = ShowGridCheckBox.IsChecked == true;
         }
 
+        /// <summary>The Camera toolbar's "Shadows" checkbox - <see cref="Scene3DRenderer.ShowShadows"/>.</summary>
+        private void ShowShadowsCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _renderer.ShowShadows = ShowShadowsCheckBox.IsChecked == true;
+        }
+
+        /// <summary>The Camera toolbar's "Anti-Aliasing" checkbox - <see cref="Scene3DRenderer.AntiAliasingEnabled"/>.</summary>
+        private void AntiAliasingCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _renderer.AntiAliasingEnabled = AntiAliasingCheckBox.IsChecked == true;
+        }
+
         /// <summary>The Camera toolbar's grid size field - keeps the reference grid
         /// visual (<see cref="Scene3DRenderer.GridSize"/>) AND both gizmos' own
         /// Ctrl-held-drag snap increment (<see cref="TransformGizmo.GridSize"/>/
@@ -852,6 +866,127 @@ namespace JolieCat3D.UI
         {
             if (!_isInitialized) return;
             SelectNode((e.NewValue as NodeViewModel)?.UnderlyingNode);
+        }
+
+        // ================= Scene Outliner drag-and-drop (reparenting) =================
+
+        /// <summary>The data format key a drag payload is stored/read under - an
+        /// in-process-only drag (the dragged value is a live <see cref="NodeViewModel"/>
+        /// reference, never serialized), so this only ever needs to be unique within
+        /// this window, not globally.</summary>
+        private const string NodeDragDataFormat = "JolieCat3D.NodeViewModel";
+
+        private Point _outlinerDragStartPoint;
+
+        /// <summary>Records where a potential drag on this <see cref="TreeViewItem"/>
+        /// started - <see cref="SceneTreeViewItem_PreviewMouseMove"/> compares against
+        /// this to decide whether the mouse has moved far enough to actually BE a drag
+        /// (as opposed to the small, inevitable mouse jitter of an ordinary click-to-select),
+        /// the same threshold-based distinction every WPF drag-source implementation
+        /// needs to make.</summary>
+        private void SceneTreeViewItem_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+            _outlinerDragStartPoint = e.GetPosition(null);
+
+        /// <summary>Starts an actual drag (<see cref="DragDrop.DoDragDrop"/>) once the
+        /// mouse has moved past the standard system drag threshold while the left
+        /// button is held over a <see cref="TreeViewItem"/> - carries that item's own
+        /// <see cref="NodeViewModel"/> as the payload (see
+        /// <see cref="NodeDragDataFormat"/>). A plain click (no real drag) never reaches
+        /// this far, so ordinary Outliner selection (<see cref="SceneTreeView_SelectedItemChanged"/>)
+        /// is completely unaffected.</summary>
+        private void SceneTreeViewItem_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed) return;
+            if (sender is not TreeViewItem { DataContext: NodeViewModel nodeViewModel } item) return;
+
+            var currentPosition = e.GetPosition(null);
+            var delta = currentPosition - _outlinerDragStartPoint;
+            if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance) return;
+
+            DragDrop.DoDragDrop(item, new DataObject(NodeDragDataFormat, nodeViewModel), DragDropEffects.Move);
+        }
+
+        private void SceneTreeViewItem_DragOver(object sender, DragEventArgs e)
+        {
+            e.Effects = TryGetReparentPair(sender, e, out _, out _) ? DragDropEffects.Move : DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        /// <summary>Dropping ONTO a <see cref="TreeViewItem"/> re-parents the dragged
+        /// node under that item's own node (<see cref="Scene3D.Reparent"/>). Marks
+        /// <paramref name="e"/> handled unconditionally (even when the drop is rejected)
+        /// so this bubbling <c>Drop</c> event never ALSO reaches
+        /// <see cref="SceneTreeView_Drop"/>'s own "dropped into empty space" handling -
+        /// a drop that landed ON an item is never ALSO an unparent-to-root drop.</summary>
+        private void SceneTreeViewItem_Drop(object sender, DragEventArgs e)
+        {
+            e.Handled = true;
+            if (!TryGetReparentPair(sender, e, out var draggedNode, out var targetNode)) return;
+
+            ReparentNode(draggedNode, targetNode);
+        }
+
+        /// <summary>Dropping into the Outliner's own empty background space (anywhere a
+        /// <see cref="TreeViewItem"/>'s own <c>Drop</c> handler above didn't already
+        /// claim the event) un-parents the dragged node to the scene root - the "drag it
+        /// out into empty space" half of the task's own drag-and-drop ask.</summary>
+        private void SceneTreeView_Drop(object sender, DragEventArgs e)
+        {
+            if (e.Handled) return;
+            e.Handled = true;
+
+            if (e.Data.GetData(NodeDragDataFormat) is not NodeViewModel dragged) return;
+            ReparentNode(dragged.UnderlyingNode, null);
+        }
+
+        /// <summary>The dragged/target <see cref="Node"/> pair for a drop on
+        /// <paramref name="sender"/> (a <see cref="TreeViewItem"/>) - false (nothing
+        /// written to either <c>out</c> parameter) if <paramref name="e"/> carries no
+        /// <see cref="NodeDragDataFormat"/> payload, <paramref name="sender"/> isn't a
+        /// <see cref="TreeViewItem"/> bound to a <see cref="NodeViewModel"/>, or the
+        /// target is the dragged node itself or one of its own descendants - the exact
+        /// same structural-cycle rule <see cref="Scene3D.Reparent"/> itself enforces,
+        /// checked here too so the drag cursor shows "no drop" during
+        /// <see cref="SceneTreeViewItem_DragOver"/> rather than only silently no-op'ing
+        /// on an actual <see cref="SceneTreeViewItem_Drop"/>.</summary>
+        private static bool TryGetReparentPair(object sender, DragEventArgs e, out Node draggedNode, out Node targetNode)
+        {
+            draggedNode = null!;
+            targetNode = null!;
+
+            if (e.Data.GetData(NodeDragDataFormat) is not NodeViewModel dragged) return false;
+            if (sender is not TreeViewItem { DataContext: NodeViewModel target }) return false;
+
+            var current = target.UnderlyingNode;
+            while (current is not null)
+            {
+                if (current == dragged.UnderlyingNode) return false;
+                current = current.Parent;
+            }
+
+            draggedNode = dragged.UnderlyingNode;
+            targetNode = target.UnderlyingNode;
+            return true;
+        }
+
+        /// <summary>The actual reparent (<see cref="Scene3D.Reparent"/>, which recomputes
+        /// <paramref name="node"/>'s own Local Position/Rotation/Scale so its WORLD
+        /// transform never visibly jumps - see that method's own remarks), followed by
+        /// the same "rebuild the whole Outliner tree and re-render" refresh
+        /// <see cref="AddNodeToScene"/> already uses. Rebuilding the tree (<see cref="SceneViewModel.Load"/>)
+        /// discards every existing <see cref="NodeViewModel"/> instance, including the
+        /// one the Outliner/Properties Inspector had selected - <see cref="SelectNode"/>
+        /// re-selects the SAME underlying <see cref="Node"/> (which the rebuild doesn't
+        /// touch at all) against the freshly-built tree, so the selection survives the
+        /// drag from the user's own point of view.</summary>
+        private void ReparentNode(Node node, Node? newParent)
+        {
+            if (!_currentScene.Reparent(node, newParent)) return;
+
+            _sceneViewModel.Load(_currentScene);
+            _renderer.Render(_currentScene, zoomToFit: false);
+            SelectNode(node);
         }
 
         /// <summary>True once <see cref="EditModeButton"/> (rather than
