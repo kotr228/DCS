@@ -54,47 +54,58 @@ namespace JolieCat3D.Engine.Gizmos
         private static readonly Color AxisYColor = Color.FromRgb(0x50, 0xC0, 0x50);
         private static readonly Color AxisZColor = Color.FromRgb(0x40, 0x80, 0xE0);
 
-        /// <summary>Every handle's own nominal size at <see cref="ReferenceDistance"/> world
-        /// units from the camera - <see cref="GizmoHitTester"/> (see
-        /// <see cref="Rendering.Visual3DExtensions"/>'s neighbor of the same purpose) is what
-        /// makes a handle reliably clickable, not its own rendered size, so these are sized
-        /// purely for a slim, professional LOOK: thin enough that the model underneath is
-        /// never obscured, distinct enough between axes/modes to still read clearly. Cut
-        /// drastically twice over now - once from this class's very first values (Translate
-        /// Diameter 0.15/Length 1.2; Rotate Diameter 2.2/InnerDiameter 1.9, an outer ring
-        /// diameter more than double a typical unit-scale object), and again after the first
-        /// cut (Translate 0.045/0.8) still rendered oversized in practice. See
-        /// <see cref="RescaleHandles"/> for how these get scaled for the camera's CURRENT
-        /// distance/zoom.</summary>
-        private const double TranslateDiameter = 0.02;
-        private const double TranslateLength = 0.55;
+        /// <summary>Every handle's own REACH (a Translate/Scale arrow's <see cref="TranslateManipulator.Length"/>,
+        /// a Rotate ring's own radius) scales with <see cref="Target"/>'s own current
+        /// world-space size (see <see cref="GetTargetMaxExtent"/>) rather than a fixed
+        /// world-unit constant - a fixed reach either swallowed a small object or, for a
+        /// large one, sat so far inside it (or, cut small enough not to, rendered at a
+        /// thickness too close to zero to survive WPF's own rasterization) that the handle
+        /// effectively disappeared - both are exactly what an earlier round's fixed
+        /// Diameter/Length pairs (down to Translate 0.02/0.55, Rotate 1.0/0.93) ran into.
+        /// THICKNESS (a Translate/Scale arrow's own <see cref="TranslateManipulator.Diameter"/>,
+        /// a Rotate ring's own tube diameter) still stays a small fraction of that same
+        /// reach - see <see cref="GetTargetMaxExtent"/>'s own factor constants below - so a
+        /// bigger object gets a proportionally longer handle, never a proportionally FATTER
+        /// one. <see cref="GizmoHitTester"/> (see <see cref="Rendering.Visual3DExtensions"/>'s
+        /// neighbor of the same purpose) is what makes a handle reliably clickable regardless
+        /// of how thin it renders, so thinness never trades off against grabbability here.
+        /// See <see cref="UpdateHandleSizing"/> for where these factors are actually applied.</summary>
+        private const double TranslateLengthFactor = 1.5;
+        private const double TranslateDiameterFactor = 0.02;
 
         /// <summary>Scale mode's own reused <see cref="TranslateManipulator"/> (no dedicated
         /// scale manipulator ships with HelixToolkit.Wpf 2.24.0 - see this class's own
-        /// remarks) - a visibly THINNER <see cref="TranslateDiameter"/> is what distinguishes
-        /// it from Translate mode at a glance, matching <see cref="AddScaleHandle"/>'s own
-        /// intent (its Diameter used to actually be LARGER than Translate's, the reverse of
-        /// what its own comment there claimed - fixed here).</summary>
-        private const double ScaleDiameter = 0.014;
-        private const double ScaleLength = 0.55;
+        /// remarks) - a visibly THINNER <see cref="TranslateDiameterFactor"/> is what
+        /// distinguishes it from Translate mode at a glance.</summary>
+        private const double ScaleLengthFactor = 1.5;
+        private const double ScaleDiameterFactor = 0.012;
 
-        /// <summary>The Rotate ring's own outer/inner diameter - a thin torus (tube radius =
-        /// (<see cref="RotateDiameter"/> - <see cref="RotateInnerDiameter"/>) / 2 =~ 0.035),
-        /// roughly the same overall reach as <see cref="TranslateLength"/> so Translate and
-        /// Rotate mode read as the same size gizmo, not one dwarfing the other.</summary>
-        private const double RotateDiameter = 1.0;
-        private const double RotateInnerDiameter = 0.93;
+        /// <summary>The Rotate ring's own centerline radius factor, and its tube's diameter
+        /// factor (of <see cref="Target"/>'s own <see cref="GetTargetMaxExtent"/>, not of the
+        /// ring's own radius - a fixed fraction of maxExtent keeps the tube visually
+        /// consistent with Translate/Scale's own arrow thickness, both being sized off the
+        /// very same object-size signal).</summary>
+        private const double RotateRadiusFactor = 1.2;
+        private const double RotateTubeDiameterFactor = 0.02;
 
-        /// <summary>The camera distance (perspective) / <see cref="OrthographicCamera.Width"/>
-        /// (orthographic) at which the nominal sizes above are exactly correct - see
-        /// <see cref="RescaleHandles"/>. <see cref="MaxScale"/> is deliberately tight (a
-        /// zoomed-out view can be MANY times <see cref="ReferenceDistance"/> away, and an
-        /// unbounded scale-up would just reproduce the original "gizmo swallows the model"
-        /// complaint at a different zoom level) - a handle can grow at most 3x its nominal
-        /// size, never back to anything resembling the original oversized geometry.</summary>
-        private const double ReferenceDistance = 10.0;
-        private const double MinScale = 0.15;
-        private const double MaxScale = 3.0;
+        /// <summary>An absolute floor under every computed Diameter/tube-diameter above -
+        /// without one, a sufficiently tiny selected object (or one with no mesh at all;
+        /// see <see cref="GetTargetMaxExtent"/>'s own fallback) could compute a thickness so
+        /// close to zero it renders as nothing, reproducing this exact "gizmo disappeared"
+        /// bug from a different direction. Small enough to still read as "thin" against any
+        /// object this project's own primitives are actually authored at (a similar 1-unit
+        /// scale - see <see cref="GridSize"/>'s own remarks).</summary>
+        private const double MinDiameter = 0.01;
+
+        /// <summary>The world-space size <see cref="Target"/>'s own bounds fall back to when
+        /// they collapse to a single point - a node with no mesh (a pure transform/pivot) or
+        /// an empty one (see <see cref="CoreNode.GetWorldBounds"/>'s own remarks) - so the
+        /// gizmo still shows at a sane, unremarkable size instead of vanishing to
+        /// <see cref="MinDiameter"/>-thin nothing. Matches this project's own established
+        /// "primitives are authored at a 1-unit scale" convention (<see cref="GridSize"/>'s
+        /// own remarks) - the same reasonable size a mesh-bearing node of "typical" size
+        /// would compute anyway.</summary>
+        private const double DefaultExtent = 1.0;
 
         private readonly HelixViewport3D _viewport;
         private readonly List<(Manipulator Manipulator, EventHandler ValueChangedHandler)> _activeManipulators = new();
@@ -160,17 +171,8 @@ namespace JolieCat3D.Engine.Gizmos
         /// nothing to undo) - see <see cref="TrackDelta"/>'s own comparison.</summary>
         public event EventHandler<TransformCommittedEventArgs>? TransformCommitted;
 
-        public TransformGizmo(HelixViewport3D viewport)
-        {
+        public TransformGizmo(HelixViewport3D viewport) =>
             _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
-
-            // Zooming the camera alone (no drag, no selection change) never calls
-            // Rebuild/Refresh on its own - CameraChanged is HelixViewport3D's own signal
-            // that the camera actually moved, confirmed to exist via the same reflection
-            // technique used to design GizmoHitTester's own RaiseEvent dispatch (this
-            // project can't run the real control to observe it firing at runtime).
-            _viewport.CameraChanged += (_, _) => RescaleHandles();
-        }
 
         /// <summary>Attaches the gizmo to <paramref name="node"/> (or detaches it
         /// entirely, for null) and (re)builds its handles at <paramref name="node"/>'s
@@ -211,7 +213,7 @@ namespace JolieCat3D.Engine.Gizmos
                 if (manipulator is RotateManipulator rotateManipulator) rotateManipulator.Pivot = position;
             }
 
-            RescaleHandles();
+            UpdateHandleSizing();
         }
 
         private void Rebuild()
@@ -264,34 +266,25 @@ namespace JolieCat3D.Engine.Gizmos
                     break;
             }
 
-            RescaleHandles();
+            UpdateHandleSizing();
         }
 
-        /// <summary>Rescales every currently-active Translate or Rotate handle so its
-        /// on-screen size stays roughly constant as the camera zooms in/out, rather than
-        /// growing to swallow the model at close range or shrinking to an unclickable
-        /// sliver far away - HelixToolkit.Wpf 2.24.0's <see cref="Manipulator"/>-derived
-        /// controls expose no built-in option for this (confirmed by inspecting the
-        /// compiled assembly's full public property list), so this reimplements it
-        /// directly: for a perspective camera, screen-projected size scales with
-        /// distance-from-camera, so each mode's own nominal size is scaled by (distance /
-        /// <see cref="ReferenceDistance"/>); for an orthographic camera, there is no such
-        /// distance-based foreshortening at all (a parallel projection) - its zoom is
-        /// instead <see cref="OrthographicCamera.Width"/>, so that is what's scaled against
-        /// instead. Clamped to [<see cref="MinScale"/>, <see cref="MaxScale"/>] so an
-        /// extreme zoom can't collapse a handle to nothing or balloon it back to the exact
-        /// problem this exists to fix.
-        ///
-        /// Scale mode's own reused <see cref="TranslateManipulator"/> handles are
-        /// deliberately left at their fixed <see cref="ScaleDiameter"/>/<see cref="ScaleLength"/> -
-        /// out of this bug report's own Translate/Rotate scope, and rescaling them here
-        /// would need their own separate nominal pair to avoid fighting Translate mode's
-        /// (the <c>manipulator is TranslateManipulator</c> match below would otherwise catch
-        /// Scale's handles too, since it reuses the very same control type).</summary>
-        private void RescaleHandles()
+        /// <summary>Resizes every currently-active handle to match <see cref="Target"/>'s
+        /// CURRENT world-space size (see <see cref="GetTargetMaxExtent"/>) - a Translate/Scale
+        /// arrow's reach (<see cref="TranslateManipulator.Length"/>) and a Rotate ring's own
+        /// radius scale with the object, while every handle's THICKNESS stays a small,
+        /// near-constant fraction of that same reach (never large in absolute terms - see
+        /// <see cref="MinDiameter"/>'s own remarks for the one floor under it). Called after
+        /// <see cref="Rebuild"/> builds/replaces the handle set, and after every
+        /// <see cref="Refresh"/> (a drag tick, a Properties Inspector edit, an undo) since
+        /// any of those can change <see cref="Target"/>'s own Scale and therefore its
+        /// bounds - the handles need to track that live, not just at the moment they were
+        /// first built.</summary>
+        private void UpdateHandleSizing()
         {
             if (Target is null) return;
-            if (ComputeCameraScale() is not { } scale) return;
+
+            var maxExtent = GetTargetMaxExtent();
 
             foreach (var (manipulator, _) in _activeManipulators)
             {
@@ -300,41 +293,52 @@ namespace JolieCat3D.Engine.Gizmos
                 switch (manipulator)
                 {
                     case RotateManipulator rotate:
-                        rotate.Diameter = RotateDiameter * scale;
-                        rotate.InnerDiameter = RotateInnerDiameter * scale;
+                    {
+                        var tubeDiameter = Math.Max(MinDiameter, maxExtent * RotateTubeDiameterFactor);
+                        var radius = maxExtent * RotateRadiusFactor;
+                        rotate.Diameter = 2 * (radius + tubeDiameter / 2);
+                        rotate.InnerDiameter = 2 * (radius - tubeDiameter / 2);
                         break;
+                    }
 
                     case TranslateManipulator translate when Mode == GizmoMode.Translate:
-                        translate.Diameter = TranslateDiameter * scale;
-                        translate.Length = TranslateLength * scale;
+                        translate.Length = maxExtent * TranslateLengthFactor;
+                        translate.Diameter = Math.Max(MinDiameter, maxExtent * TranslateDiameterFactor);
+                        break;
+
+                    case TranslateManipulator translate when Mode == GizmoMode.Scale:
+                        translate.Length = maxExtent * ScaleLengthFactor;
+                        translate.Diameter = Math.Max(MinDiameter, maxExtent * ScaleDiameterFactor);
                         break;
                 }
             }
         }
 
-        private double? ComputeCameraScale() => _viewport.Camera switch
+        /// <summary>The largest of <see cref="Target"/>'s own world-space bounding-box
+        /// dimensions (<see cref="CoreNode.GetWorldBounds"/>) - <see cref="DefaultExtent"/>
+        /// for a mesh-less node (or one whose mesh is empty), whose bounds collapse to a
+        /// single point (that method's own documented behavior) and so would otherwise
+        /// compute a zero reach/thickness, reproducing this very "gizmo disappeared" bug
+        /// for that case specifically.</summary>
+        private double GetTargetMaxExtent()
         {
-            PerspectiveCamera perspective => ComputeDistanceScale(perspective.Position),
-            OrthographicCamera orthographic => Math.Clamp(orthographic.Width / ReferenceDistance, MinScale, MaxScale),
-            _ => null,
-        };
-
-        private double ComputeDistanceScale(Point3D cameraPosition)
-        {
-            var worldPosition = Target!.GetWorldPosition();
-            var position = new Point3D(worldPosition.X, worldPosition.Y, worldPosition.Z);
-            var distance = (position - cameraPosition).Length;
-            return Math.Clamp(distance / ReferenceDistance, MinScale, MaxScale);
+            var (min, max) = Target!.GetWorldBounds();
+            var size = max - min;
+            var maxExtent = MathF.Max(size.X, MathF.Max(size.Y, size.Z));
+            return maxExtent > 1e-4f ? maxExtent : DefaultExtent;
         }
 
         private void AddTranslateHandle(Point3D position, Vector3 worldAxis, Vector3D direction, Color color)
         {
+            // Diameter/Length are placeholders, immediately overwritten by UpdateHandleSizing
+            // (called at the end of the very same Rebuild() this method's own caller is
+            // inside) once Target's actual bounds are known - never what's actually rendered.
             var manipulator = new TranslateManipulator
             {
                 Position = position,
                 Direction = direction,
-                Diameter = TranslateDiameter,
-                Length = TranslateLength,
+                Diameter = MinDiameter,
+                Length = DefaultExtent,
                 Color = color,
             };
 
@@ -362,13 +366,15 @@ namespace JolieCat3D.Engine.Gizmos
 
         private void AddRotateHandle(Point3D position, Vector3 worldAxis, Vector3D axis, Color color)
         {
+            // See AddTranslateHandle's own remarks - Diameter/InnerDiameter here are likewise
+            // just-built placeholders, overwritten by the same end-of-Rebuild() call.
             var manipulator = new RotateManipulator
             {
                 Position = position,
                 Pivot = position,
                 Axis = axis,
-                Diameter = RotateDiameter,
-                InnerDiameter = RotateInnerDiameter,
+                Diameter = DefaultExtent,
+                InnerDiameter = DefaultExtent - MinDiameter,
                 Color = color,
             };
 
@@ -381,13 +387,14 @@ namespace JolieCat3D.Engine.Gizmos
             // interaction primitive for Scale (no dedicated scale manipulator ships
             // with HelixToolkit.Wpf 2.24.0) - a smaller Diameter than the Translate mode
             // uses is the one visual cue distinguishing it, beyond mode never showing
-            // more than one gizmo at once.
+            // more than one gizmo at once. Diameter/Length here are likewise just-built
+            // placeholders - see AddTranslateHandle's own remarks.
             var manipulator = new TranslateManipulator
             {
                 Position = position,
                 Direction = direction,
-                Diameter = ScaleDiameter,
-                Length = ScaleLength,
+                Diameter = MinDiameter,
+                Length = DefaultExtent,
                 Color = color,
             };
 

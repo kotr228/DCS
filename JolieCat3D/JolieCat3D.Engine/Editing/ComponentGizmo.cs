@@ -49,21 +49,25 @@ namespace JolieCat3D.Engine.Editing
         private static readonly Color AxisYColor = Color.FromRgb(0x50, 0xC0, 0x50);
         private static readonly Color AxisZColor = Color.FromRgb(0x40, 0x80, 0xE0);
 
-        /// <summary>Nominal <see cref="TranslateManipulator.Diameter"/>/<see cref="TranslateManipulator.Length"/>
-        /// at <see cref="ReferenceDistance"/> world units from the camera - see
-        /// <c>Gizmos.TransformGizmo</c>'s own matching constants/remarks for why these are
-        /// deliberately much slimmer/shorter than this class used before (Diameter 0.1,
-        /// Length 0.9, then 0.035/0.6 - still oversized in practice), and
-        /// <see cref="RescaleHandles"/> for how they're scaled for the camera's current
-        /// distance/zoom.</summary>
-        private const double TranslateDiameter = 0.015;
-        private const double TranslateLength = 0.4;
-        private const double ReferenceDistance = 10.0;
-        private const double MinScale = 0.15;
+        /// <summary>See <c>Gizmos.TransformGizmo</c>'s own matching factor constants and
+        /// remarks - REACH (<see cref="TranslateManipulator.Length"/>) scales with the
+        /// edited mesh's own current world-space size (<see cref="GetTargetMaxExtent"/>),
+        /// while THICKNESS (<see cref="TranslateManipulator.Diameter"/>) stays a small,
+        /// near-constant fraction of that same reach - a fixed world-unit size (this class
+        /// used Diameter/Length pairs down to 0.015/0.4 before) either swallowed a small
+        /// mesh or rendered too thin to see on a large one.</summary>
+        private const double TranslateLengthFactor = 1.5;
+        private const double TranslateDiameterFactor = 0.02;
 
-        /// <summary>See <c>Gizmos.TransformGizmo.MaxScale</c>'s own remarks - kept tight so a
-        /// zoomed-out view can't balloon a handle back to an oversized one.</summary>
-        private const double MaxScale = 3.0;
+        /// <summary>See <c>Gizmos.TransformGizmo.MinDiameter</c>'s own remarks - the floor
+        /// under a computed Diameter so an extremely small (or mesh-less) selection can't
+        /// compute a thickness that renders as nothing.</summary>
+        private const double MinDiameter = 0.01;
+
+        /// <summary>See <c>Gizmos.TransformGizmo.DefaultExtent</c>'s own remarks - the
+        /// fallback size when <see cref="GetTargetMaxExtent"/> has no mesh bounds to work
+        /// from at all.</summary>
+        private const double DefaultExtent = 1.0;
 
         private readonly HelixViewport3D _viewport;
         private readonly List<(Manipulator Manipulator, EventHandler ValueChangedHandler)> _activeManipulators = new();
@@ -112,14 +116,8 @@ namespace JolieCat3D.Engine.Editing
         /// nothing was selected when the drag began.</summary>
         public event EventHandler<VertexTranslationCommittedEventArgs>? TranslationCommitted;
 
-        public ComponentGizmo(HelixViewport3D viewport)
-        {
+        public ComponentGizmo(HelixViewport3D viewport) =>
             _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
-
-            // See Gizmos.TransformGizmo's own matching subscription/remarks - zooming the
-            // camera alone never calls Rebuild/Refresh on its own.
-            _viewport.CameraChanged += (_, _) => RescaleHandles();
-        }
 
         /// <summary>Attaches to <paramref name="session"/> (or detaches, for null) and
         /// rebuilds handles at its current selection centroid - call after any
@@ -152,7 +150,7 @@ namespace JolieCat3D.Engine.Editing
                 manipulator.Position = position;
             }
 
-            RescaleHandles();
+            UpdateHandleSizing();
         }
 
         /// <summary>Tears down and recreates every handle at the selection's current
@@ -185,54 +183,59 @@ namespace JolieCat3D.Engine.Editing
             AddTranslateHandle(position, Vector3.UnitY, new Vector3D(0, 1, 0), AxisYColor);
             AddTranslateHandle(position, Vector3.UnitZ, new Vector3D(0, 0, 1), AxisZColor);
 
-            RescaleHandles();
+            UpdateHandleSizing();
         }
 
-        /// <summary>Rescales every currently-active handle so its on-screen size stays
-        /// roughly constant as the camera zooms in/out - see
-        /// <see cref="JolieCat3D.Engine.Gizmos.TransformGizmo"/>'s own matching method
-        /// (private, so not directly linkable here) for why (HelixToolkit.Wpf 2.24.0 has
-        /// no built-in option for this) and how (perspective vs. orthographic camera
-        /// handled separately). This class's handles are always Translate handles (no
-        /// Rotate/Scale mode of its own - see this class's own remarks), so unlike that
-        /// method, there's no mode check needed here.</summary>
-        private void RescaleHandles()
+        /// <summary>Resizes every currently-active handle to match the edited mesh's own
+        /// CURRENT world-space size, mirroring <c>Gizmos.TransformGizmo.UpdateHandleSizing</c>'s
+        /// own reasoning exactly (private there, so not directly linkable here) - reach
+        /// scales with the object, thickness stays a small, near-constant fraction of that
+        /// reach. Sized off <see cref="MeshEditSession.Target"/>'s own WHOLE-mesh bounds
+        /// (<see cref="GetTargetMaxExtent"/>), not the selected vertices' own (often much
+        /// smaller) local extent - a single-vertex selection on a large mesh should still
+        /// get a handle sized to the mesh it belongs to, not shrink to match one point.
+        /// Called after <see cref="Rebuild"/> and after every <see cref="Refresh"/> (a drag
+        /// tick, a Properties Inspector edit) since either can change the target's own Scale
+        /// and therefore its bounds.</summary>
+        private void UpdateHandleSizing()
         {
-            if (Session?.GetSelectionWorldCentroid() is not { } centroid) return;
+            if (Session?.Target is not { } node) return;
 
-            var scale = _viewport.Camera switch
-            {
-                PerspectiveCamera perspective => ComputeDistanceScale(centroid, perspective.Position),
-                OrthographicCamera orthographic => Math.Clamp(orthographic.Width / ReferenceDistance, MinScale, MaxScale),
-                _ => (double?)null,
-            };
-            if (scale is not { } s) return;
+            var maxExtent = GetTargetMaxExtent(node);
 
             foreach (var (manipulator, _) in _activeManipulators)
             {
                 if (manipulator is not TranslateManipulator translate) continue;
                 if (translate.GetViewport3DOrNull() is null) continue;
 
-                translate.Diameter = TranslateDiameter * s;
-                translate.Length = TranslateLength * s;
+                translate.Length = maxExtent * TranslateLengthFactor;
+                translate.Diameter = Math.Max(MinDiameter, maxExtent * TranslateDiameterFactor);
             }
         }
 
-        private static double ComputeDistanceScale(Vector3 centroid, Point3D cameraPosition)
+        /// <summary>See <c>Gizmos.TransformGizmo.GetTargetMaxExtent</c>'s own remarks - the
+        /// largest of <paramref name="node"/>'s own world-space bounding-box dimensions, or
+        /// <see cref="DefaultExtent"/> if its mesh is missing/empty (<see cref="CoreNode.GetWorldBounds"/>'s
+        /// own documented collapse-to-a-point behavior for that case).</summary>
+        private static double GetTargetMaxExtent(CoreNode node)
         {
-            var position = new Point3D(centroid.X, centroid.Y, centroid.Z);
-            var distance = (position - cameraPosition).Length;
-            return Math.Clamp(distance / ReferenceDistance, MinScale, MaxScale);
+            var (min, max) = node.GetWorldBounds();
+            var size = max - min;
+            var maxExtent = MathF.Max(size.X, MathF.Max(size.Y, size.Z));
+            return maxExtent > 1e-4f ? maxExtent : DefaultExtent;
         }
 
         private void AddTranslateHandle(Point3D position, Vector3 worldAxis, Vector3D direction, Color color)
         {
+            // Diameter/Length are placeholders, immediately overwritten by
+            // UpdateHandleSizing (called at the end of the very same Rebuild() this
+            // method's own caller is inside) once the target's actual bounds are known.
             var manipulator = new TranslateManipulator
             {
                 Position = position,
                 Direction = direction,
-                Diameter = TranslateDiameter,
-                Length = TranslateLength,
+                Diameter = MinDiameter,
+                Length = DefaultExtent,
                 Color = color,
             };
 
