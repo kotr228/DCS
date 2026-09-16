@@ -893,7 +893,9 @@ namespace JolieCat3D.UI
             FaceModeButton.IsEnabled = enteringEditMode;
             ExtrudeButton.IsEnabled = enteringEditMode;
             SubdivideButton.IsEnabled = enteringEditMode;
-            DeleteButton.IsEnabled = enteringEditMode;
+            // DeleteButton is deliberately NOT toggled here (unlike the others above) -
+            // it means something in BOTH modes now (see DeleteSelected's own remarks),
+            // so it stays enabled regardless of which one is active.
 
             if (enteringEditMode)
             {
@@ -1062,28 +1064,66 @@ namespace JolieCat3D.UI
             });
         }
 
-        /// <summary>The Edit Mode toolbar's "Delete" button - deletes whichever
-        /// vertices/edges/faces are currently selected via
-        /// <see cref="MeshEditSession.DeleteSelected"/>, wrapped into an undoable
-        /// <see cref="MeshEditCommand"/> exactly the same way <see cref="ExtrudeButton_Click"/>/
-        /// <see cref="SubdivideButton_Click"/> already are (deletion changes the mesh's own
-        /// vertex COUNT/numbering, so a full before/after <see cref="Mesh.Clone"/> snapshot
-        /// is the right undo strategy here too - not the lightweight per-index
-        /// <see cref="VertexTranslateCommand"/> a plain drag uses, since a delete
-        /// renumbers every surviving index out from under any "before/after position"
-        /// pairing that command relies on). Also reachable via the Delete key - see
+        /// <summary>The "Delete" toolbar button - Object Mode deletes the whole selected
+        /// node (see <see cref="DeleteSelectedNode"/>); Edit Mode deletes the selected
+        /// vertices/edges/faces instead (see <see cref="DeleteSelectedComponents"/>). Also
+        /// reachable via the Delete key from anywhere in the window - see
         /// <see cref="MainWindow_PreviewKeyDown"/> - this button exists purely so the same
-        /// command has a mouse-only path too.</summary>
+        /// command has a mouse-only path too, mirroring <see cref="DuplicateButton_Click"/>.</summary>
         private void DeleteButton_Click(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
-            DeleteSelectedComponents();
+            DeleteSelected();
+        }
+
+        /// <summary>Routes to whichever "Delete" actually means right now - Object Mode
+        /// (the whole selected node) or Edit Mode (a component selection) - the shared
+        /// entry point both <see cref="DeleteButton_Click"/> and the Delete key (see
+        /// <see cref="MainWindow_PreviewKeyDown"/>) call, mirroring
+        /// <see cref="DuplicateSelected"/>'s own exact shape.</summary>
+        private void DeleteSelected()
+        {
+            if (IsEditMode) DeleteSelectedComponents();
+            else DeleteSelectedNode();
+        }
+
+        /// <summary>Object Mode's own "Delete" command - removes the selected node (and
+        /// its whole subtree) from the scene graph via <see cref="DeleteNodeCommandFactory.Create"/>/
+        /// <see cref="DeleteNodeCommand"/> (wrapped for Undo/Redo the same
+        /// <see cref="CommandHistory.Execute"/> way <see cref="DuplicateSelectedNode"/>'s
+        /// own <see cref="DuplicateNodeCommand"/> already is), clears the selection
+        /// (there is nothing left to keep the gizmo attached to or the Properties
+        /// Inspector showing), and drops every <see cref="_textureSources"/> entry for the
+        /// deleted subtree - keeping one around for a node that's no longer reachable from
+        /// <see cref="_currentScene"/> at all would be a real, silently-accumulating memory
+        /// leak over a session that deletes many nodes in turn (the same reasoning
+        /// <see cref="LoadScene"/>'s own wholesale <c>_textureSources.Clear()</c> already
+        /// discloses, just scoped to one deleted subtree instead of an entire replaced
+        /// scene). A no-op with nothing selected.</summary>
+        private void DeleteSelectedNode()
+        {
+            if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
+
+            TryRun("Delete", () =>
+            {
+                var command = DeleteNodeCommandFactory.Create(_currentScene, node, _timeline, onChanged: () =>
+                {
+                    _sceneViewModel.Load(_currentScene);
+                    _renderer.Render(_currentScene, zoomToFit: false);
+                });
+
+                _commandHistory.Execute(command);
+                SelectNode(null);
+
+                foreach (var removedNode in command.Target.Traverse()) _textureSources.Remove(removedNode);
+            });
         }
 
         /// <summary>The actual "Delete Vertices/Edges/Faces" command both
         /// <see cref="DeleteButton_Click"/> and the Delete key (see
-        /// <see cref="MainWindow_PreviewKeyDown"/>) funnel into - a no-op (not even an
-        /// undoable no-op command recorded) with nothing currently selected, matching
+        /// <see cref="MainWindow_PreviewKeyDown"/>) funnel into (via
+        /// <see cref="DeleteSelected"/>) - a no-op (not even an undoable no-op command
+        /// recorded) with nothing currently selected, matching
         /// <see cref="MeshEditSession.DeleteSelected"/>'s own "false = nothing happened"
         /// return.</summary>
         private void DeleteSelectedComponents()
@@ -1194,40 +1234,42 @@ namespace JolieCat3D.UI
             });
         }
 
-        /// <summary>Window-wide Delete-key handling for Edit Mode's own "Delete
-        /// Vertices/Edges/Faces" command (see <see cref="DeleteSelectedComponents"/>) -
-        /// <see cref="PreviewKeyDown"/> (a tunneling event reaching this window before any
-        /// child control's own bubbling <c>KeyDown</c>) rather than a routed
-        /// <see cref="System.Windows.Input.KeyBinding"/>/<see cref="RoutedCommand"/>, so the
-        /// Delete key works regardless of which control inside the window currently has
-        /// keyboard focus (the viewport, the Outliner tree, a Properties panel field) -
-        /// the same "reachable from anywhere in the window" reasoning
-        /// <see cref="ApplicationCommands.Undo"/>/<see cref="ApplicationCommands.Redo"/>'s
+        /// <summary>Window-wide Delete/Ctrl+D handling for <see cref="DeleteSelected"/>/
+        /// <see cref="DuplicateSelected"/> - <see cref="PreviewKeyDown"/> (a tunneling
+        /// event reaching this window before any child control's own bubbling
+        /// <c>KeyDown</c>) rather than a routed <see cref="System.Windows.Input.KeyBinding"/>/
+        /// <see cref="RoutedCommand"/>, so both keys work regardless of which control
+        /// inside the window currently has keyboard focus (the viewport, the Outliner
+        /// tree, a Properties panel field) - the same "reachable from anywhere in the
+        /// window" reasoning <see cref="ApplicationCommands.Undo"/>/<see cref="ApplicationCommands.Redo"/>'s
         /// own <see cref="CommandBindings"/> already rely on (their default Ctrl+Z/Ctrl+Y
         /// gestures), just via a plain key check instead of a full <c>RoutedCommand</c>
         /// since there's no menu item/<c>InputGestureText</c> this needs to also drive.
-        /// Deliberately a no-op outside Edit Mode (Object Mode has no per-component
-        /// selection to delete, and "Delete" there would be a completely different,
-        /// unrelated command - deleting the whole selected NODE - this project doesn't
-        /// implement and was never asked for here) rather than silently doing nothing
-        /// useful with an ambiguous meaning.</summary>
+        ///
+        /// The one thing this must NEVER do is steal a keystroke away from an actively
+        /// focused <see cref="TextBox"/> (the Properties Inspector's own Name/Position/
+        /// Rotation/Scale/... fields, among others): Delete has its own native, entirely
+        /// different meaning there (delete the character ahead of the caret), and this
+        /// handler firing anyway would silently destroy the whole selected object (Object
+        /// Mode) or mesh selection (Edit Mode) the moment someone tries to edit a text
+        /// field with the Delete key - a real, easy-to-hit data-loss trap a window-wide
+        /// tunneling handler is otherwise exactly positioned to spring. Checked once, up
+        /// front, for BOTH keys below (Ctrl+D isn't a TextBox's own native shortcut
+        /// either, so it could arguably still fire there safely, but skipping it too keeps
+        /// this one rule simple and exception-free rather than needing a second, subtly
+        /// different justification per key).</summary>
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (!_isInitialized) return;
+            if (e.OriginalSource is TextBox) return;
 
-            if (e.Key == Key.Delete && IsEditMode)
+            if (e.Key == Key.Delete)
             {
-                DeleteSelectedComponents();
+                DeleteSelected();
                 e.Handled = true;
                 return;
             }
 
-            // Ctrl+D - "Duplicate", the same window-wide-reachable shape as Ctrl+Z/Ctrl+Y
-            // (ApplicationCommands.Undo/Redo's own CommandBindings) and the Delete key
-            // above - reachable regardless of which control currently has keyboard focus.
-            // Unlike Delete, this is NOT Edit-Mode-only: see DuplicateSelected's own
-            // remarks for which of Object/Edit Mode's two different "Duplicate" commands
-            // it actually routes to.
             if (e.Key == Key.D && Keyboard.Modifiers == ModifierKeys.Control)
             {
                 DuplicateSelected();
