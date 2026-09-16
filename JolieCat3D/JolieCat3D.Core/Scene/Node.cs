@@ -144,6 +144,52 @@ namespace JolieCat3D.Core.Scene
         /// stay within (a smoothing Subsurf) this box, a known, disclosed simplification
         /// rather than re-evaluating the whole modifier stack just for a selection
         /// outline/camera-framing bounds calculation.</summary>
+        /// <summary>A complete, fully independent copy of this node AND every descendant -
+        /// <see cref="LocalPosition"/>/<see cref="LocalRotation"/>/<see cref="LocalScale"/>,
+        /// a deep <see cref="Geometry.Mesh.Clone"/> (never the same <see cref="Mesh"/>
+        /// instance - editing the clone's geometry can never reach back into the
+        /// original's), a deep <see cref="Modifier.Clone"/> of every entry in
+        /// <see cref="Modifiers"/>, a <see cref="CameraData.Clone"/>/<see cref="LightData.Clone"/>
+        /// of <see cref="Camera"/>/<see cref="Light"/> (each just plain value-type data -
+        /// see their own remarks), and a <see cref="Clone"/> of every child, re-parented
+        /// under the returned clone (so the WHOLE subtree duplicates together, not just
+        /// this one node) - nothing here is ever a reference the original still owns, the
+        /// same independence <see cref="Geometry.Mesh.Clone"/> already guarantees for a
+        /// single mesh, just extended to a whole node (and its descendants). The one
+        /// deliberate exception is <see cref="Geometry.Mesh.Material"/> itself, copied by
+        /// reference through <see cref="Geometry.Mesh.Clone"/> - materials are shared, not
+        /// owned per-mesh, the same assumption every other part of this project already
+        /// makes (see <see cref="Geometry.Mesh.Clone"/>'s own remarks), so two duplicated
+        /// objects intentionally still share the same paint until one is explicitly given
+        /// a new material of its own.
+        ///
+        /// Deliberately does NOT copy this node's own keyframe animation track - a
+        /// <see cref="Node"/> has no idea a <c>Service.Animation.AnimationTimeline</c>
+        /// (which lives in a different project, one layer up, and is keyed by node
+        /// instance) even exists, so duplicating a node's OWN recorded keyframes (if any)
+        /// is necessarily a <c>JolieCat3D.Service</c>-level concern - see
+        /// <c>Service.Commands.DuplicateNodeCommandFactory</c>, which pairs up every
+        /// source/clone node in the two parallel subtrees (via <see cref="Traverse"/>,
+        /// identical order either side since child lists clone 1:1) to copy each one's own
+        /// track across, immediately after calling this method.</summary>
+        public Node Clone()
+        {
+            var clone = new Node(Name)
+            {
+                LocalPosition = LocalPosition,
+                LocalRotation = LocalRotation,
+                LocalScale = LocalScale,
+                Mesh = Mesh?.Clone(),
+                Camera = Camera?.Clone(),
+                Light = Light?.Clone(),
+            };
+
+            foreach (var modifier in Modifiers) clone.Modifiers.Add(modifier.Clone());
+            foreach (var child in _children) clone.AddChild(child.Clone());
+
+            return clone;
+        }
+
         public (Vector3 Min, Vector3 Max) GetWorldBounds()
         {
             var world = GetWorldTransform();

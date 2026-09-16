@@ -114,7 +114,21 @@
                              Margin="0,0,4,0" Checked="GizmoModeButton_Checked" Tag="Rotate" />
                 <RadioButton x:Name="ScaleModeButton" Content="Scale" GroupName="GizmoMode"
                              Style="{StaticResource GizmoModeButtonStyle}"
-                             Checked="GizmoModeButton_Checked" Tag="Scale" />
+                             Margin="0,0,20,0" Checked="GizmoModeButton_Checked" Tag="Scale" />
+
+                <!-- Global: gizmo axes always align with world X/Y/Z, regardless of the
+                     selected object's own rotation. Local: they rotate to match it instead -
+                     see TransformGizmo.Space's own remarks. Scale is unaffected by this
+                     toggle either way (always local - see TransformGizmo.GetActiveAxes's
+                     own remarks on why a "Global Scale" isn't a coherent operation here). -->
+                <TextBlock Text="Space:" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Foreground="{StaticResource TextSecondaryBrush}" />
+                <RadioButton x:Name="GlobalSpaceButton" Content="Global" GroupName="TransformSpace"
+                             IsChecked="True" Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,4,0" Checked="TransformSpaceButton_Checked" Tag="Global" />
+                <RadioButton x:Name="LocalSpaceButton" Content="Local" GroupName="TransformSpace"
+                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Checked="TransformSpaceButton_Checked" Tag="Local" />
             </StackPanel>
         </Border>
 
@@ -129,7 +143,16 @@
                              Margin="0,0,4,0" Checked="EditorModeButton_Checked" Tag="Object" />
                 <RadioButton x:Name="EditModeButton" Content="Edit" GroupName="EditorMode"
                              Style="{StaticResource GizmoModeButtonStyle}"
-                             Margin="0,0,20,0" Checked="EditorModeButton_Checked" Tag="Edit" />
+                             Margin="0,0,4,0" Checked="EditorModeButton_Checked" Tag="Edit" />
+
+                <!-- Object Mode: duplicates the selected node (deep clone, including its
+                     children/modifiers/material binding/keyframes - see
+                     Service.Commands.DuplicateNodeCommandFactory's own remarks). Edit Mode:
+                     duplicates the selected vertices/edges/faces instead (see
+                     MeshEditSession.DuplicateSelected). Also reachable via Ctrl+D from
+                     anywhere in the window - see MainWindow_PreviewKeyDown. -->
+                <Button x:Name="DuplicateButton" Content="Duplicate"
+                        Margin="0,0,20,0" Padding="8,2" Click="DuplicateButton_Click" />
 
                 <TextBlock Text="Component:" VerticalAlignment="Center" Margin="0,0,10,0"
                            Foreground="{StaticResource TextSecondaryBrush}" />

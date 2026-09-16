@@ -847,6 +847,22 @@ namespace JolieCat3D.UI
             if (Enum.TryParse<GizmoMode>(modeName, out var mode)) _gizmo.Mode = mode;
         }
 
+        /// <summary>The Gizmo Mode toolbar's Global/Local toggle - sets BOTH gizmos' own
+        /// <see cref="TransformGizmo.Space"/>/<see cref="ComponentGizmo.Space"/> together
+        /// (only one of the two is ever attached/visible at a time - see
+        /// <see cref="SelectNode"/>/<see cref="EditorModeButton_Checked"/> - but keeping
+        /// both in sync means the choice carries over correctly whichever one the user
+        /// switches to next, rather than each silently reverting to Global).</summary>
+        private void TransformSpaceButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is not RadioButton { Tag: string spaceName }) return;
+            if (!Enum.TryParse<TransformSpace>(spaceName, out var space)) return;
+
+            _gizmo.Space = space;
+            _componentGizmo.Space = space;
+        }
+
         /// <summary>The viewport shading toolbar - see <see cref="ShadingMode"/>'s own
         /// remarks for what each of the 4 modes actually changes. Setting
         /// <see cref="Scene3DRenderer.ShadingMode"/> re-renders immediately on its own,
@@ -1093,6 +1109,91 @@ namespace JolieCat3D.UI
             });
         }
 
+        /// <summary>The "Duplicate" toolbar button - Object Mode duplicates the whole
+        /// selected node (see <see cref="DuplicateSelectedNode"/>); Edit Mode duplicates
+        /// the selected vertices/edges/faces instead (see
+        /// <see cref="DuplicateSelectedComponents"/>). Also reachable via Ctrl+D from
+        /// anywhere in the window - see <see cref="MainWindow_PreviewKeyDown"/> - this
+        /// button exists purely so the same command has a mouse-only path too, the same
+        /// "button and key both funnel into one method" shape <see cref="DeleteButton_Click"/>/
+        /// <see cref="DeleteSelectedComponents"/> already have.</summary>
+        private void DuplicateButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            DuplicateSelected();
+        }
+
+        /// <summary>Routes to whichever "Duplicate" actually means right now - Object Mode
+        /// (a whole node) or Edit Mode (a component selection) - the shared entry point
+        /// both <see cref="DuplicateButton_Click"/> and Ctrl+D (see
+        /// <see cref="MainWindow_PreviewKeyDown"/>) call.</summary>
+        private void DuplicateSelected()
+        {
+            if (IsEditMode) DuplicateSelectedComponents();
+            else DuplicateSelectedNode();
+        }
+
+        /// <summary>Object Mode's own "Duplicate" command - deep-clones the selected node
+        /// (see <see cref="DuplicateNodeCommandFactory.Create"/>/<see cref="Node.Clone"/>:
+        /// its own mesh, modifiers, material binding, AND every descendant, recursively,
+        /// plus - once actually executed - a copy of any keyframe track it or any of its
+        /// descendants had on <see cref="_timeline"/>), inserts the clone into the scene
+        /// graph next to the original (wrapped in an undoable <see cref="DuplicateNodeCommand"/>,
+        /// via <see cref="CommandHistory.Execute"/> rather than <see cref="CommandHistory.Record"/>
+        /// since - unlike a gizmo drag - nothing has inserted it anywhere yet), and selects
+        /// the new clone - the standard "duplicate leaves the COPY selected, ready to move"
+        /// convention every modeling tool's own Duplicate follows. A no-op with nothing
+        /// selected.</summary>
+        private void DuplicateSelectedNode()
+        {
+            if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
+
+            TryRun("Duplicate", () =>
+            {
+                var command = DuplicateNodeCommandFactory.Create(_currentScene, node, _timeline, onChanged: () =>
+                {
+                    _sceneViewModel.Load(_currentScene);
+                    _renderer.Render(_currentScene, zoomToFit: false);
+                });
+
+                _commandHistory.Execute(command);
+                SelectNode(command.Clone);
+            });
+        }
+
+        /// <summary>Edit Mode's own "Duplicate" command - duplicates whichever
+        /// vertices/edges/faces are currently selected via
+        /// <see cref="MeshEditSession.DuplicateSelected"/>, wrapped into an undoable
+        /// <see cref="MeshEditCommand"/> exactly the same way <see cref="DeleteSelectedComponents"/>
+        /// already is (a duplicate changes the mesh's own vertex COUNT, the same reason
+        /// Delete needs a full before/after <see cref="Mesh.Clone"/> snapshot rather than
+        /// the lightweight per-index <see cref="VertexTranslateCommand"/> a plain drag
+        /// uses). Leaves the freshly duplicated geometry selected, ready to drag via
+        /// <see cref="ComponentGizmo"/> - see <see cref="MeshEditSession.DuplicateSelected"/>'s
+        /// own remarks.</summary>
+        private void DuplicateSelectedComponents()
+        {
+            var session = _renderer.EditSession;
+            if (session.Target is not { } node) return;
+
+            TryRun("Duplicate", () =>
+            {
+                var command = MeshEditCommandFactory.Capture(node, "Duplicate Selected",
+                    () => session.DuplicateSelected(),
+                    onChanged: () =>
+                    {
+                        _renderer.Refresh();
+                        _componentGizmo.Attach(session);
+                    });
+
+                if (command is null) return; // nothing selected (or no mesh) - nothing to duplicate or undo
+
+                _commandHistory.Record(command);
+                _renderer.Refresh();
+                _componentGizmo.Attach(session);
+            });
+        }
+
         /// <summary>Window-wide Delete-key handling for Edit Mode's own "Delete
         /// Vertices/Edges/Faces" command (see <see cref="DeleteSelectedComponents"/>) -
         /// <see cref="PreviewKeyDown"/> (a tunneling event reaching this window before any
@@ -1113,10 +1214,25 @@ namespace JolieCat3D.UI
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (!_isInitialized) return;
-            if (e.Key != Key.Delete || !IsEditMode) return;
 
-            DeleteSelectedComponents();
-            e.Handled = true;
+            if (e.Key == Key.Delete && IsEditMode)
+            {
+                DeleteSelectedComponents();
+                e.Handled = true;
+                return;
+            }
+
+            // Ctrl+D - "Duplicate", the same window-wide-reachable shape as Ctrl+Z/Ctrl+Y
+            // (ApplicationCommands.Undo/Redo's own CommandBindings) and the Delete key
+            // above - reachable regardless of which control currently has keyboard focus.
+            // Unlike Delete, this is NOT Edit-Mode-only: see DuplicateSelected's own
+            // remarks for which of Object/Edit Mode's two different "Duplicate" commands
+            // it actually routes to.
+            if (e.Key == Key.D && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                DuplicateSelected();
+                e.Handled = true;
+            }
         }
 
         /// <summary>The Modifiers panel's "Add Mirror"/"Add Subsurf" buttons - append a

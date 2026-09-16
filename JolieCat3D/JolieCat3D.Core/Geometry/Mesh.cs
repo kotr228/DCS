@@ -191,6 +191,72 @@ namespace JolieCat3D.Core.Geometry
             RecalculateNormals();
         }
 
+        /// <summary>
+        /// Duplicates every vertex in <paramref name="indices"/> (same Position/Normal/UV/Color,
+        /// appended as brand new entries in <see cref="Vertices"/> - never mutating or
+        /// reindexing anything that already existed) plus every <see cref="Face"/>/
+        /// <see cref="Polygon"/> whose EVERY vertex is in <paramref name="indices"/>
+        /// (duplicated as a new Face/Polygon referencing the freshly duplicated vertices,
+        /// sitting exactly on top of the original until moved) - the standard modeling-tool
+        /// "Duplicate Selection" (Blender's Shift+D) for a component selection: a loose
+        /// vertex not part of any fully-selected face still duplicates as a standalone
+        /// point; a fully-selected face/polygon duplicates as a whole new face, not just
+        /// its corner vertices in isolation - a partially-selected face (some but not all
+        /// of its own corners in <paramref name="indices"/>) duplicates none of its
+        /// vertices' connectivity at all, only the loose vertex/vertices themselves,
+        /// exactly like deleting one corner of a triangle takes the whole face with it
+        /// (see <see cref="RemoveVertices"/>'s own remarks) - there is no partial/torn-face
+        /// duplication here either.
+        ///
+        /// Returns the new vertex indices, in the SAME order as <paramref name="indices"/>
+        /// itself was enumerated (deduplicated - a repeated index in <paramref name="indices"/>
+        /// is only ever duplicated once) - so a caller (<c>Engine.Editing.MeshEditSession</c>)
+        /// can select exactly the new geometry afterward, the same "the operation leaves
+        /// its own result selected" convention <see cref="ExtrudeFace"/> already follows.
+        /// An empty list for an empty/all-invalid <paramref name="indices"/> - a genuine
+        /// no-op, nothing added to the mesh at all.
+        /// </summary>
+        public IReadOnlyList<int> DuplicateVertices(IEnumerable<int> indices)
+        {
+            ArgumentNullException.ThrowIfNull(indices);
+
+            var selectedSet = new HashSet<int>();
+            var selectedOrder = new List<int>();
+            foreach (var index in indices)
+            {
+                if (index < 0 || index >= _vertices.Count) continue;
+                if (selectedSet.Add(index)) selectedOrder.Add(index);
+            }
+
+            if (selectedOrder.Count == 0) return Array.Empty<int>();
+
+            // Snapshot BEFORE adding anything - AddVertex/AddFace/AddPolygon below append
+            // to these same lists, and this loop must only ever consider the ORIGINAL
+            // faces/polygons that existed at the moment this method was called, never one
+            // it just duplicated a moment ago in this very call.
+            var originalFaces = _faces.ToList();
+            var originalPolygons = _polygons.ToList();
+
+            var remap = new Dictionary<int, int>(selectedOrder.Count);
+            var newIndices = new List<int>(selectedOrder.Count);
+            foreach (var index in selectedOrder)
+            {
+                var newIndex = AddVertex(_vertices[index]);
+                remap[index] = newIndex;
+                newIndices.Add(newIndex);
+            }
+
+            foreach (var face in originalFaces)
+                if (selectedSet.Contains(face.A) && selectedSet.Contains(face.B) && selectedSet.Contains(face.C))
+                    AddFace(new Face(remap[face.A], remap[face.B], remap[face.C]));
+
+            foreach (var polygon in originalPolygons)
+                if (polygon.Indices.All(selectedSet.Contains))
+                    AddPolygon(new Polygon(polygon.Indices.Select(index => remap[index])));
+
+            return newIndices;
+        }
+
         /// <summary>Every distinct edge in this mesh: a deduplicated (normalized so
         /// A &lt; B - the same edge shared by two adjacent faces is reported once, not
         /// twice) unordered pair of vertex indices, derived from <see cref="Faces"/> and

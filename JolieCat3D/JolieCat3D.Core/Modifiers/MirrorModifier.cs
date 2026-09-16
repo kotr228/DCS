@@ -113,6 +113,13 @@ namespace JolieCat3D.Core.Modifiers
             _ => throw new ArgumentOutOfRangeException(nameof(axis)),
         };
 
+        public override Modifier Clone() => new MirrorModifier
+        {
+            IsEnabled = IsEnabled,
+            Axis = Axis,
+            WeldThreshold = WeldThreshold,
+        };
+
         private static bool HasDuplicateIndex(int a, int b, int c) => a == b || b == c || a == c;
 
         private static bool HasDuplicateIndex(IReadOnlyList<int> indices)

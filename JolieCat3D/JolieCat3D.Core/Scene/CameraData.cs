@@ -31,5 +31,18 @@ namespace JolieCat3D.Core.Scene
         public float NearPlaneDistance { get; set; } = 0.1f;
 
         public float FarPlaneDistance { get; set; } = 1000f;
+
+        /// <summary>A complete, independent copy - every property is a plain value type,
+        /// so there is nothing here two clones could ever share a reference to (unlike
+        /// <see cref="Geometry.Mesh.Material"/>'s own deliberately-shared convention).
+        /// Used by <see cref="Node.Clone"/>.</summary>
+        public CameraData Clone() => new()
+        {
+            ProjectionMode = ProjectionMode,
+            FieldOfView = FieldOfView,
+            OrthographicWidth = OrthographicWidth,
+            NearPlaneDistance = NearPlaneDistance,
+            FarPlaneDistance = FarPlaneDistance,
+        };
     }
 }

@@ -33,5 +33,14 @@ namespace JolieCat3D.Core.Modifiers
         /// implementations must never mutate <paramref name="input"/> itself (see this
         /// class's own remarks on non-destructiveness).</summary>
         public abstract Mesh Apply(Mesh input);
+
+        /// <summary>A complete, independent copy of this modifier - its own concrete type,
+        /// <see cref="IsEnabled"/>, and every type-specific setting (a <see cref="MirrorModifier"/>'s
+        /// own <c>Axis</c>/<c>WeldThreshold</c>, a <see cref="SubdivisionSurfaceModifier"/>'s
+        /// own <c>Iterations</c>) - never a reference to this same instance, so toggling or
+        /// tuning the CLONE's settings (e.g. after <c>Scene.Node.Clone</c> duplicates a
+        /// whole node's own stack) can never reach back into the original modifier this
+        /// was cloned from, or vice versa.</summary>
+        public abstract Modifier Clone();
     }
 }

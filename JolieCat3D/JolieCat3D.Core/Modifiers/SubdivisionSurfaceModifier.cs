@@ -39,5 +39,11 @@ namespace JolieCat3D.Core.Modifiers
 
             return current;
         }
+
+        public override Modifier Clone() => new SubdivisionSurfaceModifier
+        {
+            IsEnabled = IsEnabled,
+            Iterations = Iterations,
+        };
     }
 }

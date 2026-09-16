@@ -39,5 +39,17 @@ namespace JolieCat3D.Core.Scene
         /// <summary>The full cone angle (in degrees) of a <see cref="LightType.Spot"/>
         /// light - meaningless for <see cref="LightType.Directional"/>/<see cref="LightType.Point"/>.</summary>
         public float SpotAngle { get; set; } = 45f;
+
+        /// <summary>A complete, independent copy - every property is a plain value type
+        /// (see <see cref="CameraData.Clone"/>'s own matching remarks). Used by
+        /// <see cref="Node.Clone"/>.</summary>
+        public LightData Clone() => new()
+        {
+            Type = Type,
+            Color = Color,
+            Intensity = Intensity,
+            Range = Range,
+            SpotAngle = SpotAngle,
+        };
     }
 }

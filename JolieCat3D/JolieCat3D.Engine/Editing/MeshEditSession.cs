@@ -183,6 +183,30 @@ namespace JolieCat3D.Engine.Editing
         }
 
         /// <summary>
+        /// Duplicates every currently-selected vertex/edge/face (see
+        /// <see cref="Mesh.DuplicateVertices"/> for exactly what "duplicate" means for a
+        /// partially- vs. fully-selected face) and replaces the current selection with the
+        /// newly duplicated vertices - Edit Mode's own "Duplicate Selection" (Blender's
+        /// Shift+D): the freshly duplicated geometry sits exactly on top of the original
+        /// until dragged, immediately ready to move via <see cref="ComponentGizmo"/>/
+        /// <see cref="ApplyTranslation"/>, the same "leave the result selected, ready for a
+        /// further drag" convention <see cref="ExtrudeSelectedFace"/> already follows.
+        /// Returns false (a no-op) with nothing selected, or no <see cref="Target"/> at all.
+        /// </summary>
+        public bool DuplicateSelected()
+        {
+            if (Target?.Mesh is not { } mesh || _selectedVertexIndices.Count == 0) return false;
+
+            var newIndices = mesh.DuplicateVertices(_selectedVertexIndices);
+            if (newIndices.Count == 0) return false;
+
+            _selectedVertexIndices.Clear();
+            foreach (var index in newIndices) _selectedVertexIndices.Add(index);
+
+            return true;
+        }
+
+        /// <summary>
         /// Subdivides the WHOLE target mesh (see <see cref="Mesh.Subdivide"/>'s own
         /// remarks on why this is never a partial/selection-scoped operation in
         /// <c>JolieCat3D.Core</c> itself - there is no concept of "subdivide just this

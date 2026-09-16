@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
 using JolieCat3D.Core.Numerics;
+using JolieCat3D.Engine.Gizmos;
 using JolieCat3D.Engine.Rendering;
 using CoreNode = JolieCat3D.Core.Scene.Node;
 
@@ -82,6 +83,24 @@ namespace JolieCat3D.Engine.Editing
         /// <summary>The session this gizmo currently drags - null when Edit Mode isn't
         /// active, or nothing in it is selected, in which case no handles are shown.</summary>
         public MeshEditSession? Session { get; private set; }
+
+        private TransformSpace _space = TransformSpace.Global;
+
+        /// <summary>Which axes the vertex-drag handles show/drag along - see
+        /// <see cref="Gizmos.TransformSpace"/>'s own remarks (mirrors
+        /// <c>Gizmos.TransformGizmo.Space</c> exactly, just for this class's own
+        /// Translate-only handle set). Changing this rebuilds the handles at their new
+        /// orientation immediately.</summary>
+        public TransformSpace Space
+        {
+            get => _space;
+            set
+            {
+                if (_space == value) return;
+                _space = value;
+                Rebuild();
+            }
+        }
 
         /// <summary>The LOCAL-space grid increment a vertex drag snaps to while Ctrl is
         /// held - see <c>Gizmos.TransformGizmo.GridSize</c>'s own remarks; no effect
@@ -178,13 +197,35 @@ namespace JolieCat3D.Engine.Editing
 
             if (Session?.GetSelectionWorldCentroid() is not { } centroid) return;
             var position = new Point3D(centroid.X, centroid.Y, centroid.Z);
+            var (xAxis, yAxis, zAxis) = GetActiveAxes();
 
-            AddTranslateHandle(position, Vector3.UnitX, new Vector3D(1, 0, 0), AxisXColor);
-            AddTranslateHandle(position, Vector3.UnitY, new Vector3D(0, 1, 0), AxisYColor);
-            AddTranslateHandle(position, Vector3.UnitZ, new Vector3D(0, 0, 1), AxisZColor);
+            AddTranslateHandle(position, xAxis, ToDirection(xAxis), AxisXColor);
+            AddTranslateHandle(position, yAxis, ToDirection(yAxis), AxisYColor);
+            AddTranslateHandle(position, zAxis, ToDirection(zAxis), AxisZColor);
 
             UpdateHandleSizing();
         }
+
+        /// <summary>See <c>Gizmos.TransformGizmo.GetActiveAxes</c>/<c>GetLocalAxes</c>'s own
+        /// matching remarks - plain world unit axes for <see cref="Gizmos.TransformSpace.Global"/>,
+        /// or <see cref="MeshEditSession.Target"/>'s own current world-rotated local axes
+        /// for <see cref="Gizmos.TransformSpace.Local"/>. <see cref="ApplyTranslate"/> needs
+        /// no change either way for the same reason that method's own remarks already give:
+        /// it already treats whatever <c>worldAxis</c> it's handed as just "a world-space
+        /// direction", with no assumption baked in about which one.</summary>
+        private (Vector3 X, Vector3 Y, Vector3 Z) GetActiveAxes()
+        {
+            if (Space == TransformSpace.Global || Session?.Target is not { } node)
+                return (Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ);
+
+            var rotation = node.GetWorldRotation();
+            return (
+                Vector3.Transform(Vector3.UnitX, rotation),
+                Vector3.Transform(Vector3.UnitY, rotation),
+                Vector3.Transform(Vector3.UnitZ, rotation));
+        }
+
+        private static Vector3D ToDirection(Vector3 axis) => new(axis.X, axis.Y, axis.Z);
 
         /// <summary>Resizes every currently-active handle to match the edited mesh's own
         /// CURRENT world-space size, mirroring <c>Gizmos.TransformGizmo.UpdateHandleSizing</c>'s

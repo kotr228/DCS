@@ -129,6 +129,24 @@ namespace JolieCat3D.Engine.Gizmos
             }
         }
 
+        private TransformSpace _space = TransformSpace.Global;
+
+        /// <summary>Which axes Translate/Rotate currently show/drag along - see
+        /// <see cref="TransformSpace"/>'s own remarks. Changing this rebuilds the handles
+        /// at their new orientation immediately, the same "setting the mode applies it too"
+        /// shape <see cref="Mode"/>'s own setter already has. Scale is unaffected either way
+        /// (see <see cref="GetActiveAxes"/>'s own remarks on why).</summary>
+        public TransformSpace Space
+        {
+            get => _space;
+            set
+            {
+                if (_space == value) return;
+                _space = value;
+                Rebuild();
+            }
+        }
+
         /// <summary>The node the gizmo is currently attached to and driving - null when
         /// nothing is selected, in which case the gizmo shows no handles at all.</summary>
         public CoreNode? Target { get; private set; }
@@ -244,30 +262,81 @@ namespace JolieCat3D.Engine.Gizmos
 
             var worldPosition = Target.GetWorldPosition();
             var position = new Point3D(worldPosition.X, worldPosition.Y, worldPosition.Z);
+            var (xAxis, yAxis, zAxis) = GetActiveAxes();
 
             switch (Mode)
             {
                 case GizmoMode.Translate:
-                    AddTranslateHandle(position, Vector3.UnitX, new Vector3D(1, 0, 0), AxisXColor);
-                    AddTranslateHandle(position, Vector3.UnitY, new Vector3D(0, 1, 0), AxisYColor);
-                    AddTranslateHandle(position, Vector3.UnitZ, new Vector3D(0, 0, 1), AxisZColor);
+                    AddTranslateHandle(position, xAxis, ToDirection(xAxis), AxisXColor);
+                    AddTranslateHandle(position, yAxis, ToDirection(yAxis), AxisYColor);
+                    AddTranslateHandle(position, zAxis, ToDirection(zAxis), AxisZColor);
                     break;
 
                 case GizmoMode.Rotate:
-                    AddRotateHandle(position, Vector3.UnitX, new Vector3D(1, 0, 0), AxisXColor);
-                    AddRotateHandle(position, Vector3.UnitY, new Vector3D(0, 1, 0), AxisYColor);
-                    AddRotateHandle(position, Vector3.UnitZ, new Vector3D(0, 0, 1), AxisZColor);
+                    AddRotateHandle(position, xAxis, ToDirection(xAxis), AxisXColor);
+                    AddRotateHandle(position, yAxis, ToDirection(yAxis), AxisYColor);
+                    AddRotateHandle(position, zAxis, ToDirection(zAxis), AxisZColor);
                     break;
 
                 case GizmoMode.Scale:
-                    AddScaleHandle(position, Vector3.UnitX, new Vector3D(1, 0, 0), AxisXColor);
-                    AddScaleHandle(position, Vector3.UnitY, new Vector3D(0, 1, 0), AxisYColor);
-                    AddScaleHandle(position, Vector3.UnitZ, new Vector3D(0, 0, 1), AxisZColor);
+                    AddScaleHandle(position, xAxis, ToDirection(xAxis), AxisXColor);
+                    AddScaleHandle(position, yAxis, ToDirection(yAxis), AxisYColor);
+                    AddScaleHandle(position, zAxis, ToDirection(zAxis), AxisZColor);
                     break;
             }
 
             UpdateHandleSizing();
         }
+
+        /// <summary>The world-space X/Y/Z axes handles are actually built along for the
+        /// CURRENT <see cref="Mode"/>/<see cref="Space"/> - plain world unit axes for
+        /// Translate/Rotate in <see cref="TransformSpace.Global"/>, or <see cref="Target"/>'s
+        /// own current world-rotated local axes (see <see cref="GetLocalAxes"/>) for
+        /// Translate/Rotate in <see cref="TransformSpace.Local"/>. Scale ALWAYS uses the
+        /// local axes regardless of <see cref="Space"/>: <see cref="ApplyScale"/> writes
+        /// straight onto <see cref="CoreNode.LocalScale"/>'s own X/Y/Z components (see its
+        /// own remarks - scale has no well-defined WORLD-axis meaning once a parent's
+        /// rotation is involved), which only produces a sane, non-shearing result when the
+        /// axis handed to it already corresponds to one of the object's own local
+        /// components - a genuine world axis would scale a rotated object along a direction
+        /// that doesn't line up with any of <see cref="CoreNode.LocalScale"/>'s own axes at
+        /// all, distorting rather than scaling it.
+        ///
+        /// Recomputed once per <see cref="Rebuild"/> (attach, a Mode/Space change) - not
+        /// continuously live during a drag. For Translate this is always correct regardless
+        /// (a Translate drag never changes <see cref="Target"/>'s own rotation, so its axes
+        /// can't go stale mid-drag). For Rotate this is actually the CORRECT behavior, not
+        /// merely a simplification: "rotate around my object's local X axis" has to mean one
+        /// FIXED world-space direction for the whole gesture, or the rotation itself would
+        /// have no consistent axis to turn around at all. The one disclosed limitation this
+        /// does leave: after a Local-space Rotate drag changes <see cref="Target"/>'s own
+        /// rotation, the gizmo's displayed axes reflect the PRE-drag orientation until the
+        /// next <see cref="Rebuild"/> (a new selection, or toggling Mode/Space) - a stale
+        /// visual, not an incorrect drag, and not addressed here.</summary>
+        private (Vector3 X, Vector3 Y, Vector3 Z) GetActiveAxes() =>
+            Space == TransformSpace.Local || Mode == GizmoMode.Scale ? GetLocalAxes() : (Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ);
+
+        /// <summary><see cref="Target"/>'s own current world rotation (<see cref="CoreNode.GetWorldRotation"/>)
+        /// applied to the plain X/Y/Z unit axes - "my own local axes, expressed in world
+        /// space", the same rotation <see cref="ApplyRotate"/>/<see cref="ApplyTranslate"/>
+        /// already treat any <c>worldAxis</c> they're given as living in, so passing one of
+        /// these instead of a plain world unit axis needs no other change to either method
+        /// at all: both already just convert "a world-space axis" into the matching
+        /// <see cref="CoreNode.LocalPosition"/>/<see cref="CoreNode.LocalRotation"/> change,
+        /// with no assumption baked in about which particular world-space direction that
+        /// axis actually points.</summary>
+        private (Vector3 X, Vector3 Y, Vector3 Z) GetLocalAxes()
+        {
+            if (Target is null) return (Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ);
+
+            var rotation = Target.GetWorldRotation();
+            return (
+                Vector3.Transform(Vector3.UnitX, rotation),
+                Vector3.Transform(Vector3.UnitY, rotation),
+                Vector3.Transform(Vector3.UnitZ, rotation));
+        }
+
+        private static Vector3D ToDirection(Vector3 axis) => new(axis.X, axis.Y, axis.Z);
 
         /// <summary>Resizes every currently-active handle to match <see cref="Target"/>'s
         /// CURRENT world-space size (see <see cref="GetTargetMaxExtent"/>) - a Translate/Scale
