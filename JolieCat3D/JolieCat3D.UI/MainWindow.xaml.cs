@@ -74,6 +74,14 @@ namespace JolieCat3D.UI
         // field any handler could possibly touch is guaranteed to be assigned.
         private bool _isInitialized;
 
+        // Guards Viewport_MouseLeftButtonDown against the reentrant call WPF itself makes
+        // synchronously from inside GizmoHitTester.BeginDrag's own RaiseEvent - see
+        // TryBeginGizmoDrag's own remarks for exactly why that reentrant call happens
+        // (an observed System.StackOverflowException, not a hypothetical). Set for the
+        // duration of that one RaiseEvent call and nothing else, so it has no effect at
+        // all on any later, genuinely separate click.
+        private bool _isDispatchingGizmoMouseDown;
+
         // Guards RenderAnimationFramesMenuItem_Click against a second, overlapping
         // render being started while one is already in flight - see that method's own
         // remarks.
@@ -720,7 +728,7 @@ namespace JolieCat3D.UI
         /// </summary>
         private void Viewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (!_isInitialized) return;
+            if (!_isInitialized || _isDispatchingGizmoMouseDown) return;
 
             var position = e.GetPosition(Viewport);
 
@@ -750,13 +758,36 @@ namespace JolieCat3D.UI
         /// arrow's own real drag (<see cref="GizmoHitTester.BeginDrag"/>) and returns true
         /// the moment one is found, so the caller can consume <paramref name="sourceArgs"/>
         /// and skip selection entirely - a hit is never ambiguous with a selection click,
-        /// since an arrow is never itself a selectable mesh.</summary>
+        /// since an arrow is never itself a selectable mesh.
+        ///
+        /// <see cref="GizmoHitTester.BeginDrag"/>'s own <c>RaiseEvent</c> call is
+        /// SYNCHRONOUS, and (confirmed by an actual observed <see cref="StackOverflowException"/>
+        /// on real hardware, not just a theoretical concern) WPF's own class handling
+        /// promotes an unhandled <c>Mouse.MouseDownEvent</c> into a fresh
+        /// <c>MouseLeftButtonDownEvent</c> regardless of whether the manipulator's own
+        /// <c>OnMouseDown</c> already marked the ORIGINAL event handled - and that
+        /// promoted event bubbles right back out to this same <see cref="Viewport_MouseLeftButtonDown"/>
+        /// handler, with the mouse still sitting on the very same arrow, which would hit-test
+        /// and dispatch again, forever. <see cref="_isDispatchingGizmoMouseDown"/> is set for
+        /// the exact duration of the <c>BeginDrag</c> call so that reentrant, WPF-generated
+        /// invocation (and only that one - it happens nested inside THIS call's own stack
+        /// frame, never on a later dispatcher tick) bails out immediately instead of
+        /// hit-testing and dispatching again.</summary>
         private bool TryBeginGizmoDrag(Point position, MouseButtonEventArgs sourceArgs)
         {
             var handles = IsEditMode ? _componentGizmo.Handles : _gizmo.Handles;
             if (GizmoHitTester.HitTest(Viewport, handles, position) is not { } manipulator) return false;
 
-            GizmoHitTester.BeginDrag(manipulator, sourceArgs);
+            _isDispatchingGizmoMouseDown = true;
+            try
+            {
+                GizmoHitTester.BeginDrag(manipulator, sourceArgs);
+            }
+            finally
+            {
+                _isDispatchingGizmoMouseDown = false;
+            }
+
             return true;
         }
 
