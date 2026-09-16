@@ -40,7 +40,12 @@ namespace JolieCat3D.UI.ViewModels
 
         private NodeViewModel BuildViewModel(Node node)
         {
-            var viewModel = new NodeViewModel(node, RaiseSceneChanged);
+            // AllNodes is a live view over _lookup itself (a delegate, not a snapshot
+            // copied at this moment) - a BooleanModifierViewModel's own target picker
+            // (see NodeViewModel.RefreshModifiers) needs to see every node CURRENTLY in
+            // the scene whenever its own list is actually read, not just whichever ones
+            // existed the moment this particular NodeViewModel happened to be built.
+            var viewModel = new NodeViewModel(node, RaiseSceneChanged, AllNodes);
             _lookup[node] = viewModel;
 
             foreach (var child in node.Children)
@@ -48,6 +53,12 @@ namespace JolieCat3D.UI.ViewModels
 
             return viewModel;
         }
+
+        /// <summary>Every <see cref="NodeViewModel"/> currently in the scene, flat (not
+        /// the <see cref="RootNodes"/> tree shape) - what a Boolean modifier's own "pick a
+        /// target object" combo box needs to offer every candidate regardless of where in
+        /// the hierarchy it sits, not just its own siblings.</summary>
+        private IEnumerable<NodeViewModel> AllNodes() => _lookup.Values;
 
         private void RaiseSceneChanged() => SceneChanged?.Invoke(this, EventArgs.Empty);
 

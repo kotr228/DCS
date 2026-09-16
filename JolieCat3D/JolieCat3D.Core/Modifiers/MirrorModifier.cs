@@ -42,7 +42,7 @@ namespace JolieCat3D.Core.Modifiers
         /// an imported file's own floating-point rounding).</summary>
         public float WeldThreshold { get; set; } = 0.0001f;
 
-        public override Mesh Apply(Mesh input)
+        public override Mesh Apply(Mesh input, Scene.Node? owner = null)
         {
             ArgumentNullException.ThrowIfNull(input);
 

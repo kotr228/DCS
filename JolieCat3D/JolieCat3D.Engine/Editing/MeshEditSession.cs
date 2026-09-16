@@ -34,6 +34,43 @@ namespace JolieCat3D.Engine.Editing
 
         public bool HasSelection => _selectedVertexIndices.Count > 0;
 
+        /// <summary>Off by default - when on, a Translate drag also nudges nearby
+        /// UNSELECTED vertices (within <see cref="ProportionalRadius"/> of the selection)
+        /// by a smoothly falling-off fraction of the same delta, the standard modeling-tool
+        /// "Proportional Editing"/"Soft Selection" a broad, organic reshape (pulling up a
+        /// hill on a terrain mesh, say) needs - dragging a single vertex with this off
+        /// moves ONLY that vertex, leaving a hard crease in the surrounding surface.</summary>
+        public bool ProportionalEditingEnabled { get; set; }
+
+        /// <summary>The world-space (see <see cref="BeginProportionalDrag"/>'s own remarks
+        /// on why world, not local) distance within which an unselected vertex falls under
+        /// <see cref="ProportionalEditingEnabled"/>'s own falloff at all - beyond it, a
+        /// vertex is completely unaffected, exactly as if proportional editing were off.
+        /// 1 world unit by default - the same "primitives are authored at roughly this
+        /// scale" reasoning <see cref="ComponentGizmo.GridSize"/>'s own remarks give for
+        /// its own default.</summary>
+        public float ProportionalRadius { get; set; } = 1f;
+
+        /// <summary>Every vertex index this drag gesture's own falloff weight applies to
+        /// (see <see cref="BeginProportionalDrag"/>), computed once at the start of the
+        /// CURRENT drag - null whenever no drag is in progress, or
+        /// <see cref="ProportionalEditingEnabled"/> is off.</summary>
+        private Dictionary<int, float>? _proportionalWeights;
+
+        /// <summary>Every vertex index the CURRENT drag gesture actually affects - the
+        /// plain <see cref="SelectedVertexIndices"/> themselves whenever
+        /// <see cref="ProportionalEditingEnabled"/> is off (or no drag is in progress),
+        /// or every key of <see cref="_proportionalWeights"/> (the selection, PLUS every
+        /// nearby unselected vertex the current drag's own falloff reaches) otherwise.
+        /// <see cref="Editing.ComponentGizmo"/>'s own drag-start/drag-end snapshot uses
+        /// this - not <see cref="SelectedVertexIndices"/> directly - to capture Undo/Redo
+        /// state for EVERY vertex a proportional drag actually moves, not just the
+        /// explicitly selected ones (missing this would silently break Undo: reverting
+        /// only the selected vertices while leaving every proportionally-nudged one at its
+        /// new, un-reverted position).</summary>
+        public IReadOnlyCollection<int> AffectedVertexIndices =>
+            (IReadOnlyCollection<int>?)_proportionalWeights?.Keys ?? _selectedVertexIndices;
+
         /// <summary>Switches which node this session edits (or detaches entirely, for
         /// null) and clears any existing selection - a set of vertex indices selected
         /// against one mesh is meaningless against another's.</summary>
@@ -110,18 +147,109 @@ namespace JolieCat3D.Engine.Editing
         /// remarks on converting a world-space drag into this) via
         /// <see cref="Mesh.SetVertexPosition"/>, then recalculates normals once for the
         /// whole mesh (not once per moved vertex) so the dragged region's shading
-        /// updates too. A no-op with nothing selected or no <see cref="Target"/>.</summary>
+        /// updates too. A no-op with nothing selected or no <see cref="Target"/>.
+        ///
+        /// With a proportional drag in progress (see <see cref="BeginProportionalDrag"/>),
+        /// every vertex it found - selected ones at full weight, nearby unselected ones
+        /// scaled down by their own falloff weight - moves by <paramref name="localDelta"/>
+        /// TIMES its own weight, not the same raw delta every selected vertex gets:
+        /// exactly what turns a plain "move these vertices" drag into a smooth, organic
+        /// reshape of the surrounding surface instead of a hard crease at the selection's
+        /// own boundary.</summary>
         public void ApplyTranslation(Vector3 localDelta)
         {
             if (Target?.Mesh is not { } mesh || _selectedVertexIndices.Count == 0) return;
 
-            foreach (var index in _selectedVertexIndices)
+            if (_proportionalWeights is { } weights)
             {
-                var current = mesh.Vertices[index].Position;
-                mesh.SetVertexPosition(index, current + localDelta);
+                foreach (var (index, weight) in weights)
+                {
+                    var current = mesh.Vertices[index].Position;
+                    mesh.SetVertexPosition(index, current + localDelta * weight);
+                }
+            }
+            else
+            {
+                foreach (var index in _selectedVertexIndices)
+                {
+                    var current = mesh.Vertices[index].Position;
+                    mesh.SetVertexPosition(index, current + localDelta);
+                }
             }
 
             mesh.RecalculateNormals();
+        }
+
+        /// <summary>Computes (and caches, for the rest of the current drag gesture - see
+        /// <see cref="_proportionalWeights"/>'s own remarks) which vertices a proportional
+        /// drag actually affects and at what weight - every selected vertex at weight 1,
+        /// plus every UNSELECTED vertex within <see cref="ProportionalRadius"/> of the
+        /// NEAREST selected one, at a smooth falloff weight (1 at distance 0, smoothly
+        /// down to 0 at exactly <see cref="ProportionalRadius"/> - the standard raised-
+        /// cosine "Smooth" falloff curve most modeling tools offer as their own default,
+        /// chosen here as the one curve rather than exposing several since it errs toward
+        /// the least surprising, most universally reasonable-looking result for the widest
+        /// range of drags without a per-drag curve choice this project was never asked
+        /// for). Distance is measured in WORLD space (via <see cref="CoreNode.GetWorldTransform"/>),
+        /// not local mesh space - a radius the user actually sees and sets in world units
+        /// via a UI slider should mean the same real distance regardless of whether the
+        /// target node happens to be scaled non-uniformly, not silently stretch/shrink
+        /// with it. A no-op (no weights computed at all - <see cref="AffectedVertexIndices"/>
+        /// then falls back to the plain selection) with <see cref="ProportionalEditingEnabled"/>
+        /// off, nothing selected, or no <see cref="Target"/>. Call once at the START of a
+        /// drag gesture (<see cref="Editing.ComponentGizmo"/>'s own GotMouseCapture) -
+        /// recomputing every tick would make the falloff's own reference distances chase
+        /// the vertices AS they move mid-drag, an incoherent, constantly-shifting result
+        /// rather than one smooth, stable reshape.</summary>
+        public void BeginProportionalDrag()
+        {
+            _proportionalWeights = null;
+            if (!ProportionalEditingEnabled || Target?.Mesh is not { } mesh || _selectedVertexIndices.Count == 0) return;
+
+            var world = Target.GetWorldTransform();
+            var weights = new Dictionary<int, float>();
+            var selectedWorldPositions = new List<Vector3>(_selectedVertexIndices.Count);
+
+            foreach (var index in _selectedVertexIndices)
+            {
+                weights[index] = 1f;
+                selectedWorldPositions.Add(Vector3.Transform(mesh.Vertices[index].Position, world));
+            }
+
+            for (var i = 0; i < mesh.Vertices.Count; i++)
+            {
+                if (weights.ContainsKey(i)) continue;
+
+                var worldPosition = Vector3.Transform(mesh.Vertices[i].Position, world);
+                var nearestDistance = float.MaxValue;
+                foreach (var selectedWorldPosition in selectedWorldPositions)
+                {
+                    var distance = Vector3.Distance(worldPosition, selectedWorldPosition);
+                    if (distance < nearestDistance) nearestDistance = distance;
+                }
+
+                if (nearestDistance >= ProportionalRadius) continue;
+                weights[i] = ComputeFalloff(nearestDistance, ProportionalRadius);
+            }
+
+            _proportionalWeights = weights;
+        }
+
+        /// <summary>Clears whatever <see cref="BeginProportionalDrag"/> computed - call
+        /// once the current drag gesture ends (<see cref="Editing.ComponentGizmo"/>'s own
+        /// LostMouseCapture), so <see cref="AffectedVertexIndices"/> falls back to the
+        /// plain selection again until the next drag's own <see cref="BeginProportionalDrag"/>
+        /// call recomputes it fresh.</summary>
+        public void EndProportionalDrag() => _proportionalWeights = null;
+
+        /// <summary>The raised-cosine "Smooth" falloff curve - see
+        /// <see cref="BeginProportionalDrag"/>'s own remarks on why this one curve. 1 at
+        /// <paramref name="distance"/> 0, smoothly down to 0 at <paramref name="radius"/>
+        /// (and clamped there for anything beyond it, rather than going negative).</summary>
+        private static float ComputeFalloff(float distance, float radius)
+        {
+            var t = Math.Clamp(distance / radius, 0f, 1f);
+            return (MathF.Cos(t * MathF.PI) + 1f) / 2f;
         }
 
         /// <summary>

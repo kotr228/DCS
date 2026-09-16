@@ -45,7 +45,7 @@ namespace JolieCat3D.Engine.Rendering
         private static void CollectEdges(CoreNode node, Point3DCollection points)
         {
             if (node.Mesh is not { } mesh) return;
-            var evaluatedMesh = ModifierStack.Evaluate(mesh, node.Modifiers);
+            var evaluatedMesh = ModifierStack.Evaluate(mesh, node.Modifiers, node);
             var world = node.GetWorldTransform();
 
             foreach (var (a, b) in evaluatedMesh.GetEdges())

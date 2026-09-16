@@ -29,7 +29,7 @@ namespace JolieCat3D.Core.Modifiers
             set => _iterations = Math.Clamp(value, 0, 4);
         }
 
-        public override Mesh Apply(Mesh input)
+        public override Mesh Apply(Mesh input, Scene.Node? owner = null)
         {
             ArgumentNullException.ThrowIfNull(input);
 

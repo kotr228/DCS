@@ -68,7 +68,7 @@ namespace JolieCat3D.Engine.Geometry
                 // all-disabled Modifiers list, IS this value unchanged (see
                 // ModifierStack.Evaluate's own remarks), so a node with no modifiers at
                 // all costs nothing beyond the empty loop.
-                var evaluatedMesh = ModifierStack.Evaluate(mesh, node.Modifiers);
+                var evaluatedMesh = ModifierStack.Evaluate(mesh, node.Modifiers, node);
 
                 var material = MaterialFactory.Create(evaluatedMesh.Material, shadingMode);
                 var model = new GeometryModel3D(MeshGeometryFactory.Create(evaluatedMesh), material)

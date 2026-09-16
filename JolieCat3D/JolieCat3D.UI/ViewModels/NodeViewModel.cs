@@ -23,6 +23,13 @@ namespace JolieCat3D.UI.ViewModels
         private readonly Node _node;
         private readonly Action _onChanged;
 
+        /// <summary>Every <see cref="NodeViewModel"/> currently in the scene (see
+        /// <see cref="SceneViewModel.BuildViewModel"/>'s own remarks) - threaded down to
+        /// <see cref="BooleanModifierViewModel"/>'s own target-object picker, the one
+        /// modifier type that needs to reference some OTHER node in the scene rather than
+        /// only its own mesh/settings.</summary>
+        private readonly Func<IEnumerable<NodeViewModel>> _allNodesProvider;
+
         // Rotation is cached here in degrees, not re-derived from LocalRotation on every
         // property read - EulerAngles.ToDegrees is a many-to-one mapping (multiple angle
         // triples can represent the same rotation), so recomputing it fresh after every
@@ -44,10 +51,11 @@ namespace JolieCat3D.UI.ViewModels
         [ObservableProperty]
         private bool isSelected;
 
-        public NodeViewModel(Node node, Action onChanged)
+        public NodeViewModel(Node node, Action onChanged, Func<IEnumerable<NodeViewModel>> allNodesProvider)
         {
             _node = node ?? throw new ArgumentNullException(nameof(node));
             _onChanged = onChanged ?? throw new ArgumentNullException(nameof(onChanged));
+            _allNodesProvider = allNodesProvider ?? throw new ArgumentNullException(nameof(allNodesProvider));
             SyncFromCore();
             RefreshModifiers();
         }
@@ -450,6 +458,7 @@ namespace JolieCat3D.UI.ViewModels
                 {
                     MirrorModifier mirror => new MirrorModifierViewModel(mirror, _onChanged),
                     SubdivisionSurfaceModifier subsurf => new SubdivisionSurfaceModifierViewModel(subsurf, _onChanged),
+                    BooleanModifier boolean => new BooleanModifierViewModel(boolean, _onChanged, this, _allNodesProvider),
                     _ => null,
                 };
                 if (viewModel is not null) Modifiers.Add(viewModel);
@@ -470,6 +479,20 @@ namespace JolieCat3D.UI.ViewModels
         public void AddSubdivisionSurfaceModifier()
         {
             _node.Modifiers.Add(new SubdivisionSurfaceModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
+        /// <summary>Appends a new, default-settings (Union, no target picked yet)
+        /// <see cref="BooleanModifier"/> to this node's own stack - the Modifiers panel's
+        /// "Add Boolean" button. A no-op-looking modifier until its own Target is picked
+        /// from the panel's target combo box (see <see cref="BooleanModifierViewModel"/>'s
+        /// own remarks) - <see cref="BooleanModifier.Apply"/> already tolerates that
+        /// (returns the input mesh completely unchanged), so adding one never breaks the
+        /// render before it's actually configured.</summary>
+        public void AddBooleanModifier()
+        {
+            _node.Modifiers.Add(new BooleanModifier());
             RefreshModifiers();
             _onChanged();
         }

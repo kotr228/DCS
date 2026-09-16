@@ -1,4 +1,5 @@
 using JolieCat3D.Core.Geometry;
+using JolieCat3D.Core.Scene;
 
 namespace JolieCat3D.Core.Modifiers
 {
@@ -31,8 +32,16 @@ namespace JolieCat3D.Core.Modifiers
 
         /// <summary>Produces this modifier's own output mesh from <paramref name="input"/> -
         /// implementations must never mutate <paramref name="input"/> itself (see this
-        /// class's own remarks on non-destructiveness).</summary>
-        public abstract Mesh Apply(Mesh input);
+        /// class's own remarks on non-destructiveness). <paramref name="owner"/> is the
+        /// <see cref="Node"/> this modifier's own stack lives on - optional (and unused by
+        /// <see cref="MirrorModifier"/>/<see cref="SubdivisionSurfaceModifier"/>, neither
+        /// of which needs anything beyond the mesh itself), but required by
+        /// <see cref="BooleanModifier"/> to resolve its own target's mesh into the SAME
+        /// local space <paramref name="input"/> is already in (see its own remarks) -
+        /// <see cref="ModifierStack.Evaluate"/> always has it on hand from whichever
+        /// <see cref="Node"/> it was called for, so passing it costs every OTHER modifier
+        /// nothing.</summary>
+        public abstract Mesh Apply(Mesh input, Node? owner = null);
 
         /// <summary>A complete, independent copy of this modifier - its own concrete type,
         /// <see cref="IsEnabled"/>, and every type-specific setting (a <see cref="MirrorModifier"/>'s

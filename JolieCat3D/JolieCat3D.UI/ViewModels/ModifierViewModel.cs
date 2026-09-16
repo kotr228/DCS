@@ -98,4 +98,76 @@ namespace JolieCat3D.UI.ViewModels
             }
         }
     }
+
+    /// <summary>
+    /// The Modifiers panel's own view of a <see cref="BooleanModifier"/> - unlike
+    /// <see cref="MirrorModifierViewModel"/>/<see cref="SubdivisionSurfaceModifierViewModel"/>
+    /// (whose settings are all self-contained), this one also needs a way to offer/resolve
+    /// a REFERENCE to some other node in the scene (<see cref="BooleanModifier.Target"/>) -
+    /// its own constructor's <c>allNodesProvider</c> (threaded down from
+    /// <see cref="SceneViewModel"/> via <see cref="NodeViewModel"/>) is what makes that
+    /// possible without this class needing a direct reference to the whole scene/view-model
+    /// tree itself.
+    /// </summary>
+    public sealed class BooleanModifierViewModel : ModifierViewModelBase
+    {
+        private readonly BooleanModifier _boolean;
+        private readonly NodeViewModel _owner;
+        private readonly Func<IEnumerable<NodeViewModel>> _allNodesProvider;
+
+        public BooleanModifierViewModel(BooleanModifier boolean, Action onChanged, NodeViewModel owner, Func<IEnumerable<NodeViewModel>> allNodesProvider)
+            : base(boolean, onChanged)
+        {
+            _boolean = boolean;
+            _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+            _allNodesProvider = allNodesProvider ?? throw new ArgumentNullException(nameof(allNodesProvider));
+        }
+
+        /// <summary>"Union"/"Difference"/"Intersection" - see
+        /// <see cref="MirrorModifierViewModel.Axis"/>'s own remarks on why a plain string,
+        /// not the <see cref="BooleanOperation"/> enum itself.</summary>
+        public string Operation
+        {
+            get => _boolean.Operation.ToString();
+            set
+            {
+                if (!Enum.TryParse<BooleanOperation>(value, out var operation) || operation == _boolean.Operation) return;
+                _boolean.Operation = operation;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+
+        /// <summary>Every OTHER mesh-bearing node currently in the scene this modifier
+        /// could combine with - a mesh-less node (a camera, a light, a pure pivot) has no
+        /// geometry <see cref="JolieCat3D.Core.Geometry.CsgSolid.Combine"/> could ever do anything with,
+        /// and this modifier's own owner node is excluded too (targeting yourself is
+        /// well-defined - see <see cref="BooleanModifier.Apply"/>'s own remarks on reading
+        /// <see cref="Core.Scene.Node.Mesh"/>, not the evaluated result, so there's no
+        /// actual recursion risk - but it's never a useful choice, so the picker doesn't
+        /// offer it). Re-evaluated every time it's READ (an <c>IEnumerable</c>, not a
+        /// snapshot list), so a node added/renamed/removed elsewhere in the scene since
+        /// this panel was last shown is always reflected the next time the ComboBox's own
+        /// dropdown opens.</summary>
+        public IEnumerable<NodeViewModel> AvailableTargets =>
+            _allNodesProvider().Where(candidate => candidate != _owner && candidate.UnderlyingNode.Mesh is not null);
+
+        /// <summary>The <see cref="NodeViewModel"/> wrapping <see cref="BooleanModifier.Target"/> -
+        /// null with no target picked yet (or if the previously-picked target node was
+        /// since removed from the scene entirely, in which case <see cref="BooleanModifier.Apply"/>
+        /// already tolerates the dangling reference as "nothing to combine with" - see its
+        /// own remarks). Setting this to null (nothing selected in the ComboBox) clears
+        /// <see cref="BooleanModifier.Target"/> the same way.</summary>
+        public NodeViewModel? SelectedTarget
+        {
+            get => _boolean.Target is { } target ? _allNodesProvider().FirstOrDefault(candidate => candidate.UnderlyingNode == target) : null;
+            set
+            {
+                if (SelectedTarget == value) return;
+                _boolean.Target = value?.UnderlyingNode;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+    }
 }

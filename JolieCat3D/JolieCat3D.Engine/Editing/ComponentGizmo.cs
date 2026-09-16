@@ -70,8 +70,22 @@ namespace JolieCat3D.Engine.Editing
         /// from at all.</summary>
         private const double DefaultExtent = 1.0;
 
+        /// <summary>A faint, translucent gold - reads as "a reference indicator", never
+        /// competes with the mesh/selection markers it's drawn alongside - for
+        /// <see cref="_proportionalRadiusVisual"/>. Frozen once, the same
+        /// <c>Rendering.Scene3DRenderer.FreezeBrush</c> reasoning: a brush only ever used
+        /// read-only, safe to share and cheaper to hand to WPF frozen than not.</summary>
+        private static readonly Brush ProportionalRadiusBrush = FreezeBrush(new SolidColorBrush(Color.FromArgb(0x30, 0xC2, 0x9B, 0x58)));
+
+        private static Brush FreezeBrush(Brush brush)
+        {
+            brush.Freeze();
+            return brush;
+        }
+
         private readonly HelixViewport3D _viewport;
         private readonly List<(Manipulator Manipulator, EventHandler ValueChangedHandler)> _activeManipulators = new();
+        private Visual3D? _proportionalRadiusVisual;
 
         /// <summary>The manipulators currently shown in the viewport (empty when Edit Mode
         /// isn't active or nothing is selected) - exposed so
@@ -227,6 +241,46 @@ namespace JolieCat3D.Engine.Editing
 
         private static Vector3D ToDirection(Vector3 axis) => new(axis.X, axis.Y, axis.Z);
 
+        /// <summary>Draws a faint, translucent sphere around the selection's own
+        /// pre-drag world centroid, radius <see cref="MeshEditSession.ProportionalRadius"/> -
+        /// the visual "how far does this drag actually reach" cue Proportional Editing's
+        /// own toolbar toggle asks for, shown only while BOTH a drag is actually in
+        /// progress AND <see cref="MeshEditSession.ProportionalEditingEnabled"/> is on (a
+        /// permanently-visible sphere around every selection, drag or not, would be a
+        /// constant, unrequested visual distraction the rest of the time). Called from
+        /// <see cref="TrackDelta"/>'s own GotMouseCapture handler, AFTER
+        /// <see cref="MeshEditSession.BeginProportionalDrag"/> has already run, so the
+        /// sphere's center reflects the selection's centroid at the exact same moment the
+        /// falloff weights themselves were computed from - fixed there for the whole
+        /// gesture, not chasing the selection as it moves mid-drag (which would misrepresent
+        /// the radius the ALREADY-COMPUTED falloff actually used).</summary>
+        private void ShowProportionalRadiusVisual()
+        {
+            HideProportionalRadiusVisual();
+
+            if (Session is not { ProportionalEditingEnabled: true } session) return;
+            if (session.GetSelectionWorldCentroid() is not { } centroid) return;
+
+            var sphere = new SphereVisual3D
+            {
+                Center = new Point3D(centroid.X, centroid.Y, centroid.Z),
+                Radius = session.ProportionalRadius,
+                ThetaDiv = 24,
+                PhiDiv = 12,
+                Fill = ProportionalRadiusBrush,
+            };
+
+            _proportionalRadiusVisual = sphere;
+            _viewport.Children.Add(sphere);
+        }
+
+        private void HideProportionalRadiusVisual()
+        {
+            if (_proportionalRadiusVisual is null) return;
+            _viewport.Children.Remove(_proportionalRadiusVisual);
+            _proportionalRadiusVisual = null;
+        }
+
         /// <summary>Resizes every currently-active handle to match the edited mesh's own
         /// CURRENT world-space size, mirroring <c>Gizmos.TransformGizmo.UpdateHandleSizing</c>'s
         /// own reasoning exactly (private there, so not directly linkable here) - reach
@@ -317,8 +371,15 @@ namespace JolieCat3D.Engine.Editing
 
             manipulator.GotMouseCapture += (_, _) =>
             {
-                if (Session?.Target?.Mesh is { } mesh && Session.SelectedVertexIndices.Count > 0)
-                    dragStartPositions = Session.SelectedVertexIndices
+                // BeginProportionalDrag FIRST - it's what AffectedVertexIndices (used
+                // immediately below) actually reflects for the rest of this drag; see its
+                // own remarks on why this has to happen once, right at drag-start, rather
+                // than being recomputed on the fly.
+                Session?.BeginProportionalDrag();
+                ShowProportionalRadiusVisual();
+
+                if (Session?.Target?.Mesh is { } mesh && Session.AffectedVertexIndices.Count > 0)
+                    dragStartPositions = Session.AffectedVertexIndices
                         .Select(index => (index, mesh.Vertices[index].Position))
                         .ToList();
 
@@ -342,6 +403,8 @@ namespace JolieCat3D.Engine.Editing
                 dragStartPositions = null;
                 _accumulatedRawDelta = Vector3.Zero;
                 _previouslyAppliedDelta = Vector3.Zero;
+                Session?.EndProportionalDrag();
+                HideProportionalRadiusVisual();
             };
 
             _viewport.Children.Add(manipulator);

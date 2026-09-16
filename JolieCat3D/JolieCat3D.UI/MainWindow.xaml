@@ -164,7 +164,22 @@
                              Margin="0,0,4,0" Checked="ComponentModeButton_Checked" Tag="Edge" />
                 <RadioButton x:Name="FaceModeButton" Content="Face" GroupName="ComponentMode"
                              IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
-                             Checked="ComponentModeButton_Checked" Tag="Face" />
+                             Margin="0,0,16,0" Checked="ComponentModeButton_Checked" Tag="Face" />
+
+                <!-- Soft Selection: a Translate drag also nudges nearby UNSELECTED
+                     vertices within Radius, smoothly falling off with distance (see
+                     Editing.MeshEditSession.ProportionalEditingEnabled/ProportionalRadius) -
+                     Edit-Mode-only, same enablement as Vertex/Edge/Face above. -->
+                <CheckBox x:Name="ProportionalEditingCheckBox" Content="Proportional" IsEnabled="False" VerticalAlignment="Center"
+                          Margin="0,0,10,0" Checked="ProportionalEditingCheckBox_Changed" Unchecked="ProportionalEditingCheckBox_Changed"
+                          ToolTip="Soft Selection - nearby unselected vertices also move, smoothly falling off with distance" />
+                <TextBlock Text="Radius:" VerticalAlignment="Center" Margin="0,0,4,0"
+                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                <Slider x:Name="ProportionalRadiusSlider" Width="70" Minimum="0.1" Maximum="10" Value="1"
+                        VerticalAlignment="Center" IsEnabled="False" ValueChanged="ProportionalRadiusSlider_ValueChanged" />
+                <TextBlock Text="{Binding Value, ElementName=ProportionalRadiusSlider, StringFormat={}{0:0.0}}"
+                           VerticalAlignment="Center" Width="28" Margin="2,0,16,0"
+                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
 
                 <!-- Extrude needs a single fully-selected Polygon face (Face mode);
                      Subdivide always applies to the whole target mesh regardless of the
@@ -455,7 +470,8 @@
                                 <TextBlock Text="MODIFIERS" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
                                 <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
                                     <Button Content="Add Mirror" Margin="0,0,4,0" Padding="8,2" Click="AddMirrorModifierButton_Click" />
-                                    <Button Content="Add Subsurf" Padding="8,2" Click="AddSubsurfModifierButton_Click" />
+                                    <Button Content="Add Subsurf" Margin="0,0,4,0" Padding="8,2" Click="AddSubsurfModifierButton_Click" />
+                                    <Button Content="Add Boolean" Padding="8,2" Click="AddBooleanModifierButton_Click" />
                                 </StackPanel>
 
                                 <ItemsControl ItemsSource="{Binding Modifiers}" Margin="8,0,8,8">
@@ -494,6 +510,38 @@
                                                         <TextBlock Text="Iterations:" VerticalAlignment="Center" Margin="0,0,6,0"
                                                                    FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
                                                         <TextBox Text="{Binding Iterations, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="40" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                        <!-- Union/Difference/Intersection against another
+                                             scene object (see Core.Modifiers.BooleanModifier) -
+                                             the Target combo box lists every OTHER mesh-bearing
+                                             node (BooleanModifierViewModel.AvailableTargets),
+                                             showing each one's own Name. -->
+                                        <DataTemplate DataType="{x:Type vm:BooleanModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Operation:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <ComboBox SelectedValue="{Binding Operation, Mode=TwoWay}" SelectedValuePath="Content" Width="90">
+                                                            <ComboBoxItem Content="Union" />
+                                                            <ComboBoxItem Content="Difference" />
+                                                            <ComboBoxItem Content="Intersection" />
+                                                        </ComboBox>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Target:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <ComboBox ItemsSource="{Binding AvailableTargets}" SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                                                                  DisplayMemberPath="Name" Width="120" />
                                                     </StackPanel>
                                                 </StackPanel>
                                             </Border>

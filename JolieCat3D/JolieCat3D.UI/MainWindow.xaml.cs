@@ -891,6 +891,8 @@ namespace JolieCat3D.UI
             VertexModeButton.IsEnabled = enteringEditMode;
             EdgeModeButton.IsEnabled = enteringEditMode;
             FaceModeButton.IsEnabled = enteringEditMode;
+            ProportionalEditingCheckBox.IsEnabled = enteringEditMode;
+            ProportionalRadiusSlider.IsEnabled = enteringEditMode;
             ExtrudeButton.IsEnabled = enteringEditMode;
             SubdivideButton.IsEnabled = enteringEditMode;
             // DeleteButton is deliberately NOT toggled here (unlike the others above) -
@@ -936,6 +938,27 @@ namespace JolieCat3D.UI
             _renderer.EditSession.Clear();
             _renderer.RefreshComponentOverlay();
             _componentGizmo.Attach(_renderer.EditSession);
+        }
+
+        /// <summary>The Component toolbar's "Proportional" (Soft Selection) toggle - see
+        /// <see cref="MeshEditSession.ProportionalEditingEnabled"/>'s own remarks. Takes
+        /// effect on the NEXT drag (<see cref="ComponentGizmo"/> reads it fresh at
+        /// <see cref="MeshEditSession.BeginProportionalDrag"/>, called right at the start
+        /// of each gesture) - toggling it mid-drag has no effect on whatever drag is
+        /// already in progress, only future ones.</summary>
+        private void ProportionalEditingCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _renderer.EditSession.ProportionalEditingEnabled = ProportionalEditingCheckBox.IsChecked == true;
+        }
+
+        /// <summary>The Component toolbar's own Radius slider - see
+        /// <see cref="MeshEditSession.ProportionalRadius"/>'s own remarks. Same "takes
+        /// effect on the next drag" timing as <see cref="ProportionalEditingCheckBox_Changed"/>.</summary>
+        private void ProportionalRadiusSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            _renderer.EditSession.ProportionalRadius = (float)ProportionalRadiusSlider.Value;
         }
 
         /// <summary>Routes an Edit Mode viewport click through whichever
@@ -1295,6 +1318,12 @@ namespace JolieCat3D.UI
         {
             if (!_isInitialized) return;
             _sceneViewModel.SelectedNode?.AddSubdivisionSurfaceModifier();
+        }
+
+        private void AddBooleanModifierButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _sceneViewModel.SelectedNode?.AddBooleanModifier();
         }
 
         /// <summary>The Modifiers panel's own per-entry "Remove" button - the clicked
