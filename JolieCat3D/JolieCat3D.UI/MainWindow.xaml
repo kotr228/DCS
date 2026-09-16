@@ -251,6 +251,15 @@
                 <Button Content="Left" Margin="0,0,2,0" Padding="8,2" Click="ViewPresetButton_Click" Tag="Left" />
                 <Button Content="Right" Margin="0,0,20,0" Padding="8,2" Click="ViewPresetButton_Click" Tag="Right" />
 
+                <!-- "View > Active Camera" - locks the viewport onto Scene3D.ActiveCamera
+                     and pilots it (Engine.Rendering.Scene3DRenderer.EnterActiveCameraView/
+                     ExitActiveCameraView) - navigating the viewport while this is checked
+                     writes straight back onto that camera node's own transform. Also
+                     reachable via Numpad 0 from anywhere in the window - see
+                     MainWindow.xaml.cs's own MainWindow_PreviewKeyDown. -->
+                <CheckBox x:Name="ActiveCameraViewCheckBox" Content="Camera View (Numpad 0)" VerticalAlignment="Center"
+                          Margin="0,0,20,0" Checked="ActiveCameraViewCheckBox_Changed" Unchecked="ActiveCameraViewCheckBox_Changed" />
+
                 <CheckBox x:Name="ShowGridCheckBox" Content="Grid" IsChecked="True" VerticalAlignment="Center"
                           Margin="0,0,10,0" Checked="ShowGridCheckBox_Changed" Unchecked="ShowGridCheckBox_Changed" />
                 <TextBlock Text="Size" VerticalAlignment="Center" Margin="0,0,4,0"

@@ -8,8 +8,11 @@ using JolieCat3D.Engine.Geometry;
 using JolieCat3D.Engine.Lighting;
 using JolieCat3D.Engine.Selection;
 using CoreColor4 = JolieCat3D.Core.Numerics.Color4;
+using CoreMatrix4x4 = System.Numerics.Matrix4x4;
 using CoreNode = JolieCat3D.Core.Scene.Node;
+using CoreQuaternion = System.Numerics.Quaternion;
 using CoreScene = JolieCat3D.Core.Scene.Scene3D;
+using CoreVector3 = System.Numerics.Vector3;
 
 namespace JolieCat3D.Engine.Rendering
 {
@@ -120,6 +123,24 @@ namespace JolieCat3D.Engine.Rendering
         /// <see cref="RefreshComponentOverlay"/> to redraw the resulting markers.</summary>
         public MeshEditSession EditSession { get; } = new();
 
+        /// <summary>Whether the viewport is currently locked onto - and pilotable through -
+        /// <see cref="CoreScene.ActiveCamera"/>. See <see cref="EnterActiveCameraView"/>/
+        /// <see cref="ExitActiveCameraView"/>, the "View > Active Camera" toggle's own
+        /// entry/exit points.</summary>
+        public bool IsPilotingActiveCamera { get; private set; }
+
+        /// <summary>Raised every time live viewport navigation, while piloting (see
+        /// <see cref="EnterActiveCameraView"/>), writes a freshly-converted Position/
+        /// Rotation back onto <see cref="CoreScene.ActiveCamera"/> - <c>JolieCat3D.UI</c>'s
+        /// own cue to re-sync the Properties Inspector (e.g. via
+        /// <c>SceneViewModel.FindViewModel</c>) if that node happens to be the one
+        /// currently shown there, the same reason a gizmo drag's own <c>TransformChanged</c>
+        /// exists.</summary>
+        public event Action? ActiveCameraPiloted;
+
+        private ProjectionCamera? _pilotedCamera;
+        private ProjectionCamera? _preCameraViewFreeCamera;
+
         public Scene3DRenderer(HelixViewport3D viewport) =>
             _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
 
@@ -167,19 +188,25 @@ namespace JolieCat3D.Engine.Rendering
         /// additive to the fixed <see cref="Lighting"/> rig, never a replacement for it)
         /// every call, since a light node can move/animate the same way a mesh can.
         ///
-        /// If <see cref="CoreScene.ActiveCamera"/> is set, this pushes ITS current world
-        /// transform onto the viewport's own rendering camera every call too (see
-        /// <see cref="SceneCameraSync.Apply"/>) - moving, rotating, or animating that
-        /// node updates the actual rendered view in real time, and <paramref name="zoomToFit"/>
-        /// is skipped entirely in that case (an active camera's own transform IS the
-        /// intended view; auto-framing the scene's bounds on top of it would fight with
-        /// it). With no active camera (every scene from before this feature existed),
-        /// <paramref name="zoomToFit"/> behaves exactly as it always has: reframes the
-        /// free orbit/pan/zoom camera on the scene's own bounds (see
-        /// <see cref="CameraFraming.ZoomToFit"/>) - on by default since a freshly
-        /// replaced scene is otherwise not guaranteed to still be inside the previous
-        /// scene's own framing; a live edit re-render (see <see cref="Refresh"/>) turns
-        /// this off, since re-framing the camera on every keystroke of a Properties
+        /// <see cref="CoreScene.ActiveCamera"/> merely being set does NOT, on its own,
+        /// change what the viewport is looking through - see <see cref="EnterActiveCameraView"/>/
+        /// <see cref="IsPilotingActiveCamera"/>, the explicit "View > Active Camera" toggle
+        /// that actually locks/pilots the viewport onto it. While piloting, this method
+        /// never re-syncs the viewport's camera FROM the node (that would fight the user's
+        /// own live mouse orbit/pan/zoom - see <see cref="EnterActiveCameraView"/>'s own
+        /// remarks on why the two directions must never fight each other), and
+        /// <paramref name="zoomToFit"/> is skipped entirely (an actively-piloted camera's
+        /// own transform IS the intended view; auto-framing the scene's bounds on top of
+        /// it would fight with it too) - except that a piloting session whose own
+        /// <see cref="CoreScene.ActiveCamera"/> got cleared out from under it (the node was
+        /// deleted) ends itself automatically here, falling back to free navigation. Not
+        /// piloting (every scene from before this feature existed, and every scene not
+        /// currently toggled into camera view), <paramref name="zoomToFit"/> behaves
+        /// exactly as it always has: reframes the free orbit/pan/zoom camera on the
+        /// scene's own bounds (see <see cref="CameraFraming.ZoomToFit"/>) - on by default
+        /// since a freshly replaced scene is otherwise not guaranteed to still be inside
+        /// the previous scene's own framing; a live edit re-render (see <see cref="Refresh"/>)
+        /// turns this off, since re-framing the camera on every keystroke of a Properties
         /// Inspector field or every frame of a gizmo drag would be disorienting.
         /// </summary>
         public void Render(CoreScene scene, bool zoomToFit = true)
@@ -207,7 +234,10 @@ namespace JolieCat3D.Engine.Rendering
 
             _sceneLightingVisual.Content = SceneLightingFactory.CreateSceneLights(scene);
 
-            if (scene.ActiveCamera is { } activeCamera) SceneCameraSync.Apply(_viewport, activeCamera);
+            if (IsPilotingActiveCamera)
+            {
+                if (scene.ActiveCamera is null) ExitActiveCameraView();
+            }
             else if (zoomToFit) CameraFraming.ZoomToFit(_viewport, scene);
 
             RefreshSelectionHighlight();
@@ -248,6 +278,135 @@ namespace JolieCat3D.Engine.Rendering
         public void Refresh()
         {
             if (_lastScene is { } scene) Render(scene, zoomToFit: false);
+        }
+
+        /// <summary>"View > Active Camera" turned ON - the "Camera Piloting" feature's
+        /// own entry point. Syncs the viewport's camera exactly to
+        /// <see cref="CoreScene.ActiveCamera"/>'s current world transform/FOV ONCE (via
+        /// <see cref="SceneCameraSync.Apply"/> - the same call <see cref="Render"/> used
+        /// to make unconditionally before this toggle existed), then hooks that
+        /// freshly-assigned camera's own <see cref="Freezable.Changed"/> event so any
+        /// further mouse-driven orbit/pan/zoom (<see cref="HelixViewport3D.CameraController"/>
+        /// mutates the SAME camera instance's Position/LookDirection/UpDirection directly)
+        /// is converted and written straight back onto the node's own LocalPosition/
+        /// LocalRotation in real time - see <see cref="OnPilotedCameraChanged"/>. Neither
+        /// <see cref="Render"/> nor <see cref="Refresh"/> ever re-sync the viewport FROM
+        /// the node while <see cref="IsPilotingActiveCamera"/> is true, so the two
+        /// directions (node -> viewport here, viewport -> node in
+        /// <see cref="OnPilotedCameraChanged"/>) never fight each other. Returns false,
+        /// doing nothing at all, if there is no <see cref="CoreScene.ActiveCamera"/> yet
+        /// (nothing to pilot) - <c>JolieCat3D.UI</c> reports this back to the user rather
+        /// than silently toggling a checkbox that does nothing. Returns true without
+        /// doing anything further if already piloting. Also false if
+        /// <see cref="CoreScene.ActiveCamera"/> is set to a node with no
+        /// <see cref="Core.Scene.CameraData"/> of its own (nothing here enforces that
+        /// invariant - see <see cref="CoreScene.ActiveCamera"/>'s own remarks - but
+        /// piloting one anyway would silently reassign the free camera's own transform
+        /// onto an arbitrary node with no visible effect in the viewport at all).</summary>
+        public bool EnterActiveCameraView()
+        {
+            if (IsPilotingActiveCamera) return true;
+            if (_lastScene?.ActiveCamera is not { Camera: not null } cameraNode) return false;
+
+            _preCameraViewFreeCamera = _viewport.Camera;
+            SceneCameraSync.Apply(_viewport, cameraNode);
+
+            if (_viewport.Camera is ProjectionCamera camera)
+            {
+                _pilotedCamera = camera;
+                _pilotedCamera.Changed += OnPilotedCameraChanged;
+            }
+
+            IsPilotingActiveCamera = true;
+            return true;
+        }
+
+        /// <summary>"View > Active Camera" turned back OFF - unhooks
+        /// <see cref="EnterActiveCameraView"/>'s own piloting handler and restores
+        /// whatever free orbit/pan/zoom camera the viewport had immediately before
+        /// entering camera view (so leaving camera view lands back exactly where free
+        /// navigation left off, rather than at the camera node's own last piloted
+        /// position). A no-op if not currently piloting.</summary>
+        public void ExitActiveCameraView()
+        {
+            if (!IsPilotingActiveCamera) return;
+
+            if (_pilotedCamera is not null) _pilotedCamera.Changed -= OnPilotedCameraChanged;
+            _pilotedCamera = null;
+
+            if (_preCameraViewFreeCamera is not null) _viewport.Camera = _preCameraViewFreeCamera;
+            _preCameraViewFreeCamera = null;
+
+            IsPilotingActiveCamera = false;
+        }
+
+        /// <summary>The actual "Camera Piloting" write-back - see
+        /// <see cref="EnterActiveCameraView"/>'s own remarks. Converts the viewport's own
+        /// current world Position/LookDirection/UpDirection into
+        /// <see cref="CoreScene.ActiveCamera"/>'s own LOCAL Position/Rotation (accounting
+        /// for its parent chain, the same "world -> owner-local" conversion
+        /// <c>Core.Modifiers.BooleanModifier.Apply</c> already does elsewhere in this
+        /// project for exactly the same reason: a node's own stored transform is always
+        /// local to its parent, never world) and writes them straight onto it - the
+        /// actual mutation that makes navigating the viewport compose a shot with the
+        /// camera node itself, not just preview one.</summary>
+        private void OnPilotedCameraChanged(object? sender, EventArgs e)
+        {
+            if (_lastScene?.ActiveCamera is not { } cameraNode) return;
+            if (_viewport.Camera is not ProjectionCamera camera) return;
+
+            var rawForward = new CoreVector3((float)camera.LookDirection.X, (float)camera.LookDirection.Y, (float)camera.LookDirection.Z);
+            if (rawForward.LengthSquared() < 1e-12f) return;
+            var forward = CoreVector3.Normalize(rawForward);
+
+            var rawUp = new CoreVector3((float)camera.UpDirection.X, (float)camera.UpDirection.Y, (float)camera.UpDirection.Z);
+            var up = rawUp - forward * CoreVector3.Dot(forward, rawUp);
+            // Degenerate (rawUp parallel/anti-parallel to forward, e.g. looking exactly
+            // along the world-up axis) - fall back to whichever WORLD axis is orthogonal
+            // to it instead of an arbitrary fixed one, since forward being parallel to
+            // world-Y (the fixed fallback this project's own established "arbitrary
+            // stable fallback" pattern would otherwise reach for) is exactly the case
+            // that needs handling here; forward can never be parallel to both Y and Z at
+            // once, so this always finds a valid orthogonal axis.
+            if (up.LengthSquared() < 1e-12f)
+            {
+                up = CoreVector3.UnitY - forward * CoreVector3.Dot(forward, CoreVector3.UnitY);
+                if (up.LengthSquared() < 1e-12f) up = CoreVector3.UnitZ - forward * CoreVector3.Dot(forward, CoreVector3.UnitZ);
+            }
+            up = CoreVector3.Normalize(up);
+
+            var right = CoreVector3.Normalize(CoreVector3.Cross(up, forward));
+            up = CoreVector3.Cross(forward, right); // re-orthogonalized against the now-unit right vector
+
+            // Right/Up/Forward as the ROWS of a Matrix4x4 - System.Numerics' own
+            // row-vector convention (v' = v * M) means Vector3.Transform(Vector3.UnitZ, M)
+            // reads back out as row 3 (Forward), exactly matching
+            // Core.Scene.Node.GetWorldForward's own "Transform(UnitZ, rotation)"
+            // convention - the same one SceneCameraSync.Apply used going the other way.
+            var basis = new CoreMatrix4x4(
+                right.X, right.Y, right.Z, 0,
+                up.X, up.Y, up.Z, 0,
+                forward.X, forward.Y, forward.Z, 0,
+                0, 0, 0, 1);
+            var worldRotation = CoreQuaternion.Normalize(CoreQuaternion.CreateFromRotationMatrix(basis));
+            var worldPosition = new CoreVector3((float)camera.Position.X, (float)camera.Position.Y, (float)camera.Position.Z);
+
+            var parentWorldToLocal = CoreMatrix4x4.Identity;
+            var parentWorldRotationInverse = CoreQuaternion.Identity;
+            if (cameraNode.Parent is { } parent)
+            {
+                // A non-invertible parent transform (degenerate/zero scale somewhere in
+                // the chain) - skip this tick's write-back entirely rather than corrupt
+                // the node with a garbage local transform; the next Changed tick tries
+                // again from the viewport's still-good world state.
+                if (!CoreMatrix4x4.Invert(parent.GetWorldTransform(), out parentWorldToLocal)) return;
+                parentWorldRotationInverse = CoreQuaternion.Inverse(parent.GetWorldRotation());
+            }
+
+            cameraNode.LocalPosition = CoreVector3.Transform(worldPosition, parentWorldToLocal);
+            cameraNode.LocalRotation = CoreQuaternion.Normalize(parentWorldRotationInverse * worldRotation);
+
+            ActiveCameraPiloted?.Invoke();
         }
 
         /// <summary>The <see cref="CoreNode"/> under <paramref name="position"/> (in

@@ -17,15 +17,20 @@ namespace JolieCat3D.Core.Scene
 
         public IReadOnlyList<Node> RootNodes => _rootNodes;
 
-        /// <summary>Which <see cref="Node"/> (if any) <c>JolieCat3D.Engine</c>'s renderer
-        /// should actually look through - null (the default) means the viewport keeps
-        /// using its own free orbit/pan/zoom camera (see <c>Engine.Camera.CameraFraming</c>),
-        /// exactly as it always has, rather than snapping to some arbitrary camera the
-        /// moment one exists anywhere in the scene. Not required to be a node with
-        /// <see cref="Node.Camera"/> actually set (nothing here enforces that), but
-        /// setting it to one that isn't leaves the renderer with nothing meaningful to
-        /// sync a projection from - <c>JolieCat3D.UI</c> only ever assigns this to a
-        /// node it just gave a <see cref="CameraData"/> to.</summary>
+        /// <summary>Which <see cref="Node"/> (if any) is designated "the" scene camera -
+        /// null (the default) means no node is. Setting this does NOT, on its own, change
+        /// what the viewport is currently looking through: <c>JolieCat3D.Engine</c>'s
+        /// renderer keeps using its own free orbit/pan/zoom camera (see
+        /// <c>Engine.Camera.CameraFraming</c>) regardless, exactly as it always has,
+        /// unless a separate, explicit "View > Active Camera" toggle
+        /// (<c>Engine.Rendering.Scene3DRenderer.EnterActiveCameraView</c>/
+        /// <c>IsPilotingActiveCamera</c>) is turned on - see that method's own remarks for
+        /// why locking the viewport is a deliberate, user-driven action rather than an
+        /// automatic side effect of this property being non-null. Not required to be a
+        /// node with <see cref="Node.Camera"/> actually set (nothing here enforces that),
+        /// but setting it to one that isn't leaves the renderer with nothing meaningful to
+        /// sync a projection from - <c>JolieCat3D.UI</c> only ever assigns this to a node
+        /// it just gave a <see cref="CameraData"/> to.</summary>
         public Node? ActiveCamera { get; set; }
 
         /// <summary>The scene-wide skybox/Image-Based Lighting setting - null (the

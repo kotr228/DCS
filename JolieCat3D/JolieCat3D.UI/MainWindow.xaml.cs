@@ -61,6 +61,7 @@ namespace JolieCat3D.UI
         private readonly AnimationTimeline _timeline = new();
         private readonly DispatcherTimer _playbackTimer;
         private bool _isUpdatingAnimationUI;
+        private bool _isUpdatingCameraViewUI;
 
         // WPF can (and does) invoke a XAML-wired event handler (Checked/Unchecked,
         // TextChanged, SelectedItemChanged, ...) SYNCHRONOUSLY from inside
@@ -126,6 +127,19 @@ namespace JolieCat3D.UI
             {
                 _renderer.Refresh();
                 _sceneViewModel.FindViewModel(_gizmo.Target)?.SyncFromCore();
+            };
+
+            // Camera Piloting: live viewport navigation, while "View > Active Camera" is
+            // toggled on, writes straight onto Scene3D.ActiveCamera's own transform (see
+            // Scene3DRenderer.OnPilotedCameraChanged) - resync the Properties Inspector
+            // if that node happens to be the one currently shown there, the same reason
+            // _gizmo.TransformChanged's own handler exists. Deliberately does NOT call
+            // _renderer.Refresh() here - only the camera itself changed, not any mesh
+            // geometry, so there is nothing for a full re-render to pick up.
+            _renderer.ActiveCameraPiloted += () =>
+            {
+                if (_currentScene.ActiveCamera is { } cameraNode)
+                    _sceneViewModel.FindViewModel(cameraNode)?.SyncFromCore();
             };
 
             // A WHOLE gizmo drag gesture just ended (see TransformGizmo.TransformCommitted's
@@ -382,11 +396,12 @@ namespace JolieCat3D.UI
             _renderer.Render(_currentScene, zoomToFit: false);
         }
 
-        /// <summary>The Camera Inspector's "Set as Active Camera" button - makes the
-        /// currently selected node <see cref="Scene3D.ActiveCamera"/>, so the very next
-        /// render (<see cref="Scene3DRenderer.Refresh"/>, called here directly) looks
-        /// through it (see <see cref="SceneCameraSync.Apply"/>) instead of the free
-        /// orbit/pan/zoom camera.</summary>
+        /// <summary>The Camera Inspector's "Set as Active Camera" button - designates the
+        /// currently selected node <see cref="Scene3D.ActiveCamera"/>. Does NOT, on its
+        /// own, change what the viewport is currently looking through - see
+        /// <see cref="Scene3D.ActiveCamera"/>'s own remarks; a separate, explicit "View >
+        /// Active Camera" toggle (<see cref="ActiveCameraViewCheckBox_Changed"/> / Numpad
+        /// 0) is what actually locks/pilots the viewport onto it.</summary>
         private void SetActiveCameraButton_Click(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
@@ -394,6 +409,38 @@ namespace JolieCat3D.UI
 
             _currentScene.ActiveCamera = node;
             _renderer.Refresh();
+        }
+
+        /// <summary>The Camera toolbar's "Camera View" checkbox - "View > Active Camera"
+        /// turned on/off (see <see cref="Scene3DRenderer.EnterActiveCameraView"/>/
+        /// <see cref="Scene3DRenderer.ExitActiveCameraView"/>), also reachable via Numpad
+        /// 0 (see <see cref="MainWindow_PreviewKeyDown"/>, which just flips this same
+        /// checkbox so both paths share this one method). Checking it with no
+        /// <see cref="Scene3D.ActiveCamera"/> set yet reports that back to the user and
+        /// un-checks itself again, rather than silently doing nothing.
+        /// <see cref="_isUpdatingCameraViewUI"/> guards the programmatic un-check below
+        /// from re-entering this same handler as an "Unchecked" event.</summary>
+        private void ActiveCameraViewCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (_isUpdatingCameraViewUI) return;
+
+            if (ActiveCameraViewCheckBox.IsChecked == true)
+            {
+                if (_renderer.EnterActiveCameraView()) return;
+
+                _isUpdatingCameraViewUI = true;
+                try { ActiveCameraViewCheckBox.IsChecked = false; }
+                finally { _isUpdatingCameraViewUI = false; }
+
+                MessageBox.Show(this,
+                    "Set a camera as the Active Camera first (Camera Inspector > \"Set as Active Camera\").",
+                    "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                _renderer.ExitActiveCameraView();
+            }
         }
 
         /// <summary>Writes the current scene out to a file without adopting it as "the"
@@ -1296,6 +1343,17 @@ namespace JolieCat3D.UI
             if (e.Key == Key.D && Keyboard.Modifiers == ModifierKeys.Control)
             {
                 DuplicateSelected();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.NumPad0)
+            {
+                // Just flips the same checkbox "View > Active Camera" itself is - both
+                // paths funnel into ActiveCameraViewCheckBox_Changed, the same "button and
+                // key both call one shared method" shape DeleteSelected/DuplicateSelected
+                // already use above.
+                ActiveCameraViewCheckBox.IsChecked = ActiveCameraViewCheckBox.IsChecked != true;
                 e.Handled = true;
             }
         }
