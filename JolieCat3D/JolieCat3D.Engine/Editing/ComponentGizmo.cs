@@ -49,8 +49,27 @@ namespace JolieCat3D.Engine.Editing
         private static readonly Color AxisYColor = Color.FromRgb(0x50, 0xC0, 0x50);
         private static readonly Color AxisZColor = Color.FromRgb(0x40, 0x80, 0xE0);
 
+        /// <summary>Nominal <see cref="TranslateManipulator.Diameter"/>/<see cref="TranslateManipulator.Length"/>
+        /// at <see cref="ReferenceDistance"/> world units from the camera - see
+        /// <c>Gizmos.TransformGizmo</c>'s own matching constants/remarks for why these are
+        /// deliberately much slimmer/shorter than this class used before (Diameter 0.1,
+        /// Length 0.9), and <see cref="RescaleHandles"/> for how they're scaled for the
+        /// camera's current distance/zoom.</summary>
+        private const double TranslateDiameter = 0.035;
+        private const double TranslateLength = 0.6;
+        private const double ReferenceDistance = 10.0;
+        private const double MinScale = 0.15;
+        private const double MaxScale = 8.0;
+
         private readonly HelixViewport3D _viewport;
         private readonly List<(Manipulator Manipulator, EventHandler ValueChangedHandler)> _activeManipulators = new();
+
+        /// <summary>The manipulators currently shown in the viewport (empty when Edit Mode
+        /// isn't active or nothing is selected) - exposed so
+        /// <see cref="JolieCat3D.Engine.Gizmos.GizmoHitTester"/> can hit-test a viewport
+        /// click against them directly, independent of WPF's own 3D hit-testing (see that
+        /// class's own remarks for why that's necessary).</summary>
+        public IReadOnlyList<Manipulator> Handles => _activeManipulators.Select(t => t.Manipulator).ToList();
 
         /// <summary>The session this gizmo currently drags - null when Edit Mode isn't
         /// active, or nothing in it is selected, in which case no handles are shown.</summary>
@@ -89,8 +108,14 @@ namespace JolieCat3D.Engine.Editing
         /// nothing was selected when the drag began.</summary>
         public event EventHandler<VertexTranslationCommittedEventArgs>? TranslationCommitted;
 
-        public ComponentGizmo(HelixViewport3D viewport) =>
+        public ComponentGizmo(HelixViewport3D viewport)
+        {
             _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
+
+            // See Gizmos.TransformGizmo's own matching subscription/remarks - zooming the
+            // camera alone never calls Rebuild/Refresh on its own.
+            _viewport.CameraChanged += (_, _) => RescaleHandles();
+        }
 
         /// <summary>Attaches to <paramref name="session"/> (or detaches, for null) and
         /// rebuilds handles at its current selection centroid - call after any
@@ -122,6 +147,8 @@ namespace JolieCat3D.Engine.Editing
                 if (manipulator.GetViewport3DOrNull() is null) continue;
                 manipulator.Position = position;
             }
+
+            RescaleHandles();
         }
 
         /// <summary>Tears down and recreates every handle at the selection's current
@@ -153,6 +180,45 @@ namespace JolieCat3D.Engine.Editing
             AddTranslateHandle(position, Vector3.UnitX, new Vector3D(1, 0, 0), AxisXColor);
             AddTranslateHandle(position, Vector3.UnitY, new Vector3D(0, 1, 0), AxisYColor);
             AddTranslateHandle(position, Vector3.UnitZ, new Vector3D(0, 0, 1), AxisZColor);
+
+            RescaleHandles();
+        }
+
+        /// <summary>Rescales every currently-active handle so its on-screen size stays
+        /// roughly constant as the camera zooms in/out - see
+        /// <see cref="JolieCat3D.Engine.Gizmos.TransformGizmo"/>'s own matching method
+        /// (private, so not directly linkable here) for why (HelixToolkit.Wpf 2.24.0 has
+        /// no built-in option for this) and how (perspective vs. orthographic camera
+        /// handled separately). This class's handles are always Translate handles (no
+        /// Rotate/Scale mode of its own - see this class's own remarks), so unlike that
+        /// method, there's no mode check needed here.</summary>
+        private void RescaleHandles()
+        {
+            if (Session?.GetSelectionWorldCentroid() is not { } centroid) return;
+
+            var scale = _viewport.Camera switch
+            {
+                PerspectiveCamera perspective => ComputeDistanceScale(centroid, perspective.Position),
+                OrthographicCamera orthographic => Math.Clamp(orthographic.Width / ReferenceDistance, MinScale, MaxScale),
+                _ => (double?)null,
+            };
+            if (scale is not { } s) return;
+
+            foreach (var (manipulator, _) in _activeManipulators)
+            {
+                if (manipulator is not TranslateManipulator translate) continue;
+                if (translate.GetViewport3DOrNull() is null) continue;
+
+                translate.Diameter = TranslateDiameter * s;
+                translate.Length = TranslateLength * s;
+            }
+        }
+
+        private static double ComputeDistanceScale(Vector3 centroid, Point3D cameraPosition)
+        {
+            var position = new Point3D(centroid.X, centroid.Y, centroid.Z);
+            var distance = (position - cameraPosition).Length;
+            return Math.Clamp(distance / ReferenceDistance, MinScale, MaxScale);
         }
 
         private void AddTranslateHandle(Point3D position, Vector3 worldAxis, Vector3D direction, Color color)
@@ -161,8 +227,8 @@ namespace JolieCat3D.Engine.Editing
             {
                 Position = position,
                 Direction = direction,
-                Diameter = 0.1,
-                Length = 0.9,
+                Diameter = TranslateDiameter,
+                Length = TranslateLength,
                 Color = color,
             };
 

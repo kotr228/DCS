@@ -711,17 +711,24 @@ namespace JolieCat3D.UI
         /// <see cref="SelectNode"/>); in Edit Mode, a single mesh component (see
         /// <see cref="HandleComponentClick"/>) of whichever node Edit Mode is currently
         /// targeting. Either way, only ever reached for a click the active gizmo's own
-        /// manipulator handles didn't already consume themselves (WPF's routed
-        /// MouseLeftButtonDown only bubbles here unhandled - a manipulator marks its own
-        /// mouse-down Handled the moment it starts a drag), so dragging a gizmo handle
-        /// never gets misread as "clicked empty space, deselect/clear" partway through
-        /// the gesture.
+        /// Translate arrow didn't already claim first (see <see cref="TryBeginGizmoDrag"/>),
+        /// so dragging a gizmo handle never gets misread as "clicked empty space,
+        /// deselect/clear" partway through the gesture - WPF's own native 3D hit-testing
+        /// alone can't be relied on for that (see <see cref="GizmoHitTester"/>'s own
+        /// remarks on why a mesh occluding the manipulator's hit-test geometry can stop the
+        /// click ever reaching it at all).
         /// </summary>
         private void Viewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (!_isInitialized) return;
 
             var position = e.GetPosition(Viewport);
+
+            if (TryBeginGizmoDrag(position, e))
+            {
+                e.Handled = true;
+                return;
+            }
 
             if (IsEditMode)
             {
@@ -731,6 +738,26 @@ namespace JolieCat3D.UI
 
             var hitNode = _renderer.HitTest(position);
             SelectNode(hitNode);
+        }
+
+        /// <summary>Checks <paramref name="position"/> against the currently-active gizmo's
+        /// own Translate arrows (<see cref="ComponentGizmo.Handles"/> in Edit Mode,
+        /// <see cref="TransformGizmo.Handles"/> otherwise - never both, mirroring which one
+        /// is actually attached/visible at a time) BEFORE either mode's own mesh/component
+        /// selection logic runs, via <see cref="GizmoHitTester"/> - an explicit,
+        /// occlusion-independent check WPF's own native 3D hit-testing on the manipulator
+        /// itself can't be relied on for (see that class's own remarks). Starts the hit
+        /// arrow's own real drag (<see cref="GizmoHitTester.BeginDrag"/>) and returns true
+        /// the moment one is found, so the caller can consume <paramref name="sourceArgs"/>
+        /// and skip selection entirely - a hit is never ambiguous with a selection click,
+        /// since an arrow is never itself a selectable mesh.</summary>
+        private bool TryBeginGizmoDrag(Point position, MouseButtonEventArgs sourceArgs)
+        {
+            var handles = IsEditMode ? _componentGizmo.Handles : _gizmo.Handles;
+            if (GizmoHitTester.HitTest(Viewport, handles, position) is not { } manipulator) return false;
+
+            GizmoHitTester.BeginDrag(manipulator, sourceArgs);
+            return true;
         }
 
         /// <summary>Selection made from the Scene Outliner instead of a viewport click -

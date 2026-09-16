@@ -54,10 +54,36 @@ namespace JolieCat3D.Engine.Gizmos
         private static readonly Color AxisYColor = Color.FromRgb(0x50, 0xC0, 0x50);
         private static readonly Color AxisZColor = Color.FromRgb(0x40, 0x80, 0xE0);
 
+        /// <summary>The Translate handle's own nominal <see cref="TranslateManipulator.Diameter"/>/
+        /// <see cref="TranslateManipulator.Length"/> at <see cref="ReferenceDistance"/> world
+        /// units from the camera - deliberately much slimmer/shorter than the values this
+        /// class used before (Diameter 0.15, Length 1.2), which visually obscured the model
+        /// and, at that thickness, gave WPF's native 3D hit-testing enough of a fighting
+        /// chance to sometimes still win against an occluding mesh - <see cref="GizmoHitTester"/>
+        /// (see <see cref="Rendering.Visual3DExtensions"/>'s neighbor of the same purpose)
+        /// is what makes the arrow reliably clickable now, not the handle's own size, so
+        /// there's no more reason to keep it large. See <see cref="RescaleTranslateHandles"/>
+        /// for how these nominal values get scaled for the camera's CURRENT distance/zoom.</summary>
+        private const double TranslateDiameter = 0.045;
+        private const double TranslateLength = 0.8;
+
+        /// <summary>The camera distance (perspective) / <see cref="OrthographicCamera.Width"/>
+        /// (orthographic) at which <see cref="TranslateDiameter"/>/<see cref="TranslateLength"/>
+        /// are exactly correct - see <see cref="RescaleTranslateHandles"/>.</summary>
+        private const double ReferenceDistance = 10.0;
+        private const double MinScale = 0.15;
+        private const double MaxScale = 8.0;
+
         private readonly HelixViewport3D _viewport;
         private readonly List<(Manipulator Manipulator, EventHandler ValueChangedHandler)> _activeManipulators = new();
 
         private GizmoMode _mode = GizmoMode.Translate;
+
+        /// <summary>The manipulators currently shown in the viewport (empty when nothing
+        /// is attached/selected) - exposed so <see cref="GizmoHitTester"/> can hit-test a
+        /// viewport click against them directly, independent of WPF's own 3D hit-testing
+        /// (see that class's own remarks for why that's necessary).</summary>
+        public IReadOnlyList<Manipulator> Handles => _activeManipulators.Select(t => t.Manipulator).ToList();
 
         public GizmoMode Mode
         {
@@ -112,8 +138,17 @@ namespace JolieCat3D.Engine.Gizmos
         /// nothing to undo) - see <see cref="TrackDelta"/>'s own comparison.</summary>
         public event EventHandler<TransformCommittedEventArgs>? TransformCommitted;
 
-        public TransformGizmo(HelixViewport3D viewport) =>
+        public TransformGizmo(HelixViewport3D viewport)
+        {
             _viewport = viewport ?? throw new ArgumentNullException(nameof(viewport));
+
+            // Zooming the camera alone (no drag, no selection change) never calls
+            // Rebuild/Refresh on its own - CameraChanged is HelixViewport3D's own signal
+            // that the camera actually moved, confirmed to exist via the same reflection
+            // technique used to design GizmoHitTester's own RaiseEvent dispatch (this
+            // project can't run the real control to observe it firing at runtime).
+            _viewport.CameraChanged += (_, _) => RescaleTranslateHandles();
+        }
 
         /// <summary>Attaches the gizmo to <paramref name="node"/> (or detaches it
         /// entirely, for null) and (re)builds its handles at <paramref name="node"/>'s
@@ -153,6 +188,8 @@ namespace JolieCat3D.Engine.Gizmos
                 manipulator.Position = position;
                 if (manipulator is RotateManipulator rotateManipulator) rotateManipulator.Pivot = position;
             }
+
+            RescaleTranslateHandles();
         }
 
         private void Rebuild()
@@ -204,6 +241,55 @@ namespace JolieCat3D.Engine.Gizmos
                     AddScaleHandle(position, Vector3.UnitZ, new Vector3D(0, 0, 1), AxisZColor);
                     break;
             }
+
+            RescaleTranslateHandles();
+        }
+
+        /// <summary>Rescales every currently-active <see cref="TranslateManipulator"/>
+        /// Translate handle (a no-op outside <see cref="GizmoMode.Translate"/> - Scale's own
+        /// reused <see cref="TranslateManipulator"/> handles are deliberately left alone,
+        /// out of this bug report's own "Translate arrows" scope) so its on-screen size
+        /// stays roughly constant as the camera zooms in/out, rather than growing to
+        /// swallow the model at close range or shrinking to an unclickable sliver far away -
+        /// HelixToolkit.Wpf 2.24.0's <see cref="Manipulator"/>/<see cref="TranslateManipulator"/>
+        /// expose no built-in option for this (confirmed by inspecting the compiled
+        /// assembly's full public property list), so this reimplements it directly: for a
+        /// perspective camera, screen-projected size scales with distance-from-camera, so
+        /// <see cref="TranslateDiameter"/>/<see cref="TranslateLength"/> are scaled by
+        /// (distance / <see cref="ReferenceDistance"/>); for an orthographic camera, there
+        /// is no such distance-based foreshortening at all (a parallel projection) - its
+        /// zoom is instead <see cref="OrthographicCamera.Width"/>, so that is what's scaled
+        /// against instead. Clamped to [<see cref="MinScale"/>, <see cref="MaxScale"/>] so
+        /// an extreme zoom can't collapse the handle to nothing or balloon it back to the
+        /// exact problem this exists to fix.</summary>
+        private void RescaleTranslateHandles()
+        {
+            if (Mode != GizmoMode.Translate || Target is null) return;
+
+            var scale = _viewport.Camera switch
+            {
+                PerspectiveCamera perspective => ComputeDistanceScale(perspective.Position),
+                OrthographicCamera orthographic => Math.Clamp(orthographic.Width / ReferenceDistance, MinScale, MaxScale),
+                _ => (double?)null,
+            };
+            if (scale is not { } s) return;
+
+            foreach (var (manipulator, _) in _activeManipulators)
+            {
+                if (manipulator is not TranslateManipulator translate) continue;
+                if (translate.GetViewport3DOrNull() is null) continue;
+
+                translate.Diameter = TranslateDiameter * s;
+                translate.Length = TranslateLength * s;
+            }
+        }
+
+        private double ComputeDistanceScale(Point3D cameraPosition)
+        {
+            var worldPosition = Target!.GetWorldPosition();
+            var position = new Point3D(worldPosition.X, worldPosition.Y, worldPosition.Z);
+            var distance = (position - cameraPosition).Length;
+            return Math.Clamp(distance / ReferenceDistance, MinScale, MaxScale);
         }
 
         private void AddTranslateHandle(Point3D position, Vector3 worldAxis, Vector3D direction, Color color)
@@ -212,8 +298,8 @@ namespace JolieCat3D.Engine.Gizmos
             {
                 Position = position,
                 Direction = direction,
-                Diameter = 0.15,
-                Length = 1.2,
+                Diameter = TranslateDiameter,
+                Length = TranslateLength,
                 Color = color,
             };
 
