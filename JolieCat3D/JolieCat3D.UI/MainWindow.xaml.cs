@@ -10,6 +10,7 @@ using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Materials;
 using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
+using JolieCat3D.Core.Sculpting;
 using JolieCat3D.Core.Skinning;
 using JolieCat3D.Engine.Camera;
 using JolieCat3D.Engine.Editing;
@@ -901,6 +902,15 @@ namespace JolieCat3D.UI
                 return;
             }
 
+            if (IsSculptMode)
+            {
+                _renderer.SculptSession.Invert = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+                _isSculpting = true;
+                _renderer.SculptSession.BeginStroke(Viewport, position);
+                _renderer.Refresh();
+                return;
+            }
+
             if (TryBeginGizmoDrag(position, e))
             {
                 e.Handled = true;
@@ -1114,6 +1124,11 @@ namespace JolieCat3D.UI
         /// Paint mode.</summary>
         private bool IsVertexPaintMode => VertexPaintModeButton.IsChecked == true;
 
+        /// <summary>True once <see cref="SculptModeButton"/> is the checked radio
+        /// button - the same role <see cref="IsWeightPaintMode"/> plays for Weight
+        /// Paint mode.</summary>
+        private bool IsSculptMode => SculptModeButton.IsChecked == true;
+
         private void SelectNode(Node? node)
         {
             _renderer.Select(node);
@@ -1139,6 +1154,13 @@ namespace JolieCat3D.UI
             if (IsVertexPaintMode)
             {
                 if (node?.Mesh is not null) _renderer.EnterVertexPaintMode(node);
+                else ObjectModeButton.IsChecked = true;
+                return;
+            }
+
+            if (IsSculptMode)
+            {
+                if (node?.Mesh is not null) _renderer.EnterSculptMode(node);
                 else ObjectModeButton.IsChecked = true;
                 return;
             }
@@ -1215,6 +1237,7 @@ namespace JolieCat3D.UI
             var enteringEditMode = modeName == "Edit";
             var enteringWeightPaintMode = modeName == "WeightPaint";
             var enteringVertexPaintMode = modeName == "VertexPaint";
+            var enteringSculptMode = modeName == "Sculpt";
 
             VertexModeButton.IsEnabled = enteringEditMode;
             EdgeModeButton.IsEnabled = enteringEditMode;
@@ -1225,6 +1248,9 @@ namespace JolieCat3D.UI
             SubdivideButton.IsEnabled = enteringEditMode;
             LoopCutButton.IsEnabled = enteringEditMode;
             BevelButton.IsEnabled = enteringEditMode;
+            MarkSeamButton.IsEnabled = enteringEditMode;
+            ClearSeamButton.IsEnabled = enteringEditMode;
+            UnwrapButton.IsEnabled = enteringEditMode;
             // DeleteButton is deliberately NOT toggled here (unlike the others above) -
             // it means something in BOTH modes now (see DeleteSelected's own remarks),
             // so it stays enabled regardless of which one is active.
@@ -1232,17 +1258,19 @@ namespace JolieCat3D.UI
             // Custom Pivot Points only makes sense in Object Mode (it moves a whole
             // NODE'S own origin, not any per-vertex selection) - the exact opposite
             // enablement from every Edit-Mode-only control above.
-            AffectOnlyOriginCheckBox.IsEnabled = !enteringEditMode && !enteringWeightPaintMode && !enteringVertexPaintMode;
+            AffectOnlyOriginCheckBox.IsEnabled = !enteringEditMode && !enteringWeightPaintMode && !enteringVertexPaintMode && !enteringSculptMode;
 
             WeightPaintToolbar.Visibility = enteringWeightPaintMode ? Visibility.Visible : Visibility.Collapsed;
             VertexPaintToolbar.Visibility = enteringVertexPaintMode ? Visibility.Visible : Visibility.Collapsed;
+            SculptToolbar.Visibility = enteringSculptMode ? Visibility.Visible : Visibility.Collapsed;
 
-            // Leaving Weight/Vertex Paint mode (for any of the other modes) always
-            // detaches its own session first, exactly like leaving Edit Mode below -
-            // never left silently active (and still eating viewport clicks) once its
-            // own toolbar is hidden.
+            // Leaving Weight/Vertex Paint/Sculpt mode (for any of the other modes)
+            // always detaches its own session first, exactly like leaving Edit Mode
+            // below - never left silently active (and still eating viewport clicks)
+            // once its own toolbar is hidden.
             if (!enteringWeightPaintMode) _renderer.ExitWeightPaintMode();
             if (!enteringVertexPaintMode) _renderer.ExitVertexPaintMode();
+            if (!enteringSculptMode) _renderer.ExitSculptMode();
 
             if (enteringEditMode)
             {
@@ -1288,6 +1316,20 @@ namespace JolieCat3D.UI
                 _gizmo.Attach(null);
                 _componentGizmo.Attach(null);
                 _renderer.EnterVertexPaintMode(node);
+            }
+            else if (enteringSculptMode)
+            {
+                if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { Mesh: not null } node)
+                {
+                    MessageBox.Show(this, "Select an object with a mesh before entering Sculpt mode.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    ObjectModeButton.IsChecked = true;
+                    return;
+                }
+
+                _gizmo.Attach(null);
+                _componentGizmo.Attach(null);
+                _renderer.EnterSculptMode(node);
             }
             else
             {
@@ -1390,6 +1432,34 @@ namespace JolieCat3D.UI
             _renderer.Refresh();
         }
 
+        /// <summary>Sculpt Mode's own mouse-down flag - <see cref="Viewport_MouseLeftButtonDown"/>
+        /// already calls <see cref="SculptSession.BeginStroke"/> directly (unlike
+        /// <see cref="HandleWeightPaintClick"/>/<see cref="HandleVertexPaintClick"/>'s
+        /// own shared click handler, Sculpt's own Draw/Smooth-vs-Grab dispatch already
+        /// lives inside <see cref="SculptSession"/> itself, so there is nothing extra
+        /// to branch on here) - this just keeps <see cref="Viewport_MouseMove"/> calling
+        /// <see cref="SculptSession.UpdateStroke"/> for the rest of the drag.</summary>
+        private bool _isSculpting;
+
+        private void SculptBrushModeButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is not RadioButton { Tag: string modeName }) return;
+            if (Enum.TryParse<SculptBrushMode>(modeName, out var mode)) _renderer.SculptSession.Mode = mode;
+        }
+
+        private void SculptBrushRadiusSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            _renderer.SculptSession.BrushRadius = (float)e.NewValue;
+        }
+
+        private void SculptBrushStrengthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            _renderer.SculptSession.Strength = (float)e.NewValue;
+        }
+
         private void Viewport_MouseMove(object sender, MouseEventArgs e)
         {
             if (!_isInitialized) return;
@@ -1405,6 +1475,18 @@ namespace JolieCat3D.UI
             {
                 if (e.LeftButton == MouseButtonState.Pressed) HandleVertexPaintClick(e.GetPosition(Viewport));
                 else _isPaintingVertexColors = false;
+                return;
+            }
+
+            if (_isSculpting)
+            {
+                if (e.LeftButton == MouseButtonState.Pressed)
+                {
+                    _renderer.SculptSession.Invert = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+                    _renderer.SculptSession.UpdateStroke(Viewport, e.GetPosition(Viewport));
+                    _renderer.Refresh();
+                }
+                else _isSculpting = false;
             }
         }
 
@@ -1412,6 +1494,11 @@ namespace JolieCat3D.UI
         {
             _isPaintingWeights = false;
             _isPaintingVertexColors = false;
+            if (_isSculpting)
+            {
+                _isSculpting = false;
+                _renderer.SculptSession.EndStroke();
+            }
         }
 
         private void ComponentModeButton_Checked(object sender, RoutedEventArgs e)
@@ -1658,6 +1745,96 @@ namespace JolieCat3D.UI
             });
         }
 
+        /// <summary>The Edit Mode toolbar's "Mark Seam" button - flags whichever single
+        /// edge (exactly 2 selected vertices - Edge mode) is currently selected as a UV
+        /// Seam via <see cref="MeshEditSession.MarkSeamOnSelectedEdge"/>, wrapped into an
+        /// undoable, recorded <see cref="MeshEditCommand"/> the same way
+        /// <see cref="LoopCutButton_Click"/> already is - marking/clearing a seam is a
+        /// real mesh edit (persisted on <see cref="Mesh.SeamEdges"/>), so it deserves the
+        /// same Undo/Redo coverage as any other Edit Mode action.</summary>
+        private void MarkSeamButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            var session = _renderer.EditSession;
+            if (session.Target is not { } node) return;
+
+            TryRun("Mark Seam", () =>
+            {
+                var command = MeshEditCommandFactory.Capture(node, "Mark Seam",
+                    () => session.MarkSeamOnSelectedEdge(),
+                    onChanged: _renderer.Refresh);
+
+                if (command is null)
+                {
+                    MessageBox.Show(this, "Select a single edge (Edge mode) to Mark Seam.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                _commandHistory.Record(command);
+                _renderer.Refresh();
+            });
+        }
+
+        /// <summary>The reverse of <see cref="MarkSeamButton_Click"/> - same selection
+        /// requirement, un-flags the edge instead via <see cref="MeshEditSession.ClearSeamOnSelectedEdge"/>.</summary>
+        private void ClearSeamButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            var session = _renderer.EditSession;
+            if (session.Target is not { } node) return;
+
+            TryRun("Clear Seam", () =>
+            {
+                var command = MeshEditCommandFactory.Capture(node, "Clear Seam",
+                    () => session.ClearSeamOnSelectedEdge(),
+                    onChanged: _renderer.Refresh);
+
+                if (command is null)
+                {
+                    MessageBox.Show(this, "Select a single edge (Edge mode) to Clear Seam.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                _commandHistory.Record(command);
+                _renderer.Refresh();
+            });
+        }
+
+        /// <summary>The Edit Mode toolbar's "Unwrap" button - runs <see cref="MeshEditSession.UnwrapTargetMesh"/>
+        /// against the WHOLE target mesh (never a partial/selection-scoped operation,
+        /// the same "always applies to everything" convention <see cref="SubdivideButton_Click"/>
+        /// already follows), wrapped into an undoable, recorded <see cref="MeshEditCommand"/>
+        /// and re-rendered/re-gizmo'd the same way every other Edit Mode action here
+        /// is.</summary>
+        private void UnwrapButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            var session = _renderer.EditSession;
+            if (session.Target is not { } node) return;
+
+            TryRun("Unwrap", () =>
+            {
+                var command = MeshEditCommandFactory.Capture(node, "Unwrap",
+                    () => session.UnwrapTargetMesh(),
+                    onChanged: () =>
+                    {
+                        _renderer.Refresh();
+                        _componentGizmo.Attach(session);
+                    });
+
+                if (command is null) return; // no mesh on this node at all - nothing to unwrap or undo
+
+                _commandHistory.Record(command);
+                _renderer.Refresh();
+                _componentGizmo.Attach(session);
+            });
+        }
+
         /// <summary>The Object Mode toolbar's "Affect Only: Origin" checkbox - Custom
         /// Pivot Points (see <see cref="TransformGizmo.AffectOnlyOrigin"/>'s own
         /// remarks).</summary>
@@ -1665,6 +1842,14 @@ namespace JolieCat3D.UI
         {
             if (!_isInitialized) return;
             _gizmo.AffectOnlyOrigin = AffectOnlyOriginCheckBox.IsChecked == true;
+        }
+
+        /// <summary>Face Snapping's own "Align to Surface" toggle - see
+        /// <see cref="TransformGizmo.AlignToSurfaceEnabled"/>'s own remarks.</summary>
+        private void AlignToSurfaceCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _gizmo.AlignToSurfaceEnabled = AlignToSurfaceCheckBox.IsChecked == true;
         }
 
         /// <summary>The "Delete" toolbar button - Object Mode deletes the whole selected

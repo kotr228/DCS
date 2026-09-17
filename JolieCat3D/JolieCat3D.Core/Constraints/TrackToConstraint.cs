@@ -1,4 +1,5 @@
 using System.Numerics;
+using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Scene;
 
 namespace JolieCat3D.Core.Constraints
@@ -63,7 +64,7 @@ namespace JolieCat3D.Core.Constraints
                 _ => Vector3.UnitZ,
             };
 
-            var worldRotation = ShortestArcRotation(localAxis, direction);
+            var worldRotation = RotationMath.ShortestArcRotation(localAxis, direction);
 
             // The same world -> owner-local quaternion conversion
             // Scene3DRenderer.OnPilotedCameraChanged already established elsewhere in
@@ -73,33 +74,6 @@ namespace JolieCat3D.Core.Constraints
             node.LocalRotation = node.Parent is null
                 ? worldRotation
                 : Quaternion.Normalize(Quaternion.Inverse(node.Parent.GetWorldRotation()) * worldRotation);
-        }
-
-        /// <summary>The standard "shortest arc" rotation taking unit vector
-        /// <paramref name="from"/> onto unit vector <paramref name="to"/> - identity if
-        /// they already point the same way; a 180-degree turn around any axis
-        /// perpendicular to <paramref name="from"/> if they point exactly opposite (a
-        /// cross product alone is zero right at that singularity, so an arbitrary valid
-        /// perpendicular is picked instead - the same "pick a fallback rather than
-        /// produce a zero/NaN result" latitude <see cref="Geometry.Ray"/>'s own direction
-        /// normalization already gives elsewhere in this project).</summary>
-        private static Quaternion ShortestArcRotation(Vector3 from, Vector3 to)
-        {
-            var dot = Vector3.Dot(from, to);
-
-            if (dot >= 1f - 1e-6f) return Quaternion.Identity;
-
-            if (dot <= -1f + 1e-6f)
-            {
-                var axis = Vector3.Cross(Vector3.UnitX, from);
-                if (axis.LengthSquared() < 1e-6f) axis = Vector3.Cross(Vector3.UnitY, from);
-                return Quaternion.CreateFromAxisAngle(Vector3.Normalize(axis), MathF.PI);
-            }
-
-            var cross = Vector3.Cross(from, to);
-            var s = MathF.Sqrt((1f + dot) * 2f);
-            var invs = 1f / s;
-            return Quaternion.Normalize(new Quaternion(cross.X * invs, cross.Y * invs, cross.Z * invs, s * 0.5f));
         }
 
         public override Constraint Clone() => new TrackToConstraint

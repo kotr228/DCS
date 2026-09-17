@@ -187,6 +187,20 @@ namespace JolieCat3D.Engine.Gizmos
         /// way to do at all before this existed.</summary>
         public bool AffectOnlyOrigin { get; set; }
 
+        /// <summary>Align to Surface - off by default. While on, whenever a Shift-held
+        /// Translate drag actually lands on Face Snapping (see <see cref="TryFindFaceSnapHit"/> -
+        /// only reachable when nothing closer qualifies for Vertex/Edge Snapping first,
+        /// same priority order as everything else Shift does), <see cref="Target"/>'s
+        /// own rotation is ALSO overwritten so its local +Z axis ("Up", per the task's
+        /// own wording - not this project's usual scene-wide +Y "up" convention, a
+        /// deliberate, disclosed exception scoped to just this one feature) points
+        /// exactly along the snapped-onto face's own normal - see
+        /// <see cref="ApplyAlignToSurface"/>. Has no effect at all unless a drag
+        /// actually reaches Face Snapping (Shift held AND the cursor is over some other
+        /// mesh's geometry with no closer vertex/edge) - toggling it with no such drag
+        /// in progress changes nothing.</summary>
+        public bool AlignToSurfaceEnabled { get; set; }
+
         /// <summary>The Translate drag gesture's own running total LOCAL-space offset
         /// since <see cref="Target"/>'s position at the moment the CURRENTLY-captured
         /// handle first grabbed the mouse - null whenever no Translate drag is in
@@ -624,6 +638,19 @@ namespace JolieCat3D.Engine.Gizmos
                     node.LocalPosition = snappedLocalPosition;
                     _translateAccumulatedDelta = snappedLocalPosition - startPosition;
                 }
+                else if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && TryFindFaceSnapHit() is { } faceHit)
+                {
+                    // Face Snapping - only reached when no closer vertex/edge qualified
+                    // above (see TryFindVertexEdgeSnapPoint's own priority remarks):
+                    // plants the object at the EXACT point the cursor's ray crosses the
+                    // target face, the task's own "snap the dragged object to the exact
+                    // point of intersection on the target face" ask.
+                    var snappedLocalPosition = ConvertWorldPointToLocal(node, faceHit.Point);
+                    node.LocalPosition = snappedLocalPosition;
+                    _translateAccumulatedDelta = snappedLocalPosition - startPosition;
+
+                    if (AlignToSurfaceEnabled) ApplyAlignToSurface(node, faceHit.Normal);
+                }
                 else
                 {
                     var snapRequested = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
@@ -710,6 +737,77 @@ namespace JolieCat3D.Engine.Gizmos
             {
                 return null;
             }
+        }
+
+        /// <summary>Face Snapping's own raycast - the exact same "cast a ray from the
+        /// viewport's current cursor position against every OTHER meshed node's
+        /// currently-DISPLAYED geometry" shape <see cref="TryFindVertexEdgeSnapPoint"/>
+        /// already uses (see its own remarks - reading the cursor fresh, the
+        /// Modifier-stack-evaluated geometry, the try/catch around the WPF-side ray
+        /// conversion, all identical), just handed to <see cref="Geometry.FaceSnapping.FindNearestFaceHit"/>
+        /// instead of <see cref="VertexEdgeSnapping.FindNearestVertexOrEdge"/> - the
+        /// exact intersection point AND that face's own world-space normal (what
+        /// <see cref="ApplyAlignToSurface"/> needs).</summary>
+        private (Vector3 Point, Vector3 Normal)? TryFindFaceSnapHit()
+        {
+            if (Target is not { } target) return null;
+            if (SceneNodes is not { } sceneNodesProvider) return null;
+
+            try
+            {
+                var viewport3D = _viewport.Viewport;
+                var cursor = Mouse.GetPosition(viewport3D);
+                var ray3D = Viewport3DHelper.Point2DtoRay3D(viewport3D, cursor);
+                var ray = new CoreRay(ToVector3(ray3D.Origin), ToVector3(ray3D.Direction));
+
+                var triangles = new List<(Vector3 A, Vector3 B, Vector3 C)>();
+                foreach (var candidate in sceneNodesProvider())
+                {
+                    if (candidate == target || candidate.Mesh is not { } mesh) continue;
+
+                    var evaluatedMesh = ModifierStack.Evaluate(mesh, candidate.Modifiers, candidate);
+                    var world = candidate.GetWorldTransform();
+
+                    foreach (var face in evaluatedMesh.GetRenderFaces())
+                    {
+                        triangles.Add((
+                            Vector3.Transform(evaluatedMesh.Vertices[face.A].Position, world),
+                            Vector3.Transform(evaluatedMesh.Vertices[face.B].Position, world),
+                            Vector3.Transform(evaluatedMesh.Vertices[face.C].Position, world)));
+                    }
+                }
+
+                return FaceSnapping.FindNearestFaceHit(ray, triangles);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>Align to Surface: overwrites <paramref name="node"/>'s own rotation
+        /// so its local +Z axis points exactly along <paramref name="worldFaceNormal"/> -
+        /// the task's own "use vector math (Cross/Dot products) to calculate a rotation
+        /// quaternion that aligns the dragged object's local Z-axis (Up vector) directly
+        /// with the target face's normal vector" ask, via the same shortest-arc
+        /// derivation (<see cref="RotationMath.ShortestArcRotation"/>, itself Cross/Dot
+        /// under the hood) <see cref="Constraints.TrackToConstraint"/> already uses for
+        /// its own "aim this fixed local axis at a world-space direction" problem - the
+        /// exact same shape, just Z-to-normal here instead of TrackToConstraint's own
+        /// configurable ForwardAxis-to-target-direction. A FRESH rotation computed from
+        /// Vector3.UnitZ every call, not incrementally composed onto whatever rotation
+        /// <paramref name="node"/> already had - the object's own roll AROUND that now-
+        /// aligned normal is left unconstrained/arbitrary (the exact same disclosed
+        /// "this fixes the aim axis only, not roll" limitation <see cref="Constraints.TrackToConstraint"/>'s
+        /// own remarks already describe - there's no second reference axis given here
+        /// either to pin roll down with).</summary>
+        private static void ApplyAlignToSurface(CoreNode node, Vector3 worldFaceNormal)
+        {
+            var worldRotation = RotationMath.ShortestArcRotation(Vector3.UnitZ, worldFaceNormal);
+
+            node.LocalRotation = node.Parent is null
+                ? worldRotation
+                : Quaternion.Normalize(Quaternion.Inverse(node.Parent.GetWorldRotation()) * worldRotation);
         }
 
         private static Vector3 ToVector3(Point3D p) => new((float)p.X, (float)p.Y, (float)p.Z);

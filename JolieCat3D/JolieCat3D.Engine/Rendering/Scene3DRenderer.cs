@@ -221,6 +221,14 @@ namespace JolieCat3D.Engine.Rendering
         /// active.</summary>
         public VertexPaintSession VertexPaintSession { get; } = new();
 
+        /// <summary>Sculpt Mode's own per-target state (see <see cref="EnterSculptMode"/>/
+        /// <see cref="ExitSculptMode"/>) - always exists (never null itself), with
+        /// <see cref="SculptSession.Target"/> null whenever Sculpt Mode isn't active.
+        /// Needs no render-time overlay of its own (unlike <see cref="WeightPaintSession"/>'s
+        /// heat-map) - a sculpted mesh's own moved vertices render through this node's
+        /// normal geometry path exactly like any other Edit Mode change.</summary>
+        public SculptSession SculptSession { get; } = new();
+
         /// <summary>Whether the viewport is currently locked onto - and pilotable through -
         /// <see cref="CoreScene.ActiveCamera"/>. See <see cref="EnterActiveCameraView"/>/
         /// <see cref="ExitActiveCameraView"/>, the "View > Active Camera" toggle's own
@@ -699,6 +707,25 @@ namespace JolieCat3D.Engine.Rendering
         public void ExitVertexPaintMode()
         {
             VertexPaintSession.Attach(null);
+            Refresh();
+        }
+
+        /// <summary>Switches <see cref="SculptSession"/> onto <paramref name="node"/> -
+        /// <c>JolieCat3D.UI</c>'s cue that Sculpt Mode is now active for this node.</summary>
+        public void EnterSculptMode(CoreNode node)
+        {
+            ArgumentNullException.ThrowIfNull(node);
+            SculptSession.Attach(node);
+            Refresh();
+        }
+
+        /// <summary>Detaches <see cref="SculptSession"/> (ending any in-progress stroke) -
+        /// <c>JolieCat3D.UI</c>'s cue to switch back to Object Mode. Whatever geometry
+        /// was sculpted stays sculpted - only the brush's own ACTIVE target is
+        /// cleared.</summary>
+        public void ExitSculptMode()
+        {
+            SculptSession.Attach(null);
             Refresh();
         }
 

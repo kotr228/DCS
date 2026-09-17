@@ -431,5 +431,58 @@ namespace JolieCat3D.Engine.Editing
             selectedPolygon.MaterialSlotIndex = slotIndex;
             return true;
         }
+
+        /// <summary>
+        /// UV Seams' own selection-aware entry point - requires the current selection to
+        /// be EXACTLY one edge (two selected vertices - the same "2 selected vertices
+        /// means exactly one edge" convention <see cref="LoopCutSelectedEdge"/> already
+        /// established) that's also a genuine edge of this mesh (see <see cref="Mesh.GetEdges"/>) -
+        /// unlike <see cref="Mesh.MarkSeam"/> itself (which doesn't validate this, so
+        /// nothing downstream ever has to trust an arbitrary caller's pair blindly),
+        /// THIS is the actual gate that keeps a stray/non-edge pair from ever reaching
+        /// it. Returns false (a no-op) with no <see cref="Target"/>, a selection that
+        /// isn't exactly 2 vertices, or a pair that isn't a real edge.
+        /// </summary>
+        public bool MarkSeamOnSelectedEdge() => TryGetSelectedEdge(out var mesh, out var a, out var b) && Mark(mesh!, a, b, seam: true);
+
+        /// <summary>The reverse of <see cref="MarkSeamOnSelectedEdge"/> - same selection
+        /// requirement, un-flags the edge instead.</summary>
+        public bool ClearSeamOnSelectedEdge() => TryGetSelectedEdge(out var mesh, out var a, out var b) && Mark(mesh!, a, b, seam: false);
+
+        private bool Mark(Mesh mesh, int a, int b, bool seam)
+        {
+            if (seam) mesh.MarkSeam(a, b); else mesh.ClearSeam(a, b);
+            return true;
+        }
+
+        private bool TryGetSelectedEdge(out Mesh? mesh, out int a, out int b)
+        {
+            mesh = Target?.Mesh;
+            a = b = -1;
+            if (mesh is null) return false;
+            if (_selectedVertexIndices.Count != 2) return false;
+
+            var edge = _selectedVertexIndices.ToArray();
+            (a, b) = (edge[0], edge[1]);
+            return mesh.GetEdges().Contains(a < b ? (a, b) : (b, a));
+        }
+
+        /// <summary>
+        /// UV Unwrap's own entry point - runs <see cref="Mesh.Unwrap"/> against
+        /// <see cref="Target"/>'s own mesh directly (Unwrap, like Subdivide, always
+        /// applies to the whole mesh - there's no concept of "unwrap just the
+        /// selection"), clearing the current selection afterward since a structural edit
+        /// that duplicates/renumbers vertices (see <see cref="Mesh.Unwrap"/>'s own
+        /// remarks on why) makes the old selection's indices meaningless. Returns false
+        /// (a no-op) with no <see cref="Target"/>.
+        /// </summary>
+        public bool UnwrapTargetMesh()
+        {
+            if (Target?.Mesh is not { } mesh) return false;
+
+            mesh.Unwrap();
+            Clear();
+            return true;
+        }
     }
 }

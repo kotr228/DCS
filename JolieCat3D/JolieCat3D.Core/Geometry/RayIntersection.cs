@@ -142,6 +142,27 @@ namespace JolieCat3D.Core.Geometry
             return (pointOnRay, pointOnSegment, rayParameter, perpendicularDistance);
         }
 
+        /// <summary>Where <paramref name="ray"/> crosses the plane through
+        /// <paramref name="planePoint"/> with normal <paramref name="planeNormal"/> (not
+        /// required to be unit length) - the standard ray-plane intersection, used by
+        /// <c>Engine.Editing.SculptSession</c>'s own Grab brush to turn a 2D mouse drag
+        /// into a 3D world-space delta (casting a new ray per mouse-move sample and
+        /// intersecting it against the SAME fixed plane established when the drag
+        /// began, rather than re-raycasting the mesh itself each tick - see that
+        /// class's own remarks on why). Null if the ray runs (near-)parallel to the
+        /// plane (no single well-defined crossing point) or would only cross it BEHIND
+        /// the ray's own origin.</summary>
+        public static float? IntersectPlane(Ray ray, Vector3 planePoint, Vector3 planeNormal)
+        {
+            const float epsilon = 1e-6f;
+
+            var denominator = Vector3.Dot(ray.Direction, planeNormal);
+            if (MathF.Abs(denominator) < epsilon) return null;
+
+            var distance = Vector3.Dot(planePoint - ray.Origin, planeNormal) / denominator;
+            return distance > epsilon ? distance : null;
+        }
+
         /// <summary>The standard "slab" ray-vs-axis-aligned-bounding-box test - the
         /// nearest distance along <paramref name="ray"/> at which it enters the box
         /// defined by <paramref name="min"/>/<paramref name="max"/>, clamped to 0 (a ray

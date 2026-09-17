@@ -159,7 +159,13 @@
                      EditorModeButton_Checked's own remarks. -->
                 <RadioButton x:Name="VertexPaintModeButton" Content="Vertex Paint" GroupName="EditorMode"
                              Style="{StaticResource GizmoModeButtonStyle}"
-                             Margin="0,0,16,0" Checked="EditorModeButton_Checked" Tag="VertexPaint" />
+                             Margin="0,0,4,0" Checked="EditorModeButton_Checked" Tag="VertexPaint" />
+                <!-- Sculpt mode - any meshed node, no armature/binding prerequisite
+                     (same as Vertex Paint above). See EditorModeButton_Checked's own
+                     remarks. -->
+                <RadioButton x:Name="SculptModeButton" Content="Sculpt" GroupName="EditorMode"
+                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,16,0" Checked="EditorModeButton_Checked" Tag="Sculpt" />
 
                 <!-- Object Mode: duplicates the selected node (deep clone, including its
                      children/modifiers/material binding/keyframes - see
@@ -181,6 +187,17 @@
                 <CheckBox x:Name="AffectOnlyOriginCheckBox" Content="Affect Only: Origin" VerticalAlignment="Center"
                           Margin="0,0,20,0" Checked="AffectOnlyOriginCheckBox_Changed" Unchecked="AffectOnlyOriginCheckBox_Changed"
                           ToolTip="Move/rotate/scale the selected object's own pivot without shifting its mesh geometry" />
+
+                <!-- Face Snapping's own "Align to Surface" toggle - see
+                     Gizmos.TransformGizmo.AlignToSurfaceEnabled's own remarks. Only ever
+                     takes effect during a Shift-held Translate drag that actually lands
+                     on Face Snapping (nothing closer for Vertex/Edge Snapping) - the
+                     drag itself already always Shift-raycasts against the rest of the
+                     scene with no separate toggle of its own needed for Face Snapping
+                     itself. -->
+                <CheckBox x:Name="AlignToSurfaceCheckBox" Content="Align to Surface" VerticalAlignment="Center"
+                          Margin="0,0,20,0" Checked="AlignToSurfaceCheckBox_Changed" Unchecked="AlignToSurfaceCheckBox_Changed"
+                          ToolTip="While Shift-dragging onto another object's face, also rotate the dragged object's local Z axis to match that face's normal" />
 
                 <TextBlock Text="Component:" VerticalAlignment="Center" Margin="0,0,10,0"
                            Foreground="{StaticResource TextSecondaryBrush}" />
@@ -225,6 +242,16 @@
                         Margin="0,0,4,0" Padding="8,2" Click="LoopCutButton_Click" />
                 <Button x:Name="BevelButton" Content="Bevel" IsEnabled="False"
                         Margin="0,0,4,0" Padding="8,2" Click="BevelButton_Click" />
+                <!-- UV Seams/Unwrap - Mark/Clear Seam need a single selected edge (Edge
+                     mode), same requirement as Loop Cut above; Unwrap always applies to
+                     the whole target mesh (same "no partial-selection scope" convention
+                     Subdivide already has). See MeshEditSession's own remarks. -->
+                <Button x:Name="MarkSeamButton" Content="Mark Seam" IsEnabled="False"
+                        Margin="0,0,4,0" Padding="8,2" Click="MarkSeamButton_Click" />
+                <Button x:Name="ClearSeamButton" Content="Clear Seam" IsEnabled="False"
+                        Margin="0,0,4,0" Padding="8,2" Click="ClearSeamButton_Click" />
+                <Button x:Name="UnwrapButton" Content="Unwrap" IsEnabled="False"
+                        Margin="0,0,4,0" Padding="8,2" Click="UnwrapButton_Click" />
                 <!-- Object Mode: deletes the selected node (and its whole subtree). Edit
                      Mode: deletes the selected vertices/edges/faces instead (a set of
                      vertex indices, whatever the current Vertex/Edge/Face component mode -
@@ -282,6 +309,31 @@
                                FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
                     <Slider x:Name="VertexBrushStrengthSlider" Width="70" Minimum="0.05" Maximum="1" Value="0.5"
                             VerticalAlignment="Center" ValueChanged="VertexBrushStrengthSlider_ValueChanged" />
+                </StackPanel>
+
+                <!-- Sculpt mode's own brush controls - collapsed except while
+                     SculptModeButton is checked. Draw/Smooth/Grab pick which of
+                     Core.Sculpting.SculptBrush's own 3 algorithms the brush applies
+                     (see SculptSession.Mode); Invert (Shift) only affects Draw - see
+                     SculptSession.Invert's own remarks. -->
+                <StackPanel x:Name="SculptToolbar" Orientation="Horizontal" Visibility="Collapsed">
+                    <RadioButton x:Name="SculptDrawButton" Content="Draw" GroupName="SculptBrushMode"
+                                 IsChecked="True" Style="{StaticResource GizmoModeButtonStyle}"
+                                 Margin="16,0,4,0" Checked="SculptBrushModeButton_Checked" Tag="Draw" />
+                    <RadioButton x:Name="SculptSmoothButton" Content="Smooth" GroupName="SculptBrushMode"
+                                 Style="{StaticResource GizmoModeButtonStyle}"
+                                 Margin="0,0,4,0" Checked="SculptBrushModeButton_Checked" Tag="Smooth" />
+                    <RadioButton x:Name="SculptGrabButton" Content="Grab" GroupName="SculptBrushMode"
+                                 Style="{StaticResource GizmoModeButtonStyle}"
+                                 Margin="0,0,10,0" Checked="SculptBrushModeButton_Checked" Tag="Grab" />
+                    <TextBlock Text="Radius:" VerticalAlignment="Center" Margin="0,0,4,0"
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <Slider x:Name="SculptBrushRadiusSlider" Width="70" Minimum="0.05" Maximum="3" Value="0.3"
+                            VerticalAlignment="Center" ValueChanged="SculptBrushRadiusSlider_ValueChanged" />
+                    <TextBlock Text="Strength:" VerticalAlignment="Center" Margin="8,0,4,0"
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <Slider x:Name="SculptBrushStrengthSlider" Width="70" Minimum="0.05" Maximum="1" Value="0.5"
+                            VerticalAlignment="Center" ValueChanged="SculptBrushStrengthSlider_ValueChanged" />
                 </StackPanel>
             </StackPanel>
         </Border>
