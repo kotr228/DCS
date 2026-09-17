@@ -66,6 +66,27 @@ namespace JolieCat3D.UI
         private bool _isUpdatingAnimationUI;
         private bool _isUpdatingCameraViewUI;
 
+        /// <summary>The Dopesheet's own currently-selected keyframe marker time (seconds,
+        /// matching <see cref="Keyframe.Time"/> exactly) - null with nothing selected, in
+        /// which case <see cref="DeleteKeyframeButton"/> is disabled. Cleared whenever the
+        /// selected node itself changes (see <see cref="SelectNode"/>) - a keyframe time
+        /// selected against one node's own <see cref="AnimationTrack"/> is meaningless
+        /// once a DIFFERENT node's track is what the Dopesheet is now showing.</summary>
+        private double? _selectedKeyframeTime;
+
+        /// <summary>True from a Dopesheet marker's own <c>MouseLeftButtonDown</c> (mouse
+        /// capture acquired) until its matching <c>MouseLeftButtonUp</c> (capture
+        /// released) - guards <see cref="RefreshDopesheet"/> against tearing down the
+        /// very marker currently being dragged out from under its own live mouse capture
+        /// (every marker is a brand new <see cref="System.Windows.Shapes.Polygon"/>
+        /// instance each time <see cref="RefreshDopesheet"/> runs - see its own "rebuild,
+        /// don't patch in place" remarks - so rebuilding mid-drag would silently end the
+        /// gesture, the SAME hazard <see cref="Gizmos.TransformGizmo.Rebuild"/>'s own
+        /// remarks already describe for its manipulators, reachable here via
+        /// <see cref="RefreshAnimationUI"/>'s own ~60Hz <see cref="OnPlaybackTick"/> call
+        /// firing WHILE a keyframe drag happens to also be in progress).</summary>
+        private bool _isDraggingKeyframeMarker;
+
         // WPF can (and does) invoke a XAML-wired event handler (Checked/Unchecked,
         // TextChanged, SelectedItemChanged, ...) SYNCHRONOUSLY from inside
         // InitializeComponent() itself, the moment a declared initial value is applied -
@@ -376,11 +397,19 @@ namespace JolieCat3D.UI
         /// own remarks; unlike a camera, every light node ALWAYS contributes to the
         /// scene's own lighting the moment it exists (see
         /// <see cref="SceneLightingFactory.CreateSceneLights"/>), no separate
-        /// "active"/"set as active" step needed.</summary>
+        /// "active"/"set as active" step needed. <see cref="Node.Mesh"/> is set
+        /// immediately from <see cref="LightData.GenerateMesh"/> (the same "visible the
+        /// instant it's added" convention <see cref="AddCurveMenuItem_Click"/> already
+        /// follows for its own auto-generated mesh) - without it the new light would be
+        /// entirely invisible in the viewport (selectable only via the small fixed
+        /// hit-test box every mesh-less node already falls back to), the task's own
+        /// "must have visual proxy geometry... so they can be selected and translated/
+        /// rotated using the standard Gizmos" ask.</summary>
         private void AddLightMenuItem_Click(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
-            AddNodeToScene(new Node("Light") { Light = new LightData() });
+            var light = new LightData();
+            AddNodeToScene(new Node("Light") { Light = light, Mesh = light.GenerateMesh() });
         }
 
         /// <summary>File > Scene > "Add Curve" - a new root node carrying a default
@@ -911,6 +940,13 @@ namespace JolieCat3D.UI
                 return;
             }
 
+            if (IsTexturePaintMode)
+            {
+                _isPaintingTexture = true;
+                HandleTexturePaintClick(position);
+                return;
+            }
+
             if (TryBeginGizmoDrag(position, e))
             {
                 e.Handled = true;
@@ -1129,10 +1165,17 @@ namespace JolieCat3D.UI
         /// Paint mode.</summary>
         private bool IsSculptMode => SculptModeButton.IsChecked == true;
 
+        /// <summary>True once <see cref="TexturePaintModeButton"/> is the checked radio
+        /// button - the same role <see cref="IsWeightPaintMode"/> plays for Weight
+        /// Paint mode.</summary>
+        private bool IsTexturePaintMode => TexturePaintModeButton.IsChecked == true;
+
         private void SelectNode(Node? node)
         {
             _renderer.Select(node);
             _sceneViewModel.SelectedNode = _sceneViewModel.FindViewModel(node);
+            _selectedKeyframeTime = null;
+            RefreshDopesheet();
 
             if (IsWeightPaintMode)
             {
@@ -1161,6 +1204,13 @@ namespace JolieCat3D.UI
             if (IsSculptMode)
             {
                 if (node?.Mesh is not null) _renderer.EnterSculptMode(node);
+                else ObjectModeButton.IsChecked = true;
+                return;
+            }
+
+            if (IsTexturePaintMode)
+            {
+                if (node?.Mesh is not null) _renderer.EnterTexturePaintMode(node);
                 else ObjectModeButton.IsChecked = true;
                 return;
             }
@@ -1238,6 +1288,7 @@ namespace JolieCat3D.UI
             var enteringWeightPaintMode = modeName == "WeightPaint";
             var enteringVertexPaintMode = modeName == "VertexPaint";
             var enteringSculptMode = modeName == "Sculpt";
+            var enteringTexturePaintMode = modeName == "TexturePaint";
 
             VertexModeButton.IsEnabled = enteringEditMode;
             EdgeModeButton.IsEnabled = enteringEditMode;
@@ -1258,19 +1309,21 @@ namespace JolieCat3D.UI
             // Custom Pivot Points only makes sense in Object Mode (it moves a whole
             // NODE'S own origin, not any per-vertex selection) - the exact opposite
             // enablement from every Edit-Mode-only control above.
-            AffectOnlyOriginCheckBox.IsEnabled = !enteringEditMode && !enteringWeightPaintMode && !enteringVertexPaintMode && !enteringSculptMode;
+            AffectOnlyOriginCheckBox.IsEnabled = !enteringEditMode && !enteringWeightPaintMode && !enteringVertexPaintMode && !enteringSculptMode && !enteringTexturePaintMode;
 
             WeightPaintToolbar.Visibility = enteringWeightPaintMode ? Visibility.Visible : Visibility.Collapsed;
             VertexPaintToolbar.Visibility = enteringVertexPaintMode ? Visibility.Visible : Visibility.Collapsed;
             SculptToolbar.Visibility = enteringSculptMode ? Visibility.Visible : Visibility.Collapsed;
+            TexturePaintToolbar.Visibility = enteringTexturePaintMode ? Visibility.Visible : Visibility.Collapsed;
 
-            // Leaving Weight/Vertex Paint/Sculpt mode (for any of the other modes)
-            // always detaches its own session first, exactly like leaving Edit Mode
-            // below - never left silently active (and still eating viewport clicks)
+            // Leaving Weight/Vertex/Texture Paint or Sculpt mode (for any of the other
+            // modes) always detaches its own session first, exactly like leaving Edit
+            // Mode below - never left silently active (and still eating viewport clicks)
             // once its own toolbar is hidden.
             if (!enteringWeightPaintMode) _renderer.ExitWeightPaintMode();
             if (!enteringVertexPaintMode) _renderer.ExitVertexPaintMode();
             if (!enteringSculptMode) _renderer.ExitSculptMode();
+            if (!enteringTexturePaintMode) _renderer.ExitTexturePaintMode();
 
             if (enteringEditMode)
             {
@@ -1330,6 +1383,20 @@ namespace JolieCat3D.UI
                 _gizmo.Attach(null);
                 _componentGizmo.Attach(null);
                 _renderer.EnterSculptMode(node);
+            }
+            else if (enteringTexturePaintMode)
+            {
+                if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { Mesh: not null } node)
+                {
+                    MessageBox.Show(this, "Select an object with a mesh before entering Texture Paint mode.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    ObjectModeButton.IsChecked = true;
+                    return;
+                }
+
+                _gizmo.Attach(null);
+                _componentGizmo.Attach(null);
+                _renderer.EnterTexturePaintMode(node);
             }
             else
             {
@@ -1460,6 +1527,46 @@ namespace JolieCat3D.UI
             _renderer.SculptSession.Strength = (float)e.NewValue;
         }
 
+        /// <summary>Texture Paint mode's own target-color picker - the same plain
+        /// "#RRGGBB" hex field convention <see cref="VertexPaintColorTextBox_TextChanged"/>
+        /// already uses.</summary>
+        private void TexturePaintColorTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is not TextBox { Text: var text }) return;
+            if (System.Windows.Media.ColorConverter.ConvertFromString(text) is not System.Windows.Media.Color parsed) return;
+
+            _renderer.TexturePaintSession.Color = new Color4(parsed.ScR, parsed.ScG, parsed.ScB, parsed.ScA);
+        }
+
+        private void TextureBrushRadiusSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            _renderer.TexturePaintSession.BrushRadius = (float)e.NewValue;
+        }
+
+        private void TextureBrushStrengthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            _renderer.TexturePaintSession.Strength = (float)e.NewValue;
+        }
+
+        /// <summary>Texture Paint mode's own mouse-down: paints one brush tick right
+        /// where the click landed, then starts <see cref="_isPaintingTexture"/> so
+        /// <see cref="Viewport_MouseMove"/> keeps painting for the rest of the drag - the
+        /// same shape <see cref="HandleVertexPaintClick"/>/<see cref="_isPaintingVertexColors"/>
+        /// already have. A miss (the ray doesn't land on <see cref="Target"/>'s own
+        /// geometry at all - <see cref="TexturePaintSession.RaycastUVHitPoint"/> returns
+        /// null) is simply ignored, same as every other brush's own miss.</summary>
+        private bool _isPaintingTexture;
+
+        private void HandleTexturePaintClick(Point position)
+        {
+            if (_renderer.TexturePaintSession.RaycastUVHitPoint(Viewport, position) is not { } uv) return;
+            _renderer.TexturePaintSession.PaintAt(uv);
+            _renderer.Refresh();
+        }
+
         private void Viewport_MouseMove(object sender, MouseEventArgs e)
         {
             if (!_isInitialized) return;
@@ -1487,6 +1594,13 @@ namespace JolieCat3D.UI
                     _renderer.Refresh();
                 }
                 else _isSculpting = false;
+                return;
+            }
+
+            if (_isPaintingTexture)
+            {
+                if (e.LeftButton == MouseButtonState.Pressed) HandleTexturePaintClick(e.GetPosition(Viewport));
+                else _isPaintingTexture = false;
             }
         }
 
@@ -1494,6 +1608,7 @@ namespace JolieCat3D.UI
         {
             _isPaintingWeights = false;
             _isPaintingVertexColors = false;
+            _isPaintingTexture = false;
             if (_isSculpting)
             {
                 _isSculpting = false;
@@ -2174,6 +2289,7 @@ namespace JolieCat3D.UI
 
             var interpolation = BezierInterpolationButton.IsChecked == true ? InterpolationMode.Bezier : InterpolationMode.Linear;
             _timeline.GetOrCreateTrack(node).AddKeyframeFromCurrentTransform(_timeline.CurrentTime, interpolation);
+            RefreshDopesheet();
         }
 
         /// <summary>The Material Inspector's "Load Clipbar Animation..." button - picks
@@ -2311,11 +2427,224 @@ namespace JolieCat3D.UI
                 FrameScrubber.Value = _timeline.CurrentFrame;
                 FrameLabel.Text = $"{_timeline.CurrentFrame:0} / {_timeline.TotalFrames}";
                 PlayPauseButton.Content = _timeline.IsPlaying ? "Pause" : "Play";
+                RefreshDopesheet();
             }
             finally
             {
                 _isUpdatingAnimationUI = false;
             }
+        }
+
+        /// <summary>
+        /// The Dopesheet: redraws <see cref="DopesheetCanvas"/> from scratch (see
+        /// <c>Rendering.Lighting.SceneLightingFactory.CreateSceneLights</c>'s own "rebuild,
+        /// don't try to patch in place" precedent - the same reasoning applies here, just
+        /// for a handful of small marker shapes instead of WPF lights) with one small
+        /// diamond marker per keyframe on the currently selected node's own
+        /// <see cref="AnimationTrack"/> - null/no track at all (nothing selected, or the
+        /// selected node has never been keyframed) simply leaves the canvas empty. Each
+        /// marker's own X position is <c>(keyframe time in frames / TotalFrames) *
+        /// DopesheetCanvas.ActualWidth</c> - the same frame-to-pixel mapping
+        /// <see cref="FrameScrubber"/>'s own Minimum=0/Maximum=TotalFrames range already
+        /// implies for its own thumb, so a marker always lines up with the SAME frame
+        /// <see cref="FrameScrubber"/> would show that keyframe's own time at. Called
+        /// after anything that could change WHICH keyframes exist, where they sit, or
+        /// which one is selected - a node selection change (<see cref="SelectNode"/>), and
+        /// every <see cref="RefreshAnimationUI"/> call (a tick, Play/Pause/Stop, a scrub,
+        /// an FPS edit - FPS specifically changes every keyframe's own FRAME position even
+        /// though its own TIME in seconds didn't move at all).
+        /// </summary>
+        private void RefreshDopesheet()
+        {
+            // Never tear down markers while one of them is actively being dragged - see
+            // _isDraggingKeyframeMarker's own remarks. The drag's own MouseLeftButtonUp
+            // handler calls this again itself the instant the drag actually ends, so
+            // skipping a redraw here is never a "stuck stale Dopesheet", only a
+            // deferred one.
+            if (_isDraggingKeyframeMarker) return;
+
+            DopesheetCanvas.Children.Clear();
+            DeleteKeyframeButton.IsEnabled = false;
+            _selectedMarkerVisual = null;
+
+            if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
+            if (!_timeline.TryGetTrack(node, out var track) || track is null) return;
+
+            // DopesheetCanvas hasn't necessarily been laid out yet the very first time
+            // this runs (e.g. from the constructor, before the window's first Loaded) -
+            // ActualWidth reads 0 then, which would collapse every marker onto the same
+            // X=0 point. Falls back to the SAME nominal 280 the containing Grid/
+            // FrameScrubber are both authored at (see MainWindow.xaml), so markers still
+            // land at roughly the right spot even pre-layout, rather than all stacking
+            // at the very left edge.
+            var canvasWidth = DopesheetCanvas.ActualWidth > 0 ? DopesheetCanvas.ActualWidth : 280;
+
+            foreach (var keyframe in track.Keyframes)
+            {
+                var frame = keyframe.Time * _timeline.FrameRate;
+                var x = _timeline.TotalFrames > 0 ? frame / _timeline.TotalFrames * canvasWidth : 0;
+                var isSelected = _selectedKeyframeTime is { } selectedTime && Math.Abs(selectedTime - keyframe.Time) < 1e-6;
+
+                var marker = CreateKeyframeMarker(keyframe.Time, isSelected);
+                Canvas.SetLeft(marker, x - 4); // 4 = half the marker's own 8px width, centering it on the frame position
+                Canvas.SetTop(marker, 1);
+                DopesheetCanvas.Children.Add(marker);
+
+                if (isSelected)
+                {
+                    DeleteKeyframeButton.IsEnabled = true;
+                    _selectedMarkerVisual = marker;
+                }
+            }
+        }
+
+        /// <summary>Builds one Dopesheet marker - a small 8x8 diamond, gold while
+        /// selected (matching this window's own established "gold = active/selected"
+        /// convention - see <see cref="MainWindow.xaml"/>'s own <c>GizmoModeButtonStyle</c>
+        /// remarks) or a neutral gray otherwise - carrying its own keyframe
+        /// <paramref name="time"/> on <see cref="System.Windows.FrameworkElement.Tag"/>
+        /// so its own mouse handlers below know WHICH keyframe they're
+        /// selecting/dragging/retiming without any separate marker-to-time lookup
+        /// table.</summary>
+        private System.Windows.Shapes.Polygon CreateKeyframeMarker(double time, bool isSelected)
+        {
+            var marker = new System.Windows.Shapes.Polygon
+            {
+                Points = new PointCollection { new Point(4, 0), new Point(8, 4), new Point(4, 8), new Point(0, 4) },
+                Fill = isSelected ? Brushes.Gold : Brushes.LightGray,
+                Stroke = Brushes.Black,
+                StrokeThickness = 0.5,
+                Tag = time,
+                Cursor = System.Windows.Input.Cursors.SizeWE,
+            };
+
+            marker.MouseLeftButtonDown += DopesheetMarker_MouseLeftButtonDown;
+            marker.MouseMove += DopesheetMarker_MouseMove;
+            marker.MouseLeftButtonUp += DopesheetMarker_MouseLeftButtonUp;
+
+            return marker;
+        }
+
+        /// <summary>The Dopesheet marker <see cref="System.Windows.Shapes.Polygon"/>
+        /// instance last selected via <see cref="DopesheetMarker_MouseLeftButtonDown"/> -
+        /// kept in sync with (never a second source of truth beyond) <see cref="_selectedKeyframeTime"/>,
+        /// purely so a mouse-down can highlight the CLICKED marker directly (a plain
+        /// <see cref="System.Windows.Shapes.Shape.Fill"/> mutation) without a full
+        /// <see cref="RefreshDopesheet"/> rebuild destroying the very marker that just
+        /// captured the mouse - see <see cref="_isDraggingKeyframeMarker"/>'s own remarks
+        /// for why that would be a real hazard, not just a wasted rebuild. Reset to
+        /// whichever marker <see cref="RefreshDopesheet"/> itself judges selected on
+        /// every ordinary (non-drag) rebuild, so it never goes stale relative to
+        /// <see cref="_selectedKeyframeTime"/>.</summary>
+        private System.Windows.Shapes.Polygon? _selectedMarkerVisual;
+
+        /// <summary>A marker's own mouse-down: SELECTS it (enabling <see cref="DeleteKeyframeButton"/>
+        /// and highlighting it gold, via a direct <see cref="System.Windows.Shapes.Shape.Fill"/>
+        /// mutation on both the newly- and previously-selected marker - NOT a
+        /// <see cref="RefreshDopesheet"/> call, which would immediately destroy the very
+        /// marker this method is about to capture the mouse on) and captures the mouse on
+        /// itself so <see cref="DopesheetMarker_MouseMove"/> keeps dragging it for the
+        /// rest of the gesture - a plain click with no further movement still counts as a
+        /// selection either way, exactly like every other "click selects, drag also
+        /// moves" component picker in this project (e.g. <c>ComponentHitTester</c>'s own
+        /// vertex/edge/face selection).</summary>
+        private void DopesheetMarker_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not System.Windows.Shapes.Polygon marker) return;
+
+            if (_selectedMarkerVisual is { } previous) previous.Fill = Brushes.LightGray;
+            _selectedKeyframeTime = (double)marker.Tag;
+            _selectedMarkerVisual = marker;
+            marker.Fill = Brushes.Gold;
+            DeleteKeyframeButton.IsEnabled = true;
+
+            _isDraggingKeyframeMarker = true;
+            marker.CaptureMouse();
+            e.Handled = true;
+        }
+
+        /// <summary>While a marker holds its own mouse capture (see
+        /// <see cref="DopesheetMarker_MouseLeftButtonDown"/>), live-updates its OWN visual
+        /// X position to track the cursor - a purely cosmetic, non-committing preview;
+        /// the actual <see cref="AnimationTrack.RetimeKeyframe"/> call only happens once,
+        /// in <see cref="DopesheetMarker_MouseLeftButtonUp"/>, when the drag actually
+        /// ends.</summary>
+        private void DopesheetMarker_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (sender is not System.Windows.Shapes.Polygon marker) return;
+            if (!marker.IsMouseCaptured || e.LeftButton != MouseButtonState.Pressed) return;
+
+            var canvasWidth = DopesheetCanvas.ActualWidth;
+            if (canvasWidth <= 0) return;
+
+            var x = Math.Clamp(e.GetPosition(DopesheetCanvas).X, 0, canvasWidth);
+            Canvas.SetLeft(marker, x - 4);
+        }
+
+        /// <summary>Ends the drag - releases capture, then commits the actual retime
+        /// (<see cref="AnimationTrack.RetimeKeyframe"/>) from wherever the cursor ended up,
+        /// converting its own final pixel X back into a frame (the inverse of
+        /// <see cref="RefreshDopesheet"/>'s own frame-to-pixel mapping) and then seconds.
+        /// A plain click with no real movement retimes the keyframe onto (very nearly)
+        /// its own already-current time - <see cref="AnimationTrack.RetimeKeyframe"/>'s
+        /// own tolerance-based replace-in-place handles that as a harmless no-op-shaped
+        /// move, not a special case this method needs of its own. Re-renders/re-applies
+        /// the timeline afterward (a retime can change what's CURRENTLY displayed, if the
+        /// scrubber's own position happens to sit between the keyframe's old and new
+        /// time) and always rebuilds the Dopesheet fresh, whether the retime actually
+        /// changed anything or not.</summary>
+        private void DopesheetMarker_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not System.Windows.Shapes.Polygon marker) return;
+            if (!marker.IsMouseCaptured) return;
+
+            marker.ReleaseMouseCapture();
+            _isDraggingKeyframeMarker = false;
+            e.Handled = true;
+
+            if (_sceneViewModel.SelectedNode?.UnderlyingNode is { } node &&
+                _timeline.TryGetTrack(node, out var track) && track is not null)
+            {
+                var canvasWidth = DopesheetCanvas.ActualWidth;
+                if (canvasWidth > 0)
+                {
+                    var oldTime = (double)marker.Tag;
+                    var x = Math.Clamp(e.GetPosition(DopesheetCanvas).X, 0, canvasWidth);
+                    var frame = x / canvasWidth * _timeline.TotalFrames;
+                    var newTime = frame / _timeline.FrameRate;
+
+                    if (track.RetimeKeyframe(oldTime, newTime))
+                    {
+                        _selectedKeyframeTime = newTime;
+                        _timeline.Apply();
+                        _sceneViewModel.SelectedNode?.SyncFromCore();
+                        _renderer.Refresh();
+                    }
+                }
+            }
+
+            RefreshDopesheet();
+        }
+
+        /// <summary>The Dopesheet's own "Delete" button - removes whichever keyframe
+        /// <see cref="_selectedKeyframeTime"/> currently points at (see
+        /// <see cref="DopesheetMarker_MouseLeftButtonDown"/>) via <see cref="AnimationTrack.RemoveKeyframe"/>.
+        /// A no-op with nothing selected (the button is disabled then anyway - see
+        /// <see cref="RefreshDopesheet"/>), or if the selected node's own track has
+        /// since disappeared entirely.</summary>
+        private void DeleteKeyframeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (_selectedKeyframeTime is not { } time) return;
+            if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
+            if (!_timeline.TryGetTrack(node, out var track) || track is null) return;
+
+            track.RemoveKeyframe(time);
+            _selectedKeyframeTime = null;
+            _timeline.Apply();
+            _sceneViewModel.SelectedNode?.SyncFromCore();
+            _renderer.Refresh();
+            RefreshDopesheet();
         }
 
         /// <summary>The Properties panel's "Load Texture..." button - loads an image

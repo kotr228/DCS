@@ -60,6 +60,34 @@ namespace JolieCat3D.Service.Animation
         public void RemoveKeyframe(double time) =>
             _keyframes.RemoveAll(k => Math.Abs(k.Time - time) < TimeEpsilon);
 
+        /// <summary>Moves the keyframe at <paramref name="oldTime"/> (within
+        /// <see cref="TimeEpsilon"/>) to <paramref name="newTime"/> instead, keeping
+        /// every one of its own Position/Rotation/Scale/Interpolation values unchanged -
+        /// the Dopesheet's own "drag a keyframe marker horizontally to retime it"
+        /// action. Returns false (a no-op) if no keyframe sits at <paramref name="oldTime"/>
+        /// to begin with. If <paramref name="newTime"/> itself already has a keyframe
+        /// (within the same tolerance), THAT one is silently replaced by the moved one -
+        /// the same "landing on an existing time replaces it, rather than producing two
+        /// keyframes at once moment" convention <see cref="AddKeyframe"/> already
+        /// establishes, here reached by dragging one marker on top of another instead of
+        /// a second explicit <see cref="AddKeyframe"/> call. Does not itself clamp
+        /// <paramref name="newTime"/> to any particular range (e.g. a timeline's own
+        /// <see cref="AnimationTimeline.Duration"/>) - a <see cref="AnimationTrack"/> has
+        /// no notion of "the timeline's own bounds" at all (see this class's own
+        /// remarks), so a caller driving a drag against a specific timeline clamps
+        /// against ITS OWN <see cref="AnimationTimeline.Duration"/> before calling
+        /// this.</summary>
+        public bool RetimeKeyframe(double oldTime, double newTime)
+        {
+            var index = _keyframes.FindIndex(k => Math.Abs(k.Time - oldTime) < TimeEpsilon);
+            if (index < 0) return false;
+
+            var keyframe = _keyframes[index];
+            _keyframes.RemoveAt(index);
+            AddKeyframe(newTime, keyframe.Position, keyframe.Rotation, keyframe.Scale, keyframe.Interpolation);
+            return true;
+        }
+
         /// <summary>The interpolated Position/Rotation/Scale at <paramref name="time"/> -
         /// null with no keyframes recorded at all (nothing for
         /// <see cref="AnimationTimeline.Apply"/> to apply). A single keyframe reads as a

@@ -165,7 +165,14 @@
                      remarks. -->
                 <RadioButton x:Name="SculptModeButton" Content="Sculpt" GroupName="EditorMode"
                              Style="{StaticResource GizmoModeButtonStyle}"
-                             Margin="0,0,16,0" Checked="EditorModeButton_Checked" Tag="Sculpt" />
+                             Margin="0,0,4,0" Checked="EditorModeButton_Checked" Tag="Sculpt" />
+                <!-- Texture Paint mode - requires the selected node to already have a
+                     mesh (a material is created for it on entry if it has none - see
+                     Engine.Editing.TexturePaintSession.EnsureTextureBuffer's own
+                     remarks). See EditorModeButton_Checked's own remarks. -->
+                <RadioButton x:Name="TexturePaintModeButton" Content="Texture Paint" GroupName="EditorMode"
+                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,16,0" Checked="EditorModeButton_Checked" Tag="TexturePaint" />
 
                 <!-- Object Mode: duplicates the selected node (deep clone, including its
                      children/modifiers/material binding/keyframes - see
@@ -334,6 +341,27 @@
                                FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
                     <Slider x:Name="SculptBrushStrengthSlider" Width="70" Minimum="0.05" Maximum="1" Value="0.5"
                             VerticalAlignment="Center" ValueChanged="SculptBrushStrengthSlider_ValueChanged" />
+                </StackPanel>
+
+                <!-- Texture Paint mode's own brush controls - collapsed except while
+                     TexturePaintModeButton is checked. Radius here is a PIXEL distance
+                     into the material's own painted texture (see
+                     Engine.Editing.TexturePaintSession.BrushRadius's own remarks), unlike
+                     every other brush's own world-space radius - a wider Min/Max reflects
+                     that different unit. -->
+                <StackPanel x:Name="TexturePaintToolbar" Orientation="Horizontal" Visibility="Collapsed">
+                    <TextBlock Text="Color:" VerticalAlignment="Center" Margin="16,0,4,0"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                    <TextBox x:Name="TexturePaintColorTextBox" Width="70" Margin="0,0,10,0" Text="#FF0000"
+                             TextChanged="TexturePaintColorTextBox_TextChanged" />
+                    <TextBlock Text="Radius:" VerticalAlignment="Center" Margin="0,0,4,0"
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <Slider x:Name="TextureBrushRadiusSlider" Width="70" Minimum="2" Maximum="120" Value="20"
+                            VerticalAlignment="Center" ValueChanged="TextureBrushRadiusSlider_ValueChanged" />
+                    <TextBlock Text="Strength:" VerticalAlignment="Center" Margin="8,0,4,0"
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <Slider x:Name="TextureBrushStrengthSlider" Width="70" Minimum="0.05" Maximum="1" Value="0.5"
+                            VerticalAlignment="Center" ValueChanged="TextureBrushStrengthSlider_ValueChanged" />
                 </StackPanel>
             </StackPanel>
         </Border>
@@ -1140,13 +1168,33 @@
                 <Button Content="Stop" Padding="12,2" Margin="0,0,16,0" Click="StopButton_Click" />
 
                 <TextBlock Text="Frame:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" />
-                <Slider x:Name="FrameScrubber" Width="280" Minimum="0" VerticalAlignment="Center"
-                        ValueChanged="FrameScrubber_ValueChanged" />
-                <TextBlock x:Name="FrameLabel" Text="0 / 120" VerticalAlignment="Center" Margin="8,0,16,0"
+                <!-- The Dopesheet: DopesheetCanvas overlays FrameScrubber (same Width, so
+                     a keyframe's own pixel X position always lines up with the frame it
+                     represents), drawing one small diamond marker per keyframe on the
+                     currently selected node's own AnimationTrack - see RefreshDopesheet's
+                     own remarks. Left with a null Background (WPF only hit-tests a
+                     Panel's own drawn CHILDREN, never its transparent background - see
+                     RefreshDopesheet's own remarks), so an ordinary scrub click anywhere
+                     that ISN'T exactly on a marker still reaches FrameScrubber underneath
+                     unimpeded; only a marker itself (an actual drawn Polygon) intercepts
+                     a click, for CreateKeyframeMarker's own select/drag/retime
+                     handlers. -->
+                <Grid Width="280" Margin="0,0,8,0">
+                    <Slider x:Name="FrameScrubber" Minimum="0" VerticalAlignment="Center"
+                            ValueChanged="FrameScrubber_ValueChanged" />
+                    <Canvas x:Name="DopesheetCanvas" Height="10" VerticalAlignment="Bottom" />
+                </Grid>
+                <TextBlock x:Name="FrameLabel" Text="0 / 120" VerticalAlignment="Center" Margin="0,0,16,0"
                            Foreground="{StaticResource TextSecondaryBrush}" MinWidth="60" />
 
                 <TextBlock Text="FPS:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" />
                 <TextBox x:Name="FpsTextBox" Width="50" Text="24" TextChanged="FpsTextBox_TextChanged" />
+
+                <!-- Dopesheet's own "Delete" - removes whichever keyframe marker was
+                     last clicked (see CreateKeyframeMarker's own MouseLeftButtonDown
+                     handler); disabled with nothing currently selected. -->
+                <Button x:Name="DeleteKeyframeButton" Content="Delete Key" IsEnabled="False"
+                        Padding="8,2" Margin="16,0,0,0" Click="DeleteKeyframeButton_Click" />
             </StackPanel>
         </Border>
 

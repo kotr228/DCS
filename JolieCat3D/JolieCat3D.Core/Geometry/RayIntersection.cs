@@ -52,6 +52,44 @@ namespace JolieCat3D.Core.Geometry
             return distance > epsilon ? distance : null;
         }
 
+        /// <summary>The exact same Moller-Trumbore test as <see cref="IntersectTriangle"/> -
+        /// same hit/miss result, same distance - but ALSO returning the hit's own
+        /// barycentric (U, V) coordinates (the standard convention: the hit point equals
+        /// <c>a + U*(b-a) + V*(c-a)</c>, so W - the weight on corner <c>a</c> itself -
+        /// is implicitly <c>1-U-V</c>), which <see cref="IntersectTriangle"/> itself
+        /// already computes internally but never hands back. <c>Engine.Editing.TexturePaintSession</c>'s
+        /// own 3D-to-2D UV raycasting needs exactly this: which point WITHIN the hit
+        /// triangle it landed on, not merely how far along the ray, so it can interpolate
+        /// that triangle's own 3 vertex UVs the identical way (<c>uvA + U*(uvB-uvA) +
+        /// V*(uvC-uvA)</c>) rather than snapping to the nearest whole vertex's UV.
+        /// A second, separate method (not <see cref="IntersectTriangle"/> itself returning
+        /// a richer tuple) purely so every EXISTING caller of that one - which only ever
+        /// wanted the plain distance - keeps compiling completely unchanged.</summary>
+        public static (float Distance, float U, float V)? IntersectTriangleBarycentric(Ray ray, Vector3 a, Vector3 b, Vector3 c)
+        {
+            const float epsilon = 1e-6f;
+
+            var edge1 = b - a;
+            var edge2 = c - a;
+            var pvec = Vector3.Cross(ray.Direction, edge2);
+            var determinant = Vector3.Dot(edge1, pvec);
+
+            if (MathF.Abs(determinant) < epsilon) return null;
+
+            var inverseDeterminant = 1f / determinant;
+            var originToA = ray.Origin - a;
+
+            var u = Vector3.Dot(originToA, pvec) * inverseDeterminant;
+            if (u < 0f || u > 1f) return null;
+
+            var qvec = Vector3.Cross(originToA, edge1);
+            var v = Vector3.Dot(ray.Direction, qvec) * inverseDeterminant;
+            if (v < 0f || u + v > 1f) return null;
+
+            var distance = Vector3.Dot(edge2, qvec) * inverseDeterminant;
+            return distance > epsilon ? (distance, u, v) : null;
+        }
+
         /// <summary>How close <paramref name="ray"/> passes to <paramref name="point"/> -
         /// <see cref="PerpendicularDistance"/> (the actual "how many world units off the
         /// ray is this vertex" a caller thresholds against) plus

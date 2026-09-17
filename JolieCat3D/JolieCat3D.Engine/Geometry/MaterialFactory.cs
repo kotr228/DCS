@@ -7,6 +7,7 @@ using JolieCat3D.Core.Caching;
 using JolieCat3D.Engine.Rendering;
 using CoreColor4 = JolieCat3D.Core.Numerics.Color4;
 using CoreMaterial = JolieCat3D.Core.Materials.Material;
+using CoreTextureBuffer = JolieCat3D.Core.Materials.TextureBuffer;
 
 namespace JolieCat3D.Engine.Geometry
 {
@@ -292,6 +293,41 @@ namespace JolieCat3D.Engine.Geometry
         /// not a reason to crash.</summary>
         private static Brush CreateDiffuseBrush(CoreMaterial material)
         {
+            // Texture Paint mode's own live-edited buffer takes priority over a plain
+            // file path entirely - see CoreMaterial.PaintedTextureBuffer's own remarks.
+            // Rebuilt fresh from the buffer's CURRENT pixels on every call (never cached/
+            // patched in place) - the same "rebuild, don't try to patch in place"
+            // approach every other per-frame visual in this project already uses (see
+            // Lighting.SceneLightingFactory.CreateSceneLights's own remarks), so a brush
+            // stroke shows up the instant the next Scene3DRenderer.Refresh() rebuilds
+            // this material.
+            if (material.PaintedTextureBuffer is { } paintedBuffer)
+            {
+                try
+                {
+                    var bitmap = CreateBitmapFromBuffer(paintedBuffer);
+                    var offset = material.DiffuseTextureOffset;
+                    var scale = material.DiffuseTextureScale;
+
+                    var paintedBrush = new ImageBrush(bitmap)
+                    {
+                        Viewbox = new Rect(offset.X, offset.Y, scale.X, scale.Y),
+                        ViewboxUnits = BrushMappingMode.RelativeToBoundingBox,
+                        TileMode = TileMode.None,
+                        Stretch = Stretch.Fill,
+                        Opacity = Clamp01(material.Opacity),
+                    };
+                    paintedBrush.Freeze();
+                    return paintedBrush;
+                }
+                catch (Exception)
+                {
+                    // Falls through to the file/flat-color path below - same "never let
+                    // a broken render input crash the scene" reasoning this method's own
+                    // file-loading branch already follows.
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(material.DiffuseTexturePath) && File.Exists(material.DiffuseTexturePath))
             {
                 try
@@ -334,6 +370,38 @@ namespace JolieCat3D.Engine.Geometry
             }
 
             return new SolidColorBrush(ToWpfColor(material.DiffuseColor, material.Opacity));
+        }
+
+        /// <summary>Converts <paramref name="buffer"/>'s own plain <c>Color4</c> pixel
+        /// array into a real, renderable WPF <see cref="BitmapSource"/> - a frozen
+        /// <see cref="WriteableBitmap"/> (frozen since this is a one-shot conversion, not
+        /// something written to again in place - see <see cref="CreateDiffuseBrush"/>'s
+        /// own "rebuild, don't patch" remarks) in <see cref="PixelFormats.Bgra32"/>, the
+        /// same byte order (<c>[B, G, R, A]</c> per pixel) <see cref="SampleAverageMetallicRoughness"/>'s
+        /// own remarks already establish elsewhere in this file. <paramref name="buffer"/>'s
+        /// own row 0 = top-row convention (see <see cref="CoreTextureBuffer"/>'s own
+        /// remarks) matches <see cref="WriteableBitmap"/>'s identically, so no row
+        /// flip is needed here at all.</summary>
+        private static BitmapSource CreateBitmapFromBuffer(CoreTextureBuffer buffer)
+        {
+            var bitmap = new WriteableBitmap(buffer.Width, buffer.Height, 96, 96, PixelFormats.Bgra32, null);
+            var stride = buffer.Width * 4;
+            var bytes = new byte[stride * buffer.Height];
+            var pixels = buffer.Pixels;
+
+            for (var i = 0; i < pixels.Count; i++)
+            {
+                var color = pixels[i];
+                var offset = i * 4;
+                bytes[offset] = (byte)(Clamp01(color.B) * 255f);
+                bytes[offset + 1] = (byte)(Clamp01(color.G) * 255f);
+                bytes[offset + 2] = (byte)(Clamp01(color.R) * 255f);
+                bytes[offset + 3] = (byte)(Clamp01(color.A) * 255f);
+            }
+
+            bitmap.WritePixels(new Int32Rect(0, 0, buffer.Width, buffer.Height), bytes, stride, 0);
+            bitmap.Freeze();
+            return bitmap;
         }
 
         private static Color ToWpfColor(CoreColor4 color, float opacity) => Color.FromScRgb(

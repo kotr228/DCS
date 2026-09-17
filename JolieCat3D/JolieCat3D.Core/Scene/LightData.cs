@@ -1,3 +1,4 @@
+using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Numerics;
 
 namespace JolieCat3D.Core.Scene
@@ -39,6 +40,17 @@ namespace JolieCat3D.Core.Scene
         /// <summary>The full cone angle (in degrees) of a <see cref="LightType.Spot"/>
         /// light - meaningless for <see cref="LightType.Directional"/>/<see cref="LightType.Point"/>.</summary>
         public float SpotAngle { get; set; } = 45f;
+
+        /// <summary>This light's own small proxy sphere - the exact same "needs SOME
+        /// mesh just to be visible/selectable in THIS app's own viewport" reason
+        /// <see cref="BoneData.GenerateMesh"/>'s octahedron exists (see
+        /// <c>Service.Export.GltfExporter.BuildNode</c>'s own remarks on why this is
+        /// deliberately skipped at export time, exactly like a bone's own). One fixed
+        /// small size/shape regardless of <see cref="Type"/> - a real per-type icon
+        /// (a distinct "sun" shape for <see cref="LightType.Directional"/>, a cone
+        /// silhouette for <see cref="LightType.Spot"/>, ...) is a real, disclosed
+        /// simplification left for later polish, not attempted here.</summary>
+        public Mesh GenerateMesh() => Primitives.CreateSphere(0.15f, 6, 8, "LightIcon");
 
         /// <summary>A complete, independent copy - every property is a plain value type
         /// (see <see cref="CameraData.Clone"/>'s own matching remarks). Used by

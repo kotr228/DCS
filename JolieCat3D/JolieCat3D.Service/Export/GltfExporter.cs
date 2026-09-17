@@ -129,6 +129,15 @@ namespace JolieCat3D.Service.Export
         /// hierarchy, and any animation track on it) still exports completely normally -
         /// only its own <see cref="Node.Mesh"/> attachment is skipped.
         ///
+        /// A LIGHT node's own auto-generated visualization mesh (<see cref="LightData.GenerateMesh"/>'s
+        /// small icon sphere - the exact same "needs SOME mesh just to be visible/
+        /// selectable in THIS app's own viewport" reason a bone's octahedron exists) is
+        /// skipped for the identical reason: <paramref name="node"/> already exports as
+        /// a genuine glTF light (line below, via <see cref="BuildLight"/>/<c>KHR_lights_punctual</c>),
+        /// so a real engine/DCC tool importing this file gets a proper light, not one
+        /// ALSO cluttered with a floating debug-sphere mesh riding along on the exact
+        /// same node.
+        ///
         /// A node whose <see cref="Node.SkinBinding"/> is set does NOT get its mesh
         /// attached here at all (see <paramref name="pendingSkins"/>'s own remarks in
         /// <see cref="Export"/>) - it still evaluates its own <see cref="Node.Modifiers"/>
@@ -160,7 +169,7 @@ namespace JolieCat3D.Service.Export
             nodeBuilders[node] = builder;
             sceneBuilder.AddNode(builder);
 
-            if (node.Bone is null && node.Mesh is { } mesh && mesh.Vertices.Count > 0)
+            if (node.Bone is null && node.Light is null && node.Mesh is { } mesh && mesh.Vertices.Count > 0)
             {
                 var evaluatedMesh = ModifierStack.Evaluate(mesh, node.Modifiers, node);
 

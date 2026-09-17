@@ -229,6 +229,16 @@ namespace JolieCat3D.Engine.Rendering
         /// normal geometry path exactly like any other Edit Mode change.</summary>
         public SculptSession SculptSession { get; } = new();
 
+        /// <summary>Texture Paint mode's own per-target state (see <see cref="EnterTexturePaintMode"/>/
+        /// <see cref="ExitTexturePaintMode"/>) - always exists (never null itself), with
+        /// <see cref="TexturePaintSession.Target"/> null whenever Texture Paint mode
+        /// isn't active. Needs no render-time overlay of its own (like
+        /// <see cref="VertexPaintSession"/>) - a texture-painted material renders through
+        /// this node's own normal material path (<see cref="Geometry.MaterialFactory.CreateDiffuseBrush"/>)
+        /// the instant the brush touches its <see cref="Core.Materials.Material.PaintedTextureBuffer"/>,
+        /// whether or not this mode is even still active.</summary>
+        public TexturePaintSession TexturePaintSession { get; } = new();
+
         /// <summary>Whether the viewport is currently locked onto - and pilotable through -
         /// <see cref="CoreScene.ActiveCamera"/>. See <see cref="EnterActiveCameraView"/>/
         /// <see cref="ExitActiveCameraView"/>, the "View > Active Camera" toggle's own
@@ -726,6 +736,32 @@ namespace JolieCat3D.Engine.Rendering
         public void ExitSculptMode()
         {
             SculptSession.Attach(null);
+            Refresh();
+        }
+
+        /// <summary>Switches <see cref="TexturePaintSession"/> onto <paramref name="node"/>
+        /// and immediately installs its own paintable <see cref="Core.Materials.Material.PaintedTextureBuffer"/>
+        /// (see <see cref="TexturePaintSession.EnsureTextureBuffer"/>) - <c>JolieCat3D.UI</c>'s
+        /// cue that Texture Paint mode is now active for this node. Re-renders so a
+        /// material that had no <see cref="Core.Materials.Material.DiffuseTexturePath"/>
+        /// at all (and therefore rendered as a flat color a moment ago) immediately shows
+        /// its own brand new blank canvas instead, exactly like every other "the buffer
+        /// just changed" render-time refresh in this project.</summary>
+        public void EnterTexturePaintMode(CoreNode node)
+        {
+            ArgumentNullException.ThrowIfNull(node);
+            TexturePaintSession.Attach(node);
+            TexturePaintSession.EnsureTextureBuffer();
+            Refresh();
+        }
+
+        /// <summary>Detaches <see cref="TexturePaintSession"/> - <c>JolieCat3D.UI</c>'s
+        /// cue to switch back to Object Mode. Whatever was painted stays painted (and
+        /// stays rendered) either way - only the brush's own ACTIVE target is
+        /// cleared.</summary>
+        public void ExitTexturePaintMode()
+        {
+            TexturePaintSession.Attach(null);
             Refresh();
         }
 

@@ -121,6 +121,22 @@ namespace JolieCat3D.Core.Materials
         /// pipeline to sample it in.</summary>
         public string? MetallicRoughnessTexturePath { get; set; }
 
+        /// <summary>Texture Paint mode's own live, brushable OVERRIDE of this material's
+        /// rendered diffuse texture - null (the default, every material before this
+        /// feature existed) means "render <see cref="DiffuseTexturePath"/>/<see cref="DiffuseColor"/>
+        /// exactly as always". Once set (by <c>Engine.Editing.TexturePaintSession</c>'s
+        /// own <c>EnsureTextureBuffer</c>, the first time Texture Paint mode actually
+        /// touches this material), it takes over ENTIRELY in place of
+        /// <see cref="DiffuseTexturePath"/> for rendering (see
+        /// <c>Engine.Geometry.MaterialFactory.CreateDiffuseBrush</c>'s own remarks) -
+        /// the same "present means instead-of, not blended-with" precedent
+        /// <see cref="DiffuseTexturePath"/> itself already set for <see cref="DiffuseColor"/>.
+        /// <see cref="DiffuseTexturePath"/> itself is left completely untouched (still
+        /// whatever file, if any, this buffer was originally decoded FROM) - painting
+        /// mutates this in-memory buffer only; nothing here writes the result back out
+        /// to disk on its own.</summary>
+        public TextureBuffer? PaintedTextureBuffer { get; set; }
+
         public Material(string name = "Material") => Name = name;
 
         /// <summary>A flat, unlit-looking default - a plain mid-gray diffuse with no
