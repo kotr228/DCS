@@ -27,6 +27,7 @@
             <RowDefinition Height="Auto" /> <!-- Camera precision toolbar -->
             <RowDefinition Height="*" />    <!-- Outliner | Viewport | Properties -->
             <RowDefinition Height="Auto" /> <!-- Animation playback transport -->
+            <RowDefinition Height="Auto" /> <!-- Status bar (Live Sync indicator) -->
         </Grid.RowDefinitions>
 
         <!-- ================= File Menu ================= -->
@@ -281,7 +282,26 @@
                      hardware-accelerated 3D path does not anti-alias at all) - see
                      Engine.Rendering.Scene3DRenderer.AntiAliasingEnabled's own remarks. -->
                 <CheckBox x:Name="AntiAliasingCheckBox" Content="Anti-Aliasing" IsChecked="True" VerticalAlignment="Center"
-                          Checked="AntiAliasingCheckBox_Changed" Unchecked="AntiAliasingCheckBox_Changed" />
+                          Margin="0,0,10,0" Checked="AntiAliasingCheckBox_Changed" Unchecked="AntiAliasingCheckBox_Changed" />
+
+                <!-- SSAO: darkening decals along every mesh's own concave (crease/
+                     corner) edges - see Engine.Rendering.AmbientOcclusionVisualFactory's
+                     own remarks on why this geometric approximation, not a real
+                     per-pixel Screen Space Ambient Occlusion pass, is what "SSAO" means
+                     in this project's fixed-function WPF pipeline (which has no
+                     screen-space depth/normal buffer anywhere for a real one to sample). -->
+                <CheckBox x:Name="SsaoCheckBox" Content="SSAO" IsChecked="True" VerticalAlignment="Center"
+                          Margin="0,0,10,0" Checked="SsaoCheckBox_Changed" Unchecked="SsaoCheckBox_Changed" />
+
+                <!-- Bloom - see BloomOverlayRectangle's own remarks (a blurred re-paint
+                     of the viewport layered on top, at low opacity) and
+                     MainWindow.xaml.cs's own BloomCheckBox_Changed. Off by default -
+                     unlike Shadows/AA/SSAO, this blurs the WHOLE scene (no per-pixel
+                     brightness threshold is possible without a custom pixel shader), so
+                     it's a much more visually aggressive look a user opts INTO rather
+                     than one already-subtle enough to enable unconditionally. -->
+                <CheckBox x:Name="BloomCheckBox" Content="Bloom" VerticalAlignment="Center"
+                          Checked="BloomCheckBox_Changed" Unchecked="BloomCheckBox_Changed" />
             </StackPanel>
         </Border>
 
@@ -341,6 +361,23 @@
             <h:HelixViewport3D x:Name="Viewport" Grid.Column="2"
                                ShowCoordinateSystem="True"
                                MouseLeftButtonDown="Viewport_MouseLeftButtonDown" />
+
+            <!-- Bloom - see MainWindow.xaml.cs's own BloomCheckBox_Changed remarks on
+                 why a blurred VisualBrush re-paint of the SAME viewport, layered on top
+                 at low opacity, is what "Bloom" means in a pipeline with no programmable
+                 pixel shader (and therefore no real bright-pass threshold filter) at
+                 all. IsHitTestVisible="False" so it never steals a click meant for the
+                 real viewport underneath it (Viewport_MouseLeftButtonDown, a gizmo drag,
+                 ...) - purely a visual overlay, Collapsed (off) by default. -->
+            <Rectangle x:Name="BloomOverlayRectangle" Grid.Column="2" IsHitTestVisible="False"
+                       Visibility="Collapsed" Opacity="0.35">
+                <Rectangle.Fill>
+                    <VisualBrush Visual="{Binding ElementName=Viewport}" Stretch="None" />
+                </Rectangle.Fill>
+                <Rectangle.Effect>
+                    <BlurEffect x:Name="BloomBlurEffect" Radius="14" />
+                </Rectangle.Effect>
+            </Rectangle>
 
             <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch" />
 
@@ -496,6 +533,13 @@
                                     <Button Content="Box" Margin="0,0,4,0" Padding="8,4" Click="BoxProjectionButton_Click" />
                                     <Button Content="Spherical" Padding="8,4" Click="SphericalProjectionButton_Click" />
                                 </StackPanel>
+
+                                <!-- Opens JolieCat3D.UI.UVVisualizerWindow - a non-modal
+                                     "leave it open while you paint in JolieCat 2D" tool
+                                     window showing this mesh's own UV wireframe over its
+                                     currently-loaded diffuse texture. -->
+                                <Button Content="View UV Map..." Margin="8,0,8,8" Padding="8,4"
+                                        HorizontalAlignment="Left" Click="ViewUVMapButton_Click" />
                             </StackPanel>
 
                             <!-- Modifiers - a non-destructive stack evaluated at render
@@ -674,6 +718,24 @@
 
                 <TextBlock Text="FPS:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" />
                 <TextBox x:Name="FpsTextBox" Width="50" Text="24" TextChanged="FpsTextBox_TextChanged" />
+            </StackPanel>
+        </Border>
+
+        <!-- ================= Status Bar (Live Sync) ================= -->
+        <!-- The JolieCat 2D workspace bridge's own connection status - see
+             MainWindow.xaml.cs's own RefreshLiveSyncStatus/JolieWorkspaceWatcher. The
+             dot is ActiveIndicatorBrush (green) while a watch is running, BorderBrush
+             (dim/off) otherwise - the same "gold = active" convention this window's own
+             GizmoModeButtonStyle already uses, just for a status light instead of a
+             toggle button. -->
+        <Border Grid.Row="7" Background="{StaticResource PanelAltBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal" Margin="8,4">
+                <Ellipse x:Name="LiveSyncIndicatorEllipse" Width="10" Height="10" Margin="0,0,6,0"
+                         VerticalAlignment="Center" Fill="{StaticResource BorderBrush}" />
+                <TextBlock x:Name="LiveSyncStatusText" Text="Live Sync: Off" VerticalAlignment="Center"
+                           Margin="0,0,10,0" Foreground="{StaticResource TextSecondaryBrush}" />
+                <Button x:Name="LiveSyncToggleButton" Content="Watch..." Padding="10,2" Click="LiveSyncToggleButton_Click" />
             </StackPanel>
         </Border>
     </Grid>

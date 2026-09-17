@@ -52,6 +52,7 @@ namespace JolieCat3D.Engine.Rendering
         private Visual3D? _skyboxVisual;
         private Visual3D? _gridVisual;
         private Visual3D? _shadowVisual;
+        private Visual3D? _ambientOcclusionVisual;
         private ShadingMode _shadingMode = ShadingMode.Rendered;
         private CoreScene? _lastScene;
         private bool _isAttached;
@@ -116,6 +117,26 @@ namespace JolieCat3D.Engine.Rendering
             }
         }
         private bool _showShadows = true;
+
+        /// <summary>Whether <see cref="Render"/>/<see cref="Refresh"/> draw darkening
+        /// decals along every mesh's own concave (crease/corner) edges - this project's
+        /// own "SSAO" (see <see cref="AmbientOcclusionVisualFactory"/>'s own remarks on
+        /// why a real, per-pixel Screen Space Ambient Occlusion pass is not one of the
+        /// things this fixed-function WPF pipeline can build, and what this computes
+        /// instead). On by default; setting this re-renders immediately, the same
+        /// "setting a display option also applies it" shape <see cref="ShowShadows"/>
+        /// already uses.</summary>
+        public bool ShowAmbientOcclusion
+        {
+            get => _showAmbientOcclusion;
+            set
+            {
+                if (_showAmbientOcclusion == value) return;
+                _showAmbientOcclusion = value;
+                Refresh();
+            }
+        }
+        private bool _showAmbientOcclusion = true;
 
         /// <summary>Whether the viewport's own 3D content renders anti-aliased. WPF's
         /// classic <see cref="System.Windows.Controls.Viewport3D"/> pipeline (Direct3D9
@@ -303,6 +324,7 @@ namespace JolieCat3D.Engine.Rendering
 
             _sceneLightingVisual.Content = SceneLightingFactory.CreateSceneLights(scene);
             RefreshShadowVisual(ShadingMode == ShadingMode.Wireframe ? null : scene);
+            RefreshAmbientOcclusionVisual(ShadingMode == ShadingMode.Wireframe ? null : scene);
 
             if (IsPilotingActiveCamera)
             {
@@ -536,6 +558,21 @@ namespace JolieCat3D.Engine.Rendering
 
             _shadowVisual = new ModelVisual3D { Content = shadowModel };
             _viewport.Children.Add(_shadowVisual);
+        }
+
+        /// <summary>Rebuilds (or removes, for <see cref="ShowAmbientOcclusion"/> off, a
+        /// null <paramref name="scene"/>, or a scene with nothing concave anywhere) the
+        /// ambient-occlusion decal visual - see <see cref="AmbientOcclusionVisualFactory"/>.</summary>
+        private void RefreshAmbientOcclusionVisual(CoreScene? scene)
+        {
+            if (_ambientOcclusionVisual is not null) _viewport.Children.Remove(_ambientOcclusionVisual);
+            _ambientOcclusionVisual = null;
+
+            if (!ShowAmbientOcclusion || scene is null) return;
+            if (AmbientOcclusionVisualFactory.CreateOcclusionDecals(scene) is not { } occlusionModel) return;
+
+            _ambientOcclusionVisual = new ModelVisual3D { Content = occlusionModel };
+            _viewport.Children.Add(_ambientOcclusionVisual);
         }
 
         /// <summary>Rebuilds (or removes, for <see cref="ShowGrid"/> off) the ground-plane

@@ -1,0 +1,37 @@
+<Window x:Class="JolieCat3D.UI.UVVisualizerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        mc:Ignorable="d"
+        Title="UV Map Visualizer" Height="580" Width="560" MinHeight="300" MinWidth="300">
+
+    <!-- A dedicated (non-modal) tool window - see MainWindow.xaml.cs's own
+         ViewUVMapButton_Click - so a user can keep it open alongside the 3D viewport
+         while painting the corresponding texture in the 2D JolieCat app, the same
+         "reference window you leave open" role a real UV editor's own preview
+         panel plays. -->
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="SummaryText" Grid.Row="0" Margin="0,0,0,8"
+                   Foreground="{StaticResource TextSecondaryBrush}" />
+
+        <!-- The wireframe is drawn once, at a FIXED 512x512 logical size (see
+             MainWindow.xaml.cs's own UVVisualizerWindow constructor) - Viewbox scales
+             that whole fixed-size Grid uniformly to fill however large this window's
+             own content area actually is, so resizing the window never requires
+             recomputing a single line's own coordinates. -->
+        <Border Grid.Row="1" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="Black">
+            <Viewbox Stretch="Uniform">
+                <Grid Width="512" Height="512">
+                    <Image x:Name="TextureImage" Stretch="Fill" />
+                    <Canvas x:Name="UVCanvas" Width="512" Height="512" />
+                </Grid>
+            </Viewbox>
+        </Border>
+    </Grid>
+</Window>

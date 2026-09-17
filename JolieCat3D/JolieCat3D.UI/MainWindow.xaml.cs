@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using JolieCat3D.Core.Camera;
 using JolieCat3D.Core.Geometry;
@@ -229,6 +230,7 @@ namespace JolieCat3D.UI
 
             LoadScene(BuildDemoScene(), filePath: null);
             RefreshAnimationUI();
+            RefreshLiveSyncStatus();
 
             // Only past this point is every field this window's own event handlers touch
             // actually assigned - see _isInitialized's own remarks.
@@ -598,6 +600,24 @@ namespace JolieCat3D.UI
         {
             if (!_isInitialized) return;
             _renderer.AntiAliasingEnabled = AntiAliasingCheckBox.IsChecked == true;
+        }
+
+        /// <summary>The Camera toolbar's "SSAO" checkbox - <see cref="Scene3DRenderer.ShowAmbientOcclusion"/>.</summary>
+        private void SsaoCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _renderer.ShowAmbientOcclusion = SsaoCheckBox.IsChecked == true;
+        }
+
+        /// <summary>The Camera toolbar's "Bloom" checkbox - shows/hides
+        /// <see cref="BloomOverlayRectangle"/> (see its own XAML remarks). Nothing here
+        /// touches <see cref="Scene3DRenderer"/> at all: Bloom, unlike Shadows/SSAO/
+        /// Anti-Aliasing, is a pure 2D compositing effect layered OVER the already-
+        /// rendered viewport, not anything added to the 3D scene itself.</summary>
+        private void BloomCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            BloomOverlayRectangle.Visibility = BloomCheckBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         }
 
         /// <summary>The Camera toolbar's grid size field - keeps the reference grid
@@ -1825,6 +1845,22 @@ namespace JolieCat3D.UI
             _renderer.Refresh();
         }
 
+        /// <summary>The Material Inspector's "View UV Map..." button - opens a fresh,
+        /// non-modal <see cref="UVVisualizerWindow"/> (see its own remarks) for the
+        /// selected node's current mesh/diffuse texture. Owned by this window so it
+        /// minimizes/closes together with it, but otherwise doesn't block interacting
+        /// with the main viewport at all. A no-op for a node with no mesh (nothing to
+        /// show UVs for).</summary>
+        private void ViewUVMapButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
+            if (nodeViewModel.UnderlyingNode.Mesh is not { } mesh) return;
+
+            var window = new UVVisualizerWindow(mesh, mesh.Material?.DiffuseTexturePath, nodeViewModel.Name) { Owner = this };
+            window.Show();
+        }
+
         /// <summary>Where extracted <c>.jolie</c> layer textures are cached - a
         /// subfolder of the temp directory, not the project file's own folder (which
         /// may not even be writable, or may be a location JolieCat 2D itself watches).</summary>
@@ -1872,7 +1908,56 @@ namespace JolieCat3D.UI
                 _workspaceWatcher = watcher;
 
                 Title = $"JolieCat3D - {(_currentFilePath is null ? "Untitled" : Path.GetFileName(_currentFilePath))} [watching {dialog.FolderName}]";
+                RefreshLiveSyncStatus();
             });
+        }
+
+        /// <summary>The Status Bar's "Watch.../Stop" button - the same
+        /// <see cref="WatchWorkspaceMenuItem_Click"/> folder-picker flow while nothing is
+        /// currently watched, or <see cref="StopWatchingWorkspace"/> to end an active one -
+        /// a single button doing whichever of the two currently makes sense, the same
+        /// "one control, current state decides which action it performs" shape a
+        /// Play/Pause transport button already uses in this window.</summary>
+        private void LiveSyncToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            if (_workspaceWatcher is not null) StopWatchingWorkspace();
+            else WatchWorkspaceMenuItem_Click(sender, e);
+        }
+
+        /// <summary>Ends the current <see cref="JolieWorkspaceWatcher"/> (if any) - a
+        /// no-op if nothing is currently being watched. <see cref="_textureSources"/> is
+        /// deliberately left untouched: stopping Live Sync only stops AUTOMATIC reloads
+        /// going forward, it doesn't forget which file each node's texture came from (a
+        /// later "Watch..." on the same folder should resume tracking exactly where it
+        /// left off).</summary>
+        private void StopWatchingWorkspace()
+        {
+            if (_workspaceWatcher is null) return;
+
+            _workspaceWatcher.Dispose();
+            _workspaceWatcher = null;
+
+            Title = $"JolieCat3D - {(_currentFilePath is null ? "Untitled" : Path.GetFileName(_currentFilePath))}";
+            RefreshLiveSyncStatus();
+        }
+
+        /// <summary>Syncs the Status Bar's own Live Sync indicator (the colored dot,
+        /// status text, and the Watch.../Stop button's own label) with whether
+        /// <see cref="_workspaceWatcher"/> is currently set - called after anything
+        /// changes it (starting a watch, stopping one).</summary>
+        private void RefreshLiveSyncStatus()
+        {
+            var isWatching = _workspaceWatcher is not null;
+
+            LiveSyncIndicatorEllipse.Fill = isWatching
+                ? (Brush)FindResource("ActiveIndicatorBrush")
+                : (Brush)FindResource("BorderBrush");
+            LiveSyncStatusText.Text = isWatching
+                ? $"Live Sync: watching {_workspaceWatcher!.WorkspacePath}"
+                : "Live Sync: Off";
+            LiveSyncToggleButton.Content = isWatching ? "Stop" : "Watch...";
         }
 
         /// <summary>Reloads every node whose currently-tracked texture source (see
