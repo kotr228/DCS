@@ -16,6 +16,16 @@ namespace JolieCat3D.Core.Geometry
 
         public IReadOnlyList<int> Indices => _indices;
 
+        /// <summary>Which of the owning <see cref="Mesh.MaterialSlots"/> this one
+        /// polygon should render with - -1 (the default, matching every polygon authored
+        /// before Multi-Material Support existed) means "no override, use the mesh's own
+        /// plain <see cref="Mesh.Material"/>", exactly as if this property didn't exist
+        /// at all. Deliberately a plain mutable property, not something only a
+        /// constructor sets - assigning a material to a face selection (see
+        /// <c>Engine.Editing.MeshEditSession.AssignMaterialSlotToSelectedFace</c>) is a
+        /// live in-place edit to an EXISTING polygon, not a brand new one.</summary>
+        public int MaterialSlotIndex { get; set; } = -1;
+
         public Polygon(IEnumerable<int> indices)
         {
             ArgumentNullException.ThrowIfNull(indices);

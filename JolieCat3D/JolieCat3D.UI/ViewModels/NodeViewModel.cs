@@ -58,6 +58,7 @@ namespace JolieCat3D.UI.ViewModels
             _allNodesProvider = allNodesProvider ?? throw new ArgumentNullException(nameof(allNodesProvider));
             SyncFromCore();
             RefreshModifiers();
+            RefreshMaterialSlots();
         }
 
         public string Name
@@ -506,6 +507,49 @@ namespace JolieCat3D.UI.ViewModels
             if (!_node.Modifiers.Remove(modifier.Underlying)) return;
 
             RefreshModifiers();
+            _onChanged();
+        }
+
+        /// <summary>Mirrors <see cref="Node.Mesh"/>'s own <see cref="Core.Geometry.Mesh.MaterialSlots"/>
+        /// as view models, one per entry, in the same order - Multi-Material Support's
+        /// own "Material Slots" list the Material Inspector's <c>ItemsControl</c> binds
+        /// to. Rebuilt wholesale by <see cref="RefreshMaterialSlots"/>, the same
+        /// "rebuilt, not incrementally patched" convention <see cref="Modifiers"/>
+        /// already uses.</summary>
+        public ObservableCollection<MaterialSlotViewModel> MaterialSlots { get; } = new();
+
+        private void RefreshMaterialSlots()
+        {
+            MaterialSlots.Clear();
+            if (_node.Mesh is not { } mesh) return;
+
+            for (var i = 0; i < mesh.MaterialSlots.Count; i++)
+                MaterialSlots.Add(new MaterialSlotViewModel(mesh, i, _onChanged));
+        }
+
+        /// <summary>Appends a new, default-appearance material slot to this node's own
+        /// mesh - the Material Inspector's "Add Slot" button. A no-op for a mesh-less
+        /// node (nothing to add a slot to).</summary>
+        public void AddMaterialSlot()
+        {
+            if (_node.Mesh is not { } mesh) return;
+
+            mesh.AddMaterialSlot(new Core.Materials.Material($"Slot {mesh.MaterialSlots.Count + 1}"));
+            RefreshMaterialSlots();
+            _onChanged();
+        }
+
+        /// <summary>Removes <paramref name="slot"/> (by its own <see cref="MaterialSlotViewModel.SlotIndex"/>)
+        /// from this node's own mesh - see <see cref="Core.Geometry.Mesh.RemoveMaterialSlot"/>'s
+        /// own remarks on what happens to any polygon that referenced it (or a LATER
+        /// slot). The Material Inspector's own per-row "Remove" button.</summary>
+        public void RemoveMaterialSlot(MaterialSlotViewModel slot)
+        {
+            ArgumentNullException.ThrowIfNull(slot);
+            if (_node.Mesh is not { } mesh) return;
+
+            mesh.RemoveMaterialSlot(slot.SlotIndex);
+            RefreshMaterialSlots();
             _onChanged();
         }
 

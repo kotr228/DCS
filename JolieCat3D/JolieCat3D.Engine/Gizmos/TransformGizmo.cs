@@ -174,6 +174,19 @@ namespace JolieCat3D.Engine.Gizmos
         /// up.</summary>
         public Func<IEnumerable<CoreNode>>? SceneNodes { get; set; }
 
+        /// <summary>"Affect Only: Origin" - off by default. While on, every
+        /// Translate/Rotate/Scale drag still writes to <see cref="Target"/>'s own
+        /// <see cref="CoreNode.LocalPosition"/>/<see cref="CoreNode.LocalRotation"/>/
+        /// <see cref="CoreNode.LocalScale"/> exactly as it always does (moving the
+        /// gizmo/pivot itself), but <see cref="CoreNode.CompensateMeshForOriginChange"/>
+        /// immediately bakes the inverse of that same change into the mesh's own
+        /// vertices too - so the OBJECT never visibly moves/rotates/rescales in the
+        /// viewport, only its own origin/pivot does. The standard "move the pivot to a
+        /// hinge/joint without disturbing the geometry already modeled around it"
+        /// professional-tool feature this project's own object-mode gizmo didn't have a
+        /// way to do at all before this existed.</summary>
+        public bool AffectOnlyOrigin { get; set; }
+
         /// <summary>The Translate drag gesture's own running total LOCAL-space offset
         /// since <see cref="Target"/>'s position at the moment the CURRENTLY-captured
         /// handle first grabbed the mouse - null whenever no Translate drag is in
@@ -574,6 +587,7 @@ namespace JolieCat3D.Engine.Gizmos
         {
             if (Target is not { } node) return;
 
+            var previousLocalTransform = AffectOnlyOrigin ? node.GetLocalTransform() : default;
             var worldDelta = worldAxis * (float)delta;
 
             Vector3 localDelta;
@@ -625,6 +639,7 @@ namespace JolieCat3D.Engine.Gizmos
                 node.LocalPosition += localDelta;
             }
 
+            if (AffectOnlyOrigin) node.CompensateMeshForOriginChange(previousLocalTransform);
             Refresh();
         }
 
@@ -715,6 +730,8 @@ namespace JolieCat3D.Engine.Gizmos
         {
             if (Target is not { } node) return;
 
+            var previousLocalTransform = AffectOnlyOrigin ? node.GetLocalTransform() : default;
+
             var deltaRotation = Quaternion.CreateFromAxisAngle(worldAxis, (float)delta);
             var parentWorldRotation = node.Parent?.GetWorldRotation() ?? Quaternion.Identity;
 
@@ -725,6 +742,8 @@ namespace JolieCat3D.Engine.Gizmos
             // newLocalRotation = inverse(parentWorldRotation) * newWorldRotation.
             var newLocalRotation = Quaternion.Inverse(parentWorldRotation) * deltaRotation * parentWorldRotation * node.LocalRotation;
             node.LocalRotation = Quaternion.Normalize(newLocalRotation);
+
+            if (AffectOnlyOrigin) node.CompensateMeshForOriginChange(previousLocalTransform);
             Refresh();
         }
 
@@ -739,6 +758,8 @@ namespace JolieCat3D.Engine.Gizmos
         {
             if (Target is not { } node) return;
 
+            var previousLocalTransform = AffectOnlyOrigin ? node.GetLocalTransform() : default;
+
             const float minimumScale = 0.01f;
             var change = worldAxis * (float)delta;
             var newScale = node.LocalScale + change;
@@ -748,6 +769,7 @@ namespace JolieCat3D.Engine.Gizmos
                 MathF.Max(minimumScale, newScale.Y),
                 MathF.Max(minimumScale, newScale.Z));
 
+            if (AffectOnlyOrigin) node.CompensateMeshForOriginChange(previousLocalTransform);
             Refresh();
         }
     }

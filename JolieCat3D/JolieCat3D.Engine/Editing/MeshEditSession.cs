@@ -355,5 +355,81 @@ namespace JolieCat3D.Engine.Editing
             Clear();
             return true;
         }
+
+        /// <summary>
+        /// Loop Cut's own selection-aware entry point - requires the current selection
+        /// to be EXACTLY one edge (two selected vertices - see <see cref="Mesh.LoopCut"/>'s
+        /// own remarks for what "edge" means there: it must belong to at least one
+        /// 4-sided <see cref="Polygon"/>), and replaces the selection with every new
+        /// vertex the cut just inserted (the whole freshly-created edge loop) -
+        /// immediately ready for a further drag, the same "leave the operation's own
+        /// result selected" convention <see cref="ExtrudeSelectedFace"/> already follows.
+        /// Returns false (a no-op, mesh untouched) with no <see cref="Target"/>, a
+        /// selection that isn't exactly 2 vertices, or an edge <see cref="Mesh.LoopCut"/>
+        /// itself couldn't cut (not part of any quad, or reaches a topology it doesn't
+        /// support).
+        /// </summary>
+        public bool LoopCutSelectedEdge()
+        {
+            if (Target?.Mesh is not { } mesh) return false;
+            if (_selectedVertexIndices.Count != 2) return false;
+
+            var edge = _selectedVertexIndices.ToArray();
+            var newPolygons = mesh.LoopCut(edge[0], edge[1]);
+            if (newPolygons.Count == 0) return false;
+
+            Clear();
+            foreach (var polygon in newPolygons)
+                foreach (var index in polygon.Indices)
+                    _selectedVertexIndices.Add(index);
+
+            return true;
+        }
+
+        /// <summary>
+        /// Bevel's own selection-aware entry point - requires the current selection to
+        /// be EXACTLY one vertex (see <see cref="Mesh.BevelVertex"/>'s own remarks for
+        /// exactly which vertices are supported: a closed, manifold fan of
+        /// <see cref="Polygon"/>s around it), and replaces the selection with the new
+        /// cap face's own vertices - same "leave the result selected" convention as
+        /// <see cref="LoopCutSelectedEdge"/>/<see cref="ExtrudeSelectedFace"/>. Returns
+        /// false (a no-op) with no <see cref="Target"/>, a selection that isn't exactly
+        /// 1 vertex, or a vertex <see cref="Mesh.BevelVertex"/> itself couldn't bevel.
+        /// </summary>
+        public bool BevelSelectedVertex(float amount)
+        {
+            if (Target?.Mesh is not { } mesh) return false;
+            if (_selectedVertexIndices.Count != 1) return false;
+
+            var vertexIndex = _selectedVertexIndices.Single();
+            var cap = mesh.BevelVertex(vertexIndex, amount);
+            if (cap is null) return false;
+
+            SelectFace(cap.Indices);
+            return true;
+        }
+
+        /// <summary>
+        /// Multi-Material Support's own "Assign to Selection" - finds the single
+        /// <see cref="Mesh.Polygons"/> entry that's currently fully selected (Face mode -
+        /// see <see cref="ExtrudeSelectedFace"/>'s own matching helper) and points its
+        /// own <see cref="Polygon.MaterialSlotIndex"/> at <paramref name="slotIndex"/>
+        /// (or resets it to -1/"use the mesh's own plain Material" for a negative
+        /// <paramref name="slotIndex"/>). Returns false (a no-op) with no
+        /// <see cref="Target"/>, or no single fully-selected <see cref="Polygon"/> found -
+        /// the exact same "a triangulated <see cref="Mesh.Faces"/> entry isn't itself a
+        /// <see cref="Polygon"/>" scope <see cref="ExtrudeSelectedFace"/> already
+        /// discloses.
+        /// </summary>
+        public bool AssignMaterialSlotToSelectedFace(int slotIndex)
+        {
+            if (Target?.Mesh is not { } mesh) return false;
+
+            var selectedPolygon = FindFullySelectedPolygon(mesh);
+            if (selectedPolygon is null) return false;
+
+            selectedPolygon.MaterialSlotIndex = slotIndex;
+            return true;
+        }
     }
 }

@@ -190,6 +190,61 @@ namespace JolieCat3D.Core.Scene
             return clone;
         }
 
+        /// <summary>Bakes the INVERSE of whatever just changed this node's own local
+        /// transform into <see cref="Mesh"/>'s own vertex positions - the actual math
+        /// behind "Affect Only: Origin" (<c>Engine.Gizmos.TransformGizmo.AffectOnlyOrigin</c>):
+        /// a caller that already moved/rotated/scaled this node (i.e. already changed
+        /// <see cref="LocalPosition"/>/<see cref="LocalRotation"/>/<see cref="LocalScale"/>
+        /// to something new) calls this immediately afterward, passing
+        /// <paramref name="previousLocalTransform"/> - this node's own
+        /// <see cref="GetLocalTransform"/> from just BEFORE that change - so the mesh's
+        /// own geometry re-lands at EXACTLY its old WORLD position/orientation despite
+        /// the node's own pivot having just moved: only the origin (where
+        /// <see cref="LocalPosition"/> itself sits, and which way
+        /// <see cref="LocalRotation"/> is currently facing) actually changes, never the
+        /// geometry's own appearance in the viewport - precisely the "move/rotate the
+        /// pivot without shifting the mesh" a hinge/joint needs.
+        ///
+        /// The math: with W = <paramref name="previousLocalTransform"/> and L = this
+        /// node's own CURRENT <see cref="GetLocalTransform"/> (already changed by the
+        /// caller), a vertex v needs a new position v' such that v' * L == v * W (both
+        /// sides then compose with this node's own unchanged <see cref="Parent"/> chain
+        /// identically, so preserving equality here preserves the FULL world transform
+        /// too) - solved as v' = v * W * inverse(L). A no-op (silently doing nothing) if
+        /// <see cref="Mesh"/> is null/empty, or if <paramref name="previousLocalTransform"/>
+        /// leaves <see cref="LocalScale"/> unchanged from before (nothing to compensate
+        /// for at all - cheaper than always re-deriving normals from scratch below for a
+        /// pure no-op tick), or if the CURRENT local transform has collapsed to a
+        /// non-invertible one (a scale component hitting exactly zero mid-drag) - bailing
+        /// out rather than corrupting every vertex into NaN.
+        ///
+        /// <see cref="Mesh.RecalculateNormals"/> afterward, not a per-vertex normal
+        /// transform of its own: this project's own <see cref="Mesh"/> has no
+        /// independent per-vertex authored-normal concept beyond what its own face
+        /// geometry implies (see <see cref="Mesh.RecalculateNormals"/>'s own remarks -
+        /// <see cref="Mesh.ExtrudeFace"/>/<see cref="Mesh.Subdivide"/>/<see cref="Mesh.RemoveVertices"/>
+        /// all already recompute normals the same way after a structural change), so
+        /// once every position has been rigidly carried along by the SAME v' formula
+        /// above, recomputing from the resulting (correctly repositioned) geometry
+        /// already gives the exact same answer a direct per-normal transform would - with
+        /// no separate inverse-transpose-of-the-linear-part correctness concern to get
+        /// right for <see cref="LocalScale"/> along the way.</summary>
+        public void CompensateMeshForOriginChange(Matrix4x4 previousLocalTransform)
+        {
+            if (Mesh is not { } mesh || mesh.Vertices.Count == 0) return;
+
+            var currentLocalTransform = GetLocalTransform();
+            if (previousLocalTransform == currentLocalTransform) return;
+            if (!Matrix4x4.Invert(currentLocalTransform, out var currentLocalTransformInverse)) return;
+
+            var delta = previousLocalTransform * currentLocalTransformInverse;
+
+            for (var i = 0; i < mesh.Vertices.Count; i++)
+                mesh.SetVertexPosition(i, Vector3.Transform(mesh.Vertices[i].Position, delta));
+
+            mesh.RecalculateNormals();
+        }
+
         public (Vector3 Min, Vector3 Max) GetWorldBounds()
         {
             var world = GetWorldTransform();

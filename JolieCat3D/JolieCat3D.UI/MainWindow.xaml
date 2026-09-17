@@ -153,7 +153,19 @@
                      MeshEditSession.DuplicateSelected). Also reachable via Ctrl+D from
                      anywhere in the window - see MainWindow_PreviewKeyDown. -->
                 <Button x:Name="DuplicateButton" Content="Duplicate"
-                        Margin="0,0,20,0" Padding="8,2" Click="DuplicateButton_Click" />
+                        Margin="0,0,4,0" Padding="8,2" Click="DuplicateButton_Click" />
+
+                <!-- Custom Pivot Points - Object Mode only (see EditorModeButton_Checked's
+                     own enablement toggle). While checked, a Translate/Rotate/Scale drag
+                     moves/rotates/rescales the SELECTED NODE'S OWN ORIGIN (its pivot)
+                     without visibly shifting its mesh geometry at all - the inverse of
+                     whatever just changed is baked straight into the mesh's own vertices
+                     (see Gizmos.TransformGizmo.AffectOnlyOrigin/Core.Scene.Node.CompensateMeshForOriginChange).
+                     The standard "move the pivot to a hinge/joint" professional-tool
+                     feature. -->
+                <CheckBox x:Name="AffectOnlyOriginCheckBox" Content="Affect Only: Origin" VerticalAlignment="Center"
+                          Margin="0,0,20,0" Checked="AffectOnlyOriginCheckBox_Changed" Unchecked="AffectOnlyOriginCheckBox_Changed"
+                          ToolTip="Move/rotate/scale the selected object's own pivot without shifting its mesh geometry" />
 
                 <TextBlock Text="Component:" VerticalAlignment="Center" Margin="0,0,10,0"
                            Foreground="{StaticResource TextSecondaryBrush}" />
@@ -189,6 +201,15 @@
                         Margin="16,0,4,0" Padding="8,2" Click="ExtrudeButton_Click" />
                 <Button x:Name="SubdivideButton" Content="Subdivide" IsEnabled="False"
                         Margin="0,0,4,0" Padding="8,2" Click="SubdivideButton_Click" />
+                <!-- Loop Cut needs exactly one selected EDGE (2 vertices) that's part of
+                     at least one quad (see Mesh.LoopCut's own remarks); Bevel needs
+                     exactly one selected VERTEX with a closed, manifold fan of
+                     surrounding faces (see Mesh.BevelVertex's own remarks) - both report
+                     back and do nothing if the current selection doesn't qualify. -->
+                <Button x:Name="LoopCutButton" Content="Loop Cut" IsEnabled="False"
+                        Margin="0,0,4,0" Padding="8,2" Click="LoopCutButton_Click" />
+                <Button x:Name="BevelButton" Content="Bevel" IsEnabled="False"
+                        Margin="0,0,4,0" Padding="8,2" Click="BevelButton_Click" />
                 <!-- Object Mode: deletes the selected node (and its whole subtree). Edit
                      Mode: deletes the selected vertices/edges/faces instead (a set of
                      vertex indices, whatever the current Vertex/Edge/Face component mode -
@@ -540,6 +561,31 @@
                                      currently-loaded diffuse texture. -->
                                 <Button Content="View UV Map..." Margin="8,0,8,8" Padding="8,4"
                                         HorizontalAlignment="Left" Click="ViewUVMapButton_Click" />
+
+                                <!-- Multi-Material Support: one Material per slot, beyond
+                                     the plain diffuse/roughness/metallic material above -
+                                     see Core.Geometry.Mesh.MaterialSlots/Polygon.MaterialSlotIndex.
+                                     "Assign to Selection" points whichever single fully-
+                                     selected Face (Edit Mode, Face component) at this row's
+                                     own slot; a face with no slot assigned at all keeps
+                                     rendering with the plain material above. -->
+                                <TextBlock Text="Material Slots" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                <ItemsControl ItemsSource="{Binding MaterialSlots}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                                <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         Width="90" Margin="0,0,4,0" />
+                                                <Button Content="Assign" Padding="6,2" Margin="0,0,4,0"
+                                                        Click="AssignMaterialSlotButton_Click"
+                                                        ToolTip="Assign the currently fully-selected face (Edit Mode, Face) to this slot" />
+                                                <Button Content="Remove" Padding="6,2" Click="RemoveMaterialSlotButton_Click" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Content="Add Slot" Margin="8,0,8,8" Padding="8,4"
+                                        HorizontalAlignment="Left" Click="AddMaterialSlotButton_Click" />
                             </StackPanel>
 
                             <!-- Modifiers - a non-destructive stack evaluated at render

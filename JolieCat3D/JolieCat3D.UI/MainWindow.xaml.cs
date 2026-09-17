@@ -1097,9 +1097,16 @@ namespace JolieCat3D.UI
             ProportionalRadiusSlider.IsEnabled = enteringEditMode;
             ExtrudeButton.IsEnabled = enteringEditMode;
             SubdivideButton.IsEnabled = enteringEditMode;
+            LoopCutButton.IsEnabled = enteringEditMode;
+            BevelButton.IsEnabled = enteringEditMode;
             // DeleteButton is deliberately NOT toggled here (unlike the others above) -
             // it means something in BOTH modes now (see DeleteSelected's own remarks),
             // so it stays enabled regardless of which one is active.
+
+            // Custom Pivot Points only makes sense in Object Mode (it moves a whole
+            // NODE'S own origin, not any per-vertex selection) - the exact opposite
+            // enablement from every Edit-Mode-only control above.
+            AffectOnlyOriginCheckBox.IsEnabled = !enteringEditMode;
 
             if (enteringEditMode)
             {
@@ -1287,6 +1294,95 @@ namespace JolieCat3D.UI
                 _renderer.Refresh();
                 _componentGizmo.Attach(session);
             });
+        }
+
+        /// <summary>The Edit Mode toolbar's "Loop Cut" button - inserts a new edge loop
+        /// through the ring of quads reachable from whichever single edge (exactly 2
+        /// selected vertices - Edge mode) is currently selected, via
+        /// <see cref="MeshEditSession.LoopCutSelectedEdge"/>, wrapped into an undoable,
+        /// recorded <see cref="MeshEditCommand"/> the same way <see cref="ExtrudeButton_Click"/>
+        /// already is.</summary>
+        private void LoopCutButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            var session = _renderer.EditSession;
+            if (session.Target is not { } node) return;
+
+            TryRun("Loop Cut", () =>
+            {
+                var command = MeshEditCommandFactory.Capture(node, "Loop Cut",
+                    () => session.LoopCutSelectedEdge(),
+                    onChanged: () =>
+                    {
+                        _renderer.Refresh();
+                        _componentGizmo.Attach(session);
+                    });
+
+                if (command is null)
+                {
+                    MessageBox.Show(this,
+                        "Select a single edge (Edge mode) that's part of at least one quad to Loop Cut.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                _commandHistory.Record(command);
+                _renderer.Refresh();
+                _componentGizmo.Attach(session);
+            });
+        }
+
+        /// <summary>The size of the corner facet the Edit Mode toolbar's "Bevel" button
+        /// cuts - a fraction of each surrounding edge's own length (see
+        /// <see cref="Mesh.BevelVertex"/>'s own remarks), the same "a modest, fixed,
+        /// visibly-there starting amount, immediately ready for a further tweak" role
+        /// <see cref="DefaultExtrudeDistance"/> plays for Extrude.</summary>
+        private const float DefaultBevelAmount = 0.25f;
+
+        /// <summary>The Edit Mode toolbar's "Bevel" button - chamfers whichever single
+        /// vertex is currently selected (Vertex mode) via <see cref="MeshEditSession.BevelSelectedVertex"/>,
+        /// wrapped into an undoable, recorded <see cref="MeshEditCommand"/> the same way
+        /// <see cref="ExtrudeButton_Click"/> already is.</summary>
+        private void BevelButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            var session = _renderer.EditSession;
+            if (session.Target is not { } node) return;
+
+            TryRun("Bevel", () =>
+            {
+                var command = MeshEditCommandFactory.Capture(node, "Bevel Vertex",
+                    () => session.BevelSelectedVertex(DefaultBevelAmount),
+                    onChanged: () =>
+                    {
+                        _renderer.Refresh();
+                        _componentGizmo.Attach(session);
+                    });
+
+                if (command is null)
+                {
+                    MessageBox.Show(this,
+                        "Select a single vertex (Vertex mode) fully surrounded by faces to Bevel - "
+                        + "a boundary/edge vertex can't be beveled.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                _commandHistory.Record(command);
+                _renderer.Refresh();
+                _componentGizmo.Attach(session);
+            });
+        }
+
+        /// <summary>The Object Mode toolbar's "Affect Only: Origin" checkbox - Custom
+        /// Pivot Points (see <see cref="TransformGizmo.AffectOnlyOrigin"/>'s own
+        /// remarks).</summary>
+        private void AffectOnlyOriginCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _gizmo.AffectOnlyOrigin = AffectOnlyOriginCheckBox.IsChecked == true;
         }
 
         /// <summary>The "Delete" toolbar button - Object Mode deletes the whole selected
@@ -1859,6 +1955,58 @@ namespace JolieCat3D.UI
 
             var window = new UVVisualizerWindow(mesh, mesh.Material?.DiffuseTexturePath, nodeViewModel.Name) { Owner = this };
             window.Show();
+        }
+
+        /// <summary>The Material Inspector's "Add Slot" button - Multi-Material
+        /// Support's own <see cref="NodeViewModel.AddMaterialSlot"/>.</summary>
+        private void AddMaterialSlotButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _sceneViewModel.SelectedNode?.AddMaterialSlot();
+        }
+
+        /// <summary>Each Material Slot row's own "Remove" button - the clicked
+        /// <see cref="Button"/>'s own <c>DataContext</c> (from its enclosing
+        /// <c>DataTemplate</c>) IS the <see cref="MaterialSlotViewModel"/> to remove, the
+        /// same pattern <see cref="RemoveModifierButton_Click"/> already uses.</summary>
+        private void RemoveMaterialSlotButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is not FrameworkElement { DataContext: MaterialSlotViewModel slotViewModel }) return;
+            _sceneViewModel.SelectedNode?.RemoveMaterialSlot(slotViewModel);
+        }
+
+        /// <summary>Each Material Slot row's own "Assign" button - points whichever
+        /// single face is currently fully selected (Edit Mode, Face component) at this
+        /// row's own slot, via <see cref="MeshEditSession.AssignMaterialSlotToSelectedFace"/>,
+        /// wrapped into an undoable, recorded <see cref="MeshEditCommand"/> the same way
+        /// <see cref="ExtrudeButton_Click"/> already is. Reports back rather than
+        /// silently doing nothing if no single whole face is currently selected.</summary>
+        private void AssignMaterialSlotButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is not FrameworkElement { DataContext: MaterialSlotViewModel slotViewModel }) return;
+
+            var session = _renderer.EditSession;
+            if (session.Target is not { } node) return;
+
+            TryRun("Assign Material Slot", () =>
+            {
+                var command = MeshEditCommandFactory.Capture(node, "Assign Material Slot",
+                    () => session.AssignMaterialSlotToSelectedFace(slotViewModel.SlotIndex),
+                    onChanged: () => _renderer.Refresh());
+
+                if (command is null)
+                {
+                    MessageBox.Show(this,
+                        "Select a single whole face (Edit Mode, Face component) to assign this material slot to.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                _commandHistory.Record(command);
+                _renderer.Refresh();
+            });
         }
 
         /// <summary>Where extracted <c>.jolie</c> layer textures are cached - a

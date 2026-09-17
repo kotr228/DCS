@@ -20,11 +20,38 @@ namespace JolieCat3D.Core.Geometry
         private readonly List<Vertex> _vertices = new();
         private readonly List<Face> _faces = new();
         private readonly List<Polygon> _polygons = new();
+        private readonly List<Material> _materialSlots = new();
 
         public string Name { get; set; }
 
-        /// <summary>Optional - a mesh with no material renders with <see cref="Material.CreateDefault"/> instead.</summary>
+        /// <summary>Optional - a mesh with no material renders with <see cref="Material.CreateDefault"/> instead.
+        /// The material every <see cref="Polygon"/> renders with UNLESS it has its own
+        /// <see cref="Polygon.MaterialSlotIndex"/> pointing into <see cref="MaterialSlots"/>
+        /// (see that property's own remarks) - this one is never a "slot" itself, only
+        /// ever the plain fallback, matching every mesh authored before Multi-Material
+        /// Support existed.</summary>
         public Material? Material { get; set; }
+
+        /// <summary>Additional materials, beyond the single plain <see cref="Material"/>,
+        /// a <see cref="Polygon"/> can opt into via its own <see cref="Polygon.MaterialSlotIndex"/> -
+        /// "Multi-Material Support"/Sub-mesh Materials. Empty by default (matching every
+        /// mesh authored before this existed - nothing here changes how such a mesh
+        /// renders at all, since no polygon has a non-default <see cref="Polygon.MaterialSlotIndex"/>
+        /// to reference one anyway). <c>JolieCat3D.Engine.Geometry.MeshGeometryFactory</c>
+        /// groups a mesh's own triangles by their owning polygon's slot (or the plain
+        /// <see cref="Material"/>, for anything with no override) into one
+        /// <c>MeshGeometry3D</c>/<c>GeometryModel3D</c> pair per DISTINCT material
+        /// actually used - the "upgrade the rendering pipeline to support multiple
+        /// Materials on a single mesh" half of the task.
+        ///
+        /// A known, disclosed scope limit: slots are NOT yet round-tripped through
+        /// <c>Service.Project.Jolie3DProjectSerializer</c> (project save/load) or any
+        /// exporter (glTF/OBJ) - a live, in-session/viewport feature for now, the same
+        /// "ship the core feature, disclose what isn't wired up yet" precedent
+        /// <c>Modifiers.BooleanModifier</c> already established for the exact same
+        /// reason (project serialization is a large, separate surface, not currently
+        /// reachable from any UI save/load action either).</summary>
+        public IReadOnlyList<Material> MaterialSlots => _materialSlots;
 
         public IReadOnlyList<Vertex> Vertices => _vertices;
 
@@ -83,9 +110,57 @@ namespace JolieCat3D.Core.Geometry
 
             foreach (var vertex in _vertices) clone.AddVertex(vertex);
             foreach (var face in _faces) clone.AddFace(face);
-            foreach (var polygon in _polygons) clone.AddPolygon(new Polygon(polygon.Indices));
+            foreach (var polygon in _polygons)
+                clone.AddPolygon(new Polygon(polygon.Indices) { MaterialSlotIndex = polygon.MaterialSlotIndex });
+            foreach (var material in _materialSlots) clone._materialSlots.Add(material);
 
             return clone;
+        }
+
+        /// <summary>Adds <paramref name="material"/> as a new <see cref="MaterialSlots"/>
+        /// entry and returns its own index - what a <see cref="Polygon.MaterialSlotIndex"/>
+        /// then references to render with it instead of this mesh's own plain
+        /// <see cref="Material"/>.</summary>
+        public int AddMaterialSlot(Material material)
+        {
+            ArgumentNullException.ThrowIfNull(material);
+            _materialSlots.Add(material);
+            return _materialSlots.Count - 1;
+        }
+
+        /// <summary>Removes the <see cref="MaterialSlots"/> entry at
+        /// <paramref name="slotIndex"/> - every <see cref="Polygon"/> that referenced it
+        /// falls back to this mesh's own plain <see cref="Material"/> (its own
+        /// <see cref="Polygon.MaterialSlotIndex"/> reset to -1), and every polygon
+        /// referencing a LATER slot has its own index shifted down by one to stay
+        /// pointing at the same actual material after the removed entry shifts the rest
+        /// of the list down - the same "positional index, re-numbered on removal"
+        /// convention <see cref="RemoveVertices"/> already established for vertex
+        /// indices. A no-op for an out-of-range <paramref name="slotIndex"/>.</summary>
+        public void RemoveMaterialSlot(int slotIndex)
+        {
+            if (slotIndex < 0 || slotIndex >= _materialSlots.Count) return;
+
+            _materialSlots.RemoveAt(slotIndex);
+
+            foreach (var polygon in _polygons)
+            {
+                if (polygon.MaterialSlotIndex == slotIndex) polygon.MaterialSlotIndex = -1;
+                else if (polygon.MaterialSlotIndex > slotIndex) polygon.MaterialSlotIndex--;
+            }
+        }
+
+        /// <summary>The material <paramref name="polygon"/> should actually render with -
+        /// whichever <see cref="MaterialSlots"/> entry its own <see cref="Polygon.MaterialSlotIndex"/>
+        /// points to, if that index is currently valid, or this mesh's own plain
+        /// <see cref="Material"/> otherwise (no override at all, or a stale index left
+        /// over from a since-<see cref="RemoveMaterialSlot"/>-removed slot this
+        /// particular call site hasn't reset yet).</summary>
+        public Material? GetEffectiveMaterial(Polygon polygon)
+        {
+            ArgumentNullException.ThrowIfNull(polygon);
+            var slotIndex = polygon.MaterialSlotIndex;
+            return slotIndex >= 0 && slotIndex < _materialSlots.Count ? _materialSlots[slotIndex] : Material;
         }
 
         /// <summary>Replaces the position of the vertex at <paramref name="index"/> in
@@ -491,6 +566,256 @@ namespace JolieCat3D.Core.Geometry
 
             RecalculateNormals();
             UVProjector.Apply(this, UVProjectionMode.Box);
+        }
+
+        /// <summary>
+        /// Inserts one new edge loop through the ring of quads reachable from the edge
+        /// <paramref name="edgeA"/>-&gt;<paramref name="edgeB"/> - the standard "Loop
+        /// Cut" every quad-based modeling tool offers. Only ever walks/splits 4-sided
+        /// <see cref="Polygon"/> entries (a real, disclosed scope limitation matching
+        /// <see cref="ExtrudeFace"/>'s own "Polygon only, not a triangulated
+        /// <see cref="Faces"/> entry" precedent) - starting from the given edge, this
+        /// finds its OWN quad's OPPOSITE edge (2 steps around that quad's own 4-cycle),
+        /// crosses into whichever OTHER quad shares that opposite edge (if any), and
+        /// repeats - in BOTH directions from the starting edge - until the ring closes
+        /// back on itself or reaches a boundary/non-quad/non-manifold edge, matching the
+        /// classic "edge ring" a real loop cut follows. One shared midpoint vertex is
+        /// created per ring edge (an edge two ring-adjacent quads share gets exactly ONE
+        /// midpoint, not two - the same "shared edge, shared vertex" convention
+        /// <see cref="Subdivide"/> already established for its own edge midpoints), and
+        /// every quad the ring passes through is replaced by two new quads split along
+        /// the new edge connecting consecutive ring midpoints.
+        ///
+        /// Returns every new quad this call actually created, in no particular order -
+        /// empty if <paramref name="edgeA"/>/<paramref name="edgeB"/> isn't part of any
+        /// quad at all. Recalculates normals and re-projects UVs afterward (Box
+        /// projection - see <see cref="ExtrudeFace"/>'s own remarks on why a full
+        /// re-projection, not just patching up the newly-inserted geometry's own
+        /// interim values, is what keeps the whole mesh's UVs consistent with each
+        /// other).
+        /// </summary>
+        public IReadOnlyList<Polygon> LoopCut(int edgeA, int edgeB)
+        {
+            var edgeToQuads = new Dictionary<(int A, int B), List<Polygon>>();
+            foreach (var polygon in _polygons)
+            {
+                if (polygon.Indices.Count != 4) continue;
+                for (var i = 0; i < 4; i++)
+                {
+                    var key = NormalizeEdge(polygon.Indices[i], polygon.Indices[(i + 1) % 4]);
+                    if (!edgeToQuads.TryGetValue(key, out var list)) edgeToQuads[key] = list = new List<Polygon>();
+                    list.Add(polygon);
+                }
+            }
+
+            var startKey = NormalizeEdge(edgeA, edgeB);
+            if (!edgeToQuads.TryGetValue(startKey, out var startQuads) || startQuads.Count == 0)
+                return Array.Empty<Polygon>();
+
+            var ringEdges = new List<(int A, int B)> { startKey };
+            var ringQuads = new List<Polygon>();
+            var usedQuads = new HashSet<Polygon>();
+
+            void ExtendRing(Polygon firstQuad, (int A, int B) enteringEdge, bool forward)
+            {
+                var quad = firstQuad;
+                var edge = enteringEdge;
+
+                while (usedQuads.Add(quad))
+                {
+                    var indices = quad.Indices;
+                    var position = indices.Select((_, i) => i).FirstOrDefault(i => NormalizeEdge(indices[i], indices[(i + 1) % 4]) == edge, -1);
+                    if (position < 0) break;
+
+                    var oppositePosition = (position + 2) % 4;
+                    var oppositeEdge = NormalizeEdge(indices[oppositePosition], indices[(oppositePosition + 1) % 4]);
+
+                    if (forward) { ringEdges.Add(oppositeEdge); ringQuads.Add(quad); }
+                    else { ringEdges.Insert(0, oppositeEdge); ringQuads.Insert(0, quad); }
+
+                    if (oppositeEdge == startKey) break; // the ring closed back on itself
+                    if (!edgeToQuads.TryGetValue(oppositeEdge, out var candidates)) break; // a boundary edge - nothing beyond it
+                    if (candidates.Count > 2) break; // non-manifold (3+ quads sharing one edge) - bail rather than guess which one continues the ring
+
+                    var next = candidates.FirstOrDefault(q => q != quad && !usedQuads.Contains(q));
+                    if (next is null) break;
+
+                    quad = next;
+                    edge = oppositeEdge;
+                }
+            }
+
+            ExtendRing(startQuads[0], startKey, forward: true);
+            if (startQuads.Count > 1 && !usedQuads.Contains(startQuads[1]))
+                ExtendRing(startQuads[1], startKey, forward: false);
+
+            if (ringQuads.Count == 0) return Array.Empty<Polygon>();
+
+            var edgeMidpoints = new Dictionary<(int A, int B), int>();
+            int GetOrCreateEdgeMidpoint(int a, int b)
+            {
+                var key = NormalizeEdge(a, b);
+                if (edgeMidpoints.TryGetValue(key, out var existing)) return existing;
+
+                var va = _vertices[key.A];
+                var vb = _vertices[key.B];
+                var midpointNormal = va.Normal + vb.Normal;
+                var midpoint = new Vertex(
+                    (va.Position + vb.Position) / 2f,
+                    midpointNormal.LengthSquared() > float.Epsilon ? Vector3.Normalize(midpointNormal) : va.Normal,
+                    (va.UV + vb.UV) / 2f,
+                    Color4.Lerp(va.Color, vb.Color, 0.5f));
+
+                var index = AddVertex(midpoint);
+                edgeMidpoints[key] = index;
+                return index;
+            }
+
+            var midpoints = new int[ringEdges.Count];
+            for (var i = 0; i < ringEdges.Count; i++)
+                midpoints[i] = GetOrCreateEdgeMidpoint(ringEdges[i].A, ringEdges[i].B);
+
+            var newPolygons = new List<Polygon>();
+            for (var i = 0; i < ringQuads.Count; i++)
+            {
+                var quad = ringQuads[i];
+                var indices = quad.Indices;
+                var entryPosition = indices.Select((_, k) => k).First(k => NormalizeEdge(indices[k], indices[(k + 1) % 4]) == ringEdges[i]);
+
+                var a = indices[entryPosition];
+                var b = indices[(entryPosition + 1) % 4];
+                var c = indices[(entryPosition + 2) % 4];
+                var d = indices[(entryPosition + 3) % 4];
+                var m1 = midpoints[i];
+                var m2 = midpoints[i + 1];
+
+                _polygons.Remove(quad);
+
+                var quadA = new Polygon(a, m1, m2, d);
+                var quadB = new Polygon(m1, b, c, m2);
+                AddPolygon(quadA);
+                AddPolygon(quadB);
+                newPolygons.Add(quadA);
+                newPolygons.Add(quadB);
+            }
+
+            RecalculateNormals();
+            UVProjector.Apply(this, UVProjectionMode.Box);
+            return newPolygons;
+        }
+
+        private static (int A, int B) NormalizeEdge(int a, int b) => a < b ? (a, b) : (b, a);
+
+        private static int IndexOfValue(IReadOnlyList<int> indices, int value)
+        {
+            for (var i = 0; i < indices.Count; i++)
+                if (indices[i] == value) return i;
+            return -1;
+        }
+
+        /// <summary>
+        /// Chamfers the single vertex at <paramref name="vertexIndex"/> - the standard
+        /// "Bevel Vertex" every hard-surface modeling tool offers, cutting its sharp
+        /// corner into a small flat facet instead. Only supported for a vertex whose
+        /// surrounding <see cref="Polygons"/> form one closed, manifold fan around it
+        /// (every polygon touching the vertex chains to the next via a shared neighbor,
+        /// looping back to the first - the same "closed fan" a real interior vertex of a
+        /// solid always has); a boundary vertex (an open fan/mesh edge) or one touched by
+        /// fewer than 3 faces returns null, doing nothing at all, rather than guessing at
+        /// an ambiguous result. Like <see cref="LoopCut"/>, this only ever considers
+        /// <see cref="Polygons"/>, never a raw triangulated <see cref="Faces"/> entry -
+        /// the same disclosed scope <see cref="ExtrudeFace"/> already established.
+        ///
+        /// For each of the vertex's own N surrounding polygons/edges, this creates one
+        /// new vertex a small fraction (<paramref name="amount"/>, clamped to (0, 0.5))
+        /// of the way along that edge toward its far neighbor, replaces the original
+        /// vertex's own corner in each surrounding polygon with the TWO new vertices
+        /// bounding that polygon's own wedge (turning, e.g., a beveled cube corner's
+        /// quads into pentagons), and adds one new N-sided cap polygon connecting all N
+        /// new vertices to fill the resulting facet. The ORIGINAL vertex itself is left
+        /// in <see cref="Vertices"/>, simply no longer referenced by anything (an
+        /// intentional, disclosed simplification - re-indexing/removing it the way
+        /// <see cref="RemoveVertices"/> does for a deleted vertex would need to touch
+        /// every OTHER face/polygon in the whole mesh just to shift indices down by one,
+        /// for no benefit beyond a few unused floats in <see cref="Vertices"/>).
+        ///
+        /// Returns the new cap <see cref="Polygon"/> (the same "leave the operation's own
+        /// result selected/available for a further edit" convention <see cref="ExtrudeFace"/>'s
+        /// own return value already follows), or null if the vertex isn't a supported
+        /// closed-fan interior vertex. Recalculates normals and re-projects UVs
+        /// afterward, same as <see cref="LoopCut"/>/<see cref="ExtrudeFace"/>/<see cref="Subdivide"/>.
+        /// </summary>
+        public Polygon? BevelVertex(int vertexIndex, float amount)
+        {
+            if (vertexIndex < 0 || vertexIndex >= _vertices.Count) return null;
+
+            var touching = new List<(Polygon Polygon, int Prev, int Next)>();
+            foreach (var polygon in _polygons)
+            {
+                var indices = polygon.Indices;
+                var position = IndexOfValue(indices, vertexIndex);
+                if (position < 0) continue;
+
+                var n = indices.Count;
+                touching.Add((polygon, indices[(position - 1 + n) % n], indices[(position + 1) % n]));
+            }
+
+            if (touching.Count < 3) return null;
+
+            var ordered = new List<(Polygon Polygon, int Prev, int Next)> { touching[0] };
+            var remaining = new List<(Polygon Polygon, int Prev, int Next)>(touching.Skip(1));
+
+            while (remaining.Count > 0)
+            {
+                var matchIndex = remaining.FindIndex(candidate => candidate.Prev == ordered[^1].Next);
+                if (matchIndex < 0) return null; // couldn't chain every touching polygon into one closed fan
+                ordered.Add(remaining[matchIndex]);
+                remaining.RemoveAt(matchIndex);
+            }
+
+            if (ordered[^1].Next != ordered[0].Prev) return null; // an open fan (a boundary vertex) - not a closed loop around the vertex
+
+            var vertexPosition = _vertices[vertexIndex].Position;
+            var t = Math.Clamp(amount, 0.001f, 0.499f);
+            var k = ordered.Count;
+
+            // bevelVertices[i] sits along the edge from vertexIndex toward
+            // ordered[i].Next - i.e. ordered[i] itself supplies the polygon whose own
+            // "far" side of the cut uses this new vertex.
+            var bevelVertices = new int[k];
+            for (var i = 0; i < k; i++)
+            {
+                var neighborIndex = ordered[i].Next;
+                var neighborVertex = _vertices[neighborIndex];
+                var newPosition = Vector3.Lerp(vertexPosition, neighborVertex.Position, t);
+                bevelVertices[i] = AddVertex(neighborVertex.WithPosition(newPosition));
+            }
+
+            for (var i = 0; i < k; i++)
+            {
+                var polygon = ordered[i].Polygon;
+                var indices = polygon.Indices;
+                var position = IndexOfValue(indices, vertexIndex);
+
+                var newIndices = new List<int>(indices);
+                // ordered[i]'s own Prev is ordered[(i-1+k)%k]'s own Next - so the bevel
+                // vertex sitting toward THIS polygon's prev-side neighbor is
+                // bevelVertices[(i-1+k)%k], and toward its next-side neighbor is
+                // bevelVertices[i] - inserted in that same order to preserve the
+                // polygon's own original winding direction.
+                newIndices[position] = bevelVertices[i];
+                newIndices.Insert(position, bevelVertices[(i - 1 + k) % k]);
+
+                _polygons.Remove(polygon);
+                AddPolygon(new Polygon(newIndices));
+            }
+
+            var cap = new Polygon(bevelVertices);
+            AddPolygon(cap);
+
+            RecalculateNormals();
+            UVProjector.Apply(this, UVProjectionMode.Box);
+            return cap;
         }
 
         /// <summary>Newell's method - the face normal of an arbitrary (possibly
