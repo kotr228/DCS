@@ -1,5 +1,6 @@
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
+using CoreFace = JolieCat3D.Core.Geometry.Face;
 using CoreMaterial = JolieCat3D.Core.Materials.Material;
 using CoreMesh = JolieCat3D.Core.Geometry.Mesh;
 
@@ -156,6 +157,78 @@ namespace JolieCat3D.Engine.Geometry
                 geometry.Freeze();
                 result.Add((material, geometry));
             }
+
+            return result;
+        }
+
+        /// <summary>Builds geometry from <paramref name="mesh"/>'s own full vertex
+        /// arrays (Positions/Normals/TextureCoordinates - identical to what
+        /// <see cref="Create"/> itself would build), but with <see cref="MeshGeometry3D.TriangleIndices"/>
+        /// restricted to just <paramref name="triangles"/> - the one-material-group-
+        /// at-a-time counterpart to <see cref="GroupTrianglesByMaterial"/>'s own
+        /// grouping, used by <see cref="Geometry.SceneGraphBuilder"/> for whichever
+        /// material groups do NOT need <see cref="Geometry.VertexColorBakery"/>'s own
+        /// baked-texture treatment.</summary>
+        public static MeshGeometry3D CreateForTriangles(CoreMesh mesh, IReadOnlyList<CoreFace> triangles)
+        {
+            ArgumentNullException.ThrowIfNull(mesh);
+            ArgumentNullException.ThrowIfNull(triangles);
+
+            var geometry = new MeshGeometry3D();
+            foreach (var vertex in mesh.Vertices)
+            {
+                geometry.Positions.Add(new Point3D(vertex.Position.X, vertex.Position.Y, vertex.Position.Z));
+                geometry.Normals.Add(new Vector3D(vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z));
+                geometry.TextureCoordinates.Add(new System.Windows.Point(vertex.UV.X, vertex.UV.Y));
+            }
+
+            foreach (var face in triangles)
+            {
+                geometry.TriangleIndices.Add(face.A);
+                geometry.TriangleIndices.Add(face.B);
+                geometry.TriangleIndices.Add(face.C);
+            }
+
+            geometry.Freeze();
+            return geometry;
+        }
+
+        /// <summary>The SAME per-material triangle grouping <see cref="CreateGroups"/>
+        /// computes internally, exposed as plain Core <see cref="CoreFace"/> triangles
+        /// instead of WPF geometry - what <see cref="Geometry.VertexColorBakery"/>/
+        /// <see cref="Geometry.SceneGraphBuilder"/> need to decide, and then bake,
+        /// vertex colors ONE MATERIAL GROUP AT A TIME (a mesh with Multi-Material
+        /// Support slots can have a different source texture per group, so each needs
+        /// its own separate baked atlas - see <see cref="Materials.VertexColorBaker"/>'s
+        /// own remarks).</summary>
+        public static IReadOnlyList<(CoreMaterial? Material, List<CoreFace> Triangles)> GroupTrianglesByMaterial(CoreMesh mesh)
+        {
+            ArgumentNullException.ThrowIfNull(mesh);
+
+            var trianglesByMaterial = new Dictionary<CoreMaterial, List<CoreFace>>();
+            var originalKeys = new Dictionary<CoreMaterial, CoreMaterial?>();
+
+            List<CoreFace> GetGroup(CoreMaterial? material)
+            {
+                var key = material ?? NoMaterialSentinel;
+                if (!trianglesByMaterial.TryGetValue(key, out var list))
+                {
+                    trianglesByMaterial[key] = list = new List<CoreFace>();
+                    originalKeys[key] = material;
+                }
+                return list;
+            }
+
+            foreach (var face in mesh.Faces)
+                GetGroup(mesh.Material).Add(face);
+
+            foreach (var polygon in mesh.Polygons)
+                foreach (var triangle in polygon.Triangulate())
+                    GetGroup(mesh.GetEffectiveMaterial(polygon)).Add(triangle);
+
+            var result = new List<(CoreMaterial?, List<CoreFace>)>(trianglesByMaterial.Count);
+            foreach (var (key, triangles) in trianglesByMaterial)
+                result.Add((originalKeys[key], triangles));
 
             return result;
         }

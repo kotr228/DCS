@@ -74,7 +74,19 @@ namespace JolieCat3D.Engine.Geometry
         /// filled geometry for it in the first place (see <see cref="WireframeVisualFactory"/>),
         /// so this method is never even called for it.
         /// </summary>
-        public static Material Create(CoreMaterial? material, ShadingMode mode)
+        public static Material Create(CoreMaterial? material, ShadingMode mode) => Create(material, mode, diffuseBrushOverride: null);
+
+        /// <summary>Same as <see cref="Create(CoreMaterial?,ShadingMode)"/>, except the
+        /// <see cref="DiffuseMaterial"/>'s own brush is <paramref name="diffuseBrushOverride"/>
+        /// instead of whatever <see cref="CreateDiffuseBrush"/> would otherwise build
+        /// from <paramref name="material"/>'s own diffuse color/texture - what
+        /// <see cref="Geometry.VertexColorBakery"/> uses so a vertex-painted mesh still
+        /// gets the SAME specular treatment (Roughness/Metallic, environment tint) as
+        /// every other material, with only the diffuse layer itself swapped for its own
+        /// baked-vertex-color atlas. Ignored entirely in <see cref="ShadingMode.Solid"/>
+        /// (which never shows any material's own diffuse appearance at all - see that
+        /// mode's own remarks).</summary>
+        public static Material Create(CoreMaterial? material, ShadingMode mode, Brush? diffuseBrushOverride)
         {
             material ??= CoreMaterial.CreateDefault();
 
@@ -87,7 +99,7 @@ namespace JolieCat3D.Engine.Geometry
             }
 
             var group = new MaterialGroup();
-            group.Children.Add(new DiffuseMaterial(CreateDiffuseBrush(material)));
+            group.Children.Add(new DiffuseMaterial(diffuseBrushOverride ?? CreateDiffuseBrush(material)));
 
             if (mode == ShadingMode.Rendered)
             {

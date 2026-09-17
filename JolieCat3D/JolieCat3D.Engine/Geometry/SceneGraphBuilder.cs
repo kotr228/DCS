@@ -110,22 +110,46 @@ namespace JolieCat3D.Engine.Geometry
                 else
                 {
                     // Multi-Material Support: one GeometryModel3D per DISTINCT material the
-                    // mesh's own polygons actually use (see MeshGeometryFactory.CreateGroups's
+                    // mesh's own polygons actually use (see MeshGeometryFactory.GroupTrianglesByMaterial's
                     // own remarks) - a plain single-material mesh (every mesh authored before
                     // this existed) always produces exactly one group here, so this is a
                     // strict generalization of the old "always exactly one model" behavior,
                     // not a change to it.
-                    foreach (var (coreMaterial, geometry) in MeshGeometryFactory.CreateGroups(skinnedMesh))
+                    foreach (var (coreMaterial, triangles) in MeshGeometryFactory.GroupTrianglesByMaterial(skinnedMesh))
                     {
-                        var material = MaterialFactory.Create(coreMaterial, shadingMode);
-                        var model = new GeometryModel3D(geometry, material)
+                        GeometryModel3D model;
+
+                        if (VertexColorBakery.HasPaintedVertexColor(skinnedMesh, triangles))
                         {
-                            // Lets the same material shade the mesh from either side - a mesh
-                            // authored with outward-only normals (Primitives.CreateCube included)
-                            // would otherwise render invisible/black from behind its own faces,
-                            // which reads as a bug to anyone orbiting the camera around it.
-                            BackMaterial = material,
-                        };
+                            // Vertex Paint: this group's own diffuse layer is a baked
+                            // atlas multiplying its material's own texture (or flat
+                            // white, if none) by every touched vertex's own Color - see
+                            // VertexColorBakery/Materials.VertexColorBaker's own
+                            // remarks. Every OTHER aspect of the material (specular,
+                            // shading mode) still comes from the SAME MaterialFactory
+                            // every untouched mesh already uses.
+                            var (bakedTexture, remappedMesh) = VertexColorBakery.Bake(skinnedMesh, coreMaterial, triangles);
+                            var bakedBrush = new ImageBrush(bakedTexture) { TileMode = TileMode.None, Stretch = Stretch.Fill };
+                            bakedBrush.Freeze();
+
+                            var bakedMaterial = MaterialFactory.Create(coreMaterial, shadingMode, bakedBrush);
+                            var bakedGeometry = MeshGeometryFactory.Create(remappedMesh);
+                            model = new GeometryModel3D(bakedGeometry, bakedMaterial) { BackMaterial = bakedMaterial };
+                        }
+                        else
+                        {
+                            var geometry = MeshGeometryFactory.CreateForTriangles(skinnedMesh, triangles);
+                            var material = MaterialFactory.Create(coreMaterial, shadingMode);
+                            model = new GeometryModel3D(geometry, material)
+                            {
+                                // Lets the same material shade the mesh from either side - a mesh
+                                // authored with outward-only normals (Primitives.CreateCube included)
+                                // would otherwise render invisible/black from behind its own faces,
+                                // which reads as a bug to anyone orbiting the camera around it.
+                                BackMaterial = material,
+                            };
+                        }
+
                         group.Children.Add(model);
                         if (modelToNode is not null) modelToNode[model] = node;
                     }

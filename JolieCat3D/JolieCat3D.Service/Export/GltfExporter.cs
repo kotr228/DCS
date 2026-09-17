@@ -1,5 +1,6 @@
 using System.Numerics;
 using JolieCat3D.Core.Geometry;
+using JolieCat3D.Core.Modifiers;
 using JolieCat3D.Core.Scene;
 using JolieCat3D.Service.Animation;
 using SharpGLTF.Animations;
@@ -74,9 +75,20 @@ namespace JolieCat3D.Service.Export
             var materialCache = new Dictionary<CoreMaterial, MaterialBuilder>();
             var imageCache = new Dictionary<string, ImageBuilder>();
             var nodeBuilders = new Dictionary<CoreNode, NodeBuilder>();
+            var pendingSkins = new List<(CoreNode Node, CoreMesh EvaluatedMesh, SkinBinding Binding)>();
 
             foreach (var root in scene.RootNodes)
-                BuildNode(root, parent: null, sceneBuilder, nodeBuilders, materialCache, imageCache);
+                BuildNode(root, parent: null, sceneBuilder, nodeBuilders, materialCache, imageCache, pendingSkins);
+
+            // Attached only NOW, in a second pass over the whole tree - a SkinBinding's
+            // own Bones can reference a node ANYWHERE in the scene (an armature parented
+            // as a sibling of its own skinned mesh, say, rather than strictly built
+            // before it), so every node's own NodeBuilder must already exist in
+            // nodeBuilders before any joint list can be resolved - the exact same
+            // "build the whole tree first, THEN attach whatever needs to look another
+            // node up by reference" shape the animation pass below already uses.
+            foreach (var (node, evaluatedMesh, binding) in pendingSkins)
+                AttachSkinnedMesh(node, evaluatedMesh, binding, sceneBuilder, nodeBuilders, materialCache, imageCache);
 
             if (timeline is not null)
                 foreach (var track in timeline.Tracks)
@@ -105,12 +117,40 @@ namespace JolieCat3D.Service.Export
         /// unconditionally, regardless of whether it also carries a mesh/camera/light or
         /// has any children of its own - a bare empty pivot with nothing attached and
         /// nothing under it would otherwise never be referenced by anything at all and
-        /// silently vanish from the exported hierarchy.</summary>
+        /// silently vanish from the exported hierarchy.
+        ///
+        /// A BONE node's own auto-generated visualization mesh (<see cref="BoneData.GenerateMesh"/>'s
+        /// small octahedron shape - see that method's own remarks on why a bone needs
+        /// ANY mesh at all just to be visible/selectable in THIS app's own viewport) is
+        /// deliberately NEVER exported - a real game engine importing this file wants a
+        /// skeleton's own joints to be plain transform nodes, the same way glTF/every
+        /// other DCC tool already treats them, not a scene cluttered with a floating
+        /// debug-shaped octahedron at every joint. The node itself (and its place in the
+        /// hierarchy, and any animation track on it) still exports completely normally -
+        /// only its own <see cref="Node.Mesh"/> attachment is skipped.
+        ///
+        /// A node whose <see cref="Node.SkinBinding"/> is set does NOT get its mesh
+        /// attached here at all (see <paramref name="pendingSkins"/>'s own remarks in
+        /// <see cref="Export"/>) - it still evaluates its own <see cref="Node.Modifiers"/>
+        /// stack right now (the task's own "MUST evaluate the active Modifier Stack"
+        /// ask - Mirror/Array/Solidify/Edge Split/... all apply BEFORE export, exactly
+        /// as they already do for the live viewport - see <c>Engine.Geometry.SceneGraphBuilder</c>'s
+        /// own identical ordering), just deferred for actual attachment until every
+        /// bone's own <see cref="NodeBuilder"/> is guaranteed to exist. Skeletal
+        /// SKINNING itself is deliberately NOT baked/evaluated at export time at all -
+        /// the exported mesh is the REST-POSE geometry plus real glTF joints/weights/
+        /// inverse bind matrices, letting the IMPORTING engine's own runtime skin it
+        /// (posed however its own animation system drives it), exactly the standard,
+        /// "game engine ready" way every glTF skin is meant to be consumed - baking a
+        /// single static pose into the exported vertex positions instead would throw
+        /// away the ability to actually pose/re-animate the mesh in the target engine
+        /// at all.</summary>
         private static void BuildNode(
             CoreNode node, NodeBuilder? parent, SceneBuilder sceneBuilder,
             Dictionary<CoreNode, NodeBuilder> nodeBuilders,
             Dictionary<CoreMaterial, MaterialBuilder> materialCache,
-            Dictionary<string, ImageBuilder> imageCache)
+            Dictionary<string, ImageBuilder> imageCache,
+            List<(CoreNode Node, CoreMesh EvaluatedMesh, SkinBinding Binding)> pendingSkins)
         {
             var builder = parent is null ? new NodeBuilder(node.Name) : parent.CreateNode(node.Name);
             builder.WithLocalTranslation(node.LocalPosition);
@@ -120,8 +160,15 @@ namespace JolieCat3D.Service.Export
             nodeBuilders[node] = builder;
             sceneBuilder.AddNode(builder);
 
-            if (node.Mesh is { } mesh && mesh.Vertices.Count > 0)
-                sceneBuilder.AddRigidMesh(BuildMesh(mesh, materialCache, imageCache), builder);
+            if (node.Bone is null && node.Mesh is { } mesh && mesh.Vertices.Count > 0)
+            {
+                var evaluatedMesh = ModifierStack.Evaluate(mesh, node.Modifiers, node);
+
+                if (node.SkinBinding is { Bones.Count: > 0 } binding)
+                    pendingSkins.Add((node, evaluatedMesh, binding));
+                else
+                    sceneBuilder.AddRigidMesh(BuildMesh(evaluatedMesh, materialCache, imageCache), builder);
+            }
 
             if (node.Camera is { } camera)
                 sceneBuilder.AddCamera(BuildCamera(camera), CreateLookDirectionFix(builder, "$CameraLookFix"));
@@ -130,7 +177,45 @@ namespace JolieCat3D.Service.Export
                 sceneBuilder.AddLight(BuildLight(light), CreateLookDirectionFix(builder, "$LightLookFix"));
 
             foreach (var child in node.Children)
-                BuildNode(child, builder, sceneBuilder, nodeBuilders, materialCache, imageCache);
+                BuildNode(child, builder, sceneBuilder, nodeBuilders, materialCache, imageCache, pendingSkins);
+        }
+
+        /// <summary>Attaches <paramref name="evaluatedMesh"/> as a genuine glTF SKINNED
+        /// mesh - one joint per <paramref name="binding"/>'s own <see cref="SkinBinding.Bones"/>
+        /// entry, in the SAME order and at the SAME index position, since
+        /// <see cref="Vertex.BoneIndices"/> already indexes into that exact list (see
+        /// <see cref="SkinBinding"/>'s own remarks) - shifting indices by silently
+        /// dropping a joint would leave every vertex's own bone indices pointing at the
+        /// WRONG joint from that position on. Each real joint is paired with its own
+        /// INVERSE BIND MATRIX (<see cref="BoneData.GetInverseBindMatrix"/> - Identity
+        /// for a bone somehow missing its own <see cref="Node.Bone"/> data, the same
+        /// non-throwing fallback <see cref="Skinning.SkinningEvaluator"/> itself already
+        /// uses). A bone referenced by the binding that isn't found in
+        /// <paramref name="nodeBuilders"/> at all (only possible if it somehow lives
+        /// outside this same exported scene - <see cref="SkinBindingFactory.CreateAutomatic"/>
+        /// itself never produces this) gets a harmless Identity-matrix placeholder
+        /// pointing at the skinned mesh's OWN node instead, preserving every other
+        /// joint's own index position rather than either shifting them or failing the
+        /// whole export.</summary>
+        private static void AttachSkinnedMesh(
+            CoreNode node, CoreMesh evaluatedMesh, SkinBinding binding, SceneBuilder sceneBuilder,
+            Dictionary<CoreNode, NodeBuilder> nodeBuilders,
+            Dictionary<CoreMaterial, MaterialBuilder> materialCache,
+            Dictionary<string, ImageBuilder> imageCache)
+        {
+            var meshNodeBuilder = nodeBuilders[node];
+            var joints = new (NodeBuilder, Matrix4x4)[binding.Bones.Count];
+            for (var i = 0; i < binding.Bones.Count; i++)
+            {
+                var bone = binding.Bones[i];
+                if (nodeBuilders.TryGetValue(bone, out var jointBuilder))
+                    joints[i] = (jointBuilder, bone.Bone?.GetInverseBindMatrix() ?? Matrix4x4.Identity);
+                else
+                    joints[i] = (meshNodeBuilder, Matrix4x4.Identity);
+            }
+
+            var meshBuilder = BuildSkinnedMesh(evaluatedMesh, materialCache, imageCache);
+            sceneBuilder.AddSkinnedMesh(meshBuilder, joints);
         }
 
         /// <summary>glTF's own camera/light convention points local -Z "forward" (see
@@ -154,27 +239,48 @@ namespace JolieCat3D.Service.Export
             CoreMesh mesh, Dictionary<CoreMaterial, MaterialBuilder> materialCache, Dictionary<string, ImageBuilder> imageCache)
         {
             var materialBuilder = GetOrCreateMaterial(mesh.Material, materialCache, imageCache);
-            var meshBuilder = new MeshBuilder<MaterialBuilder, VertexPositionNormal, VertexTexture1, VertexEmpty>(mesh.Name);
+            var meshBuilder = new MeshBuilder<MaterialBuilder, VertexPositionNormal, VertexColor1Texture1, VertexEmpty>(mesh.Name);
             var primitive = meshBuilder.UsePrimitive(materialBuilder, 3);
 
-            // A DiffuseTexturePath sub-rectangle (see Material.DiffuseTextureOffset/Scale's
-            // own remarks on the "one shared atlas, many named sub-rects" sprite-sheet
-            // case) has no equivalent in a plain MaterialBuilder without reaching for a
-            // KHR_texture_transform extension this project has never exercised - baking
-            // the same offset/scale straight into every exported vertex's own UV instead
-            // is always correct with zero extension risk, and a no-op for the overwhelming
-            // common case (offset (0,0), scale (1,1) - the whole image) since it leaves
-            // the UV completely unchanged.
-            var uvOffset = mesh.Material?.DiffuseTextureOffset ?? Vector2.Zero;
-            var uvScale = mesh.Material?.DiffuseTextureScale ?? Vector2.One;
+            var (uvOffset, uvScale) = GetUVTransform(mesh.Material);
+            var vertexBuilders = new VertexBuilder<VertexPositionNormal, VertexColor1Texture1, VertexEmpty>[mesh.Vertices.Count];
+            for (var i = 0; i < mesh.Vertices.Count; i++)
+                vertexBuilders[i] = new VertexBuilder<VertexPositionNormal, VertexColor1Texture1, VertexEmpty>(
+                    ToVertexGeometry(mesh.Vertices[i]), ToVertexMaterial(mesh.Vertices[i], uvOffset, uvScale));
 
-            var vertexBuilders = new VertexBuilder<VertexPositionNormal, VertexTexture1, VertexEmpty>[mesh.Vertices.Count];
+            foreach (var face in mesh.GetRenderFaces())
+                primitive.AddTriangle(vertexBuilders[face.A], vertexBuilders[face.B], vertexBuilders[face.C]);
+
+            return meshBuilder;
+        }
+
+        /// <summary>The skinned counterpart of <see cref="BuildMesh"/> - identical
+        /// position/normal/UV/color handling, but with a <see cref="VertexJoints4"/>
+        /// skinning channel added per vertex from its own <see cref="Vertex.BoneIndices"/>/
+        /// <see cref="Vertex.BoneWeights"/>. Weights are re-normalized to sum to exactly
+        /// 1 (glTF's own <c>WEIGHTS_0</c> convention - see <see cref="Skinning.SkinningEvaluator"/>'s
+        /// own remarks on why this project's LIVE viewport already tolerates weights
+        /// that don't); an entirely UNWEIGHTED vertex (every weight 0 - e.g. authored
+        /// but never actually weight-painted) falls back to 100% joint 0 rather than
+        /// exporting a genuinely all-zero <c>WEIGHTS_0</c> entry, which several glTF
+        /// validators/importers reject or silently mis-render - a deliberate,
+        /// export-specific difference from the live viewport's own "unweighted stays at
+        /// its own rest position" convention (there is no equivalent "just don't move
+        /// it" option once a real engine's own skinning shader takes over).</summary>
+        private static IMeshBuilder<MaterialBuilder> BuildSkinnedMesh(
+            CoreMesh mesh, Dictionary<CoreMaterial, MaterialBuilder> materialCache, Dictionary<string, ImageBuilder> imageCache)
+        {
+            var materialBuilder = GetOrCreateMaterial(mesh.Material, materialCache, imageCache);
+            var meshBuilder = new MeshBuilder<MaterialBuilder, VertexPositionNormal, VertexColor1Texture1, VertexJoints4>(mesh.Name);
+            var primitive = meshBuilder.UsePrimitive(materialBuilder, 3);
+
+            var (uvOffset, uvScale) = GetUVTransform(mesh.Material);
+            var vertexBuilders = new VertexBuilder<VertexPositionNormal, VertexColor1Texture1, VertexJoints4>[mesh.Vertices.Count];
             for (var i = 0; i < mesh.Vertices.Count; i++)
             {
                 var vertex = mesh.Vertices[i];
-                var uv = uvOffset + vertex.UV * uvScale;
-                var geometry = new VertexPositionNormal(vertex.Position.X, vertex.Position.Y, vertex.Position.Z, vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z);
-                vertexBuilders[i] = new VertexBuilder<VertexPositionNormal, VertexTexture1, VertexEmpty>(geometry, new VertexTexture1(uv));
+                vertexBuilders[i] = new VertexBuilder<VertexPositionNormal, VertexColor1Texture1, VertexJoints4>(
+                    ToVertexGeometry(vertex), ToVertexMaterial(vertex, uvOffset, uvScale), ToVertexSkinning(vertex));
             }
 
             foreach (var face in mesh.GetRenderFaces())
@@ -182,6 +288,37 @@ namespace JolieCat3D.Service.Export
 
             return meshBuilder;
         }
+
+        private static VertexPositionNormal ToVertexGeometry(Vertex vertex) =>
+            new(vertex.Position.X, vertex.Position.Y, vertex.Position.Z, vertex.Normal.X, vertex.Normal.Y, vertex.Normal.Z);
+
+        private static VertexColor1Texture1 ToVertexMaterial(Vertex vertex, Vector2 uvOffset, Vector2 uvScale) =>
+            new(new Vector4(vertex.Color.R, vertex.Color.G, vertex.Color.B, vertex.Color.A), uvOffset + vertex.UV * uvScale);
+
+        private static VertexJoints4 ToVertexSkinning(Vertex vertex)
+        {
+            var weights = vertex.BoneWeights;
+            var total = weights.X + weights.Y + weights.Z + weights.W;
+            if (total < 1e-6f) return new VertexJoints4((0, 1f));
+
+            return new VertexJoints4(
+                (vertex.BoneIndices.X, weights.X / total),
+                (vertex.BoneIndices.Y, weights.Y / total),
+                (vertex.BoneIndices.Z, weights.Z / total),
+                (vertex.BoneIndices.W, weights.W / total));
+        }
+
+        /// <summary>A <see cref="Material.DiffuseTexturePath"/> sub-rectangle (see
+        /// <see cref="CoreMaterial.DiffuseTextureOffset"/>/<see cref="CoreMaterial.DiffuseTextureScale"/>'s
+        /// own remarks on the "one shared atlas, many named sub-rects" sprite-sheet
+        /// case) has no equivalent in a plain <see cref="MaterialBuilder"/> without
+        /// reaching for a <c>KHR_texture_transform</c> extension this project has never
+        /// exercised - baking the same offset/scale straight into every exported
+        /// vertex's own UV instead is always correct with zero extension risk, and a
+        /// no-op for the overwhelming common case (offset (0,0), scale (1,1) - the
+        /// whole image) since it leaves the UV completely unchanged.</summary>
+        private static (Vector2 Offset, Vector2 Scale) GetUVTransform(CoreMaterial? material) =>
+            (material?.DiffuseTextureOffset ?? Vector2.Zero, material?.DiffuseTextureScale ?? Vector2.One);
 
         private static MaterialBuilder GetOrCreateMaterial(
             CoreMaterial? material, Dictionary<CoreMaterial, MaterialBuilder> cache, Dictionary<string, ImageBuilder> imageCache)

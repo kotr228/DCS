@@ -194,6 +194,20 @@ namespace JolieCat3D.Core.Geometry
             _vertices[index] = _vertices[index].WithUV(uv);
         }
 
+        /// <summary>Replaces the color of the vertex at <paramref name="index"/> in
+        /// place, keeping its existing position/normal/UV/bone weights - the mutation
+        /// Vertex Paint mode's own brush uses (see <see cref="Materials.VertexPaintBrush"/>),
+        /// the same "one small in-place field swap" shape <see cref="SetVertexUV"/>/
+        /// <see cref="SetVertexBoneWeights"/> already have.</summary>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is not a valid vertex index.</exception>
+        public void SetVertexColor(int index, Color4 color)
+        {
+            if (index < 0 || index >= _vertices.Count)
+                throw new ArgumentOutOfRangeException(nameof(index));
+
+            _vertices[index] = _vertices[index].WithColor(color);
+        }
+
         /// <summary>Replaces the skinning bone indices/weights of the vertex at
         /// <paramref name="index"/> in place, keeping its existing position/normal/UV/
         /// color - the mutation Weight Paint mode's own brush uses (see
@@ -856,11 +870,148 @@ namespace JolieCat3D.Core.Geometry
         }
 
         /// <summary>
+        /// Merges every vertex sitting within <paramref name="tolerance"/> of another
+        /// into ONE shared entry (keeping the FIRST one encountered's own UV/Color/
+        /// bone weights as representative - a disclosed simplification: a welded
+        /// duplicate's own per-copy UV/paint data, if it differed at all, is discarded,
+        /// not blended), remapping every <see cref="Face"/>/<see cref="Polygon"/> onto
+        /// the surviving indices. This is the actual mechanism behind <see cref="ShadeSmooth"/>
+        /// (see its own remarks on why "smooth" first needs shared vertices at all,
+        /// since <see cref="RecalculateNormals"/> only ever averages across vertices
+        /// that already share the SAME index - two faces referencing two DIFFERENT
+        /// vertex entries at the same position, exactly how <c>Primitives.CreateCube</c>
+        /// deliberately authors its own hard edges, average nothing together no matter
+        /// how many times normals are recalculated). Never called automatically by any
+        /// other structural edit in this file - an explicit, user-driven shading choice,
+        /// not an implicit side effect of Extrude/Subdivide/LoopCut/BevelVertex.
+        /// </summary>
+        public void WeldVertices(float tolerance = 1e-4f)
+        {
+            var newVertices = new List<Vertex>();
+            var oldToNew = new int[_vertices.Count];
+            var positionToNewIndex = new Dictionary<(long, long, long), int>();
+
+            (long, long, long) Quantize(Vector3 position)
+            {
+                var scale = tolerance > 0f ? 1f / tolerance : 1f;
+                return ((long)MathF.Round(position.X * scale), (long)MathF.Round(position.Y * scale), (long)MathF.Round(position.Z * scale));
+            }
+
+            for (var i = 0; i < _vertices.Count; i++)
+            {
+                var key = Quantize(_vertices[i].Position);
+                if (positionToNewIndex.TryGetValue(key, out var existingIndex))
+                {
+                    oldToNew[i] = existingIndex;
+                }
+                else
+                {
+                    var newIndex = newVertices.Count;
+                    newVertices.Add(_vertices[i]);
+                    positionToNewIndex[key] = newIndex;
+                    oldToNew[i] = newIndex;
+                }
+            }
+
+            _vertices.Clear();
+            _vertices.AddRange(newVertices);
+
+            for (var i = 0; i < _faces.Count; i++)
+            {
+                var face = _faces[i];
+                _faces[i] = new Face(oldToNew[face.A], oldToNew[face.B], oldToNew[face.C]);
+            }
+
+            for (var i = 0; i < _polygons.Count; i++)
+            {
+                var polygon = _polygons[i];
+                _polygons[i] = new Polygon(polygon.Indices.Select(index => oldToNew[index])) { MaterialSlotIndex = polygon.MaterialSlotIndex };
+            }
+        }
+
+        /// <summary>
+        /// The reverse of <see cref="WeldVertices"/>: gives every <see cref="Face"/>/
+        /// <see cref="Polygon"/> its OWN private copy of each of its own corners, so no
+        /// two faces/polygons share a single vertex index anywhere in the mesh
+        /// afterward - the same "duplicate vertices per face" shape
+        /// <c>Primitives.CreateCube</c> already authors its own hard edges with. The
+        /// actual mechanism behind <see cref="ShadeFlat"/> (see its own remarks).
+        /// </summary>
+        public void SplitVertsPerFace()
+        {
+            var newVertices = new List<Vertex>();
+            var newFaces = new List<Face>();
+            var newPolygons = new List<Polygon>();
+
+            foreach (var face in _faces)
+            {
+                var a = newVertices.Count; newVertices.Add(_vertices[face.A]);
+                var b = newVertices.Count; newVertices.Add(_vertices[face.B]);
+                var c = newVertices.Count; newVertices.Add(_vertices[face.C]);
+                newFaces.Add(new Face(a, b, c));
+            }
+
+            foreach (var polygon in _polygons)
+            {
+                var remapped = new List<int>(polygon.Indices.Count);
+                foreach (var index in polygon.Indices)
+                {
+                    remapped.Add(newVertices.Count);
+                    newVertices.Add(_vertices[index]);
+                }
+                newPolygons.Add(new Polygon(remapped) { MaterialSlotIndex = polygon.MaterialSlotIndex });
+            }
+
+            _vertices.Clear();
+            _vertices.AddRange(newVertices);
+            _faces.Clear();
+            _faces.AddRange(newFaces);
+            _polygons.Clear();
+            _polygons.AddRange(newPolygons);
+        }
+
+        /// <summary>
+        /// "Shade Smooth" - welds every vertex sitting at the same position (within
+        /// <paramref name="weldTolerance"/>) into one shared entry via
+        /// <see cref="WeldVertices"/>, then <see cref="RecalculateNormals"/> so each
+        /// now-shared vertex's own normal averages across every face touching it,
+        /// producing the smooth, continuously-curving look most organic (non-hard-
+        /// surface) meshes want. A destructive, immediate authoring choice (mirroring
+        /// Blender's own Shade Smooth - not a non-destructive <see cref="Modifiers.Modifier"/>
+        /// step, unlike <see cref="Modifiers.EdgeSplitModifier"/>'s own middle-ground
+        /// "Auto Smooth" - see that class's own remarks on why THAT one belongs in the
+        /// stack instead).
+        /// </summary>
+        public void ShadeSmooth(float weldTolerance = 1e-4f)
+        {
+            WeldVertices(weldTolerance);
+            RecalculateNormals();
+        }
+
+        /// <summary>
+        /// "Shade Flat" - splits every vertex so no two faces/polygons share one (via
+        /// <see cref="SplitVertsPerFace"/>), then <see cref="RecalculateNormals"/> so
+        /// every vertex belongs to EXACTLY one face and its own normal is therefore
+        /// simply that face's own flat normal - the classic faceted, hard-edged look
+        /// (exactly the shape <c>Primitives.CreateCube</c> already authors by hand).
+        /// </summary>
+        public void ShadeFlat()
+        {
+            SplitVertsPerFace();
+            RecalculateNormals();
+        }
+
+        /// <summary>
         /// Recomputes every vertex's <see cref="Vertex.Normal"/> as the normalized
         /// average of the face normals of every triangle (from <see cref="GetRenderFaces"/>)
         /// it participates in - the standard smooth-shading normal, for a mesh built
         /// (like <c>Primitives</c>'s helpers) or edited without normals of its own.
-        /// Replaces <see cref="Vertices"/> in place.
+        /// Replaces <see cref="Vertices"/> in place. Only ever averages across vertices
+        /// that already SHARE an index - see <see cref="WeldVertices"/>'s own remarks on
+        /// why two faces referencing two different vertex entries at the same position
+        /// (a deliberately hard-edged mesh) average nothing together no matter how many
+        /// times this is called; <see cref="ShadeSmooth"/> is what actually establishes
+        /// that sharing first.
         /// </summary>
         public void RecalculateNormals()
         {

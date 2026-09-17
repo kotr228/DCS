@@ -693,6 +693,7 @@ namespace JolieCat3D.UI.ViewModels
                     BooleanModifier boolean => new BooleanModifierViewModel(boolean, _onChanged, this, _allNodesProvider),
                     ArrayModifier array => new ArrayModifierViewModel(array, _onChanged),
                     SolidifyModifier solidify => new SolidifyModifierViewModel(solidify, _onChanged),
+                    EdgeSplitModifier edgeSplit => new EdgeSplitModifierViewModel(edgeSplit, _onChanged),
                     _ => null,
                 };
                 if (viewModel is not null) Modifiers.Add(viewModel);
@@ -746,6 +747,34 @@ namespace JolieCat3D.UI.ViewModels
         {
             _node.Modifiers.Add(new SolidifyModifier());
             RefreshModifiers();
+            _onChanged();
+        }
+
+        /// <summary>Appends a new, default-settings (30-degree threshold)
+        /// <see cref="EdgeSplitModifier"/> to this node's own stack - the Modifiers
+        /// panel's "Add Edge Split" button (the task's own "Auto Smooth").</summary>
+        public void AddEdgeSplitModifier()
+        {
+            _node.Modifiers.Add(new EdgeSplitModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
+        /// <summary>"Shade Smooth" - see <see cref="Core.Geometry.Mesh.ShadeSmooth"/>'s
+        /// own remarks. A no-op for a mesh-less node.</summary>
+        public void ShadeSmooth()
+        {
+            if (_node.Mesh is not { } mesh) return;
+            mesh.ShadeSmooth();
+            _onChanged();
+        }
+
+        /// <summary>"Shade Flat" - see <see cref="Core.Geometry.Mesh.ShadeFlat"/>'s own
+        /// remarks. A no-op for a mesh-less node.</summary>
+        public void ShadeFlat()
+        {
+            if (_node.Mesh is not { } mesh) return;
+            mesh.ShadeFlat();
             _onChanged();
         }
 

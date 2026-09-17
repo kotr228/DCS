@@ -894,6 +894,13 @@ namespace JolieCat3D.UI
                 return;
             }
 
+            if (IsVertexPaintMode)
+            {
+                _isPaintingVertexColors = true;
+                HandleVertexPaintClick(position);
+                return;
+            }
+
             if (TryBeginGizmoDrag(position, e))
             {
                 e.Handled = true;
@@ -1102,6 +1109,11 @@ namespace JolieCat3D.UI
         /// Mode.</summary>
         private bool IsWeightPaintMode => WeightPaintModeButton.IsChecked == true;
 
+        /// <summary>True once <see cref="VertexPaintModeButton"/> is the checked radio
+        /// button - the same role <see cref="IsWeightPaintMode"/> plays for Weight
+        /// Paint mode.</summary>
+        private bool IsVertexPaintMode => VertexPaintModeButton.IsChecked == true;
+
         private void SelectNode(Node? node)
         {
             _renderer.Select(node);
@@ -1121,6 +1133,13 @@ namespace JolieCat3D.UI
                 {
                     ObjectModeButton.IsChecked = true;
                 }
+                return;
+            }
+
+            if (IsVertexPaintMode)
+            {
+                if (node?.Mesh is not null) _renderer.EnterVertexPaintMode(node);
+                else ObjectModeButton.IsChecked = true;
                 return;
             }
 
@@ -1195,6 +1214,7 @@ namespace JolieCat3D.UI
             if (sender is not RadioButton { Tag: string modeName }) return;
             var enteringEditMode = modeName == "Edit";
             var enteringWeightPaintMode = modeName == "WeightPaint";
+            var enteringVertexPaintMode = modeName == "VertexPaint";
 
             VertexModeButton.IsEnabled = enteringEditMode;
             EdgeModeButton.IsEnabled = enteringEditMode;
@@ -1212,15 +1232,17 @@ namespace JolieCat3D.UI
             // Custom Pivot Points only makes sense in Object Mode (it moves a whole
             // NODE'S own origin, not any per-vertex selection) - the exact opposite
             // enablement from every Edit-Mode-only control above.
-            AffectOnlyOriginCheckBox.IsEnabled = !enteringEditMode && !enteringWeightPaintMode;
+            AffectOnlyOriginCheckBox.IsEnabled = !enteringEditMode && !enteringWeightPaintMode && !enteringVertexPaintMode;
 
             WeightPaintToolbar.Visibility = enteringWeightPaintMode ? Visibility.Visible : Visibility.Collapsed;
+            VertexPaintToolbar.Visibility = enteringVertexPaintMode ? Visibility.Visible : Visibility.Collapsed;
 
-            // Leaving Weight Paint mode (for either of the other two) always detaches
-            // its own session first, exactly like leaving Edit Mode below - never left
-            // silently active (and still eating viewport clicks) once its own toolbar
-            // is hidden.
+            // Leaving Weight/Vertex Paint mode (for any of the other modes) always
+            // detaches its own session first, exactly like leaving Edit Mode below -
+            // never left silently active (and still eating viewport clicks) once its
+            // own toolbar is hidden.
             if (!enteringWeightPaintMode) _renderer.ExitWeightPaintMode();
+            if (!enteringVertexPaintMode) _renderer.ExitVertexPaintMode();
 
             if (enteringEditMode)
             {
@@ -1252,6 +1274,20 @@ namespace JolieCat3D.UI
                 _componentGizmo.Attach(null);
                 _renderer.EnterWeightPaintMode(node);
                 RefreshActiveBoneCombo();
+            }
+            else if (enteringVertexPaintMode)
+            {
+                if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { Mesh: not null } node)
+                {
+                    MessageBox.Show(this, "Select an object with a mesh before entering Vertex Paint mode.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    ObjectModeButton.IsChecked = true;
+                    return;
+                }
+
+                _gizmo.Attach(null);
+                _componentGizmo.Attach(null);
+                _renderer.EnterVertexPaintMode(node);
             }
             else
             {
@@ -1316,18 +1352,67 @@ namespace JolieCat3D.UI
             _renderer.Refresh();
         }
 
+        /// <summary>Vertex Paint mode's own target-color picker - a plain "#RRGGBB"
+        /// hex field, the same convention <c>NodeViewModel.DiffuseColorHex</c>/
+        /// <c>LightColorHex</c> already use.</summary>
+        private void VertexPaintColorTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is not TextBox { Text: var text }) return;
+            if (System.Windows.Media.ColorConverter.ConvertFromString(text) is not System.Windows.Media.Color parsed) return;
+
+            _renderer.VertexPaintSession.TargetColor = new Color4(parsed.ScR, parsed.ScG, parsed.ScB, parsed.ScA);
+        }
+
+        private void VertexBrushRadiusSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            _renderer.VertexPaintSession.BrushRadius = (float)e.NewValue;
+        }
+
+        private void VertexBrushStrengthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            _renderer.VertexPaintSession.Strength = (float)e.NewValue;
+        }
+
+        /// <summary>Vertex Paint mode's own mouse-down: paints one brush tick right
+        /// where the click landed, then starts <see cref="_isPaintingVertexColors"/> so
+        /// <see cref="Viewport_MouseMove"/> keeps painting for the rest of the drag -
+        /// the same shape <see cref="HandleWeightPaintClick"/>/<see cref="_isPaintingWeights"/>
+        /// already have.</summary>
+        private bool _isPaintingVertexColors;
+
+        private void HandleVertexPaintClick(Point position)
+        {
+            if (_renderer.VertexPaintSession.RaycastWorldHitPoint(Viewport, position) is not { } worldHitPoint) return;
+            _renderer.VertexPaintSession.PaintAt(worldHitPoint);
+            _renderer.Refresh();
+        }
+
         private void Viewport_MouseMove(object sender, MouseEventArgs e)
         {
-            if (!_isInitialized || !_isPaintingWeights || e.LeftButton != MouseButtonState.Pressed)
+            if (!_isInitialized) return;
+
+            if (_isPaintingWeights)
             {
-                _isPaintingWeights = _isPaintingWeights && e.LeftButton == MouseButtonState.Pressed;
+                if (e.LeftButton == MouseButtonState.Pressed) HandleWeightPaintClick(e.GetPosition(Viewport));
+                else _isPaintingWeights = false;
                 return;
             }
 
-            HandleWeightPaintClick(e.GetPosition(Viewport));
+            if (_isPaintingVertexColors)
+            {
+                if (e.LeftButton == MouseButtonState.Pressed) HandleVertexPaintClick(e.GetPosition(Viewport));
+                else _isPaintingVertexColors = false;
+            }
         }
 
-        private void Viewport_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => _isPaintingWeights = false;
+        private void Viewport_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _isPaintingWeights = false;
+            _isPaintingVertexColors = false;
+        }
 
         private void ComponentModeButton_Checked(object sender, RoutedEventArgs e)
         {
@@ -1842,6 +1927,24 @@ namespace JolieCat3D.UI
         {
             if (!_isInitialized) return;
             _sceneViewModel.SelectedNode?.AddSolidifyModifier();
+        }
+
+        private void AddEdgeSplitModifierButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _sceneViewModel.SelectedNode?.AddEdgeSplitModifier();
+        }
+
+        private void ShadeSmoothButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _sceneViewModel.SelectedNode?.ShadeSmooth();
+        }
+
+        private void ShadeFlatButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _sceneViewModel.SelectedNode?.ShadeFlat();
         }
 
         private void AddTrackToConstraintButton_Click(object sender, RoutedEventArgs e)

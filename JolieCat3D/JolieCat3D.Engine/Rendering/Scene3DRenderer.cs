@@ -210,6 +210,17 @@ namespace JolieCat3D.Engine.Rendering
         /// <see cref="Refresh"/> to redraw the resulting heat-map.</summary>
         public WeightPaintSession WeightPaintSession { get; } = new();
 
+        /// <summary>Vertex Paint mode's own per-target state (see <see cref="EnterVertexPaintMode"/>/
+        /// <see cref="ExitVertexPaintMode"/>) - always exists (never null itself), with
+        /// <see cref="VertexPaintSession.Target"/> null whenever Vertex Paint mode isn't
+        /// active. Unlike <see cref="WeightPaintSession"/>, entering/exiting this mode
+        /// needs no special render-time overlay of its own - a vertex-painted mesh's
+        /// own colors are already baked into its DEFAULT rendering (see
+        /// <c>Geometry.VertexColorBakery</c>/<c>Geometry.SceneGraphBuilder</c>) the
+        /// instant the brush touches it, whether or not this mode is even still
+        /// active.</summary>
+        public VertexPaintSession VertexPaintSession { get; } = new();
+
         /// <summary>Whether the viewport is currently locked onto - and pilotable through -
         /// <see cref="CoreScene.ActiveCamera"/>. See <see cref="EnterActiveCameraView"/>/
         /// <see cref="ExitActiveCameraView"/>, the "View > Active Camera" toggle's own
@@ -666,6 +677,28 @@ namespace JolieCat3D.Engine.Rendering
         public void ExitWeightPaintMode()
         {
             WeightPaintSession.Attach(null);
+            Refresh();
+        }
+
+        /// <summary>Switches <see cref="VertexPaintSession"/> onto <paramref name="node"/> -
+        /// <c>JolieCat3D.UI</c>'s cue that Vertex Paint mode is now active for this
+        /// node. No re-render is strictly needed here (nothing about the node's own
+        /// appearance changes just from entering the mode), but calling <see cref="Refresh"/>
+        /// anyway costs nothing and keeps this symmetric with <see cref="EnterWeightPaintMode"/>.</summary>
+        public void EnterVertexPaintMode(CoreNode node)
+        {
+            ArgumentNullException.ThrowIfNull(node);
+            VertexPaintSession.Attach(node);
+            Refresh();
+        }
+
+        /// <summary>Detaches <see cref="VertexPaintSession"/> - <c>JolieCat3D.UI</c>'s
+        /// cue to switch back to Object Mode. Whatever vertex colors were painted stay
+        /// painted (and stay rendered, per this node's own normal render path) either
+        /// way - only the brush's own ACTIVE target is cleared.</summary>
+        public void ExitVertexPaintMode()
+        {
+            VertexPaintSession.Attach(null);
             Refresh();
         }
 

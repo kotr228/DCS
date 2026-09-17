@@ -186,6 +186,28 @@ namespace JolieCat3D.UI.ViewModels
         }
     }
 
+    public sealed class EdgeSplitModifierViewModel : ModifierViewModelBase
+    {
+        private readonly EdgeSplitModifier _edgeSplit;
+
+        public EdgeSplitModifierViewModel(EdgeSplitModifier edgeSplit, Action onChanged) : base(edgeSplit, onChanged) =>
+            _edgeSplit = edgeSplit;
+
+        /// <summary>See <see cref="EdgeSplitModifier.AngleThresholdDegrees"/>'s own
+        /// remarks.</summary>
+        public float AngleThresholdDegrees
+        {
+            get => _edgeSplit.AngleThresholdDegrees;
+            set
+            {
+                if (_edgeSplit.AngleThresholdDegrees == value) return;
+                _edgeSplit.AngleThresholdDegrees = value;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+    }
+
     /// <summary>
     /// The Modifiers panel's own view of a <see cref="BooleanModifier"/> - unlike
     /// <see cref="MirrorModifierViewModel"/>/<see cref="SubdivisionSurfaceModifierViewModel"/>
