@@ -53,6 +53,29 @@ namespace JolieCat3D.Core.Scene
         /// <see cref="Mesh"/> is just a cache here, not independently authored).</summary>
         public CurveData? Curve { get; set; }
 
+        /// <summary>Optional - present only for a node authored as the ROOT of a
+        /// skeleton (see <see cref="ArmatureData"/>'s own remarks). Same "additive
+        /// data, not a subclass, not mutually exclusive with the others" shape as
+        /// <see cref="Camera"/>/<see cref="Light"/>/<see cref="Curve"/>.</summary>
+        public ArmatureData? Armature { get; set; }
+
+        /// <summary>Optional - present only for a node authored as a bone (see
+        /// <see cref="BoneData"/>'s own remarks - a bone's own Forward Kinematics is
+        /// nothing more than this SAME node's own <see cref="Parent"/>/<see cref="Children"/>/
+        /// <see cref="GetWorldTransform"/> chain). Same "additive data, not a subclass"
+        /// shape as <see cref="Camera"/>/<see cref="Light"/>/<see cref="Curve"/>/
+        /// <see cref="Armature"/>.</summary>
+        public BoneData? Bone { get; set; }
+
+        /// <summary>Optional - present only for a mesh node that has been bound to a
+        /// skeleton (see <see cref="SkinBinding"/>'s own remarks). Unlike
+        /// <see cref="Camera"/>/<see cref="Light"/>/<see cref="Armature"/>/<see cref="Bone"/>,
+        /// this one only makes sense alongside <see cref="Mesh"/> - <see cref="Skinning.SkinningEvaluator"/>
+        /// simply has nothing to deform for a mesh-less node, the same "harmless if
+        /// unused" latitude every other optional field here already has rather than
+        /// enforcing that pairing structurally.</summary>
+        public SkinBinding? SkinBinding { get; set; }
+
         /// <summary>This node's non-destructive modifier stack (see
         /// <see cref="Modifier"/>'s own remarks) - applied, in list order, to
         /// <see cref="Mesh"/> at render time only (by <c>JolieCat3D.Engine.Geometry.SceneGraphBuilder</c>,
@@ -205,6 +228,9 @@ namespace JolieCat3D.Core.Scene
                 Camera = Camera?.Clone(),
                 Light = Light?.Clone(),
                 Curve = Curve?.Clone(),
+                Armature = Armature?.Clone(),
+                Bone = Bone?.Clone(),
+                SkinBinding = SkinBinding?.Clone(),
             };
 
             foreach (var modifier in Modifiers) clone.Modifiers.Add(modifier.Clone());

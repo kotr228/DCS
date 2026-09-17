@@ -194,6 +194,23 @@ namespace JolieCat3D.Core.Geometry
             _vertices[index] = _vertices[index].WithUV(uv);
         }
 
+        /// <summary>Replaces the skinning bone indices/weights of the vertex at
+        /// <paramref name="index"/> in place, keeping its existing position/normal/UV/
+        /// color - the mutation Weight Paint mode's own brush uses (see
+        /// <see cref="Skinning.WeightPaintBrush"/>), the same "one small in-place field
+        /// swap, no recalculation of its own needed" shape <see cref="SetVertexUV"/>
+        /// already has (a bone-weight edit changes nothing about the mesh's own
+        /// rest-pose shape/normals - only <see cref="Skinning.SkinningEvaluator"/>,
+        /// evaluated fresh at render time, ever moves a vertex because of it).</summary>
+        /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is not a valid vertex index.</exception>
+        public void SetVertexBoneWeights(int index, BoneIndices boneIndices, Vector4 boneWeights)
+        {
+            if (index < 0 || index >= _vertices.Count)
+                throw new ArgumentOutOfRangeException(nameof(index));
+
+            _vertices[index] = _vertices[index].WithBoneIndices(boneIndices).WithBoneWeights(boneWeights);
+        }
+
         /// <summary>
         /// Removes every vertex index in <paramref name="indices"/> from this mesh, along
         /// with any <see cref="Face"/>/<see cref="Polygon"/> that references ANY of them -

@@ -7,6 +7,7 @@ using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Modifiers;
 using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
+using JolieCat3D.Core.Skinning;
 
 namespace JolieCat3D.UI.ViewModels
 {
@@ -554,6 +555,122 @@ namespace JolieCat3D.UI.ViewModels
             OnPropertyChanged(nameof(HasMesh));
             _onChanged();
         }
+
+        /// <summary>True once this node is a bone (see <see cref="BoneData"/>'s own
+        /// remarks) - what the Bone Inspector section binds its own Visibility to.</summary>
+        public bool HasBone => _node.Bone is not null;
+
+        public float BoneHeadX
+        {
+            get => _node.Bone?.Head.X ?? 0f;
+            set { if (_node.Bone is not { } bone) return; bone.Head = new Vector3(value, bone.Head.Y, bone.Head.Z); OnPropertyChanged(); OnPropertyChanged(nameof(BoneLength)); RegenerateBoneMesh(); }
+        }
+
+        public float BoneHeadY
+        {
+            get => _node.Bone?.Head.Y ?? 0f;
+            set { if (_node.Bone is not { } bone) return; bone.Head = new Vector3(bone.Head.X, value, bone.Head.Z); OnPropertyChanged(); OnPropertyChanged(nameof(BoneLength)); RegenerateBoneMesh(); }
+        }
+
+        public float BoneHeadZ
+        {
+            get => _node.Bone?.Head.Z ?? 0f;
+            set { if (_node.Bone is not { } bone) return; bone.Head = new Vector3(bone.Head.X, bone.Head.Y, value); OnPropertyChanged(); OnPropertyChanged(nameof(BoneLength)); RegenerateBoneMesh(); }
+        }
+
+        public float BoneTailX
+        {
+            get => _node.Bone?.Tail.X ?? 0f;
+            set { if (_node.Bone is not { } bone) return; bone.Tail = new Vector3(value, bone.Tail.Y, bone.Tail.Z); OnPropertyChanged(); OnPropertyChanged(nameof(BoneLength)); RegenerateBoneMesh(); }
+        }
+
+        public float BoneTailY
+        {
+            get => _node.Bone?.Tail.Y ?? 0f;
+            set { if (_node.Bone is not { } bone) return; bone.Tail = new Vector3(bone.Tail.X, value, bone.Tail.Z); OnPropertyChanged(); OnPropertyChanged(nameof(BoneLength)); RegenerateBoneMesh(); }
+        }
+
+        public float BoneTailZ
+        {
+            get => _node.Bone?.Tail.Z ?? 0f;
+            set { if (_node.Bone is not { } bone) return; bone.Tail = new Vector3(bone.Tail.X, bone.Tail.Y, value); OnPropertyChanged(); OnPropertyChanged(nameof(BoneLength)); RegenerateBoneMesh(); }
+        }
+
+        /// <summary>Read-only - see <see cref="BoneData.Length"/>'s own remarks on why
+        /// this is derived, not separately stored.</summary>
+        public float BoneLength => _node.Bone?.Length ?? 0f;
+
+        /// <summary>The Bone Inspector's own "Set Rest Pose" button - see
+        /// <see cref="BoneData.CaptureRestPose"/>'s own remarks on when to use this
+        /// (re-binding after reshaping a skeleton, before painting/animating it).</summary>
+        public void SetBoneRestPose()
+        {
+            if (_node.Bone is not { } bone) return;
+            bone.CaptureRestPose(_node);
+            _onChanged();
+        }
+
+        /// <summary>Rebuilds <see cref="Node.Mesh"/> from this bone's own
+        /// <see cref="BoneData"/> - the same "optional data drives Mesh, which is just
+        /// a cache" convention <see cref="RegenerateCurveMesh"/> already established.</summary>
+        private void RegenerateBoneMesh()
+        {
+            if (_node.Bone is not { } bone) return;
+
+            _node.Mesh = bone.GenerateMesh();
+            OnPropertyChanged(nameof(HasMesh));
+            _onChanged();
+        }
+
+        /// <summary>True once this node has been bound to a skeleton (see
+        /// <see cref="SkinBinding"/>'s own remarks) - what the Skinning Inspector
+        /// section's own bone-list display binds its own Visibility to (the "Bind to
+        /// Armature" picker itself is shown any time this node has a Mesh at all,
+        /// bound or not).</summary>
+        public bool HasSkinBinding => _node.SkinBinding is not null;
+
+        /// <summary>Every node in the scene that is itself an Armature root - what the
+        /// Skinning panel's own "Bind to Armature" combo box offers. The same
+        /// "re-evaluated every time it's read, always reflects the scene's current
+        /// state" behavior <see cref="BooleanModifierViewModel.AvailableTargets"/>
+        /// already has.</summary>
+        public IEnumerable<NodeViewModel> AvailableArmatures =>
+            _allNodesProvider().Where(candidate => candidate.UnderlyingNode.Armature is not null);
+
+        /// <summary>Picking an armature here IMMEDIATELY (re-)binds this node against
+        /// every bone under it via <see cref="SkinBindingFactory.CreateAutomatic"/> -
+        /// the same "selection IS the action" convention
+        /// <see cref="BooleanModifierViewModel.SelectedTarget"/> already uses for its
+        /// own target picker. Never offers clearing the binding back to null (unbinding
+        /// isn't something the task asks for, and silently discarding a mesh's own
+        /// painted weights on an accidental blank selection would be a real data-loss
+        /// trap) - re-picking the SAME armature again simply re-runs automatic weights
+        /// from scratch, a deliberate, explicit "start over" action, not a passive
+        /// no-op.</summary>
+        public NodeViewModel? BoundArmature
+        {
+            get => _node.SkinBinding?.Armature is { } armature
+                ? _allNodesProvider().FirstOrDefault(candidate => candidate.UnderlyingNode == armature)
+                : null;
+            set
+            {
+                if (value is null || _node.Mesh is null) return;
+
+                _node.SkinBinding = SkinBindingFactory.CreateAutomatic(_node, value.UnderlyingNode);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasSkinBinding));
+                OnPropertyChanged(nameof(BoundBoneNames));
+                _onChanged();
+            }
+        }
+
+        /// <summary>The names of every bone this node is currently bound to, in
+        /// binding order - a read-only display list for the Skinning panel (which bone
+        /// slot 0/1/2/... refers to when painting - see
+        /// <c>Engine.Editing.WeightPaintSession.ActiveBoneIndex</c>'s own remarks on
+        /// why that's a plain index into this same list).</summary>
+        public IReadOnlyList<string> BoundBoneNames =>
+            _node.SkinBinding is { } binding ? binding.Bones.Select(bone => bone.Name).ToList() : Array.Empty<string>();
 
         /// <summary>Mirrors <see cref="Node.Modifiers"/> as view models, one per entry,
         /// in the same order - the Modifiers panel's own <c>ItemsControl</c> binds

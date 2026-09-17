@@ -203,6 +203,13 @@ namespace JolieCat3D.Engine.Rendering
         /// <see cref="RefreshComponentOverlay"/> to redraw the resulting markers.</summary>
         public MeshEditSession EditSession { get; } = new();
 
+        /// <summary>Weight Paint mode's own per-target state (see <see cref="EnterWeightPaintMode"/>/
+        /// <see cref="ExitWeightPaintMode"/>) - always exists (never null itself), with
+        /// <see cref="WeightPaintSession.Target"/> null whenever Weight Paint mode isn't
+        /// active. <c>JolieCat3D.UI</c> reads/mutates this directly then calls
+        /// <see cref="Refresh"/> to redraw the resulting heat-map.</summary>
+        public WeightPaintSession WeightPaintSession { get; } = new();
+
         /// <summary>Whether the viewport is currently locked onto - and pilotable through -
         /// <see cref="CoreScene.ActiveCamera"/>. See <see cref="EnterActiveCameraView"/>/
         /// <see cref="ExitActiveCameraView"/>, the "View > Active Camera" toggle's own
@@ -326,7 +333,10 @@ namespace JolieCat3D.Engine.Rendering
             }
             else
             {
-                _sceneVisual.Content = SceneGraphBuilder.Build(scene, _modelToNode, ShadingMode);
+                var weightPaintOverlay = WeightPaintSession.Target is { } paintedNode
+                    ? new WeightPaintOverlay(paintedNode, WeightPaintSession.ActiveBoneIndex)
+                    : null;
+                _sceneVisual.Content = SceneGraphBuilder.Build(scene, _modelToNode, ShadingMode, weightPaintOverlay);
                 RefreshWireframeVisual(null);
             }
 
@@ -637,6 +647,26 @@ namespace JolieCat3D.Engine.Rendering
         {
             EditSession.Attach(null);
             RefreshComponentOverlay();
+        }
+
+        /// <summary>Switches <see cref="WeightPaintSession"/> onto <paramref name="node"/>
+        /// and re-renders so its heat-map overlay appears immediately -
+        /// <c>JolieCat3D.UI</c>'s cue that Weight Paint mode is now active for this
+        /// node.</summary>
+        public void EnterWeightPaintMode(CoreNode node)
+        {
+            ArgumentNullException.ThrowIfNull(node);
+            WeightPaintSession.Attach(node);
+            Refresh();
+        }
+
+        /// <summary>Detaches <see cref="WeightPaintSession"/> and re-renders so the
+        /// heat-map overlay disappears, back to this node's own normal material -
+        /// <c>JolieCat3D.UI</c>'s cue to switch back to Object Mode.</summary>
+        public void ExitWeightPaintMode()
+        {
+            WeightPaintSession.Attach(null);
+            Refresh();
         }
 
         /// <summary>Rebuilds the vertex/edge/face marker overlay from

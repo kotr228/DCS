@@ -10,6 +10,7 @@ using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Materials;
 using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
+using JolieCat3D.Core.Skinning;
 using JolieCat3D.Engine.Camera;
 using JolieCat3D.Engine.Editing;
 using JolieCat3D.Engine.Gizmos;
@@ -399,6 +400,59 @@ namespace JolieCat3D.UI
             curve.Points.Add(new CurvePoint(new System.Numerics.Vector3(1f, 0f, 0f)));
 
             AddNodeToScene(new Node("Curve") { Curve = curve, Mesh = curve.GenerateMesh() });
+        }
+
+        /// <summary>File > Scene > "Add Armature" - a new root node carrying
+        /// <see cref="ArmatureData"/>, plus one root <see cref="BoneData"/> bone
+        /// already attached to it (an armature with zero bones has nothing to select/
+        /// rotate/skin against, so this never leaves one in that useless state) - see
+        /// <see cref="AddCameraMenuItem_Click"/>'s own remarks on the shared "Add ..."
+        /// shape. The new bone's own rest pose is captured immediately (see
+        /// <see cref="BoneData.CaptureRestPose"/>), while its <see cref="Node.LocalRotation"/>
+        /// is still Identity - exactly the moment a bone's own rest pose is meant to be
+        /// captured.</summary>
+        private void AddArmatureMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            var armature = new Node("Armature") { Armature = new ArmatureData() };
+            var rootBone = new Node("Bone") { Bone = new BoneData { Head = Vector3.Zero, Tail = new Vector3(0f, 1f, 0f) } };
+            armature.AddChild(rootBone);
+            rootBone.Mesh = rootBone.Bone!.GenerateMesh();
+            rootBone.Bone.CaptureRestPose(rootBone);
+
+            AddNodeToScene(armature);
+        }
+
+        /// <summary>File > Scene > "Add Bone" - appends a new bone as a CHILD of
+        /// whichever Armature/Bone node is currently selected (never as a new root -
+        /// see <see cref="AddNodeToScene"/>'s own remarks on why every other "Add ..."
+        /// item DOES add a root, and why this one deliberately does not: a bone with no
+        /// parent bone/armature isn't part of any skeleton at all). Attached at the
+        /// parent bone's own Tail when the parent IS a bone (Blender's own "connected
+        /// child bone" convention - see <see cref="BoneData"/>'s own remarks on Head/
+        /// Tail), or at the local origin when the parent is the Armature root itself.</summary>
+        private void AddBoneMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } parent || (parent.Bone is null && parent.Armature is null))
+            {
+                MessageBox.Show(this, "Select an Armature or Bone node first, to attach the new bone to it.", "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var bone = new Node("Bone")
+            {
+                Bone = new BoneData { Head = Vector3.Zero, Tail = new Vector3(0f, 1f, 0f) },
+                LocalPosition = parent.Bone?.Tail ?? Vector3.Zero,
+            };
+            parent.AddChild(bone);
+            bone.Mesh = bone.Bone!.GenerateMesh();
+            bone.Bone.CaptureRestPose(bone);
+
+            _sceneViewModel.Load(_currentScene);
+            _renderer.Render(_currentScene, zoomToFit: false);
         }
 
         /// <summary>Adds <paramref name="node"/> as a new root of <see cref="_currentScene"/>
@@ -833,6 +887,13 @@ namespace JolieCat3D.UI
 
             var position = e.GetPosition(Viewport);
 
+            if (IsWeightPaintMode)
+            {
+                _isPaintingWeights = true;
+                HandleWeightPaintClick(position);
+                return;
+            }
+
             if (TryBeginGizmoDrag(position, e))
             {
                 e.Handled = true;
@@ -1030,14 +1091,38 @@ namespace JolieCat3D.UI
         }
 
         /// <summary>True once <see cref="EditModeButton"/> (rather than
-        /// <see cref="ObjectModeButton"/>) is the checked radio button - what every
-        /// Edit-Mode-vs-Object-Mode branch in this window reads.</summary>
+        /// <see cref="ObjectModeButton"/>/<see cref="WeightPaintModeButton"/>) is the
+        /// checked radio button - what every Edit-Mode-vs-everything-else branch in
+        /// this window reads.</summary>
         private bool IsEditMode => EditModeButton.IsChecked == true;
+
+        /// <summary>True once <see cref="WeightPaintModeButton"/> is the checked radio
+        /// button - what <see cref="Viewport_MouseLeftButtonDown"/>/<see cref="Viewport_MouseMove"/>
+        /// read to route a viewport click/drag to the brush instead of selection/Edit
+        /// Mode.</summary>
+        private bool IsWeightPaintMode => WeightPaintModeButton.IsChecked == true;
 
         private void SelectNode(Node? node)
         {
             _renderer.Select(node);
             _sceneViewModel.SelectedNode = _sceneViewModel.FindViewModel(node);
+
+            if (IsWeightPaintMode)
+            {
+                // Same "selection changed, so does everything driven by it" behavior
+                // Edit Mode's own re-targeting (below) already has - a target with no
+                // mesh/binding has nothing to paint, so this bounces back to Object Mode.
+                if (node is { Mesh: not null, SkinBinding: not null })
+                {
+                    _renderer.EnterWeightPaintMode(node);
+                    RefreshActiveBoneCombo();
+                }
+                else
+                {
+                    ObjectModeButton.IsChecked = true;
+                }
+                return;
+            }
 
             if (!IsEditMode)
             {
@@ -1109,6 +1194,7 @@ namespace JolieCat3D.UI
             if (!_isInitialized) return;
             if (sender is not RadioButton { Tag: string modeName }) return;
             var enteringEditMode = modeName == "Edit";
+            var enteringWeightPaintMode = modeName == "WeightPaint";
 
             VertexModeButton.IsEnabled = enteringEditMode;
             EdgeModeButton.IsEnabled = enteringEditMode;
@@ -1126,7 +1212,15 @@ namespace JolieCat3D.UI
             // Custom Pivot Points only makes sense in Object Mode (it moves a whole
             // NODE'S own origin, not any per-vertex selection) - the exact opposite
             // enablement from every Edit-Mode-only control above.
-            AffectOnlyOriginCheckBox.IsEnabled = !enteringEditMode;
+            AffectOnlyOriginCheckBox.IsEnabled = !enteringEditMode && !enteringWeightPaintMode;
+
+            WeightPaintToolbar.Visibility = enteringWeightPaintMode ? Visibility.Visible : Visibility.Collapsed;
+
+            // Leaving Weight Paint mode (for either of the other two) always detaches
+            // its own session first, exactly like leaving Edit Mode below - never left
+            // silently active (and still eating viewport clicks) once its own toolbar
+            // is hidden.
+            if (!enteringWeightPaintMode) _renderer.ExitWeightPaintMode();
 
             if (enteringEditMode)
             {
@@ -1144,6 +1238,21 @@ namespace JolieCat3D.UI
                 _renderer.EnterEditMode(node);
                 _componentGizmo.Attach(_renderer.EditSession);
             }
+            else if (enteringWeightPaintMode)
+            {
+                if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { Mesh: not null, SkinBinding: not null } node)
+                {
+                    MessageBox.Show(this, "Select a mesh already bound to an Armature (see its own Skinning panel) before entering Weight Paint mode.",
+                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+                    ObjectModeButton.IsChecked = true;
+                    return;
+                }
+
+                _gizmo.Attach(null);
+                _componentGizmo.Attach(null);
+                _renderer.EnterWeightPaintMode(node);
+                RefreshActiveBoneCombo();
+            }
             else
             {
                 _componentGizmo.Attach(null);
@@ -1151,6 +1260,74 @@ namespace JolieCat3D.UI
                 _gizmo.Attach(_sceneViewModel.SelectedNode?.UnderlyingNode);
             }
         }
+
+        /// <summary>Rebuilds <see cref="ActiveBoneComboBox"/>'s own item list from
+        /// whatever <see cref="Scene3DRenderer.WeightPaintSession"/>'s current
+        /// <c>Target</c> is bound to - called whenever that target changes (entering
+        /// Weight Paint mode, or re-targeting it via a selection change) so the combo
+        /// always lists the CURRENTLY painted mesh's own bones, never a stale set left
+        /// over from whatever was painted before.</summary>
+        private void RefreshActiveBoneCombo()
+        {
+            var boneNames = _renderer.WeightPaintSession.Target?.SkinBinding?.Bones.Select(bone => bone.Name).ToList() ?? new List<string>();
+            ActiveBoneComboBox.ItemsSource = boneNames;
+            ActiveBoneComboBox.SelectedIndex = boneNames.Count > 0 ? 0 : -1;
+            _renderer.WeightPaintSession.ActiveBoneIndex = 0;
+        }
+
+        private void ActiveBoneComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _renderer.WeightPaintSession.ActiveBoneIndex = ActiveBoneComboBox.SelectedIndex;
+        }
+
+        private void BrushRadiusSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            _renderer.WeightPaintSession.BrushRadius = (float)e.NewValue;
+        }
+
+        private void BrushStrengthSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_isInitialized) return;
+            _renderer.WeightPaintSession.Strength = (float)e.NewValue;
+        }
+
+        private void BrushModeButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is not RadioButton { Tag: string modeName }) return;
+            // "Add" paints toward full weight (1.0), "Subtract" erases toward none (0.0) -
+            // see WeightPaintBrush.Apply's own remarks on TargetWeight.
+            _renderer.WeightPaintSession.TargetWeight = modeName == "Subtract" ? 0f : 1f;
+        }
+
+        /// <summary>Weight Paint mode's own mouse-down: paints one brush tick right
+        /// where the click landed, then starts <see cref="_isPaintingWeights"/> so
+        /// <see cref="Viewport_MouseMove"/> keeps painting for the rest of the drag -
+        /// the same "one tick per mouse-move sample during the drag" brush feel a
+        /// real paint tool has.</summary>
+        private bool _isPaintingWeights;
+
+        private void HandleWeightPaintClick(Point position)
+        {
+            if (_renderer.WeightPaintSession.RaycastWorldHitPoint(Viewport, position) is not { } worldHitPoint) return;
+            _renderer.WeightPaintSession.PaintAt(worldHitPoint);
+            _renderer.Refresh();
+        }
+
+        private void Viewport_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_isInitialized || !_isPaintingWeights || e.LeftButton != MouseButtonState.Pressed)
+            {
+                _isPaintingWeights = _isPaintingWeights && e.LeftButton == MouseButtonState.Pressed;
+                return;
+            }
+
+            HandleWeightPaintClick(e.GetPosition(Viewport));
+        }
+
+        private void Viewport_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => _isPaintingWeights = false;
 
         private void ComponentModeButton_Checked(object sender, RoutedEventArgs e)
         {
@@ -2041,6 +2218,12 @@ namespace JolieCat3D.UI
             if (!_isInitialized) return;
             if (sender is not FrameworkElement { DataContext: CurvePointViewModel pointViewModel }) return;
             _sceneViewModel.SelectedNode?.RemoveCurvePoint(pointViewModel);
+        }
+
+        private void SetBoneRestPoseButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _sceneViewModel.SelectedNode?.SetBoneRestPose();
         }
 
         /// <summary>Each Material Slot row's own "Assign" button - points whichever

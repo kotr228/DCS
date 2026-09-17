@@ -88,6 +88,8 @@
                 <MenuItem Header="Add Ca_mera" Click="AddCameraMenuItem_Click" />
                 <MenuItem Header="Add _Light" Click="AddLightMenuItem_Click" />
                 <MenuItem Header="Add C_urve" Click="AddCurveMenuItem_Click" />
+                <MenuItem Header="Add _Armature" Click="AddArmatureMenuItem_Click" />
+                <MenuItem Header="Add _Bone" Click="AddBoneMenuItem_Click" />
                 <Separator />
                 <!-- A scene-wide skybox/IBL setting (Core.Scene.Scene3D.Environment) -
                      round-trips through the .jolie3d project file, the same "a real
@@ -146,6 +148,12 @@
                 <RadioButton x:Name="EditModeButton" Content="Edit" GroupName="EditorMode"
                              Style="{StaticResource GizmoModeButtonStyle}"
                              Margin="0,0,4,0" Checked="EditorModeButton_Checked" Tag="Edit" />
+                <!-- Weight Paint mode - requires the selected node to already be
+                     Mesh + SkinBinding (see its own Skinning Inspector panel's "Bind to
+                     Armature" combo). See EditorModeButton_Checked's own remarks. -->
+                <RadioButton x:Name="WeightPaintModeButton" Content="Weight Paint" GroupName="EditorMode"
+                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Margin="0,0,16,0" Checked="EditorModeButton_Checked" Tag="WeightPaint" />
 
                 <!-- Object Mode: duplicates the selected node (deep clone, including its
                      children/modifiers/material binding/keyframes - see
@@ -222,6 +230,34 @@
                      in either mode is always safe. -->
                 <Button x:Name="DeleteButton" Content="Delete"
                         Padding="8,2" Click="DeleteButton_Click" />
+
+                <!-- Weight Paint mode's own brush controls - collapsed except while
+                     WeightPaintModeButton is checked (see EditorModeButton_Checked).
+                     ActiveBoneComboBox lists the currently-painted mesh's own
+                     SkinBinding.Bones (see MainWindow.xaml.cs's own
+                     RefreshActiveBoneCombo); "Add"/"Subtract" pick whether the brush
+                     paints toward full weight or erases toward none (see
+                     Core.Skinning.WeightPaintBrush.Apply's own TargetWeight remarks). -->
+                <StackPanel x:Name="WeightPaintToolbar" Orientation="Horizontal" Visibility="Collapsed">
+                    <TextBlock Text="Bone:" VerticalAlignment="Center" Margin="16,0,4,0"
+                               Foreground="{StaticResource TextSecondaryBrush}" />
+                    <ComboBox x:Name="ActiveBoneComboBox" Width="110" Margin="0,0,10,0"
+                              SelectionChanged="ActiveBoneComboBox_SelectionChanged" />
+                    <RadioButton x:Name="BrushAddButton" Content="Add" GroupName="WeightBrushMode"
+                                 IsChecked="True" Style="{StaticResource GizmoModeButtonStyle}"
+                                 Margin="0,0,4,0" Checked="BrushModeButton_Checked" Tag="Add" />
+                    <RadioButton x:Name="BrushSubtractButton" Content="Subtract" GroupName="WeightBrushMode"
+                                 Style="{StaticResource GizmoModeButtonStyle}"
+                                 Margin="0,0,10,0" Checked="BrushModeButton_Checked" Tag="Subtract" />
+                    <TextBlock Text="Radius:" VerticalAlignment="Center" Margin="0,0,4,0"
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <Slider x:Name="BrushRadiusSlider" Width="70" Minimum="0.05" Maximum="3" Value="0.3"
+                            VerticalAlignment="Center" ValueChanged="BrushRadiusSlider_ValueChanged" />
+                    <TextBlock Text="Strength:" VerticalAlignment="Center" Margin="8,0,4,0"
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                    <Slider x:Name="BrushStrengthSlider" Width="70" Minimum="0.05" Maximum="1" Value="0.5"
+                            VerticalAlignment="Center" ValueChanged="BrushStrengthSlider_ValueChanged" />
+                </StackPanel>
             </StackPanel>
         </Border>
 
@@ -382,7 +418,9 @@
                  to drag it" and "click empty space/another mesh to select" never conflict. -->
             <h:HelixViewport3D x:Name="Viewport" Grid.Column="2"
                                ShowCoordinateSystem="True"
-                               MouseLeftButtonDown="Viewport_MouseLeftButtonDown" />
+                               MouseLeftButtonDown="Viewport_MouseLeftButtonDown"
+                               MouseMove="Viewport_MouseMove"
+                               MouseLeftButtonUp="Viewport_MouseLeftButtonUp" />
 
             <!-- Bloom - see MainWindow.xaml.cs's own BloomCheckBox_Changed remarks on
                  why a blurred VisualBrush re-paint of the SAME viewport, layered on top
@@ -907,6 +945,72 @@
                                 </ItemsControl>
                                 <Button Content="Add Point" Margin="8,0,8,8" Padding="8,4"
                                         HorizontalAlignment="Left" Click="AddCurvePointButton_Click" />
+                            </StackPanel>
+
+                            <!-- Bone Inspector - hidden entirely for a non-bone node.
+                                 Head/Tail edits regenerate the bone's own small
+                                 octahedron shape immediately (see
+                                 NodeViewModel.RegenerateBoneMesh's own remarks); "Set
+                                 Rest Pose" bakes the bone's CURRENT world transform in
+                                 as its own new skinning baseline (see
+                                 Core.Scene.BoneData.CaptureRestPose). Rotating the bone
+                                 itself uses the SAME Object Mode Transform Gizmo every
+                                 other node already uses - a bone is just a Node with
+                                 BoneData attached, nothing gizmo-specific needed. -->
+                            <StackPanel Visibility="{Binding HasBone, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="BONE" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
+                                    <TextBlock Text="Head:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="40" />
+                                    <TextBox Text="{Binding BoneHeadX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                    <TextBox Text="{Binding BoneHeadY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                    <TextBox Text="{Binding BoneHeadZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                    <TextBlock Text="Tail:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="40" />
+                                    <TextBox Text="{Binding BoneTailX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                    <TextBox Text="{Binding BoneTailY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                    <TextBox Text="{Binding BoneTailZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
+                                    <TextBlock Text="Length:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <TextBlock Text="{Binding BoneLength, StringFormat={}{0:F3}}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                    <Button Content="Set Rest Pose" Padding="8,2" Click="SetBoneRestPoseButton_Click" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Skinning - shown for any meshed node (bound or not);
+                                 picking an Armature here immediately (re-)binds via
+                                 automatic nearest-bone weights (see
+                                 Core.Skinning.SkinBindingFactory). Weight Paint mode's
+                                 own brush controls live in the toolbar (visible only
+                                 while that mode is active), not here. -->
+                            <StackPanel Visibility="{Binding HasMesh, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="SKINNING" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                    <TextBlock Text="Armature:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <ComboBox ItemsSource="{Binding AvailableArmatures}" SelectedItem="{Binding BoundArmature, Mode=TwoWay}"
+                                              DisplayMemberPath="Name" Width="120" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,8" Visibility="{Binding HasSkinBinding, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock Text="Bound bones:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <ItemsControl ItemsSource="{Binding BoundBoneNames}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" Margin="0,0,6,0" FontSize="11" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

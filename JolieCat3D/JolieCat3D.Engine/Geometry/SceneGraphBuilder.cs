@@ -1,5 +1,7 @@
+using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using JolieCat3D.Core.Modifiers;
+using JolieCat3D.Core.Skinning;
 using JolieCat3D.Engine.Rendering;
 using CoreNode = JolieCat3D.Core.Scene.Node;
 using CoreScene = JolieCat3D.Core.Scene.Scene3D;
@@ -7,6 +9,15 @@ using MediaQuaternion = System.Windows.Media.Media3D.Quaternion;
 
 namespace JolieCat3D.Engine.Geometry
 {
+    /// <summary>Weight Paint mode's own heat-map override - see <see cref="SceneGraphBuilder"/>'s
+    /// own remarks. When <see cref="Target"/> matches the node currently being built,
+    /// that ONE node renders with a blue-to-red gradient sampled through
+    /// <see cref="Core.Skinning.WeightVisualization.BuildHeatmapMesh"/>'s own UV remap
+    /// (<see cref="ActiveBoneIndex"/>'s own current weight per vertex) instead of its
+    /// normal material - every other node (including every other skinned one) still
+    /// renders completely normally.</summary>
+    public sealed record WeightPaintOverlay(CoreNode Target, int ActiveBoneIndex);
+
     /// <summary>
     /// Converts a <c>JolieCat3D.Core</c> scene graph (<see cref="CoreNode"/>/<see cref="CoreScene"/>)
     /// into a WPF <see cref="Model3DGroup"/> tree, combining <see cref="MeshGeometryFactory"/>
@@ -33,13 +44,13 @@ namespace JolieCat3D.Engine.Geometry
         /// it came from - what lets a viewport click (which WPF reports as a hit
         /// <see cref="GeometryModel3D"/>, not a <see cref="CoreNode"/>) resolve back to a
         /// selectable scene object at all; see <c>JolieCat3D.Engine.Selection.SceneHitTester</c>.</summary>
-        public static Model3DGroup Build(CoreScene scene, IDictionary<GeometryModel3D, CoreNode>? modelToNode = null, ShadingMode shadingMode = ShadingMode.Rendered)
+        public static Model3DGroup Build(CoreScene scene, IDictionary<GeometryModel3D, CoreNode>? modelToNode = null, ShadingMode shadingMode = ShadingMode.Rendered, WeightPaintOverlay? weightPaintOverlay = null)
         {
             ArgumentNullException.ThrowIfNull(scene);
 
             var group = new Model3DGroup();
             foreach (var root in scene.RootNodes)
-                group.Children.Add(Build(root, modelToNode, shadingMode));
+                group.Children.Add(Build(root, modelToNode, shadingMode, weightPaintOverlay));
 
             return group;
         }
@@ -55,7 +66,7 @@ namespace JolieCat3D.Engine.Geometry
         /// builds - the geometry and transform are identical either way (a caller
         /// wanting <see cref="ShadingMode.Wireframe"/>'s own "no filled geometry at all"
         /// behavior skips calling this in the first place - see <see cref="Scene3DRenderer.Render"/>).</summary>
-        public static Model3DGroup Build(CoreNode node, IDictionary<GeometryModel3D, CoreNode>? modelToNode = null, ShadingMode shadingMode = ShadingMode.Rendered)
+        public static Model3DGroup Build(CoreNode node, IDictionary<GeometryModel3D, CoreNode>? modelToNode = null, ShadingMode shadingMode = ShadingMode.Rendered, WeightPaintOverlay? weightPaintOverlay = null)
         {
             ArgumentNullException.ThrowIfNull(node);
 
@@ -70,32 +81,76 @@ namespace JolieCat3D.Engine.Geometry
                 // all costs nothing beyond the empty loop.
                 var evaluatedMesh = ModifierStack.Evaluate(mesh, node.Modifiers, node);
 
-                // Multi-Material Support: one GeometryModel3D per DISTINCT material the
-                // mesh's own polygons actually use (see MeshGeometryFactory.CreateGroups's
-                // own remarks) - a plain single-material mesh (every mesh authored before
-                // this existed) always produces exactly one group here, so this is a
-                // strict generalization of the old "always exactly one model" behavior,
-                // not a change to it.
-                foreach (var (coreMaterial, geometry) in MeshGeometryFactory.CreateGroups(evaluatedMesh))
+                // Skeletal skinning is the LAST step before this mesh becomes GPU
+                // geometry - after Modifiers, never before, so a Mirror/Solidify still
+                // sees/produces plain rest-pose geometry (see SkinningEvaluator's own
+                // remarks). A node with no SkinBinding at all - every mesh authored
+                // before skinning existed - skips this entirely and renders exactly as
+                // it always did.
+                var skinnedMesh = node.SkinBinding is { } binding
+                    ? SkinningEvaluator.Deform(evaluatedMesh, node.GetWorldTransform(), binding)
+                    : evaluatedMesh;
+
+                if (weightPaintOverlay is { } overlay && ReferenceEquals(overlay.Target, node))
                 {
-                    var material = MaterialFactory.Create(coreMaterial, shadingMode);
-                    var model = new GeometryModel3D(geometry, material)
+                    // Weight Paint mode's own heat-map, in place of this ONE node's
+                    // normal material - see WeightPaintOverlay's own remarks. Reuses
+                    // MeshGeometryFactory.Create exactly as-is (it already turns
+                    // Vertex.UV into TextureCoordinates for ordinary texturing; a
+                    // gradient Brush sampled through those same coordinates is no
+                    // different from any other textured material as far as WPF's own
+                    // renderer is concerned).
+                    var heatmapMesh = WeightVisualization.BuildHeatmapMesh(skinnedMesh, overlay.ActiveBoneIndex);
+                    var geometry = MeshGeometryFactory.Create(heatmapMesh);
+                    var heatmapMaterial = new DiffuseMaterial(WeightPaintGradientBrush);
+                    var heatmapModel = new GeometryModel3D(geometry, heatmapMaterial) { BackMaterial = heatmapMaterial };
+                    group.Children.Add(heatmapModel);
+                    if (modelToNode is not null) modelToNode[heatmapModel] = node;
+                }
+                else
+                {
+                    // Multi-Material Support: one GeometryModel3D per DISTINCT material the
+                    // mesh's own polygons actually use (see MeshGeometryFactory.CreateGroups's
+                    // own remarks) - a plain single-material mesh (every mesh authored before
+                    // this existed) always produces exactly one group here, so this is a
+                    // strict generalization of the old "always exactly one model" behavior,
+                    // not a change to it.
+                    foreach (var (coreMaterial, geometry) in MeshGeometryFactory.CreateGroups(skinnedMesh))
                     {
-                        // Lets the same material shade the mesh from either side - a mesh
-                        // authored with outward-only normals (Primitives.CreateCube included)
-                        // would otherwise render invisible/black from behind its own faces,
-                        // which reads as a bug to anyone orbiting the camera around it.
-                        BackMaterial = material,
-                    };
-                    group.Children.Add(model);
-                    if (modelToNode is not null) modelToNode[model] = node;
+                        var material = MaterialFactory.Create(coreMaterial, shadingMode);
+                        var model = new GeometryModel3D(geometry, material)
+                        {
+                            // Lets the same material shade the mesh from either side - a mesh
+                            // authored with outward-only normals (Primitives.CreateCube included)
+                            // would otherwise render invisible/black from behind its own faces,
+                            // which reads as a bug to anyone orbiting the camera around it.
+                            BackMaterial = material,
+                        };
+                        group.Children.Add(model);
+                        if (modelToNode is not null) modelToNode[model] = node;
+                    }
                 }
             }
 
             foreach (var child in node.Children)
-                group.Children.Add(Build(child, modelToNode, shadingMode));
+                group.Children.Add(Build(child, modelToNode, shadingMode, weightPaintOverlay));
 
             return group;
+        }
+
+        /// <summary>Blue (weight 0) to red (weight 1), sampled horizontally through
+        /// <see cref="Core.Skinning.WeightVisualization.BuildHeatmapMesh"/>'s own
+        /// UV.X remap - the task's own "Blue for 0 weight, transitioning to Red for
+        /// 1.0 weight" ask. A single shared, frozen (immutable, thread-safe-to-reuse)
+        /// brush instance - nothing about it ever changes, so there's no reason to
+        /// rebuild it per node/per frame.</summary>
+        private static readonly Brush WeightPaintGradientBrush = CreateWeightPaintGradientBrush();
+
+        private static Brush CreateWeightPaintGradientBrush()
+        {
+            var brush = new LinearGradientBrush(Colors.Blue, Colors.Red, new System.Windows.Point(0, 0.5), new System.Windows.Point(1, 0.5));
+            brush.Freeze();
+            return brush;
         }
 
         /// <summary>Scale, then Rotate, then Translate - matching <see cref="CoreNode.GetLocalTransform"/>'s
