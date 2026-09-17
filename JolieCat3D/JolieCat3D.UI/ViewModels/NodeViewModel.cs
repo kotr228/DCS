@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Numerics;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
+using JolieCat3D.Core.Constraints;
 using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Modifiers;
 using JolieCat3D.Core.Numerics;
@@ -59,6 +60,8 @@ namespace JolieCat3D.UI.ViewModels
             SyncFromCore();
             RefreshModifiers();
             RefreshMaterialSlots();
+            RefreshCurvePoints();
+            RefreshConstraints();
         }
 
         public string Name
@@ -441,6 +444,117 @@ namespace JolieCat3D.UI.ViewModels
             set { if (_node.Light is not { } light) return; light.SpotAngle = (float)System.Math.Clamp(value, 1.0, 179.0); OnPropertyChanged(); _onChanged(); }
         }
 
+        /// <summary>True once this node is actually a curve/spline entity - what the
+        /// Curve Inspector section binds its own Visibility to.</summary>
+        public bool HasCurve => _node.Curve is not null;
+
+        public bool CurveClosed
+        {
+            get => _node.Curve?.Closed ?? false;
+            set
+            {
+                if (_node.Curve is not { } curve || curve.Closed == value) return;
+                curve.Closed = value;
+                OnPropertyChanged();
+                RegenerateCurveMesh();
+            }
+        }
+
+        /// <summary>The task's own "Geometry: Bevel Depth" property - see
+        /// <see cref="CurveData.BevelDepth"/>'s own remarks.</summary>
+        public float CurveBevelDepth
+        {
+            get => _node.Curve?.BevelDepth ?? 0.05f;
+            set
+            {
+                if (_node.Curve is not { } curve) return;
+                curve.BevelDepth = value;
+                OnPropertyChanged();
+                RegenerateCurveMesh();
+            }
+        }
+
+        public int CurveSegmentsPerSpan
+        {
+            get => _node.Curve?.SegmentsPerSpan ?? 12;
+            set
+            {
+                if (_node.Curve is not { } curve) return;
+                curve.SegmentsPerSpan = value;
+                OnPropertyChanged();
+                RegenerateCurveMesh();
+            }
+        }
+
+        public int CurveRadialSegments
+        {
+            get => _node.Curve?.RadialSegments ?? 8;
+            set
+            {
+                if (_node.Curve is not { } curve) return;
+                curve.RadialSegments = value;
+                OnPropertyChanged();
+                RegenerateCurveMesh();
+            }
+        }
+
+        /// <summary>Mirrors <see cref="CurveData.Points"/> as view models, one per entry -
+        /// the Curve Inspector's own points panel binds directly to this. Rebuilt
+        /// wholesale by <see cref="RefreshCurvePoints"/>, the same convention
+        /// <see cref="Modifiers"/>/<see cref="MaterialSlots"/> already use.</summary>
+        public ObservableCollection<CurvePointViewModel> CurvePoints { get; } = new();
+
+        private void RefreshCurvePoints()
+        {
+            CurvePoints.Clear();
+            if (_node.Curve is not { } curve) return;
+            foreach (var point in curve.Points)
+                CurvePoints.Add(new CurvePointViewModel(point, RegenerateCurveMesh));
+        }
+
+        /// <summary>Appends a new control point a fixed offset along +X from the
+        /// current last one (the origin if this is the first point at all) - never
+        /// coincident with an existing point, so the new span is never degenerate the
+        /// instant it's added.</summary>
+        public void AddCurvePoint()
+        {
+            if (_node.Curve is not { } curve) return;
+
+            var last = curve.Points.Count > 0 ? curve.Points[^1].Position : Vector3.Zero;
+            curve.Points.Add(new CurvePoint(last + new Vector3(1f, 0f, 0f)));
+            RefreshCurvePoints();
+            RegenerateCurveMesh();
+        }
+
+        /// <summary>Removes <paramref name="point"/> (identified by its own
+        /// <see cref="CurvePointViewModel.Underlying"/> reference) from this curve's own
+        /// point list - a no-op if it isn't (any longer) actually in it.</summary>
+        public void RemoveCurvePoint(CurvePointViewModel point)
+        {
+            ArgumentNullException.ThrowIfNull(point);
+            if (_node.Curve is not { } curve) return;
+            if (!curve.Points.Remove(point.Underlying)) return;
+
+            RefreshCurvePoints();
+            RegenerateCurveMesh();
+        }
+
+        /// <summary>Rebuilds <see cref="Node.Mesh"/> from this curve's own
+        /// <see cref="CurveData"/> - see <see cref="CurveData"/>'s own remarks on why
+        /// <see cref="Node.Mesh"/> is just a cache here, regenerated (through this SAME
+        /// call) after any point/handle/Bevel-Depth/Closed/tessellation edit, going
+        /// through the exact same <see cref="_onChanged"/> real-time-render path every
+        /// other property edit already uses - no separate rendering path needed for a
+        /// curve at all.</summary>
+        private void RegenerateCurveMesh()
+        {
+            if (_node.Curve is not { } curve) return;
+
+            _node.Mesh = curve.GenerateMesh();
+            OnPropertyChanged(nameof(HasMesh));
+            _onChanged();
+        }
+
         /// <summary>Mirrors <see cref="Node.Modifiers"/> as view models, one per entry,
         /// in the same order - the Modifiers panel's own <c>ItemsControl</c> binds
         /// directly to this. Rebuilt (not incrementally patched) by
@@ -460,6 +574,8 @@ namespace JolieCat3D.UI.ViewModels
                     MirrorModifier mirror => new MirrorModifierViewModel(mirror, _onChanged),
                     SubdivisionSurfaceModifier subsurf => new SubdivisionSurfaceModifierViewModel(subsurf, _onChanged),
                     BooleanModifier boolean => new BooleanModifierViewModel(boolean, _onChanged, this, _allNodesProvider),
+                    ArrayModifier array => new ArrayModifierViewModel(array, _onChanged),
+                    SolidifyModifier solidify => new SolidifyModifierViewModel(solidify, _onChanged),
                     _ => null,
                 };
                 if (viewModel is not null) Modifiers.Add(viewModel);
@@ -498,6 +614,24 @@ namespace JolieCat3D.UI.ViewModels
             _onChanged();
         }
 
+        /// <summary>Appends a new, default-settings <see cref="ArrayModifier"/> to this
+        /// node's own stack - the Modifiers panel's "Add Array" button.</summary>
+        public void AddArrayModifier()
+        {
+            _node.Modifiers.Add(new ArrayModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
+        /// <summary>Appends a new, default-settings <see cref="SolidifyModifier"/> to
+        /// this node's own stack - the Modifiers panel's "Add Solidify" button.</summary>
+        public void AddSolidifyModifier()
+        {
+            _node.Modifiers.Add(new SolidifyModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
         /// <summary>Removes <paramref name="modifier"/> (identified by its own
         /// <see cref="ModifierViewModelBase.Underlying"/> reference) from this node's
         /// stack - a no-op if it isn't (any longer) actually in it.</summary>
@@ -507,6 +641,52 @@ namespace JolieCat3D.UI.ViewModels
             if (!_node.Modifiers.Remove(modifier.Underlying)) return;
 
             RefreshModifiers();
+            _onChanged();
+        }
+
+        /// <summary>Mirrors <see cref="Node.Constraints"/> as view models, one per entry -
+        /// the Constraints panel's own <c>ItemsControl</c> binds directly to this. The
+        /// same "rebuilt wholesale, not incrementally patched" convention
+        /// <see cref="Modifiers"/> already uses.</summary>
+        public ObservableCollection<ConstraintViewModelBase> Constraints { get; } = new();
+
+        private void RefreshConstraints()
+        {
+            Constraints.Clear();
+            foreach (var constraint in _node.Constraints)
+            {
+                ConstraintViewModelBase? viewModel = constraint switch
+                {
+                    TrackToConstraint trackTo => new TrackToConstraintViewModel(trackTo, _onChanged, this, _allNodesProvider),
+                    _ => null,
+                };
+                if (viewModel is not null) Constraints.Add(viewModel);
+            }
+        }
+
+        /// <summary>Appends a new, default-settings (PlusZ forward, no target picked
+        /// yet) <see cref="TrackToConstraint"/> to this node's own stack - the
+        /// Constraints panel's "Add Track To" button. A no-op-looking constraint until
+        /// its own Target is picked from the panel's target combo box (see
+        /// <see cref="TrackToConstraintViewModel"/>'s own remarks) - <see cref="TrackToConstraint.Apply"/>
+        /// already tolerates that (leaves rotation untouched), so adding one never
+        /// disturbs the node's current rotation before it's actually configured.</summary>
+        public void AddTrackToConstraint()
+        {
+            _node.Constraints.Add(new TrackToConstraint());
+            RefreshConstraints();
+            _onChanged();
+        }
+
+        /// <summary>Removes <paramref name="constraint"/> (identified by its own
+        /// <see cref="ConstraintViewModelBase.Underlying"/> reference) from this node's
+        /// stack - a no-op if it isn't (any longer) actually in it.</summary>
+        public void RemoveConstraint(ConstraintViewModelBase constraint)
+        {
+            ArgumentNullException.ThrowIfNull(constraint);
+            if (!_node.Constraints.Remove(constraint.Underlying)) return;
+
+            RefreshConstraints();
             _onChanged();
         }
 

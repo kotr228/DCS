@@ -3,6 +3,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using HelixToolkit.Wpf;
+using JolieCat3D.Core.Constraints;
 using JolieCat3D.Engine.Camera;
 using JolieCat3D.Engine.Editing;
 using JolieCat3D.Engine.Geometry;
@@ -303,6 +304,13 @@ namespace JolieCat3D.Engine.Rendering
         {
             ArgumentNullException.ThrowIfNull(scene);
             Attach();
+
+            // Every Track To (etc.) constraint re-solves fresh here, BEFORE anything
+            // below reads a node's world transform - the one place every render already
+            // funnels through (animation playback, a Properties Inspector edit, a gizmo
+            // drag, ...), so a constraint stays correct with no separate call site of
+            // its own needed. See Core.Constraints.ConstraintSolver's own remarks.
+            ConstraintSolver.Apply(scene);
 
             _lastScene = scene;
             _modelToNode.Clear();

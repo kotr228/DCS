@@ -1,4 +1,5 @@
 using System.Numerics;
+using JolieCat3D.Core.Constraints;
 using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Modifiers;
 
@@ -43,6 +44,15 @@ namespace JolieCat3D.Core.Scene
         /// not mutually exclusive with the others" shape as <see cref="Camera"/>.</summary>
         public LightData? Light { get; set; }
 
+        /// <summary>Optional - present only for a node authored as a curve/spline
+        /// entity (see <see cref="CurveData"/>'s own remarks). Same "additive data, not
+        /// a subclass, not mutually exclusive with the others" shape as
+        /// <see cref="Camera"/>/<see cref="Light"/> - unlike those, though, this one
+        /// also actively drives <see cref="Mesh"/> itself (regenerated from this data
+        /// whenever it changes; see <see cref="CurveData"/>'s own remarks on why
+        /// <see cref="Mesh"/> is just a cache here, not independently authored).</summary>
+        public CurveData? Curve { get; set; }
+
         /// <summary>This node's non-destructive modifier stack (see
         /// <see cref="Modifier"/>'s own remarks) - applied, in list order, to
         /// <see cref="Mesh"/> at render time only (by <c>JolieCat3D.Engine.Geometry.SceneGraphBuilder</c>,
@@ -54,6 +64,18 @@ namespace JolieCat3D.Core.Scene
         /// unchanged - every node authored before modifiers existed keeps looking exactly
         /// as it always did.</summary>
         public List<Modifier> Modifiers { get; } = new();
+
+        /// <summary>This node's own constraint stack (see <see cref="Constraint"/>'s own
+        /// remarks) - evaluated, in list order, by <see cref="ConstraintSolver.Apply"/>
+        /// every render, each one overriding whatever transform component it governs
+        /// (only <see cref="LocalRotation"/>, for the one constraint type implemented so
+        /// far - <see cref="TrackToConstraint"/>). Empty by default, in which case this
+        /// node's transform is driven purely by whatever last set
+        /// <see cref="LocalPosition"/>/<see cref="LocalRotation"/>/<see cref="LocalScale"/>
+        /// directly (a keyframe track, a gizmo drag, a Properties Inspector edit) -
+        /// every node authored before constraints existed keeps behaving exactly as it
+        /// always did.</summary>
+        public List<Constraint> Constraints { get; } = new();
 
         public Node? Parent { get; private set; }
 
@@ -182,9 +204,11 @@ namespace JolieCat3D.Core.Scene
                 Mesh = Mesh?.Clone(),
                 Camera = Camera?.Clone(),
                 Light = Light?.Clone(),
+                Curve = Curve?.Clone(),
             };
 
             foreach (var modifier in Modifiers) clone.Modifiers.Add(modifier.Clone());
+            foreach (var constraint in Constraints) clone.Constraints.Add(constraint.Clone());
             foreach (var child in _children) clone.AddChild(child.Clone());
 
             return clone;

@@ -1,3 +1,4 @@
+using System.Numerics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using JolieCat3D.Core.Modifiers;
 
@@ -93,6 +94,92 @@ namespace JolieCat3D.UI.ViewModels
             {
                 if (_subsurf.Iterations == value) return;
                 _subsurf.Iterations = value;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+    }
+
+    public sealed class ArrayModifierViewModel : ModifierViewModelBase
+    {
+        private readonly ArrayModifier _array;
+
+        public ArrayModifierViewModel(ArrayModifier array, Action onChanged) : base(array, onChanged) =>
+            _array = array;
+
+        /// <summary>See <see cref="ArrayModifier.Count"/>'s own remarks - clamped to at
+        /// least 1 here too, so a stray blank/negative entry in the panel's own numeric
+        /// field can never be typed through to something that renders as "no copies at
+        /// all".</summary>
+        public int Count
+        {
+            get => _array.Count;
+            set
+            {
+                var clamped = Math.Max(1, value);
+                if (_array.Count == clamped) return;
+                _array.Count = clamped;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+
+        /// <summary>See <see cref="ArrayModifier.RelativeOffset"/>'s own remarks - the
+        /// vector's 3 components split into individually-bindable fields, the same
+        /// "one field per axis, no Vector3 converter needed" convention this panel
+        /// already uses elsewhere (e.g. <c>NodeViewModel.PositionX/Y/Z</c>).</summary>
+        public float RelativeOffsetX
+        {
+            get => _array.RelativeOffset.X;
+            set
+            {
+                var current = _array.RelativeOffset;
+                _array.RelativeOffset = new Vector3(value, current.Y, current.Z);
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+
+        public float RelativeOffsetY
+        {
+            get => _array.RelativeOffset.Y;
+            set
+            {
+                var current = _array.RelativeOffset;
+                _array.RelativeOffset = new Vector3(current.X, value, current.Z);
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+
+        public float RelativeOffsetZ
+        {
+            get => _array.RelativeOffset.Z;
+            set
+            {
+                var current = _array.RelativeOffset;
+                _array.RelativeOffset = new Vector3(current.X, current.Y, value);
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+    }
+
+    public sealed class SolidifyModifierViewModel : ModifierViewModelBase
+    {
+        private readonly SolidifyModifier _solidify;
+
+        public SolidifyModifierViewModel(SolidifyModifier solidify, Action onChanged) : base(solidify, onChanged) =>
+            _solidify = solidify;
+
+        /// <summary>See <see cref="SolidifyModifier.Thickness"/>'s own remarks.</summary>
+        public float Thickness
+        {
+            get => _solidify.Thickness;
+            set
+            {
+                if (_solidify.Thickness == value) return;
+                _solidify.Thickness = value;
                 OnPropertyChanged();
                 RaiseChanged();
             }

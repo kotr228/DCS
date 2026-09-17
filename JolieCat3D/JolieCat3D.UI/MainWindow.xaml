@@ -87,6 +87,7 @@
                 <Separator />
                 <MenuItem Header="Add Ca_mera" Click="AddCameraMenuItem_Click" />
                 <MenuItem Header="Add _Light" Click="AddLightMenuItem_Click" />
+                <MenuItem Header="Add C_urve" Click="AddCurveMenuItem_Click" />
                 <Separator />
                 <!-- A scene-wide skybox/IBL setting (Core.Scene.Scene3D.Environment) -
                      round-trips through the .jolie3d project file, the same "a real
@@ -597,7 +598,9 @@
                                 <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
                                     <Button Content="Add Mirror" Margin="0,0,4,0" Padding="8,2" Click="AddMirrorModifierButton_Click" />
                                     <Button Content="Add Subsurf" Margin="0,0,4,0" Padding="8,2" Click="AddSubsurfModifierButton_Click" />
-                                    <Button Content="Add Boolean" Padding="8,2" Click="AddBooleanModifierButton_Click" />
+                                    <Button Content="Add Boolean" Margin="0,0,4,0" Padding="8,2" Click="AddBooleanModifierButton_Click" />
+                                    <Button Content="Add Array" Margin="0,0,4,0" Padding="8,2" Click="AddArrayModifierButton_Click" />
+                                    <Button Content="Add Solidify" Padding="8,2" Click="AddSolidifyModifierButton_Click" />
                                 </StackPanel>
 
                                 <ItemsControl ItemsSource="{Binding Modifiers}" Margin="8,0,8,8">
@@ -672,6 +675,110 @@
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>
+                                        <!-- Replicates the mesh Count times, each successive
+                                             copy offset further along a cumulative translation
+                                             (RelativeOffset as a fraction of the mesh's own
+                                             bounding-box size per axis - see Core.Modifiers.ArrayModifier's
+                                             own remarks). -->
+                                        <DataTemplate DataType="{x:Type vm:ArrayModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Count:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding Count, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="40" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Relative Offset X/Y/Z:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding RelativeOffsetX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="40" Margin="0,0,2,0" />
+                                                        <TextBox Text="{Binding RelativeOffsetY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="40" Margin="0,0,2,0" />
+                                                        <TextBox Text="{Binding RelativeOffsetZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="40" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                        <!-- Extrudes the mesh's faces along their own vertex
+                                             normals by Thickness, closing every boundary edge
+                                             with a new side wall - see Core.Modifiers.SolidifyModifier's
+                                             own remarks (including its known hard-edge limitation). -->
+                                        <DataTemplate DataType="{x:Type vm:SolidifyModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Thickness:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding Thickness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="40" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.Resources>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <!-- Constraints - a non-destructive, evaluated-every-render
+                                 pipeline overriding this node's own rotation (see
+                                 Core.Constraints.Constraint); shown for EVERY node (not
+                                 gated on HasMesh like Modifiers), since a Track To
+                                 constraint's own most common use is a camera/light,
+                                 neither of which has a Mesh. -->
+                            <StackPanel>
+                                <TextBlock Text="CONSTRAINTS" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                    <Button Content="Add Track To" Padding="8,2" Click="AddTrackToConstraintButton_Click" />
+                                </StackPanel>
+
+                                <ItemsControl ItemsSource="{Binding Constraints}" Margin="8,0,8,8">
+                                    <ItemsControl.Resources>
+                                        <!-- Aims this node's own ForwardAxis at Target's
+                                             current world position every render (see
+                                             Core.Constraints.TrackToConstraint's own
+                                             remarks) - the Target combo box lists every
+                                             OTHER node in the scene, showing each one's
+                                             own Name. -->
+                                        <DataTemplate DataType="{x:Type vm:TrackToConstraintViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this constraint without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveConstraintButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Target:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <ComboBox ItemsSource="{Binding AvailableTargets}" SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                                                                  DisplayMemberPath="Name" Width="120" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Forward Axis:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <ComboBox SelectedValue="{Binding ForwardAxis, Mode=TwoWay}" SelectedValuePath="Content" Width="90">
+                                                            <ComboBoxItem Content="PlusX" />
+                                                            <ComboBoxItem Content="MinusX" />
+                                                            <ComboBoxItem Content="PlusY" />
+                                                            <ComboBoxItem Content="MinusY" />
+                                                            <ComboBoxItem Content="PlusZ" />
+                                                            <ComboBoxItem Content="MinusZ" />
+                                                        </ComboBox>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
                                     </ItemsControl.Resources>
                                 </ItemsControl>
                             </StackPanel>
@@ -742,6 +849,64 @@
                                     <TextBlock Text="Spot Angle" Style="{StaticResource InspectorFieldLabelStyle}" />
                                     <TextBox Text="{Binding LightSpotAngle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                                 </StackPanel>
+                            </StackPanel>
+
+                            <!-- Curve Inspector - hidden entirely for a non-curve node.
+                                 Every field here edits CurveData directly and
+                                 regenerates Node.Mesh (the tube/cable) immediately -
+                                 see NodeViewModel.RegenerateCurveMesh's own remarks. -->
+                            <StackPanel Visibility="{Binding HasCurve, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock Text="CURVE" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                    <TextBlock Text="Bevel Depth" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding CurveBevelDepth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                    <CheckBox Content="Closed" IsChecked="{Binding CurveClosed, Mode=TwoWay}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                    <TextBlock Text="Segments/Span" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding CurveSegmentsPerSpan, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                    <TextBlock Text="Radial Segments" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                    <TextBox Text="{Binding CurveRadialSegments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                </StackPanel>
+
+                                <TextBlock Text="Control Points" Margin="8,4,8,2" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                <ItemsControl ItemsSource="{Binding CurvePoints}" Margin="8,0,8,4">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="Point" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveCurvePointButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Position:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="70" />
+                                                        <TextBox Text="{Binding PositionX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                        <TextBox Text="{Binding PositionY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                        <TextBox Text="{Binding PositionZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                        <TextBlock Text="Handle In:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="70" />
+                                                        <TextBox Text="{Binding HandleInX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                        <TextBox Text="{Binding HandleInY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                        <TextBox Text="{Binding HandleInZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                        <TextBlock Text="Handle Out:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="70" />
+                                                        <TextBox Text="{Binding HandleOutX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                        <TextBox Text="{Binding HandleOutY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                        <TextBox Text="{Binding HandleOutZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Content="Add Point" Margin="8,0,8,8" Padding="8,4"
+                                        HorizontalAlignment="Left" Click="AddCurvePointButton_Click" />
                             </StackPanel>
                         </StackPanel>
                     </ScrollViewer>

@@ -381,6 +381,26 @@ namespace JolieCat3D.UI
             AddNodeToScene(new Node("Light") { Light = new LightData() });
         }
 
+        /// <summary>File > Scene > "Add Curve" - a new root node carrying a default
+        /// <see cref="CurveData"/> (a simple 3-point gentle bend, handles left at their
+        /// own default "coincident with the point" position - a straight-segment curve
+        /// until the Curve Inspector's own points panel moves a handle) - see
+        /// <see cref="AddCameraMenuItem_Click"/>'s own remarks. <see cref="Node.Mesh"/>
+        /// is set immediately from <see cref="CurveData.GenerateMesh"/> (not left null
+        /// until the first Inspector edit), so the new curve is visible in the viewport
+        /// the instant it's added, exactly like every other "Add ..." primitive.</summary>
+        private void AddCurveMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            var curve = new CurveData();
+            curve.Points.Add(new CurvePoint(new System.Numerics.Vector3(-1f, 0f, 0f)));
+            curve.Points.Add(new CurvePoint(new System.Numerics.Vector3(0f, 1f, 0f)));
+            curve.Points.Add(new CurvePoint(new System.Numerics.Vector3(1f, 0f, 0f)));
+
+            AddNodeToScene(new Node("Curve") { Curve = curve, Mesh = curve.GenerateMesh() });
+        }
+
         /// <summary>Adds <paramref name="node"/> as a new root of <see cref="_currentScene"/>
         /// and refreshes the Outliner/viewport immediately - the shared plumbing every
         /// File > Scene > "Add ..." handler above uses, so a freshly added primitive/
@@ -1635,6 +1655,35 @@ namespace JolieCat3D.UI
             _sceneViewModel.SelectedNode?.AddBooleanModifier();
         }
 
+        private void AddArrayModifierButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _sceneViewModel.SelectedNode?.AddArrayModifier();
+        }
+
+        private void AddSolidifyModifierButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _sceneViewModel.SelectedNode?.AddSolidifyModifier();
+        }
+
+        private void AddTrackToConstraintButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _sceneViewModel.SelectedNode?.AddTrackToConstraint();
+        }
+
+        /// <summary>The Constraints panel's own per-entry "Remove" button - the clicked
+        /// <see cref="Button"/>'s own DataContext (from its enclosing <c>DataTemplate</c>)
+        /// IS the <see cref="ConstraintViewModelBase"/> to remove, the same pattern
+        /// <see cref="RemoveModifierButton_Click"/> already uses.</summary>
+        private void RemoveConstraintButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is not FrameworkElement { DataContext: ConstraintViewModelBase constraintViewModel }) return;
+            _sceneViewModel.SelectedNode?.RemoveConstraint(constraintViewModel);
+        }
+
         /// <summary>The Modifiers panel's own per-entry "Remove" button - the clicked
         /// <see cref="Button"/>'s own DataContext (from its enclosing <c>DataTemplate</c>)
         /// IS the <see cref="ModifierViewModelBase"/> to remove, since each list item's
@@ -1974,6 +2023,24 @@ namespace JolieCat3D.UI
             if (!_isInitialized) return;
             if (sender is not FrameworkElement { DataContext: MaterialSlotViewModel slotViewModel }) return;
             _sceneViewModel.SelectedNode?.RemoveMaterialSlot(slotViewModel);
+        }
+
+        private void AddCurvePointButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _sceneViewModel.SelectedNode?.AddCurvePoint();
+        }
+
+        /// <summary>Each Curve control point row's own "Remove" button - the clicked
+        /// <see cref="Button"/>'s own <c>DataContext</c> (from its enclosing
+        /// <c>DataTemplate</c>) IS the <see cref="CurvePointViewModel"/> to remove, the
+        /// same pattern <see cref="RemoveModifierButton_Click"/>/<see cref="RemoveMaterialSlotButton_Click"/>
+        /// already use.</summary>
+        private void RemoveCurvePointButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is not FrameworkElement { DataContext: CurvePointViewModel pointViewModel }) return;
+            _sceneViewModel.SelectedNode?.RemoveCurvePoint(pointViewModel);
         }
 
         /// <summary>Each Material Slot row's own "Assign" button - points whichever
