@@ -431,51 +431,11 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="240" MinWidth="160" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" MinWidth="200" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="280" MinWidth="200" />
+                <ColumnDefinition Width="Auto" />              <!-- Column 0: Left Tools Panel -->
+                <ColumnDefinition Width="*" MinWidth="200" />  <!-- Column 1: 3D Viewport -->
+                <ColumnDefinition Width="Auto" />              <!-- vertical splitter, Column 1 | Column 2 -->
+                <ColumnDefinition Width="300" MinWidth="200" /> <!-- Column 2: Right Panel (Outliner/Properties) -->
             </Grid.ColumnDefinitions>
-
-            <!-- ================= Scene Outliner ================= -->
-            <Border Grid.Column="0" Background="{StaticResource PanelBackgroundBrush}"
-                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
-                <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="SCENE OUTLINER" Style="{StaticResource PanelHeaderStyle}" />
-
-                    <!-- Drag-and-drop reparenting: dragging an item onto another node
-                         re-parents it (Core.Scene.Scene3D.Reparent, which recomputes the
-                         node's own Local Position/Rotation/Scale so its WORLD transform
-                         never visibly jumps); dropping into the TreeView's own empty
-                         background (see SceneTreeView_Drop) un-parents it to the scene
-                         root instead. See MainWindow.xaml.cs's own
-                         SceneTreeViewItem_PreviewMouseMove/_DragOver/_Drop. -->
-                    <TreeView x:Name="SceneTreeView" ItemsSource="{Binding RootNodes}"
-                              Background="Transparent" AllowDrop="True"
-                              SelectedItemChanged="SceneTreeView_SelectedItemChanged"
-                              Drop="SceneTreeView_Drop">
-                        <TreeView.ItemContainerStyle>
-                            <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
-                                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
-                                <Setter Property="AllowDrop" Value="True" />
-                                <EventSetter Event="PreviewMouseLeftButtonDown" Handler="SceneTreeViewItem_PreviewMouseLeftButtonDown" />
-                                <EventSetter Event="PreviewMouseMove" Handler="SceneTreeViewItem_PreviewMouseMove" />
-                                <EventSetter Event="DragOver" Handler="SceneTreeViewItem_DragOver" />
-                                <EventSetter Event="Drop" Handler="SceneTreeViewItem_Drop" />
-                            </Style>
-                        </TreeView.ItemContainerStyle>
-                        <TreeView.ItemTemplate>
-                            <HierarchicalDataTemplate DataType="{x:Type vm:NodeViewModel}" ItemsSource="{Binding Children}">
-                                <TextBlock Text="{Binding Name}" FontSize="12" />
-                            </HierarchicalDataTemplate>
-                        </TreeView.ItemTemplate>
-                    </TreeView>
-                </DockPanel>
-            </Border>
-
-            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" />
 
             <!-- ================= Left Vertical Toolbar (The Action Tools) ================= -->
             <!-- Docked directly to the left of the HelixViewport3D - every section below
@@ -485,7 +445,7 @@
                  all of them, staying visible/enabled in every mode (it already meant
                  something different in Object vs. Edit Mode before this refactor - see
                  DeleteSelected's own remarks - so it was never mode-gated to begin with). -->
-            <Border Grid.Column="2" Width="168" Background="{StaticResource PanelBackgroundBrush}"
+            <Border Grid.Column="0" Width="168" Background="{StaticResource PanelBackgroundBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="6,6">
@@ -654,7 +614,7 @@
                  marks its own mouse-down Handled) - see MainWindow.xaml.cs's own remarks
                  on Viewport_MouseLeftButtonDown for why that's what makes "click a handle
                  to drag it" and "click empty space/another mesh to select" never conflict. -->
-            <h:HelixViewport3D x:Name="Viewport" Grid.Column="3"
+            <h:HelixViewport3D x:Name="Viewport" Grid.Column="1"
                                ShowCoordinateSystem="True"
                                MouseLeftButtonDown="Viewport_MouseLeftButtonDown"
                                MouseMove="Viewport_MouseMove"
@@ -667,7 +627,7 @@
                  all. IsHitTestVisible="False" so it never steals a click meant for the
                  real viewport underneath it (Viewport_MouseLeftButtonDown, a gizmo drag,
                  ...) - purely a visual overlay, Collapsed (off) by default. -->
-            <Rectangle x:Name="BloomOverlayRectangle" Grid.Column="3" IsHitTestVisible="False"
+            <Rectangle x:Name="BloomOverlayRectangle" Grid.Column="1" IsHitTestVisible="False"
                        Visibility="Collapsed" Opacity="0.35">
                 <Rectangle.Fill>
                     <VisualBrush Visual="{Binding ElementName=Viewport}" Stretch="None" />
@@ -677,11 +637,57 @@
                 </Rectangle.Effect>
             </Rectangle>
 
-            <GridSplitter Grid.Column="4" Width="4" HorizontalAlignment="Stretch" />
+            <GridSplitter Grid.Column="2" Width="4" HorizontalAlignment="Stretch" />
+
+            <!-- ================= Right Panel: Scene Outliner (top) + Properties (bottom) ================= -->
+            <Grid Grid.Column="3">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="1*" MinHeight="80" />  <!-- Row 0: Scene Outliner -->
+                    <RowDefinition Height="Auto" />               <!-- horizontal splitter, Row 0 | Row 1 -->
+                    <RowDefinition Height="2*" MinHeight="120" /> <!-- Row 1: Properties -->
+                </Grid.RowDefinitions>
+
+                <!-- ================= Scene Outliner ================= -->
+                <Border Grid.Row="0" Background="{StaticResource PanelBackgroundBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="SCENE OUTLINER" Style="{StaticResource PanelHeaderStyle}" />
+
+                        <!-- Drag-and-drop reparenting: dragging an item onto another node
+                             re-parents it (Core.Scene.Scene3D.Reparent, which recomputes the
+                             node's own Local Position/Rotation/Scale so its WORLD transform
+                             never visibly jumps); dropping into the TreeView's own empty
+                             background (see SceneTreeView_Drop) un-parents it to the scene
+                             root instead. See MainWindow.xaml.cs's own
+                             SceneTreeViewItem_PreviewMouseMove/_DragOver/_Drop. -->
+                        <TreeView x:Name="SceneTreeView" ItemsSource="{Binding RootNodes}"
+                                  Background="Transparent" AllowDrop="True"
+                                  SelectedItemChanged="SceneTreeView_SelectedItemChanged"
+                                  Drop="SceneTreeView_Drop">
+                            <TreeView.ItemContainerStyle>
+                                <Style TargetType="{x:Type TreeViewItem}" BasedOn="{StaticResource {x:Type TreeViewItem}}">
+                                    <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}" />
+                                    <Setter Property="AllowDrop" Value="True" />
+                                    <EventSetter Event="PreviewMouseLeftButtonDown" Handler="SceneTreeViewItem_PreviewMouseLeftButtonDown" />
+                                    <EventSetter Event="PreviewMouseMove" Handler="SceneTreeViewItem_PreviewMouseMove" />
+                                    <EventSetter Event="DragOver" Handler="SceneTreeViewItem_DragOver" />
+                                    <EventSetter Event="Drop" Handler="SceneTreeViewItem_Drop" />
+                                </Style>
+                            </TreeView.ItemContainerStyle>
+                            <TreeView.ItemTemplate>
+                                <HierarchicalDataTemplate DataType="{x:Type vm:NodeViewModel}" ItemsSource="{Binding Children}">
+                                    <TextBlock Text="{Binding Name}" FontSize="12" />
+                                </HierarchicalDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </DockPanel>
+                </Border>
+
+                <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
 
             <!-- ================= Properties Inspector ================= -->
-            <Border Grid.Column="5" Background="{StaticResource PanelBackgroundBrush}"
-                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
+            <Border Grid.Row="2" Background="{StaticResource PanelBackgroundBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,1,0,0">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="PROPERTIES" Style="{StaticResource PanelHeaderStyle}" />
 
@@ -1291,6 +1297,7 @@
                     </ScrollViewer>
                 </DockPanel>
             </Border>
+            </Grid>
         </Grid>
 
         <!-- ================= Animation Playback Transport ================= -->
