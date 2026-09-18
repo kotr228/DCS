@@ -54,12 +54,12 @@ namespace JolieCat3D.UI
             set => SetValue(CurrentEditorModeProperty, value);
         }
 
-        // "3D Models (*.obj;*.stl)" first, so it's the default choice in both dialogs;
-        // the format-specific entries after it are what actually determine each format's
-        // own default *extension* SaveFileDialog appends when a user types a bare name
-        // with no extension at all.
+        // "3D Models (*.obj;*.stl;*.glb;*.gltf)" first, so it's the default choice in
+        // both dialogs; the format-specific entries after it are what actually determine
+        // each format's own default *extension* SaveFileDialog appends when a user types
+        // a bare name with no extension at all.
         private const string FileDialogFilter =
-            $"{MeshFileService.AnyMeshFilter}|{MeshFileService.ObjFilter}|{MeshFileService.StlFilter}";
+            $"{MeshFileService.AnyMeshFilter}|{MeshFileService.ObjFilter}|{MeshFileService.StlFilter}|{MeshFileService.GltfFilter}";
 
         private readonly Scene3DRenderer _renderer;
         private readonly TransformGizmo _gizmo;

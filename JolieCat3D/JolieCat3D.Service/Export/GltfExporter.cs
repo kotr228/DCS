@@ -55,7 +55,10 @@ namespace JolieCat3D.Service.Export
         /// Roughness/Metallic), so a single fixed scale factor is used for every light
         /// type rather than pretending to model the real physical difference between lux
         /// and candela.</summary>
-        private const float LightIntensityToGltfScale = 1000f;
+        /// <summary>Internal (not private) so <see cref="Import.GltfImporter.BuildLight"/>
+        /// can apply the exact inverse conversion on the way back in, rather than
+        /// duplicating this same magic number in two places.</summary>
+        internal const float LightIntensityToGltfScale = 1000f;
 
         /// <summary>
         /// Exports <paramref name="scene"/> (and, if given, every keyframe in
