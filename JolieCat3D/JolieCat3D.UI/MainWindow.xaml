@@ -247,7 +247,11 @@
              single small Segoe MDL2 Assets glyph, not a text label. -->
         <Style x:Key="WindowControlButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <!-- Dark glyph, not the usual light TextPrimaryBrush - these sit on Tier 1's
+                 own gold/sand title bar background (AccentBrush), the same contrast fix
+                 TitleBarMenuItemStyle/WorkspaceTabButtonStyle below give the Menu/
+                 Workspace tabs beside them. -->
+            <Setter Property="Foreground" Value="{StaticResource OnAccentTextBrush}" />
             <Setter Property="Width" Value="46" />
             <Setter Property="Height" Value="32" />
             <Setter Property="Padding" Value="0" />
@@ -286,6 +290,53 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- The 4 top-level "_File"/"_Edit"/"_Window"/"_Help" MenuItems inside Tier 1's
+             own Menu, now sitting on the gold/sand title bar background (AccentBrush)
+             instead of a dark panel - overrides ONLY the base (Theme.xaml) MenuItem
+             Style's own Foreground Setter for dark-on-gold contrast; applied to the 4
+             top-level MenuItems alone. Each one's own dropdown items (New Scene, Open,
+             ...) still use the plain, un-derived MenuItem Style, since THEY pop up over
+             a dark Popup (PanelBackgroundBrush), where the existing light
+             TextPrimaryBrush is still correct. -->
+        <Style x:Key="TitleBarMenuItemStyle" TargetType="{x:Type MenuItem}" BasedOn="{StaticResource {x:Type MenuItem}}">
+            <Setter Property="Foreground" Value="{StaticResource OnAccentTextBrush}" />
+        </Style>
+
+        <!-- The Workspace tab row (Layout/Modeling/Sculpting/...) - also now on Tier 1's
+             gold/sand background, so it needs its own look rather than
+             GizmoModeButtonStyle's (a dark chip with light text, correct everywhere ELSE
+             it's used, all against dark panels, but illegible dark-on-gold here).
+             Unchecked blends flush into the gold bar (Transparent) with dark text;
+             IsChecked inverts to a dark chip with light text instead - this app's own
+             "gold fill = active" convention flipped, since the surrounding bar is
+             already gold here. -->
+        <Style x:Key="WorkspaceTabButtonStyle" TargetType="{x:Type RadioButton}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource OnAccentTextBrush}" />
+            <Setter Property="Padding" Value="12,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -310,7 +361,16 @@
              each of those controls' own class handling already marks a MouseLeftButtonDown
              on itself Handled before it would bubble up here, so dragging and clicking a
              real control never conflict. -->
-        <DockPanel Grid.Row="0" LastChildFill="False" Background="{StaticResource PanelAltBackgroundBrush}"
+        <!-- Background is AccentBrush (the same gold/sand JolieCatLogo.ico's own
+             background), not a dark panel brush - the one place in this app a dark
+             control needs to become the exception rather than the rule: the Menu below
+             gets a Transparent Background of its own so it doesn't paint a dark
+             rectangle over this gold bar, TitleBarMenuItemStyle darkens ONLY the 4
+             top-level MenuItems' own text for contrast (their dropdown items still pop
+             up over a dark Popup, so they keep the ordinary light MenuItem look), and
+             WorkspaceTabButtonStyle replaces GizmoModeButtonStyle for the Workspace tabs
+             for the same reason - see each Style's own remarks below. -->
+        <DockPanel Grid.Row="0" LastChildFill="False" Background="{StaticResource AccentBrush}"
                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
             <!-- The JolieCat brand logo - Assets/JolieCatLogo.ico, embedded as a WPF
                  Resource (see JolieCat3D.UI.csproj's own remarks) so this plain relative
@@ -342,8 +402,8 @@
                 </Button>
             </StackPanel>
 
-            <Menu DockPanel.Dock="Left" Padding="0" VerticalAlignment="Center">
-                <MenuItem Header="_File">
+            <Menu DockPanel.Dock="Left" Padding="0" VerticalAlignment="Center" Background="Transparent">
+                <MenuItem Header="_File" Style="{StaticResource TitleBarMenuItemStyle}">
                     <MenuItem Header="_New Scene" Command="ApplicationCommands.New" />
                     <MenuItem Header="_Open..." Command="ApplicationCommands.Open" />
                     <Separator />
@@ -383,14 +443,14 @@
                      layout) - ApplicationCommands.Undo/Redo already carry their own default
                      Ctrl+Z/Ctrl+Y gestures and InputGestureText, wired to
                      MainWindow's own CommandHistory in its constructor. -->
-                <MenuItem Header="_Edit">
+                <MenuItem Header="_Edit" Style="{StaticResource TitleBarMenuItemStyle}">
                     <MenuItem Header="_Undo" Command="ApplicationCommands.Undo" />
                     <MenuItem Header="_Redo" Command="ApplicationCommands.Redo" />
                 </MenuItem>
-                <MenuItem Header="_Window">
+                <MenuItem Header="_Window" Style="{StaticResource TitleBarMenuItemStyle}">
                     <MenuItem Header="Toggle _Full Screen" Click="ToggleFullScreenMenuItem_Click" />
                 </MenuItem>
-                <MenuItem Header="_Help">
+                <MenuItem Header="_Help" Style="{StaticResource TitleBarMenuItemStyle}">
                     <MenuItem Header="_About JolieCat3D" Click="AboutMenuItem_Click" />
                 </MenuItem>
             </Menu>
@@ -404,19 +464,19 @@
                  wording). -->
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
                 <RadioButton x:Name="LayoutWorkspaceButton" Content="Layout" GroupName="Workspace"
-                             IsChecked="True" Style="{StaticResource GizmoModeButtonStyle}"
+                             IsChecked="True" Style="{StaticResource WorkspaceTabButtonStyle}"
                              Margin="0,0,2,0" Checked="WorkspaceButton_Checked" Tag="Object" />
                 <RadioButton x:Name="ModelingWorkspaceButton" Content="Modeling" GroupName="Workspace"
-                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Style="{StaticResource WorkspaceTabButtonStyle}"
                              Margin="0,0,2,0" Checked="WorkspaceButton_Checked" Tag="Edit" />
                 <RadioButton x:Name="SculptingWorkspaceButton" Content="Sculpting" GroupName="Workspace"
-                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Style="{StaticResource WorkspaceTabButtonStyle}"
                              Margin="0,0,2,0" Checked="WorkspaceButton_Checked" Tag="Sculpt" />
                 <RadioButton x:Name="TexturePaintWorkspaceButton" Content="Texture Paint" GroupName="Workspace"
-                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Style="{StaticResource WorkspaceTabButtonStyle}"
                              Margin="0,0,2,0" Checked="WorkspaceButton_Checked" Tag="TexturePaint" />
                 <RadioButton x:Name="AnimationWorkspaceButton" Content="Animation" GroupName="Workspace"
-                             Style="{StaticResource GizmoModeButtonStyle}"
+                             Style="{StaticResource WorkspaceTabButtonStyle}"
                              Checked="WorkspaceButton_Checked" Tag="Object" />
             </StackPanel>
         </DockPanel>
@@ -827,10 +887,13 @@
 
             <!-- Left Toolbar's own resize handle - drag to widen Column 0 for full tool
                  names, or push it back down toward its own MinWidth="45" for the compact
-                 icon-only look. Background="Transparent" (rather than an unset/null
-                 Background) so the whole 4px strip still hit-tests for dragging even
-                 though it stays visually invisible against the dark theme. -->
-            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="Transparent" />
+                 icon-only look. An explicit dark BorderBrush fill (matching every other
+                 GridSplitter/divider in this app) rather than Transparent - Transparent
+                 let whatever sits behind it show through, which rendered as a stark white
+                 seam rather than the invisible-but-still-draggable strip it was meant to
+                 be; a subtle, definitely-dark line is both correct and, as a bonus, a more
+                 discoverable drag affordance. -->
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
 
             <!-- ================= 3D Viewport ================= -->
             <!-- MouseLeftButtonDown bubbles here only from a click the gizmo's own
@@ -1641,9 +1704,17 @@
         <!-- ================= Animation Playback Transport ================= -->
         <Border Grid.Row="3" Background="{StaticResource PanelAltBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-            <StackPanel Orientation="Horizontal" Margin="8,6">
-                <Button x:Name="PlayPauseButton" Content="Play" Padding="12,2" Margin="0,0,4,0" Click="PlayPauseButton_Click" />
-                <Button Content="Stop" Padding="12,2" Margin="0,0,16,0" Click="StopButton_Click" />
+            <!-- This row's own MinHeight="100" (see the outer Grid.RowDefinitions above)
+                 gives this StackPanel far more vertical room than its own content needs -
+                 VerticalAlignment="Center" here keeps the StackPanel itself (and every
+                 child inside it, none of which set their own Height) sized to its natural
+                 content height and centered in that taller row, instead of each control
+                 individually stretching to fill the full 100px (which is what produced the
+                 FPS TextBox - and every other control here - stretching vertically to fill
+                 the whole bar). -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,6">
+                <Button x:Name="PlayPauseButton" Content="Play" VerticalAlignment="Center" Padding="12,2" Margin="0,0,4,0" Click="PlayPauseButton_Click" />
+                <Button Content="Stop" VerticalAlignment="Center" Padding="12,2" Margin="0,0,16,0" Click="StopButton_Click" />
 
                 <TextBlock Text="Frame:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" />
                 <!-- The Dopesheet: DopesheetCanvas overlays FrameScrubber (same Width, so
@@ -1657,7 +1728,7 @@
                      unimpeded; only a marker itself (an actual drawn Polygon) intercepts
                      a click, for CreateKeyframeMarker's own select/drag/retime
                      handlers. -->
-                <Grid Width="280" Margin="0,0,8,0">
+                <Grid Width="280" Height="Auto" VerticalAlignment="Center" Margin="0,0,8,0">
                     <Slider x:Name="FrameScrubber" Minimum="0" VerticalAlignment="Center"
                             ValueChanged="FrameScrubber_ValueChanged" />
                     <Canvas x:Name="DopesheetCanvas" Height="10" VerticalAlignment="Bottom" />
@@ -1666,12 +1737,12 @@
                            Foreground="{StaticResource TextSecondaryBrush}" MinWidth="60" />
 
                 <TextBlock Text="FPS:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" />
-                <TextBox x:Name="FpsTextBox" Width="50" Text="24" TextChanged="FpsTextBox_TextChanged" />
+                <TextBox x:Name="FpsTextBox" Width="50" VerticalAlignment="Center" Text="24" TextChanged="FpsTextBox_TextChanged" />
 
                 <!-- Dopesheet's own "Delete" - removes whichever keyframe marker was
                      last clicked (see CreateKeyframeMarker's own MouseLeftButtonDown
                      handler); disabled with nothing currently selected. -->
-                <Button x:Name="DeleteKeyframeButton" Content="Delete Key" IsEnabled="False"
+                <Button x:Name="DeleteKeyframeButton" Content="Delete Key" IsEnabled="False" VerticalAlignment="Center"
                         Padding="8,2" Margin="16,0,0,0" Click="DeleteKeyframeButton_Click" />
             </StackPanel>
         </Border>
