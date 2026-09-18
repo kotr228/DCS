@@ -12,6 +12,7 @@
         Title="JolieCat3D" Height="700" Width="1200"
         Icon="Assets/JolieCatLogo.ico"
         WindowStyle="None" ResizeMode="CanResize" StateChanged="MainWindow_StateChanged"
+        Style="{StaticResource MainWindowStyle}"
         d:DataContext="{d:DesignInstance Type=vm:SceneViewModel, IsDesignTimeCreatable=True}"
         PreviewKeyDown="MainWindow_PreviewKeyDown">
 
@@ -37,6 +38,27 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <converters:NullToVisibilityConverter x:Key="NullToVisibility" />
         <converters:ColorToBrushConverter x:Key="ColorToBrush" />
+
+        <!-- The classic WindowChrome + WindowStyle="None" maximize bug: a maximized
+             window like this one is measured/arranged to the FULL monitor bounds (not
+             just its work area), which normally overlaps the taskbar by design - a
+             normally-chromed maximized window gets pulled back within the work area by
+             the OS/WindowChrome's own non-client handling, but with that native chrome
+             gone, nothing pulls THIS window's own content back in, so the bottom rows
+             (the Timeline, the Status Bar) end up rendered UNDER the taskbar instead of
+             just above it. Window derives from ContentControl, so its own default
+             template already wraps its content in the Window's own Padding - this Style
+             (applied to the root Window element itself, above) sets that Padding only
+             while WindowState="Maximized", using SystemParameters.WindowResizeBorderThickness
+             (the same inset a normally-chromed maximized window already gets) rather than
+             a hardcoded pixel guess, so it stays correct across any DPI/theme. -->
+        <Style x:Key="MainWindowStyle" TargetType="{x:Type Window}" BasedOn="{StaticResource {x:Type Window}}">
+            <Style.Triggers>
+                <Trigger Property="WindowState" Value="Maximized">
+                    <Setter Property="Padding" Value="{x:Static SystemParameters.WindowResizeBorderThickness}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
 
         <!-- ================= Left Vertical Toolbar's own per-mode visibility ================= -->
         <!-- Each mode-gated section of the Left Vertical Toolbar (below) uses one of
@@ -361,16 +383,18 @@
              each of those controls' own class handling already marks a MouseLeftButtonDown
              on itself Handled before it would bubble up here, so dragging and clicking a
              real control never conflict. -->
-        <!-- Background is AccentBrush (the same gold/sand JolieCatLogo.ico's own
-             background), not a dark panel brush - the one place in this app a dark
-             control needs to become the exception rather than the rule: the Menu below
-             gets a Transparent Background of its own so it doesn't paint a dark
-             rectangle over this gold bar, TitleBarMenuItemStyle darkens ONLY the 4
-             top-level MenuItems' own text for contrast (their dropdown items still pop
-             up over a dark Popup, so they keep the ordinary light MenuItem look), and
+        <!-- Background is TitleBarBackgroundBrush - JolieCatLogo.ico's own exact
+             background hex (#E9C47D), not the (close but not identical) AccentBrush
+             every other highlight/active-state color in this app uses, and not a dark
+             panel brush either - the one place in this app a dark control needs to
+             become the exception rather than the rule: the Menu below gets a
+             Transparent Background of its own so it doesn't paint a dark rectangle over
+             this gold bar, TitleBarMenuItemStyle darkens ONLY the 4 top-level
+             MenuItems' own text for contrast (their dropdown items still pop up over a
+             dark Popup, so they keep the ordinary light MenuItem look), and
              WorkspaceTabButtonStyle replaces GizmoModeButtonStyle for the Workspace tabs
              for the same reason - see each Style's own remarks below. -->
-        <DockPanel Grid.Row="0" LastChildFill="False" Background="{StaticResource AccentBrush}"
+        <DockPanel Grid.Row="0" LastChildFill="False" Background="{StaticResource TitleBarBackgroundBrush}"
                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
             <!-- The JolieCat brand logo - Assets/JolieCatLogo.ico, embedded as a WPF
                  Resource (see JolieCat3D.UI.csproj's own remarks) so this plain relative

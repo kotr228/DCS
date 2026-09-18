@@ -22,6 +22,11 @@
     <SolidColorBrush x:Key="HoverBackgroundBrush" Color="#FF3A3733" />
 
     <SolidColorBrush x:Key="AccentBrush" Color="#FFC8A265" />
+    <!-- The exact hex JolieCatLogo.ico's own background is - Tier 1's own custom title
+         bar (MainWindow.xaml) uses this specifically so it matches the logo pixel-for-
+         pixel, rather than the (close, but not the same) AccentBrush every other
+         highlight/active-state color in this app already uses. -->
+    <SolidColorBrush x:Key="TitleBarBackgroundBrush" Color="#FFE9C47D" />
     <SolidColorBrush x:Key="ActiveIndicatorBrush" Color="#FF5DA453" />
 
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFE0DCD5" />
