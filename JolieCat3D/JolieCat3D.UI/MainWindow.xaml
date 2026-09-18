@@ -12,7 +12,6 @@
         Title="JolieCat3D" Height="700" Width="1200"
         Icon="Assets/JolieCatLogo.ico"
         WindowStyle="None" ResizeMode="CanResize" StateChanged="MainWindow_StateChanged"
-        Style="{DynamicResource MainWindowStyle}"
         d:DataContext="{d:DesignInstance Type=vm:SceneViewModel, IsDesignTimeCreatable=True}"
         PreviewKeyDown="MainWindow_PreviewKeyDown">
 
@@ -49,50 +48,6 @@
         <converters:NullToVisibilityConverter x:Key="NullToVisibility" />
         <converters:ColorToBrushConverter x:Key="ColorToBrush" />
 
-        <!-- The classic WindowChrome + WindowStyle="None" maximize bug: a maximized
-             window like this one is measured/arranged to the FULL monitor bounds (not
-             just its work area), which normally overlaps the taskbar by design - a
-             normally-chromed maximized window gets pulled back within the work area by
-             the OS/WindowChrome's own non-client handling, but with that native chrome
-             gone, nothing pulls THIS window's own content back in, so the bottom rows
-             (the Timeline, the Status Bar) end up rendered UNDER the taskbar instead of
-             just above it.
-
-             Window.Padding itself is NEVER actually rendered here - WPF's own default
-             Window ControlTemplate (the one still in effect for WindowStyle="None",
-             since this app supplies no ControlTemplate of its own) does not route
-             Padding into a Margin anywhere, so setting it alone (this app's own earlier
-             attempt) compiled fine but had no visible effect whatsoever, which is why
-             the taskbar overlap persisted even after that fix landed. Padding is used
-             purely as a DATA CARRIER here instead: this Style's own Trigger sets it to a
-             flat 8px (matching the ~7-8px a normally-chromed maximized window already
-             gets inset by the OS) only while WindowState="Maximized", and the actual
-             root Grid below (Grid.Row="2"'s own ancestor) reads that value back out via
-             a plain Binding and applies it as its OWN Margin - Margin is always honored
-             by ordinary WPF layout regardless of any ambiguity in Window's own default
-             template, so THAT is what actually, physically pushes every row (Tier 1
-             through the Status Bar) back inside the visible work area.
-
-             Referenced above via DynamicResource, not StaticResource - the root Window
-             element's own attributes (including Style) are applied WHILE the object graph
-             is still being constructed, before this same Window's own Window.Resources
-             dictionary has necessarily finished populating; a StaticResource lookup at
-             that point can throw ("Provide value on 'StaticResourceExtension' threw an
-             exception") depending on exactly how InitializeComponent order plays out,
-             since it resolves immediately rather than waiting. DynamicResource defers the
-             lookup until the Style property is actually needed, by which point
-             Window.Resources is guaranteed populated - the standard fix for a root
-             element's own Style/Template referencing a resource keyed in that SAME
-             element's own local Resources (a nested element referencing an ANCESTOR's
-             Resources, e.g. any StaticResource used elsewhere in this same file, doesn't
-             have this problem - only the root element pointing at itself does). -->
-        <Style x:Key="MainWindowStyle" TargetType="{x:Type Window}" BasedOn="{StaticResource {x:Type Window}}">
-            <Style.Triggers>
-                <Trigger Property="WindowState" Value="Maximized">
-                    <Setter Property="Padding" Value="8" />
-                </Trigger>
-            </Style.Triggers>
-        </Style>
 
         <!-- ================= Left Vertical Toolbar's own per-mode visibility ================= -->
         <!-- Each mode-gated section of the Left Vertical Toolbar (below) uses one of
@@ -395,14 +350,12 @@
         </Style>
     </Window.Resources>
 
-    <!-- Margin reads MainWindowStyle's own Padding (Window.Resources above) via a plain
-         Binding rather than any TemplateBinding/Window-template mechanism - see that
-         Style's own remarks for why Window.Padding itself is never actually rendered,
-         and why THIS Margin, on THIS Grid, is what actually does the work: 8px inset on
-         every side while WindowState="Maximized" (0 the rest of the time, Padding's own
-         default), physically pushing every row below (Tier 1 through the Status Bar)
-         back inside the monitor's own work area instead of under the taskbar. -->
-    <Grid Margin="{Binding Padding, RelativeSource={RelativeSource AncestorType={x:Type Window}}}">
+    <!-- The maximized-window-vs-taskbar fix now lives entirely in code-behind
+         (MainWindow_StateChanged clamps MaxHeight/MaxWidth to SystemParameters.WorkArea
+         and sets BorderThickness while WindowState="Maximized") - see that method's own
+         remarks for why the two earlier XAML-only attempts (a Window.Padding Style
+         Trigger, then a Grid.Margin Binding reading it back) never actually worked. -->
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" /> <!-- Tier 1: Main Application Header -->
             <RowDefinition Height="Auto" /> <!-- Tier 2: 3D Viewport Header -->

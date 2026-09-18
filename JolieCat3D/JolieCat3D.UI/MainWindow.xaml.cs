@@ -925,12 +925,41 @@ namespace JolieCat3D.UI
         /// <summary>Keeps the custom title bar's own Maximize/Restore glyph (Segoe MDL2
         /// Assets - see MainWindow.xaml's own remarks) in sync with WindowState however it
         /// actually changed, not just <see cref="MaximizeRestoreButton_Click"/>'s own
-        /// click.</summary>
+        /// click; also owns the actual fix for the classic WindowChrome +
+        /// WindowStyle="None" maximize-over-the-taskbar bug (the Timeline/Status Bar
+        /// rendering underneath it instead of above). Two earlier attempts at this same
+        /// fix lived entirely in MainWindow.xaml - a Window.Padding Style Trigger, then a
+        /// Grid.Margin Binding reading that Padding back - and neither actually worked,
+        /// because nothing in this app's own layout ever gave a maximized WindowStyle="None"
+        /// window a reason to stay within the monitor's own WORK AREA (screen bounds minus
+        /// the taskbar) rather than the full screen bounds. Clamping MaxHeight/MaxWidth to
+        /// SystemParameters.WorkArea here is what actually, physically prevents the window
+        /// from ever occupying the space the taskbar sits in, regardless of any Window
+        /// template/WindowChrome ambiguity - restored back to PositiveInfinity when leaving
+        /// Maximized so the window is freely resizable by hand again afterward.
+        /// BorderThickness compensates for the standard hidden resize border a maximized
+        /// window normally gets inset by. Note: SystemParameters.WorkArea reflects the
+        /// PRIMARY monitor only - a real multi-monitor fix would need the WorkingArea of
+        /// whichever screen this window is actually on (via WindowInteropHelper), not
+        /// attempted here.</summary>
         private void MainWindow_StateChanged(object? sender, EventArgs e)
         {
             var isMaximized = WindowState == WindowState.Maximized;
             MaximizeRestoreGlyph.Text = isMaximized ? "" : "";
             MaximizeRestoreButton.ToolTip = isMaximized ? "Restore" : "Maximize";
+
+            if (isMaximized)
+            {
+                MaxHeight = SystemParameters.WorkArea.Height;
+                MaxWidth = SystemParameters.WorkArea.Width;
+                BorderThickness = new Thickness(7);
+            }
+            else
+            {
+                MaxHeight = double.PositiveInfinity;
+                MaxWidth = double.PositiveInfinity;
+                BorderThickness = new Thickness(0);
+            }
         }
 
         /// <summary>Tier 1's own "Workspaces" tab row - a flat RadioButton strip that
