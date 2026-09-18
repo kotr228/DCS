@@ -17,17 +17,27 @@
         PreviewKeyDown="MainWindow_PreviewKeyDown">
 
     <!-- WindowStyle="None" (above) removes the native OS title bar/border entirely -
-         Tier 1 below (now a custom, hand-drawn draggable title bar - see its own
-         TitleBar_MouseLeftButtonDown remarks) replaces it. WindowChrome is what keeps
-         the OS's own resize/Aero-Snap behavior working despite that: CaptionHeight="0"
-         since Tier 1 has real interactive content of its own (Menu, Workspace tabs,
-         window control buttons) rather than a single uniform drag strip, so dragging is
-         handled by hand (DragMove()) instead of relying on WindowChrome's own automatic
-         caption-region hit-testing; ResizeBorderThickness gives the edges/corners back
-         their own invisible resize-cursor margin that WindowStyle="None" would otherwise
-         remove outright.-->
+         Tier 1 below (now a custom title bar) replaces it. WindowChrome is what keeps
+         the OS's own resize/Aero-Snap/maximize behavior working despite that:
+         CaptionHeight="30" (matching Tier 1's own rendered height) puts WindowChrome
+         itself in charge of dragging/double-click-to-maximize for that whole strip,
+         the same non-client (HTCAPTION) handling a native title bar gets - a CaptionHeight
+         of 0 (this app's own previous approach, worked around by hand with a manual
+         DragMove() call) turns out to also suppress WindowChrome's own correct
+         maximized-window work-area sizing in some environments, which is what actually
+         let the bottom of the window (the Timeline/Status Bar) render underneath the
+         taskbar when maximized rather than above it - a real CaptionHeight fixes that
+         at the source. Every genuinely interactive control inside that strip (Menu,
+         Workspace tabs, window control buttons) is marked
+         WindowChrome.IsHitTestVisibleInChrome="True" so it still receives ordinary
+         clicks instead of being swallowed into the drag region - see each one's own
+         remarks below. GlassFrameThickness="0" keeps DWM from extending its own glass
+         frame into the client area (another source of the same taskbar-overlap
+         symptom); ResizeBorderThickness gives the edges/corners back their own
+         invisible resize-cursor margin that WindowStyle="None" would otherwise remove
+         outright. -->
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="0"
+        <shell:WindowChrome CaptionHeight="30"
                              ResizeBorderThickness="6"
                              GlassFrameThickness="0"
                              CornerRadius="0"
@@ -49,9 +59,11 @@
              just above it. Window derives from ContentControl, so its own default
              template already wraps its content in the Window's own Padding - this Style
              (applied to the root Window element itself, above) sets that Padding only
-             while WindowState="Maximized", using SystemParameters.WindowResizeBorderThickness
-             (the same inset a normally-chromed maximized window already gets) rather than
-             a hardcoded pixel guess, so it stays correct across any DPI/theme.
+             while WindowState="Maximized". A flat 8px on every side - rather than
+             SystemParameters.WindowResizeBorderThickness (this app's own earlier attempt,
+             which resolved too small to fully compensate the standard hidden border in
+             practice) - matches the ~7-8px a normally-chromed maximized window already
+             gets inset by the OS.
 
              Referenced above via DynamicResource, not StaticResource - the root Window
              element's own attributes (including Style) are applied WHILE the object graph
@@ -69,7 +81,7 @@
         <Style x:Key="MainWindowStyle" TargetType="{x:Type Window}" BasedOn="{StaticResource {x:Type Window}}">
             <Style.Triggers>
                 <Trigger Property="WindowState" Value="Maximized">
-                    <Setter Property="Padding" Value="{x:Static SystemParameters.WindowResizeBorderThickness}" />
+                    <Setter Property="Padding" Value="8" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -390,13 +402,13 @@
 
         <!-- ================= Tier 1: Main Application Header ================= -->
         <!-- Now doubles as the custom title bar WindowStyle="None" (see this Window's own
-             root-element remarks) needs - TitleBar_MouseLeftButtonDown calls DragMove() for
-             an ordinary drag, or toggles Maximize/Restore on a double-click, exactly what
-             the native OS caption used to do. A click that lands on the Menu, the Workspace
-             tabs, or the window control buttons below never reaches this handler at all -
-             each of those controls' own class handling already marks a MouseLeftButtonDown
-             on itself Handled before it would bubble up here, so dragging and clicking a
-             real control never conflict. -->
+             root-element remarks) needs - WindowChrome's own CaptionHeight="30" makes
+             this whole row a native, non-client drag region (ordinary drag, or
+             double-click to Maximize/Restore, exactly what the native OS caption used
+             to do), EXCEPT for whichever descendants below are explicitly marked
+             WindowChrome.IsHitTestVisibleInChrome="True" (the Menu, the Workspace tabs,
+             and the window control buttons) - those keep receiving ordinary clicks
+             instead of being swallowed into the drag region. -->
         <!-- Background is TitleBarBackgroundBrush - JolieCatLogo.ico's own exact
              background hex (#E9C47D), not the (close but not identical) AccentBrush
              every other highlight/active-state color in this app uses, and not a dark
@@ -408,11 +420,14 @@
              dark Popup, so they keep the ordinary light MenuItem look), and
              WorkspaceTabButtonStyle replaces GizmoModeButtonStyle for the Workspace tabs
              for the same reason - see each Style's own remarks below. -->
-        <DockPanel Grid.Row="0" LastChildFill="False" Background="{StaticResource TitleBarBackgroundBrush}"
-                   MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+        <DockPanel Grid.Row="0" LastChildFill="False" Background="{StaticResource TitleBarBackgroundBrush}">
             <!-- The JolieCat brand logo - Assets/JolieCatLogo.ico, embedded as a WPF
                  Resource (see JolieCat3D.UI.csproj's own remarks) so this plain relative
-                 pack URI resolves at runtime. -->
+                 pack URI resolves at runtime. Deliberately NOT marked
+                 IsHitTestVisibleInChrome - it's not interactive, so leaving it as part
+                 of the drag region (rather than a dead click target) is the more useful
+                 default, the same way clicking an app's own icon in a native title bar
+                 usually still drags the window. -->
             <Image DockPanel.Dock="Left" Source="Assets/JolieCatLogo.ico"
                    Height="22" MaxHeight="24" Margin="10,0,8,0"
                    VerticalAlignment="Center" HorizontalAlignment="Left"
@@ -424,8 +439,10 @@
                  Declared as the FIRST Dock="Right" child in this DockPanel so it lands
                  outermost - DockPanel docks same-side children in document order, each one
                  claiming space closer to its own edge than the next, so this ends up
-                 further right than the Workspace tabs below it. -->
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                 further right than the Workspace tabs below it. Marked
+                 IsHitTestVisibleInChrome so these buttons' own Click handlers still fire
+                 instead of the whole strip acting as a drag region. -->
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <Button x:Name="MinimizeButton" Style="{StaticResource WindowControlButtonStyle}"
                         Click="MinimizeButton_Click" ToolTip="Minimize">
                     <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
@@ -440,7 +457,12 @@
                 </Button>
             </StackPanel>
 
-            <Menu DockPanel.Dock="Left" Padding="0" VerticalAlignment="Center" Background="Transparent">
+            <!-- Marked IsHitTestVisibleInChrome so File/Edit/Window/Help still open on
+                 click instead of the click being swallowed into the drag region
+                 CaptionHeight="30" (this Window's own root-element remarks) makes of the
+                 rest of this row. -->
+            <Menu DockPanel.Dock="Left" Padding="0" VerticalAlignment="Center" Background="Transparent"
+                  shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <MenuItem Header="_File" Style="{StaticResource TitleBarMenuItemStyle}">
                     <MenuItem Header="_New Scene" Command="ApplicationCommands.New" />
                     <MenuItem Header="_Open..." Command="ApplicationCommands.Open" />
@@ -499,8 +521,11 @@
                  WorkspaceButton_Checked's own remarks) - a real, working shortcut rather than
                  an inert placeholder, ahead of a genuine separate-UI-layout-per-workspace
                  system (the task's own "to switch overarching UI layouts in the future"
-                 wording). -->
-            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0">
+                 wording). Marked IsHitTestVisibleInChrome so these tabs still toggle on
+                 click instead of the click being swallowed into the drag region
+                 CaptionHeight="30" makes of the rest of this row. -->
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,0"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <RadioButton x:Name="LayoutWorkspaceButton" Content="Layout" GroupName="Workspace"
                              IsChecked="True" Style="{StaticResource WorkspaceTabButtonStyle}"
                              Margin="0,0,2,0" Checked="WorkspaceButton_Checked" Tag="Object" />

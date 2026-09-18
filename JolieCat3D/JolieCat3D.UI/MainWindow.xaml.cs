@@ -893,40 +893,20 @@ namespace JolieCat3D.UI
                 "About JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
-        /// <summary>Tier 1 now doubles as this window's own custom title bar
-        /// (<c>WindowStyle="None"</c> - see MainWindow.xaml's own <c>WindowChrome</c>
-        /// remarks), so ordinary window dragging has to be reimplemented by hand: a
-        /// double-click toggles Maximize/Restore (the same behavior the native OS
-        /// caption gave for free), and an ordinary single-button drag calls
-        /// <see cref="Window.DragMove"/> - which drives the same native window-move
-        /// message Aero Snap (Win+Arrow, drag-to-screen-edge) already hooks into, so that
-        /// behavior survives even though the caption itself is gone. Never reached for a
-        /// click that lands on the Menu, the Workspace tabs, or the window control
-        /// buttons - each of those already marks its own MouseLeftButtonDown Handled
-        /// before it would bubble up here.</summary>
-        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            if (!_isInitialized) return;
-
-            if (e.ClickCount == 2)
-            {
-                MaximizeRestoreButton_Click(sender, e);
-                return;
-            }
-
-            DragMove();
-        }
-
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
             SystemCommands.MinimizeWindow(this);
         }
 
-        /// <summary>Also the target of a title-bar double-click (see
-        /// <see cref="TitleBar_MouseLeftButtonDown"/>); <see cref="MainWindow_StateChanged"/>
-        /// keeps the button's own glyph in sync however WindowState actually changed -
-        /// this click, a double-click, or an OS-level Aero Snap (Win+Up/drag-to-top).</summary>
+        /// <summary>Tier 1's own title bar (<c>WindowStyle="None"</c> + <c>WindowChrome</c>
+        /// with <c>CaptionHeight="30"</c> - see MainWindow.xaml's own remarks) already
+        /// drives dragging and double-click-to-maximize/restore natively for the rest of
+        /// that row, entirely at the OS/non-client level - this Click handler is only
+        /// ever reached from an actual click on this button itself.
+        /// <see cref="MainWindow_StateChanged"/> keeps the button's own glyph in sync
+        /// however WindowState actually changed - this click, a title-bar double-click,
+        /// or an OS-level Aero Snap (Win+Up/drag-to-top).</summary>
         private void MaximizeRestoreButton_Click(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
