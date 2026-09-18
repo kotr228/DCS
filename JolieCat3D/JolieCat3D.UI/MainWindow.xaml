@@ -156,6 +156,38 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- The Left Toolbar's own vertically-stacked action buttons (Delete, Extrude,
+             Subdivide, ...) - App.xaml's own Button style hard-codes its ContentPresenter's
+             HorizontalAlignment to Center (fine for a short, fixed-width label), which would
+             just clip a full "Subdivide" rather than ellipsize it once Column 0 (now a real,
+             GridSplitter-draggable pixel width - see the main content Grid's own
+             ColumnDefinitions) is dragged down near its own MinWidth. This Style's
+             ContentPresenter instead stretches to the button's own width, so each button's
+             own child TextBlock (TextAlignment="Left", TextTrimming="CharacterEllipsis")
+             gets the full available width to either show the whole word or ellipsize it as
+             the Left Toolbar narrows. -->
+        <Style x:Key="ToolButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -471,8 +503,14 @@
         </Border>
 
         <Grid Grid.Row="2">
+            <!-- Column 0 is a real, GridSplitter-draggable pixel Width (not Auto) - a
+                 Blender-style T-panel the user can drag wider to read full tool names, or
+                 push back down toward MinWidth for the compact icon-only look (see the
+                 ToolButtonStyle'd buttons below, whose own TextBlock ellipsizes as this
+                 column narrows). -->
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />              <!-- Column 0: Left Tools Panel -->
+                <ColumnDefinition Width="50" MinWidth="45" MaxWidth="200" /> <!-- Column 0: Left Tools Panel -->
+                <ColumnDefinition Width="Auto" />              <!-- vertical splitter, Column 0 | Column 1 -->
                 <ColumnDefinition Width="*" MinWidth="200" />  <!-- Column 1: 3D Viewport -->
                 <ColumnDefinition Width="Auto" />              <!-- vertical splitter, Column 1 | Column 2 -->
                 <ColumnDefinition Width="300" MinWidth="200" /> <!-- Column 2: Right Panel (Outliner/Properties) -->
@@ -486,21 +524,25 @@
                  all of them, staying visible/enabled in every mode (it already meant
                  something different in Object vs. Edit Mode before this refactor - see
                  DeleteSelected's own remarks - so it was never mode-gated to begin with). -->
-            <!-- Compacted to an icon-only, Blender-style narrow T-panel (Width="60" - wide
-                 enough that "Ext"/"Sub"/"MSm"/"CSm" render with breathing room instead of
-                 clipping against the Border's own edge) - every button below keeps its full
-                 ToolTip for discoverability, since Content is now a short abbreviation rather
-                 than a full label. Radius/Strength/Color (which don't fit at this width, and
-                 which the task itself calls out to relocate) now live in the Properties
-                 panel's own "[TOOL]" tab instead; only each mode's own brush/bone/algorithm
-                 SELECTOR controls stay here. -->
-            <Border Grid.Column="0" Width="60" Background="{StaticResource PanelBackgroundBrush}"
+            <!-- A real, GridSplitter-resizable Blender-style T-panel (Column 0's own Width -
+                 see the main content Grid's own ColumnDefinitions - defaults to 50, with
+                 MinWidth="45"/MaxWidth="200") - drag the splitter to the right of this Border
+                 wider to read each button's own full name, or push it back down toward
+                 MinWidth for the compact icon-only look; every button below keeps its full
+                 ToolTip too, for when it's showing only an ellipsized fragment. Radius/
+                 Strength/Color (which never fit even at this panel's own MaxWidth, and which
+                 the task itself calls out to relocate) now live in the Properties panel's own
+                 "[TOOL]" tab instead; only each mode's own brush/bone/algorithm SELECTOR
+                 controls stay here. -->
+            <Border Grid.Column="0" Background="{StaticResource PanelBackgroundBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="4,6">
-                        <Button x:Name="DeleteButton" Content="Del" Margin="0,0,0,8" Padding="0,4"
+                        <Button x:Name="DeleteButton" Style="{StaticResource ToolButtonStyle}" Margin="0,0,0,8" Padding="6,4"
                                 Click="DeleteButton_Click"
-                                ToolTip="Object Mode: deletes the selected node. Edit Mode: deletes the selected vertices/edges/faces." />
+                                ToolTip="Object Mode: deletes the selected node. Edit Mode: deletes the selected vertices/edges/faces.">
+                            <TextBlock Text="Delete" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
+                        </Button>
 
                         <!-- ==== Edit Mode: Component select + Mesh tools ==== -->
                         <StackPanel Style="{StaticResource EditModeToolStyle}">
@@ -523,31 +565,45 @@
                                  Subdivide always applies to the whole target mesh regardless of
                                  the current selection - see MeshEditSession's own remarks on
                                  both. -->
-                            <Button x:Name="ExtrudeButton" Content="Ext" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="0,2" Click="ExtrudeButton_Click" ToolTip="Extrude" />
-                            <Button x:Name="SubdivideButton" Content="Sub" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="0,2" Click="SubdivideButton_Click" ToolTip="Subdivide" />
+                            <Button x:Name="ExtrudeButton" Style="{StaticResource ToolButtonStyle}" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="6,2" Click="ExtrudeButton_Click" ToolTip="Extrude">
+                                <TextBlock Text="Extrude" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
+                            </Button>
+                            <Button x:Name="SubdivideButton" Style="{StaticResource ToolButtonStyle}" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="6,2" Click="SubdivideButton_Click" ToolTip="Subdivide">
+                                <TextBlock Text="Subdivide" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
+                            </Button>
                             <!-- Loop Cut needs exactly one selected EDGE (2 vertices) that's
                                  part of at least one quad (see Mesh.LoopCut's own remarks);
                                  Bevel needs exactly one selected VERTEX with a closed, manifold
                                  fan of surrounding faces (see Mesh.BevelVertex's own remarks) -
                                  both report back and do nothing if the current selection
                                  doesn't qualify. -->
-                            <Button x:Name="LoopCutButton" Content="LC" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="0,2" Click="LoopCutButton_Click" ToolTip="Loop Cut" />
-                            <Button x:Name="BevelButton" Content="Bev" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="0,2" Click="BevelButton_Click" ToolTip="Bevel" />
+                            <Button x:Name="LoopCutButton" Style="{StaticResource ToolButtonStyle}" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="6,2" Click="LoopCutButton_Click" ToolTip="Loop Cut">
+                                <TextBlock Text="Loop Cut" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
+                            </Button>
+                            <Button x:Name="BevelButton" Style="{StaticResource ToolButtonStyle}" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="6,2" Click="BevelButton_Click" ToolTip="Bevel">
+                                <TextBlock Text="Bevel" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
+                            </Button>
                             <!-- UV Seams/Unwrap - Mark/Clear Seam need a single selected edge
                                  (Edge mode), same requirement as Loop Cut above; Unwrap always
                                  applies to the whole target mesh (same "no partial-selection
                                  scope" convention Subdivide already has). See
                                  MeshEditSession's own remarks. -->
-                            <Button x:Name="MarkSeamButton" Content="MSm" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="0,2" Click="MarkSeamButton_Click" ToolTip="Mark Seam" />
-                            <Button x:Name="ClearSeamButton" Content="CSm" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="0,2" Click="ClearSeamButton_Click" ToolTip="Clear Seam" />
-                            <Button x:Name="UnwrapButton" Content="Unw" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="0,2" Click="UnwrapButton_Click" ToolTip="Unwrap" />
+                            <Button x:Name="MarkSeamButton" Style="{StaticResource ToolButtonStyle}" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="6,2" Click="MarkSeamButton_Click" ToolTip="Mark Seam">
+                                <TextBlock Text="Mark Seam" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
+                            </Button>
+                            <Button x:Name="ClearSeamButton" Style="{StaticResource ToolButtonStyle}" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="6,2" Click="ClearSeamButton_Click" ToolTip="Clear Seam">
+                                <TextBlock Text="Clear Seam" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
+                            </Button>
+                            <Button x:Name="UnwrapButton" Style="{StaticResource ToolButtonStyle}" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="6,2" Click="UnwrapButton_Click" ToolTip="Unwrap">
+                                <TextBlock Text="Unwrap" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
+                            </Button>
                         </StackPanel>
 
                         <!-- ==== Weight Paint mode's own bone/brush-mode selectors; Radius/
@@ -611,13 +667,20 @@
                 </ScrollViewer>
             </Border>
 
+            <!-- Left Toolbar's own resize handle - drag to widen Column 0 for full tool
+                 names, or push it back down toward its own MinWidth="45" for the compact
+                 icon-only look. Background="Transparent" (rather than an unset/null
+                 Background) so the whole 4px strip still hit-tests for dragging even
+                 though it stays visually invisible against the dark theme. -->
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch" Background="Transparent" />
+
             <!-- ================= 3D Viewport ================= -->
             <!-- MouseLeftButtonDown bubbles here only from a click the gizmo's own
                  manipulator handles didn't already handle themselves (dragging a handle
                  marks its own mouse-down Handled) - see MainWindow.xaml.cs's own remarks
                  on Viewport_MouseLeftButtonDown for why that's what makes "click a handle
                  to drag it" and "click empty space/another mesh to select" never conflict. -->
-            <h:HelixViewport3D x:Name="Viewport" Grid.Column="1"
+            <h:HelixViewport3D x:Name="Viewport" Grid.Column="2"
                                ShowCoordinateSystem="True"
                                MouseLeftButtonDown="Viewport_MouseLeftButtonDown"
                                MouseMove="Viewport_MouseMove"
@@ -630,7 +693,7 @@
                  all. IsHitTestVisible="False" so it never steals a click meant for the
                  real viewport underneath it (Viewport_MouseLeftButtonDown, a gizmo drag,
                  ...) - purely a visual overlay, Collapsed (off) by default. -->
-            <Rectangle x:Name="BloomOverlayRectangle" Grid.Column="1" IsHitTestVisible="False"
+            <Rectangle x:Name="BloomOverlayRectangle" Grid.Column="2" IsHitTestVisible="False"
                        Visibility="Collapsed" Opacity="0.35">
                 <Rectangle.Fill>
                     <VisualBrush Visual="{Binding ElementName=Viewport}" Stretch="None" />
@@ -640,10 +703,10 @@
                 </Rectangle.Effect>
             </Rectangle>
 
-            <GridSplitter Grid.Column="2" Width="4" HorizontalAlignment="Stretch" />
+            <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch" />
 
             <!-- ================= Right Panel: Scene Outliner (top) + Properties (bottom) ================= -->
-            <Grid Grid.Column="3">
+            <Grid Grid.Column="4">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="1*" MinHeight="80" />  <!-- Row 0: Scene Outliner -->
                     <RowDefinition Height="Auto" />               <!-- horizontal splitter, Row 0 | Row 1 -->
