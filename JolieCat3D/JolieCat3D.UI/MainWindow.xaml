@@ -296,6 +296,27 @@
                     <ComboBoxItem Content="Texture Paint" Tag="TexturePaint" />
                 </ComboBox>
 
+                <!-- Component Select (Vertex/Edge/Face) - relocated here from the Left
+                     Toolbar so it sits immediately next to the Interaction Mode combo it's
+                     gated on, matching Blender's own header layout; reuses the SAME
+                     EditModeToolStyle (a CurrentEditorMode=="Edit" DataTrigger on
+                     Visibility) the Left Toolbar's own Mesh Tools section still uses, so it
+                     stays Edit-Mode-only with zero new code-behind. -->
+                <StackPanel Orientation="Horizontal" Style="{StaticResource EditModeToolStyle}" Margin="0,0,8,0">
+                    <RadioButton x:Name="VertexModeButton" Content="V" GroupName="ComponentMode"
+                                 IsChecked="True" IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
+                                 Margin="0,0,1,0" Padding="4,2" Checked="ComponentModeButton_Checked" Tag="Vertex"
+                                 ToolTip="Vertex select" />
+                    <RadioButton x:Name="EdgeModeButton" Content="E" GroupName="ComponentMode"
+                                 IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
+                                 Margin="0,0,1,0" Padding="4,2" Checked="ComponentModeButton_Checked" Tag="Edge"
+                                 ToolTip="Edge select" />
+                    <RadioButton x:Name="FaceModeButton" Content="F" GroupName="ComponentMode"
+                                 IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
+                                 Padding="4,2" Checked="ComponentModeButton_Checked" Tag="Face"
+                                 ToolTip="Face select" />
+                </StackPanel>
+
                 <!-- "View" - Perspective/Orthographic, the 6 axis-aligned view presets, and
                      the reference-grid visibility/spacing controls the Translate gizmos' own
                      Ctrl-drag snapping (Gizmos.TransformGizmo.GridSize/Editing.ComponentGizmo.GridSize)
@@ -523,7 +544,11 @@
                  currently set to) is ever visible at a time; DeleteButton alone sits outside
                  all of them, staying visible/enabled in every mode (it already meant
                  something different in Object vs. Edit Mode before this refactor - see
-                 DeleteSelected's own remarks - so it was never mode-gated to begin with). -->
+                 DeleteSelected's own remarks - so it was never mode-gated to begin with). Now
+                 strictly modeling operations - Component select (Vertex/Edge/Face) moved next
+                 to ModeComboBox in the Tier 2 header (see that ComboBox's own remarks), and
+                 Delete moved to the bottom of this list, so neither interrupts the primary
+                 top-to-bottom modeling workflow (Extrude -> Unwrap) below. -->
             <!-- A real, GridSplitter-resizable Blender-style T-panel (Column 0's own Width -
                  see the main content Grid's own ColumnDefinitions - defaults to 50, with
                  MinWidth="45"/MaxWidth="200") - drag the splitter to the right of this Border
@@ -538,29 +563,9 @@
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="4,6">
-                        <Button x:Name="DeleteButton" Style="{StaticResource ToolButtonStyle}" Margin="0,0,0,8" Padding="6,4"
-                                Click="DeleteButton_Click"
-                                ToolTip="Object Mode: deletes the selected node. Edit Mode: deletes the selected vertices/edges/faces.">
-                            <TextBlock Text="Delete" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
-                        </Button>
-
-                        <!-- ==== Edit Mode: Component select + Mesh tools ==== -->
+                        <!-- ==== Edit Mode: Mesh tools (Component select now lives in the
+                             Tier 2 header, next to ModeComboBox) ==== -->
                         <StackPanel Style="{StaticResource EditModeToolStyle}">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8" HorizontalAlignment="Center">
-                                <RadioButton x:Name="VertexModeButton" Content="V" GroupName="ComponentMode"
-                                             IsChecked="True" IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
-                                             Margin="0,0,1,0" Padding="4,2" Checked="ComponentModeButton_Checked" Tag="Vertex"
-                                             ToolTip="Vertex select" />
-                                <RadioButton x:Name="EdgeModeButton" Content="E" GroupName="ComponentMode"
-                                             IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
-                                             Margin="0,0,1,0" Padding="4,2" Checked="ComponentModeButton_Checked" Tag="Edge"
-                                             ToolTip="Edge select" />
-                                <RadioButton x:Name="FaceModeButton" Content="F" GroupName="ComponentMode"
-                                             IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
-                                             Padding="4,2" Checked="ComponentModeButton_Checked" Tag="Face"
-                                             ToolTip="Face select" />
-                            </StackPanel>
-
                             <!-- Extrude needs a single fully-selected Polygon face (Face mode);
                                  Subdivide always applies to the whole target mesh regardless of
                                  the current selection - see MeshEditSession's own remarks on
@@ -605,6 +610,18 @@
                                 <TextBlock Text="Unwrap" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
                             </Button>
                         </StackPanel>
+
+                        <!-- Delete sits at the bottom, outside every mode-gated section above -
+                             it stays visible/enabled in every mode (it already meant something
+                             different in Object vs. Edit Mode before this refactor - see
+                             DeleteSelected's own remarks), so it was never mode-gated to begin
+                             with; moved here so it no longer interrupts the primary modeling
+                             workflow (Extrude -> Unwrap) at the top of the list. -->
+                        <Button x:Name="DeleteButton" Style="{StaticResource ToolButtonStyle}" Margin="0,8,0,0" Padding="6,4"
+                                Click="DeleteButton_Click"
+                                ToolTip="Object Mode: deletes the selected node. Edit Mode: deletes the selected vertices/edges/faces.">
+                            <TextBlock Text="Delete" TextAlignment="Left" TextTrimming="CharacterEllipsis" />
+                        </Button>
 
                         <!-- ==== Weight Paint mode's own bone/brush-mode selectors; Radius/
                              Strength now live in the Properties panel's own "[TOOL]" tab ==== -->
