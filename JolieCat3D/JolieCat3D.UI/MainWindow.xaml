@@ -12,7 +12,7 @@
         Title="JolieCat3D" Height="700" Width="1200"
         Icon="Assets/JolieCatLogo.ico"
         WindowStyle="None" ResizeMode="CanResize" StateChanged="MainWindow_StateChanged"
-        Style="{StaticResource MainWindowStyle}"
+        Style="{DynamicResource MainWindowStyle}"
         d:DataContext="{d:DesignInstance Type=vm:SceneViewModel, IsDesignTimeCreatable=True}"
         PreviewKeyDown="MainWindow_PreviewKeyDown">
 
@@ -51,7 +51,21 @@
              (applied to the root Window element itself, above) sets that Padding only
              while WindowState="Maximized", using SystemParameters.WindowResizeBorderThickness
              (the same inset a normally-chromed maximized window already gets) rather than
-             a hardcoded pixel guess, so it stays correct across any DPI/theme. -->
+             a hardcoded pixel guess, so it stays correct across any DPI/theme.
+
+             Referenced above via DynamicResource, not StaticResource - the root Window
+             element's own attributes (including Style) are applied WHILE the object graph
+             is still being constructed, before this same Window's own Window.Resources
+             dictionary has necessarily finished populating; a StaticResource lookup at
+             that point can throw ("Provide value on 'StaticResourceExtension' threw an
+             exception") depending on exactly how InitializeComponent order plays out,
+             since it resolves immediately rather than waiting. DynamicResource defers the
+             lookup until the Style property is actually needed, by which point
+             Window.Resources is guaranteed populated - the standard fix for a root
+             element's own Style/Template referencing a resource keyed in that SAME
+             element's own local Resources (a nested element referencing an ANCESTOR's
+             Resources, e.g. any StaticResource used elsewhere in this same file, doesn't
+             have this problem - only the root element pointing at itself does). -->
         <Style x:Key="MainWindowStyle" TargetType="{x:Type Window}" BasedOn="{StaticResource {x:Type Window}}">
             <Style.Triggers>
                 <Trigger Property="WindowState" Value="Maximized">
