@@ -31,4 +31,13 @@
     <ProjectReference Include="..\JolieCat3D.Service\JolieCat3D.Service.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The custom title bar's own logo (MainWindow.xaml) and the Window's own taskbar/
+         Alt+Tab icon both reference this via a plain relative pack URI ("Assets/
+         JolieCatLogo.ico") - that only resolves at runtime when the file is embedded as a
+         WPF Resource (BamlType) in this same assembly, which SDK-style projects do NOT do
+         automatically for a .ico (unlike .xaml, which auto-includes as Page). -->
+    <Resource Include="Assets\JolieCatLogo.ico" />
+  </ItemGroup>
+
 </Project>

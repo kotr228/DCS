@@ -7,10 +7,31 @@
         xmlns:h="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
         xmlns:vm="clr-namespace:JolieCat3D.UI.ViewModels"
         xmlns:converters="clr-namespace:JolieCat3D.UI.Converters"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="JolieCat3D" Height="700" Width="1200"
+        Icon="Assets/JolieCatLogo.ico"
+        WindowStyle="None" ResizeMode="CanResize" StateChanged="MainWindow_StateChanged"
         d:DataContext="{d:DesignInstance Type=vm:SceneViewModel, IsDesignTimeCreatable=True}"
         PreviewKeyDown="MainWindow_PreviewKeyDown">
+
+    <!-- WindowStyle="None" (above) removes the native OS title bar/border entirely -
+         Tier 1 below (now a custom, hand-drawn draggable title bar - see its own
+         TitleBar_MouseLeftButtonDown remarks) replaces it. WindowChrome is what keeps
+         the OS's own resize/Aero-Snap behavior working despite that: CaptionHeight="0"
+         since Tier 1 has real interactive content of its own (Menu, Workspace tabs,
+         window control buttons) rather than a single uniform drag strip, so dragging is
+         handled by hand (DragMove()) instead of relying on WindowChrome's own automatic
+         caption-region hit-testing; ResizeBorderThickness gives the edges/corners back
+         their own invisible resize-cursor margin that WindowStyle="None" would otherwise
+         remove outright.-->
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="0"
+                             ResizeBorderThickness="6"
+                             GlassFrameThickness="0"
+                             CornerRadius="0"
+                             UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
@@ -188,6 +209,52 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!-- Custom title bar's own Minimize/Maximize-Restore/Close buttons - a compact
+             46x32 caption-button footprint, flat and borderless like the global Button
+             style (Theme.xaml) but without its centered-icon padding, since these hold a
+             single small Segoe MDL2 Assets glyph, not a text label. -->
+        <Style x:Key="WindowControlButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Width" Value="46" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Close gets the near-universal "goes red on hover" treatment (Theme.xaml's own
+             CloseHoverBackgroundBrush) instead of the neutral HoverBackgroundBrush every
+             other window control button above uses. -->
+        <Style x:Key="CloseWindowControlButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource WindowControlButtonStyle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource CloseHoverBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -200,7 +267,46 @@
         </Grid.RowDefinitions>
 
         <!-- ================= Tier 1: Main Application Header ================= -->
-        <DockPanel Grid.Row="0" LastChildFill="False" Background="{StaticResource PanelAltBackgroundBrush}">
+        <!-- Now doubles as the custom title bar WindowStyle="None" (see this Window's own
+             root-element remarks) needs - TitleBar_MouseLeftButtonDown calls DragMove() for
+             an ordinary drag, or toggles Maximize/Restore on a double-click, exactly what
+             the native OS caption used to do. A click that lands on the Menu, the Workspace
+             tabs, or the window control buttons below never reaches this handler at all -
+             each of those controls' own class handling already marks a MouseLeftButtonDown
+             on itself Handled before it would bubble up here, so dragging and clicking a
+             real control never conflict. -->
+        <DockPanel Grid.Row="0" LastChildFill="False" Background="{StaticResource PanelAltBackgroundBrush}"
+                   MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+            <!-- The JolieCat brand logo - Assets/JolieCatLogo.ico, embedded as a WPF
+                 Resource (see JolieCat3D.UI.csproj's own remarks) so this plain relative
+                 pack URI resolves at runtime. -->
+            <Image DockPanel.Dock="Left" Source="Assets/JolieCatLogo.ico"
+                   Height="22" MaxHeight="24" Margin="10,0,8,0"
+                   VerticalAlignment="Center" HorizontalAlignment="Left"
+                   RenderOptions.BitmapScalingMode="HighQuality"
+                   ToolTip="JolieCat3D" />
+
+            <!-- Window Controls (Minimize/Maximize-Restore/Close) - the far-right
+                 replacement for the native OS caption buttons WindowStyle="None" removes.
+                 Declared as the FIRST Dock="Right" child in this DockPanel so it lands
+                 outermost - DockPanel docks same-side children in document order, each one
+                 claiming space closer to its own edge than the next, so this ends up
+                 further right than the Workspace tabs below it. -->
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="MinimizeButton" Style="{StaticResource WindowControlButtonStyle}"
+                        Click="MinimizeButton_Click" ToolTip="Minimize">
+                    <TextBlock Text="&#xE921;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                </Button>
+                <Button x:Name="MaximizeRestoreButton" Style="{StaticResource WindowControlButtonStyle}"
+                        Click="MaximizeRestoreButton_Click" ToolTip="Maximize">
+                    <TextBlock x:Name="MaximizeRestoreGlyph" Text="&#xE922;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                </Button>
+                <Button x:Name="CloseButton" Style="{StaticResource CloseWindowControlButtonStyle}"
+                        Click="CloseButton_Click" ToolTip="Close">
+                    <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="10" />
+                </Button>
+            </StackPanel>
+
             <Menu DockPanel.Dock="Left" Padding="0" VerticalAlignment="Center">
                 <MenuItem Header="_File">
                     <MenuItem Header="_New Scene" Command="ApplicationCommands.New" />

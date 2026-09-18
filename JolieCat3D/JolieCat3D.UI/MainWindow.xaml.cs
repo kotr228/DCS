@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Shell;
 using System.Windows.Threading;
 using JolieCat3D.Core.Camera;
 using JolieCat3D.Core.Geometry;
@@ -890,6 +891,66 @@ namespace JolieCat3D.UI
             if (!_isInitialized) return;
             MessageBox.Show(this, "JolieCat3D\nA Blender-inspired 3D modeling/animation tool built on HelixToolkit.Wpf.",
                 "About JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>Tier 1 now doubles as this window's own custom title bar
+        /// (<c>WindowStyle="None"</c> - see MainWindow.xaml's own <c>WindowChrome</c>
+        /// remarks), so ordinary window dragging has to be reimplemented by hand: a
+        /// double-click toggles Maximize/Restore (the same behavior the native OS
+        /// caption gave for free), and an ordinary single-button drag calls
+        /// <see cref="Window.DragMove"/> - which drives the same native window-move
+        /// message Aero Snap (Win+Arrow, drag-to-screen-edge) already hooks into, so that
+        /// behavior survives even though the caption itself is gone. Never reached for a
+        /// click that lands on the Menu, the Workspace tabs, or the window control
+        /// buttons - each of those already marks its own MouseLeftButtonDown Handled
+        /// before it would bubble up here.</summary>
+        private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            if (e.ClickCount == 2)
+            {
+                MaximizeRestoreButton_Click(sender, e);
+                return;
+            }
+
+            DragMove();
+        }
+
+        private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            SystemCommands.MinimizeWindow(this);
+        }
+
+        /// <summary>Also the target of a title-bar double-click (see
+        /// <see cref="TitleBar_MouseLeftButtonDown"/>); <see cref="MainWindow_StateChanged"/>
+        /// keeps the button's own glyph in sync however WindowState actually changed -
+        /// this click, a double-click, or an OS-level Aero Snap (Win+Up/drag-to-top).</summary>
+        private void MaximizeRestoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (WindowState == WindowState.Maximized)
+                SystemCommands.RestoreWindow(this);
+            else
+                SystemCommands.MaximizeWindow(this);
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            SystemCommands.CloseWindow(this);
+        }
+
+        /// <summary>Keeps the custom title bar's own Maximize/Restore glyph (Segoe MDL2
+        /// Assets - see MainWindow.xaml's own remarks) in sync with WindowState however it
+        /// actually changed, not just <see cref="MaximizeRestoreButton_Click"/>'s own
+        /// click.</summary>
+        private void MainWindow_StateChanged(object? sender, EventArgs e)
+        {
+            var isMaximized = WindowState == WindowState.Maximized;
+            MaximizeRestoreGlyph.Text = isMaximized ? "" : "";
+            MaximizeRestoreButton.ToolTip = isMaximized ? "Restore" : "Maximize";
         }
 
         /// <summary>Tier 1's own "Workspaces" tab row - a flat RadioButton strip that
