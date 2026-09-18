@@ -486,13 +486,15 @@
                  all of them, staying visible/enabled in every mode (it already meant
                  something different in Object vs. Edit Mode before this refactor - see
                  DeleteSelected's own remarks - so it was never mode-gated to begin with). -->
-            <!-- Compacted to an icon-only, Blender-style narrow T-panel (Width="44") - every
-                 button below keeps its full ToolTip for discoverability, since Content is
-                 now a short abbreviation rather than a full label. Radius/Strength/Color
-                 (which don't fit at this width, and which the task itself calls out to
-                 relocate) now live in the Properties panel's own "[TOOL]" tab instead; only
-                 each mode's own brush/bone/algorithm SELECTOR controls stay here. -->
-            <Border Grid.Column="0" Width="44" Background="{StaticResource PanelBackgroundBrush}"
+            <!-- Compacted to an icon-only, Blender-style narrow T-panel (Width="60" - wide
+                 enough that "Ext"/"Sub"/"MSm"/"CSm" render with breathing room instead of
+                 clipping against the Border's own edge) - every button below keeps its full
+                 ToolTip for discoverability, since Content is now a short abbreviation rather
+                 than a full label. Radius/Strength/Color (which don't fit at this width, and
+                 which the task itself calls out to relocate) now live in the Properties
+                 panel's own "[TOOL]" tab instead; only each mode's own brush/bone/algorithm
+                 SELECTOR controls stay here. -->
+            <Border Grid.Column="0" Width="60" Background="{StaticResource PanelBackgroundBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="4,6">
@@ -709,7 +711,7 @@
 
                         <!-- ================= [OBJ]: Transform + this node's own type-specific data ================= -->
                         <TabItem Header="[OBJ]" Style="{StaticResource PropertiesTabItemStyle}" ToolTip="Object">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel DataContext="{Binding SelectedNode}" Margin="0,0,0,12">
 
                                     <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="8,4,8,10" TextTrimming="CharacterEllipsis" />
@@ -762,10 +764,10 @@
                                          threshold is meant to be tuned interactively. -->
                                     <StackPanel Visibility="{Binding HasMesh, Converter={StaticResource BoolToVisibility}}">
                                         <TextBlock Text="SHADING" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
-                                            <Button Content="Shade Smooth" Margin="0,0,4,0" Padding="8,2" Click="ShadeSmoothButton_Click" />
-                                            <Button Content="Shade Flat" Padding="8,2" Click="ShadeFlatButton_Click" />
-                                        </StackPanel>
+                                        <WrapPanel Margin="8,0,8,8">
+                                            <Button Content="Shade Smooth" Margin="0,0,4,4" Padding="8,2" Click="ShadeSmoothButton_Click" />
+                                            <Button Content="Shade Flat" Margin="0,0,4,4" Padding="8,2" Click="ShadeFlatButton_Click" />
+                                        </WrapPanel>
                                     </StackPanel>
 
                                     <!-- Constraints - a non-destructive, evaluated-every-render
@@ -987,7 +989,7 @@
 
                         <!-- ================= [MOD]: Modifier stack ================= -->
                         <TabItem Header="[MOD]" Style="{StaticResource PropertiesTabItemStyle}" ToolTip="Modifiers">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel DataContext="{Binding SelectedNode}" Margin="0,0,0,12">
                                     <!-- Modifiers - a non-destructive stack evaluated at render
                                          time only (see Core.Modifiers.ModifierStack); hidden
@@ -995,14 +997,17 @@
                                          ever have anything to evaluate against. -->
                                     <StackPanel Visibility="{Binding HasMesh, Converter={StaticResource BoolToVisibility}}">
                                         <TextBlock Text="MODIFIERS" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                            <Button Content="Add Mirror" Margin="0,0,4,0" Padding="8,2" Click="AddMirrorModifierButton_Click" />
-                                            <Button Content="Add Subsurf" Margin="0,0,4,0" Padding="8,2" Click="AddSubsurfModifierButton_Click" />
-                                            <Button Content="Add Boolean" Margin="0,0,4,0" Padding="8,2" Click="AddBooleanModifierButton_Click" />
-                                            <Button Content="Add Array" Margin="0,0,4,0" Padding="8,2" Click="AddArrayModifierButton_Click" />
-                                            <Button Content="Add Solidify" Margin="0,0,4,0" Padding="8,2" Click="AddSolidifyModifierButton_Click" />
-                                            <Button Content="Add Edge Split" Padding="8,2" Click="AddEdgeSplitModifierButton_Click" />
-                                        </StackPanel>
+                                        <!-- WrapPanel (not a horizontal StackPanel) so these 6 "Add"
+                                             buttons flow onto additional lines instead of overflowing
+                                             off-screen when the right panel is narrow. -->
+                                        <WrapPanel Margin="8,0,8,4">
+                                            <Button Content="Add Mirror" Margin="0,0,4,4" Padding="8,2" Click="AddMirrorModifierButton_Click" />
+                                            <Button Content="Add Subsurf" Margin="0,0,4,4" Padding="8,2" Click="AddSubsurfModifierButton_Click" />
+                                            <Button Content="Add Boolean" Margin="0,0,4,4" Padding="8,2" Click="AddBooleanModifierButton_Click" />
+                                            <Button Content="Add Array" Margin="0,0,4,4" Padding="8,2" Click="AddArrayModifierButton_Click" />
+                                            <Button Content="Add Solidify" Margin="0,0,4,4" Padding="8,2" Click="AddSolidifyModifierButton_Click" />
+                                            <Button Content="Add Edge Split" Margin="0,0,4,4" Padding="8,2" Click="AddEdgeSplitModifierButton_Click" />
+                                        </WrapPanel>
 
                                         <ItemsControl ItemsSource="{Binding Modifiers}" Margin="8,0,8,8">
                                     <ItemsControl.Resources>
@@ -1156,7 +1161,7 @@
 
                         <!-- ================= [MAT]: Material Inspector ================= -->
                         <TabItem Header="[MAT]" Style="{StaticResource PropertiesTabItemStyle}" ToolTip="Material">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel DataContext="{Binding SelectedNode}" Margin="0,0,0,12">
                                     <!-- Material Inspector - hidden entirely for a mesh-less/materialless node. -->
                                     <StackPanel Visibility="{Binding HasMaterial, Converter={StaticResource BoolToVisibility}}">
@@ -1236,11 +1241,11 @@
                                              primitive or an Edit-Mode-reshaped mesh whose authored UVs
                                              no longer make sense (see Core.Geometry.UVProjector). -->
                                         <TextBlock Text="UV Projection" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
-                                            <Button Content="Planar" Margin="0,0,4,0" Padding="8,4" Click="PlanarProjectionButton_Click" />
-                                            <Button Content="Box" Margin="0,0,4,0" Padding="8,4" Click="BoxProjectionButton_Click" />
-                                            <Button Content="Spherical" Padding="8,4" Click="SphericalProjectionButton_Click" />
-                                        </StackPanel>
+                                        <WrapPanel Margin="8,0,8,8">
+                                            <Button Content="Planar" Margin="0,0,4,4" Padding="8,4" Click="PlanarProjectionButton_Click" />
+                                            <Button Content="Box" Margin="0,0,4,4" Padding="8,4" Click="BoxProjectionButton_Click" />
+                                            <Button Content="Spherical" Margin="0,0,4,4" Padding="8,4" Click="SphericalProjectionButton_Click" />
+                                        </WrapPanel>
 
                                         <!-- Opens JolieCat3D.UI.UVVisualizerWindow - a non-modal
                                              "leave it open while you paint in JolieCat 2D" tool
@@ -1280,7 +1285,7 @@
 
                         <!-- ================= [DATA]: Keyframes + Armature/Vertex-group (Skinning) data ================= -->
                         <TabItem Header="[DATA]" Style="{StaticResource PropertiesTabItemStyle}" ToolTip="Object Data">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel DataContext="{Binding SelectedNode}" Margin="0,0,0,12">
                                     <!-- Records this node's CURRENT Position/Rotation/Scale as a
                                          keyframe at the timeline's own current frame (see
@@ -1339,7 +1344,7 @@
                              the Left Toolbar's own per-mode sections already use, so only the
                              currently active paint mode's own brush settings show here. ================= -->
                         <TabItem Header="[TOOL]" Style="{StaticResource PropertiesTabItemStyle}" ToolTip="Active Tool">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel Margin="8,8,8,12">
                                     <StackPanel Style="{StaticResource WeightPaintToolStyle}">
                                         <TextBlock Text="Weight Brush" Style="{StaticResource PanelHeaderStyle}" Margin="0,0,0,2" />
