@@ -32,6 +32,27 @@ namespace JolieCat3D.UI
     /// </summary>
     public partial class MainWindow : Window
     {
+        /// <summary>The Tier 2 Viewport Header's own Interaction Mode combo box's
+        /// current selection ("Object", "Edit", "WeightPaint", "VertexPaint", "Sculpt",
+        /// or "TexturePaint" - the same Tag strings <see cref="ModeComboBox_SelectionChanged"/>
+        /// already reads off each <see cref="ComboBoxItem"/>) - a real WPF
+        /// <see cref="DependencyProperty"/> (not a plain field) specifically so the Left
+        /// Vertical Toolbar's own per-mode sections can each bind a <c>DataTrigger</c>
+        /// against it directly in XAML (<c>{Binding CurrentEditorMode, RelativeSource=
+        /// {RelativeSource AncestorType=Window}}</c>) to show/hide themselves - the
+        /// task's own "use XAML DataTriggers based on the Interaction Mode to dynamically
+        /// swap the contents of this left toolbar" ask - rather than every section
+        /// needing its own imperative Visibility assignment in code-behind the way the
+        /// 4 paint-mode toolbars used to.</summary>
+        public static readonly DependencyProperty CurrentEditorModeProperty =
+            DependencyProperty.Register(nameof(CurrentEditorMode), typeof(string), typeof(MainWindow), new PropertyMetadata("Object"));
+
+        public string CurrentEditorMode
+        {
+            get => (string)GetValue(CurrentEditorModeProperty);
+            set => SetValue(CurrentEditorModeProperty, value);
+        }
+
         // "3D Models (*.obj;*.stl)" first, so it's the default choice in both dialogs;
         // the format-specific entries after it are what actually determine each format's
         // own default *extension* SaveFileDialog appends when a user types a bare name
@@ -852,6 +873,40 @@ namespace JolieCat3D.UI
             Close();
         }
 
+        /// <summary>Tier 1's own "_Window" menu - toggles between <see cref="WindowState.Normal"/>
+        /// and <see cref="WindowState.Maximized"/>, the same "Toggle Window Fullscreen"
+        /// entry Blender's own Window menu has - a small, genuinely useful entry rather
+        /// than an empty placeholder menu.</summary>
+        private void ToggleFullScreenMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        }
+
+        /// <summary>Tier 1's own "_Help" menu - a plain informational dialog, matching
+        /// Blender's own Help menu having an "About Blender" entry.</summary>
+        private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            MessageBox.Show(this, "JolieCat3D\nA Blender-inspired 3D modeling/animation tool built on HelixToolkit.Wpf.",
+                "About JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>Tier 1's own "Workspaces" tab row - a flat RadioButton strip that
+        /// (for now - see <see cref="MainWindow.xaml"/>'s own remarks on why this is a
+        /// real, working shortcut rather than a full separate-UI-layout system yet) just
+        /// switches <see cref="ModeComboBox"/> to whichever Interaction Mode that
+        /// workspace corresponds to, reusing every one of <see cref="ModeComboBox_SelectionChanged"/>'s
+        /// own existing validation (a workspace whose mode needs a mesh-bearing node
+        /// selected bounces back to Object Mode exactly like picking that same mode from
+        /// <see cref="ModeComboBox"/> directly already does).</summary>
+        private void WorkspaceButton_Checked(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (sender is not RadioButton { Tag: string modeName }) return;
+            SetEditorMode(modeName);
+        }
+
         /// <summary>No dirty/unsaved-changes tracking exists yet (every scene edit -
         /// gizmo drag, Properties field, Import - would need to flip a flag this project
         /// doesn't have), so this always just asks - a harmless extra confirmation on an
@@ -1143,32 +1198,47 @@ namespace JolieCat3D.UI
             SelectNode(node);
         }
 
-        /// <summary>True once <see cref="EditModeButton"/> (rather than
-        /// <see cref="ObjectModeButton"/>/<see cref="WeightPaintModeButton"/>) is the
-        /// checked radio button - what every Edit-Mode-vs-everything-else branch in
-        /// this window reads.</summary>
-        private bool IsEditMode => EditModeButton.IsChecked == true;
+        /// <summary>True once <see cref="CurrentEditorMode"/> is "Edit" (rather than
+        /// "Object"/"WeightPaint"/...) - what every Edit-Mode-vs-everything-else branch
+        /// in this window reads.</summary>
+        private bool IsEditMode => CurrentEditorMode == "Edit";
 
-        /// <summary>True once <see cref="WeightPaintModeButton"/> is the checked radio
-        /// button - what <see cref="Viewport_MouseLeftButtonDown"/>/<see cref="Viewport_MouseMove"/>
+        /// <summary>True once <see cref="CurrentEditorMode"/> is "WeightPaint" - what
+        /// <see cref="Viewport_MouseLeftButtonDown"/>/<see cref="Viewport_MouseMove"/>
         /// read to route a viewport click/drag to the brush instead of selection/Edit
         /// Mode.</summary>
-        private bool IsWeightPaintMode => WeightPaintModeButton.IsChecked == true;
+        private bool IsWeightPaintMode => CurrentEditorMode == "WeightPaint";
 
-        /// <summary>True once <see cref="VertexPaintModeButton"/> is the checked radio
-        /// button - the same role <see cref="IsWeightPaintMode"/> plays for Weight
-        /// Paint mode.</summary>
-        private bool IsVertexPaintMode => VertexPaintModeButton.IsChecked == true;
+        /// <summary>True once <see cref="CurrentEditorMode"/> is "VertexPaint" - the
+        /// same role <see cref="IsWeightPaintMode"/> plays for Weight Paint mode.</summary>
+        private bool IsVertexPaintMode => CurrentEditorMode == "VertexPaint";
 
-        /// <summary>True once <see cref="SculptModeButton"/> is the checked radio
-        /// button - the same role <see cref="IsWeightPaintMode"/> plays for Weight
-        /// Paint mode.</summary>
-        private bool IsSculptMode => SculptModeButton.IsChecked == true;
+        /// <summary>True once <see cref="CurrentEditorMode"/> is "Sculpt" - the same
+        /// role <see cref="IsWeightPaintMode"/> plays for Weight Paint mode.</summary>
+        private bool IsSculptMode => CurrentEditorMode == "Sculpt";
 
-        /// <summary>True once <see cref="TexturePaintModeButton"/> is the checked radio
-        /// button - the same role <see cref="IsWeightPaintMode"/> plays for Weight
-        /// Paint mode.</summary>
-        private bool IsTexturePaintMode => TexturePaintModeButton.IsChecked == true;
+        /// <summary>True once <see cref="CurrentEditorMode"/> is "TexturePaint" - the
+        /// same role <see cref="IsWeightPaintMode"/> plays for Weight Paint mode.</summary>
+        private bool IsTexturePaintMode => CurrentEditorMode == "TexturePaint";
+
+        /// <summary>Sets <see cref="ModeComboBox"/>'s own selection to whichever
+        /// <see cref="ComboBoxItem"/> carries <paramref name="modeName"/> as its own Tag -
+        /// the replacement for the old "just check a different RadioButton" bounce-back
+        /// (<c>ObjectModeButton.IsChecked = true</c>) every mode-validation failure below
+        /// uses, now that Interaction Mode is a single <see cref="ModeComboBox"/> instead
+        /// of a RadioButton group. Setting <see cref="Selector.SelectedItem"/> raises
+        /// <see cref="ModeComboBox_SelectionChanged"/> synchronously, the exact same
+        /// reentrant-bounce-back shape the old RadioButton.IsChecked setter already
+        /// had.</summary>
+        private void SetEditorMode(string modeName)
+        {
+            foreach (var item in ModeComboBox.Items.OfType<ComboBoxItem>())
+            {
+                if (item.Tag as string != modeName) continue;
+                ModeComboBox.SelectedItem = item;
+                return;
+            }
+        }
 
         private void SelectNode(Node? node)
         {
@@ -1189,7 +1259,7 @@ namespace JolieCat3D.UI
                 }
                 else
                 {
-                    ObjectModeButton.IsChecked = true;
+                    SetEditorMode("Object");
                 }
                 return;
             }
@@ -1197,21 +1267,21 @@ namespace JolieCat3D.UI
             if (IsVertexPaintMode)
             {
                 if (node?.Mesh is not null) _renderer.EnterVertexPaintMode(node);
-                else ObjectModeButton.IsChecked = true;
+                else SetEditorMode("Object");
                 return;
             }
 
             if (IsSculptMode)
             {
                 if (node?.Mesh is not null) _renderer.EnterSculptMode(node);
-                else ObjectModeButton.IsChecked = true;
+                else SetEditorMode("Object");
                 return;
             }
 
             if (IsTexturePaintMode)
             {
                 if (node?.Mesh is not null) _renderer.EnterTexturePaintMode(node);
-                else ObjectModeButton.IsChecked = true;
+                else SetEditorMode("Object");
                 return;
             }
 
@@ -1234,7 +1304,7 @@ namespace JolieCat3D.UI
             }
             else
             {
-                ObjectModeButton.IsChecked = true;
+                SetEditorMode("Object");
             }
         }
 
@@ -1245,16 +1315,16 @@ namespace JolieCat3D.UI
             if (Enum.TryParse<GizmoMode>(modeName, out var mode)) _gizmo.Mode = mode;
         }
 
-        /// <summary>The Gizmo Mode toolbar's Global/Local toggle - sets BOTH gizmos' own
-        /// <see cref="TransformGizmo.Space"/>/<see cref="ComponentGizmo.Space"/> together
-        /// (only one of the two is ever attached/visible at a time - see
-        /// <see cref="SelectNode"/>/<see cref="EditorModeButton_Checked"/> - but keeping
+        /// <summary>The Tier 2 header's own Transform Orientation combo (Global/Local) -
+        /// sets BOTH gizmos' own <see cref="TransformGizmo.Space"/>/<see cref="ComponentGizmo.Space"/>
+        /// together (only one of the two is ever attached/visible at a time - see
+        /// <see cref="SelectNode"/>/<see cref="ModeComboBox_SelectionChanged"/> - but keeping
         /// both in sync means the choice carries over correctly whichever one the user
         /// switches to next, rather than each silently reverting to Global).</summary>
-        private void TransformSpaceButton_Checked(object sender, RoutedEventArgs e)
+        private void TransformSpaceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!_isInitialized) return;
-            if (sender is not RadioButton { Tag: string spaceName }) return;
+            if (TransformSpaceComboBox.SelectedItem is not ComboBoxItem { Tag: string spaceName }) return;
             if (!Enum.TryParse<TransformSpace>(spaceName, out var space)) return;
 
             _gizmo.Space = space;
@@ -1273,17 +1343,24 @@ namespace JolieCat3D.UI
             if (Enum.TryParse<ShadingMode>(modeName, out var mode)) _renderer.ShadingMode = mode;
         }
 
-        /// <summary>Switches between Object Mode (the existing whole-node
-        /// Translate/Rotate/Scale gizmo) and Edit Mode (per-component selection and
-        /// <see cref="ComponentGizmo"/>) - enabling/disabling the Vertex/Edge/Face
-        /// buttons to match, and requiring a mesh-bearing node already selected before
-        /// Edit Mode can actually be entered (bouncing back to Object Mode with a
-        /// message otherwise - there is nothing to select vertices/edges/faces of with
-        /// nothing chosen to edit).</summary>
-        private void EditorModeButton_Checked(object sender, RoutedEventArgs e)
+        /// <summary>The Tier 2 Viewport Header's own Interaction Mode <see cref="ModeComboBox"/> -
+        /// switches between Object Mode (the existing whole-node Translate/Rotate/Scale
+        /// gizmo) and Edit Mode (per-component selection and <see cref="ComponentGizmo"/>),
+        /// among others, requiring a mesh-bearing node (and, for Weight Paint, one
+        /// already bound to an Armature) already selected before a mode that needs one
+        /// can actually be entered (bouncing back to Object Mode - <see cref="SetEditorMode"/> -
+        /// with a message otherwise). <see cref="CurrentEditorMode"/> is updated FIRST,
+        /// before anything else here runs, so every <c>DataTrigger</c> bound to it (the
+        /// Left Vertical Toolbar's own per-mode sections - see that property's own
+        /// remarks) and every <c>IsXxxMode</c> getter this method's own logic below reads
+        /// are already showing the NEW mode's own state by the time any of it
+        /// executes.</summary>
+        private void ModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!_isInitialized) return;
-            if (sender is not RadioButton { Tag: string modeName }) return;
+            if (ModeComboBox.SelectedItem is not ComboBoxItem { Tag: string modeName }) return;
+            CurrentEditorMode = modeName;
+
             var enteringEditMode = modeName == "Edit";
             var enteringWeightPaintMode = modeName == "WeightPaint";
             var enteringVertexPaintMode = modeName == "VertexPaint";
@@ -1311,10 +1388,14 @@ namespace JolieCat3D.UI
             // enablement from every Edit-Mode-only control above.
             AffectOnlyOriginCheckBox.IsEnabled = !enteringEditMode && !enteringWeightPaintMode && !enteringVertexPaintMode && !enteringSculptMode && !enteringTexturePaintMode;
 
-            WeightPaintToolbar.Visibility = enteringWeightPaintMode ? Visibility.Visible : Visibility.Collapsed;
-            VertexPaintToolbar.Visibility = enteringVertexPaintMode ? Visibility.Visible : Visibility.Collapsed;
-            SculptToolbar.Visibility = enteringSculptMode ? Visibility.Visible : Visibility.Collapsed;
-            TexturePaintToolbar.Visibility = enteringTexturePaintMode ? Visibility.Visible : Visibility.Collapsed;
+            // The 4 paint-mode toolbars' own Visibility is no longer set here at all -
+            // each one's Left Vertical Toolbar section now carries a Style with its own
+            // DataTrigger against CurrentEditorMode (set above), which this method would
+            // otherwise silently override: a LOCAL value (an imperative
+            // "toolbar.Visibility = ..." assignment, exactly like this used to be) beats
+            // a Style Trigger in WPF's own property-value precedence, so leaving an
+            // assignment like that in here would make the corresponding DataTrigger
+            // dead code.
 
             // Leaving Weight/Vertex/Texture Paint or Sculpt mode (for any of the other
             // modes) always detaches its own session first, exactly like leaving Edit
@@ -1331,7 +1412,7 @@ namespace JolieCat3D.UI
                 {
                     MessageBox.Show(this, "Select an object with a mesh before entering Edit Mode.",
                         "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    ObjectModeButton.IsChecked = true;
+                    SetEditorMode("Object");
                     return;
                 }
 
@@ -1347,7 +1428,7 @@ namespace JolieCat3D.UI
                 {
                     MessageBox.Show(this, "Select a mesh already bound to an Armature (see its own Skinning panel) before entering Weight Paint mode.",
                         "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    ObjectModeButton.IsChecked = true;
+                    SetEditorMode("Object");
                     return;
                 }
 
@@ -1362,7 +1443,7 @@ namespace JolieCat3D.UI
                 {
                     MessageBox.Show(this, "Select an object with a mesh before entering Vertex Paint mode.",
                         "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    ObjectModeButton.IsChecked = true;
+                    SetEditorMode("Object");
                     return;
                 }
 
@@ -1376,7 +1457,7 @@ namespace JolieCat3D.UI
                 {
                     MessageBox.Show(this, "Select an object with a mesh before entering Sculpt mode.",
                         "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    ObjectModeButton.IsChecked = true;
+                    SetEditorMode("Object");
                     return;
                 }
 
@@ -1390,7 +1471,7 @@ namespace JolieCat3D.UI
                 {
                     MessageBox.Show(this, "Select an object with a mesh before entering Texture Paint mode.",
                         "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    ObjectModeButton.IsChecked = true;
+                    SetEditorMode("Object");
                     return;
                 }
 
