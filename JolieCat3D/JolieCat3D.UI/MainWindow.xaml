@@ -392,11 +392,11 @@
             <RowDefinition Height="Auto" /> <!-- Tier 1: Main Application Header -->
             <RowDefinition Height="Auto" /> <!-- Tier 2: 3D Viewport Header -->
             <RowDefinition Height="*" />    <!-- Outliner | Left Toolbar | Viewport | Properties -->
-            <!-- Animation playback transport (Frame Scrubber/Dopesheet/Play/Stop) - a real
-                 MinHeight so this row can never be squeezed down to nothing regardless of
-                 window size; Height="Auto" still lets it size to its own content (currently
-                 well under 100px), MinHeight is only a floor, not a fixed height. -->
-            <RowDefinition Height="Auto" MinHeight="100" />
+            <!-- Animation playback transport (Frame Scrubber/Dopesheet/Play/Stop) - plain
+                 Height="Auto", no MinHeight floor: the Border below now sets its own
+                 explicit compact Height, so this row just sizes to that instead of ever
+                 being stretched to an arbitrary minimum. -->
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" /> <!-- Status bar (Live Sync) -->
         </Grid.RowDefinitions>
 
@@ -1765,17 +1765,16 @@
         </Grid>
 
         <!-- ================= Animation Playback Transport ================= -->
-        <Border Grid.Row="3" Background="{StaticResource PanelAltBackgroundBrush}"
+        <!-- A fixed, compact Height (not just Auto) - the outer Grid.RowDefinitions row
+             above is plain Auto with no MinHeight floor, so this Border's own Height is
+             what actually keeps this bar thin instead of ballooning to fit however much
+             space happens to be free. -->
+        <Border Grid.Row="3" Height="34" Background="{StaticResource PanelAltBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-            <!-- This row's own MinHeight="100" (see the outer Grid.RowDefinitions above)
-                 gives this StackPanel far more vertical room than its own content needs -
-                 VerticalAlignment="Center" here keeps the StackPanel itself (and every
-                 child inside it, none of which set their own Height) sized to its natural
-                 content height and centered in that taller row, instead of each control
-                 individually stretching to fill the full 100px (which is what produced the
-                 FPS TextBox - and every other control here - stretching vertically to fill
-                 the whole bar). -->
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,6">
+            <!-- VerticalAlignment="Center" on the StackPanel itself, plus on every child
+                 inside it, keeps each control sized to its own natural height and
+                 centered within this thin bar instead of stretching to fill it. -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
                 <Button x:Name="PlayPauseButton" Content="Play" VerticalAlignment="Center" Padding="12,2" Margin="0,0,4,0" Click="PlayPauseButton_Click" />
                 <Button Content="Stop" VerticalAlignment="Center" Padding="12,2" Margin="0,0,16,0" Click="StopButton_Click" />
 
