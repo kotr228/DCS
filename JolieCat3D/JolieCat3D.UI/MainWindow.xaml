@@ -352,10 +352,18 @@
 
     <!-- The maximized-window-vs-taskbar fix now lives entirely in code-behind
          (MainWindow_StateChanged clamps MaxHeight/MaxWidth to SystemParameters.WorkArea
-         and sets BorderThickness while WindowState="Maximized") - see that method's own
-         remarks for why the two earlier XAML-only attempts (a Window.Padding Style
-         Trigger, then a Grid.Margin Binding reading it back) never actually worked. -->
-    <Grid>
+         while WindowState="Maximized") - see that method's own remarks for why the two
+         earlier XAML-only attempts (a Window.Padding Style Trigger, then a Grid.Margin
+         Binding reading it back) never actually worked, and for why that same method no
+         longer ALSO sets BorderThickness (it used to - a Border always reserves that
+         thickness as inset layout space whether or not anything actually paints there,
+         which is what produced a dead unpainted collar along this Grid's own bottom/
+         right edges once combined with the already-correctly-sized MaxHeight/MaxWidth
+         clamp). HorizontalAlignment/VerticalAlignment="Stretch" and no Margin here are
+         this Grid's own already-DEFAULT values (spelled out explicitly rather than left
+         implicit) - this root Grid fills the Window's own entire content area either
+         way, with nothing left over for a stray margin to explain. -->
+    <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" /> <!-- Tier 1: Main Application Header -->
             <RowDefinition Height="Auto" /> <!-- Tier 2: 3D Viewport Header -->

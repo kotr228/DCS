@@ -936,30 +936,30 @@ namespace JolieCat3D.UI
         /// SystemParameters.WorkArea here is what actually, physically prevents the window
         /// from ever occupying the space the taskbar sits in, regardless of any Window
         /// template/WindowChrome ambiguity - restored back to PositiveInfinity when leaving
-        /// Maximized so the window is freely resizable by hand again afterward.
-        /// BorderThickness compensates for the standard hidden resize border a maximized
-        /// window normally gets inset by. Note: SystemParameters.WorkArea reflects the
-        /// PRIMARY monitor only - a real multi-monitor fix would need the WorkingArea of
-        /// whichever screen this window is actually on (via WindowInteropHelper), not
-        /// attempted here.</summary>
+        /// Maximized so the window is freely resizable by hand again afterward. Note:
+        /// SystemParameters.WorkArea reflects the PRIMARY monitor only - a real
+        /// multi-monitor fix would need the WorkingArea of whichever screen this window is
+        /// actually on (via WindowInteropHelper), not attempted here.
+        ///
+        /// Deliberately does NOT also set BorderThickness (an earlier version of this
+        /// fix did, meaning to compensate for the standard hidden resize border a
+        /// maximized window normally gets inset by) - a Border ALWAYS reserves its own
+        /// BorderThickness as inset layout space for its content regardless of whether
+        /// BorderBrush actually paints anything there, so setting BorderThickness="7"
+        /// shrank the root Grid's own visible content 7px further inward on every side
+        /// than the already-correctly-sized (MaxHeight/MaxWidth-clamped) window frame
+        /// around it, producing a dead, unpainted collar - most visible along the
+        /// bottom/right, since Tier 1 (this window's own top-left-anchored title bar)
+        /// left no equivalent gap to notice on top/left. MaxHeight/MaxWidth alone is a
+        /// complete fix; nothing here needs a compensating border inset at all.</summary>
         private void MainWindow_StateChanged(object? sender, EventArgs e)
         {
             var isMaximized = WindowState == WindowState.Maximized;
             MaximizeRestoreGlyph.Text = isMaximized ? "" : "";
             MaximizeRestoreButton.ToolTip = isMaximized ? "Restore" : "Maximize";
 
-            if (isMaximized)
-            {
-                MaxHeight = SystemParameters.WorkArea.Height;
-                MaxWidth = SystemParameters.WorkArea.Width;
-                BorderThickness = new Thickness(7);
-            }
-            else
-            {
-                MaxHeight = double.PositiveInfinity;
-                MaxWidth = double.PositiveInfinity;
-                BorderThickness = new Thickness(0);
-            }
+            MaxHeight = isMaximized ? SystemParameters.WorkArea.Height : double.PositiveInfinity;
+            MaxWidth = isMaximized ? SystemParameters.WorkArea.Width : double.PositiveInfinity;
         }
 
         /// <summary>Tier 1's own "Workspaces" tab row - a flat RadioButton strip that
