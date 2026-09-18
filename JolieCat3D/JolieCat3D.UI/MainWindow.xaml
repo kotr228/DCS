@@ -115,6 +115,47 @@
             <Setter Property="CornerRadius" Value="4" />
             <Setter Property="Padding" Value="8" />
         </Style>
+
+        <!-- ================= Properties panel's own vertical tab strip ================= -->
+        <!-- TabStripPlacement="Left" is set on the TabControl element itself below; App.xaml
+             has no TabControl/TabItem Style of its own (this app's first use of either
+             control), so left completely unstyled it would render WPF's own default
+             OS-light chrome AND the default vertical-tab template, which rotates each
+             header's text 90 degrees - wrong for this task's own short "[OBJ]"/"[MOD]"
+             placeholder labels, which must stay horizontal. PropertiesTabItemStyle below
+             replaces that default template with a plain Border+ContentPresenter (no
+             rotation), following GizmoModeButtonStyle's own established "AccentBrush fill
+             when active, Foreground left unchanged" convention for IsSelected. -->
+        <Style x:Key="PropertiesTabControlStyle" TargetType="{x:Type TabControl}">
+            <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+        </Style>
+        <Style x:Key="PropertiesTabItemStyle" TargetType="{x:Type TabItem}">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type TabItem}">
+                        <Border x:Name="Bg" Width="42" Padding="2,10"
+                                Background="{StaticResource PanelAltBackgroundBrush}"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,1">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextBlock.FontSize="10" TextBlock.TextAlignment="Center"
+                                              TextBlock.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -445,68 +486,71 @@
                  all of them, staying visible/enabled in every mode (it already meant
                  something different in Object vs. Edit Mode before this refactor - see
                  DeleteSelected's own remarks - so it was never mode-gated to begin with). -->
-            <Border Grid.Column="0" Width="168" Background="{StaticResource PanelBackgroundBrush}"
+            <!-- Compacted to an icon-only, Blender-style narrow T-panel (Width="44") - every
+                 button below keeps its full ToolTip for discoverability, since Content is
+                 now a short abbreviation rather than a full label. Radius/Strength/Color
+                 (which don't fit at this width, and which the task itself calls out to
+                 relocate) now live in the Properties panel's own "[TOOL]" tab instead; only
+                 each mode's own brush/bone/algorithm SELECTOR controls stay here. -->
+            <Border Grid.Column="0" Width="44" Background="{StaticResource PanelBackgroundBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="6,6">
-                        <TextBlock Text="TOOLS" Style="{StaticResource PanelHeaderStyle}" Margin="2,0,0,4" />
-
-                        <Button x:Name="DeleteButton" Content="Delete" Margin="0,0,0,8" Padding="8,4"
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="4,6">
+                        <Button x:Name="DeleteButton" Content="Del" Margin="0,0,0,8" Padding="0,4"
                                 Click="DeleteButton_Click"
                                 ToolTip="Object Mode: deletes the selected node. Edit Mode: deletes the selected vertices/edges/faces." />
 
                         <!-- ==== Edit Mode: Component select + Mesh tools ==== -->
                         <StackPanel Style="{StaticResource EditModeToolStyle}">
-                            <TextBlock Text="Component" Style="{StaticResource PanelHeaderStyle}" Margin="2,0,0,2" />
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <RadioButton x:Name="VertexModeButton" Content="Vertex" GroupName="ComponentMode"
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8" HorizontalAlignment="Center">
+                                <RadioButton x:Name="VertexModeButton" Content="V" GroupName="ComponentMode"
                                              IsChecked="True" IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
-                                             Margin="0,0,2,0" Checked="ComponentModeButton_Checked" Tag="Vertex" />
-                                <RadioButton x:Name="EdgeModeButton" Content="Edge" GroupName="ComponentMode"
+                                             Margin="0,0,1,0" Padding="4,2" Checked="ComponentModeButton_Checked" Tag="Vertex"
+                                             ToolTip="Vertex select" />
+                                <RadioButton x:Name="EdgeModeButton" Content="E" GroupName="ComponentMode"
                                              IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
-                                             Margin="0,0,2,0" Checked="ComponentModeButton_Checked" Tag="Edge" />
-                                <RadioButton x:Name="FaceModeButton" Content="Face" GroupName="ComponentMode"
+                                             Margin="0,0,1,0" Padding="4,2" Checked="ComponentModeButton_Checked" Tag="Edge"
+                                             ToolTip="Edge select" />
+                                <RadioButton x:Name="FaceModeButton" Content="F" GroupName="ComponentMode"
                                              IsEnabled="False" Style="{StaticResource GizmoModeButtonStyle}"
-                                             Checked="ComponentModeButton_Checked" Tag="Face" />
+                                             Padding="4,2" Checked="ComponentModeButton_Checked" Tag="Face"
+                                             ToolTip="Face select" />
                             </StackPanel>
 
-                            <TextBlock Text="Mesh Tools" Style="{StaticResource PanelHeaderStyle}" Margin="2,0,0,2" />
                             <!-- Extrude needs a single fully-selected Polygon face (Face mode);
                                  Subdivide always applies to the whole target mesh regardless of
                                  the current selection - see MeshEditSession's own remarks on
                                  both. -->
-                            <Button x:Name="ExtrudeButton" Content="Extrude" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="8,2" Click="ExtrudeButton_Click" />
-                            <Button x:Name="SubdivideButton" Content="Subdivide" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="8,2" Click="SubdivideButton_Click" />
+                            <Button x:Name="ExtrudeButton" Content="Ext" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="0,2" Click="ExtrudeButton_Click" ToolTip="Extrude" />
+                            <Button x:Name="SubdivideButton" Content="Sub" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="0,2" Click="SubdivideButton_Click" ToolTip="Subdivide" />
                             <!-- Loop Cut needs exactly one selected EDGE (2 vertices) that's
                                  part of at least one quad (see Mesh.LoopCut's own remarks);
                                  Bevel needs exactly one selected VERTEX with a closed, manifold
                                  fan of surrounding faces (see Mesh.BevelVertex's own remarks) -
                                  both report back and do nothing if the current selection
                                  doesn't qualify. -->
-                            <Button x:Name="LoopCutButton" Content="Loop Cut" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="8,2" Click="LoopCutButton_Click" />
-                            <Button x:Name="BevelButton" Content="Bevel" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="8,2" Click="BevelButton_Click" />
+                            <Button x:Name="LoopCutButton" Content="LC" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="0,2" Click="LoopCutButton_Click" ToolTip="Loop Cut" />
+                            <Button x:Name="BevelButton" Content="Bev" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="0,2" Click="BevelButton_Click" ToolTip="Bevel" />
                             <!-- UV Seams/Unwrap - Mark/Clear Seam need a single selected edge
                                  (Edge mode), same requirement as Loop Cut above; Unwrap always
                                  applies to the whole target mesh (same "no partial-selection
                                  scope" convention Subdivide already has). See
                                  MeshEditSession's own remarks. -->
-                            <Button x:Name="MarkSeamButton" Content="Mark Seam" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="8,2" Click="MarkSeamButton_Click" />
-                            <Button x:Name="ClearSeamButton" Content="Clear Seam" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="8,2" Click="ClearSeamButton_Click" />
-                            <Button x:Name="UnwrapButton" Content="Unwrap" IsEnabled="False"
-                                    Margin="0,0,0,4" Padding="8,2" Click="UnwrapButton_Click" />
+                            <Button x:Name="MarkSeamButton" Content="MSm" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="0,2" Click="MarkSeamButton_Click" ToolTip="Mark Seam" />
+                            <Button x:Name="ClearSeamButton" Content="CSm" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="0,2" Click="ClearSeamButton_Click" ToolTip="Clear Seam" />
+                            <Button x:Name="UnwrapButton" Content="Unw" IsEnabled="False"
+                                    Margin="0,0,0,4" Padding="0,2" Click="UnwrapButton_Click" ToolTip="Unwrap" />
                         </StackPanel>
 
-                        <!-- ==== Weight Paint mode's own brush controls ==== -->
+                        <!-- ==== Weight Paint mode's own bone/brush-mode selectors; Radius/
+                             Strength now live in the Properties panel's own "[TOOL]" tab ==== -->
                         <StackPanel x:Name="WeightPaintToolbar" Style="{StaticResource WeightPaintToolStyle}">
-                            <TextBlock Text="Weight Brush" Style="{StaticResource PanelHeaderStyle}" Margin="2,0,0,2" />
-                            <TextBlock Text="Bone:" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       Foreground="{StaticResource TextSecondaryBrush}" />
                             <!-- ActiveBoneComboBox lists the currently-painted mesh's own
                                  SkinBinding.Bones (see MainWindow.xaml.cs's own
                                  RefreshActiveBoneCombo); "Add"/"Subtract" pick whether the
@@ -514,96 +558,53 @@
                                  Core.Skinning.WeightPaintBrush.Apply's own TargetWeight
                                  remarks). -->
                             <ComboBox x:Name="ActiveBoneComboBox" Margin="0,0,0,6"
-                                      SelectionChanged="ActiveBoneComboBox_SelectionChanged" />
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                <RadioButton x:Name="BrushAddButton" Content="Add" GroupName="WeightBrushMode"
+                                      SelectionChanged="ActiveBoneComboBox_SelectionChanged" ToolTip="Active Bone" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                <RadioButton x:Name="BrushAddButton" Content="Ad" GroupName="WeightBrushMode"
                                              IsChecked="True" Style="{StaticResource GizmoModeButtonStyle}"
-                                             Margin="0,0,4,0" Checked="BrushModeButton_Checked" Tag="Add" />
-                                <RadioButton x:Name="BrushSubtractButton" Content="Subtract" GroupName="WeightBrushMode"
+                                             Margin="0,0,1,0" Padding="4,2" Checked="BrushModeButton_Checked" Tag="Add"
+                                             ToolTip="Add" />
+                                <RadioButton x:Name="BrushSubtractButton" Content="Sb" GroupName="WeightBrushMode"
                                              Style="{StaticResource GizmoModeButtonStyle}"
-                                             Checked="BrushModeButton_Checked" Tag="Subtract" />
+                                             Padding="4,2" Checked="BrushModeButton_Checked" Tag="Subtract"
+                                             ToolTip="Subtract" />
                             </StackPanel>
-                            <TextBlock Text="Radius" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                            <Slider x:Name="BrushRadiusSlider" Minimum="0.05" Maximum="3" Value="0.3"
-                                    Margin="0,0,0,6" ValueChanged="BrushRadiusSlider_ValueChanged" />
-                            <TextBlock Text="Strength" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                            <Slider x:Name="BrushStrengthSlider" Minimum="0.05" Maximum="1" Value="0.5"
-                                    ValueChanged="BrushStrengthSlider_ValueChanged" />
                         </StackPanel>
 
-                        <!-- ==== Vertex Paint mode's own brush controls ==== -->
-                        <StackPanel x:Name="VertexPaintToolbar" Style="{StaticResource VertexPaintToolStyle}">
-                            <TextBlock Text="Vertex Paint Brush" Style="{StaticResource PanelHeaderStyle}" Margin="2,0,0,2" />
-                            <!-- A plain "#RRGGBB" hex color field, the same convention the
-                                 Properties Inspector's own DiffuseColorHex/LightColorHex
-                                 fields already use. -->
-                            <TextBlock Text="Color" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       Foreground="{StaticResource TextSecondaryBrush}" />
-                            <TextBox x:Name="VertexPaintColorTextBox" Text="#FF0000" Margin="0,0,0,6"
-                                     TextChanged="VertexPaintColorTextBox_TextChanged" />
-                            <TextBlock Text="Radius" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                            <Slider x:Name="VertexBrushRadiusSlider" Minimum="0.05" Maximum="3" Value="0.3"
-                                    Margin="0,0,0,6" ValueChanged="VertexBrushRadiusSlider_ValueChanged" />
-                            <TextBlock Text="Strength" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                            <Slider x:Name="VertexBrushStrengthSlider" Minimum="0.05" Maximum="1" Value="0.5"
-                                    ValueChanged="VertexBrushStrengthSlider_ValueChanged" />
-                        </StackPanel>
+                        <!-- ==== Vertex Paint mode: no selector controls of its own (only a
+                             color/radius/strength brush) - now entirely in "[TOOL]" tab; kept
+                             as an empty mode-gated placeholder so ModeComboBox's own Vertex
+                             Paint entry still has a (currently empty) toolbar section, matching
+                             every other mode. ==== -->
+                        <StackPanel x:Name="VertexPaintToolbar" Style="{StaticResource VertexPaintToolStyle}" />
 
-                        <!-- ==== Sculpt mode's own brush controls ==== -->
+                        <!-- ==== Sculpt mode's own brush-algorithm selector; Radius/Strength
+                             now live in the Properties panel's own "[TOOL]" tab ==== -->
                         <StackPanel x:Name="SculptToolbar" Style="{StaticResource SculptToolStyle}">
-                            <TextBlock Text="Sculpt Brush" Style="{StaticResource PanelHeaderStyle}" Margin="2,0,0,2" />
                             <!-- Draw/Smooth/Grab pick which of Core.Sculpting.SculptBrush's
                                  own 3 algorithms the brush applies (see SculptSession.Mode);
                                  Invert (Shift) only affects Draw - see SculptSession.Invert's
                                  own remarks. -->
-                            <StackPanel Margin="0,0,0,6">
-                                <RadioButton x:Name="SculptDrawButton" Content="Draw" GroupName="SculptBrushMode"
+                            <StackPanel>
+                                <RadioButton x:Name="SculptDrawButton" Content="Dr" GroupName="SculptBrushMode"
                                              IsChecked="True" Style="{StaticResource GizmoModeButtonStyle}"
-                                             Margin="0,0,0,2" HorizontalContentAlignment="Left"
-                                             Checked="SculptBrushModeButton_Checked" Tag="Draw" />
-                                <RadioButton x:Name="SculptSmoothButton" Content="Smooth" GroupName="SculptBrushMode"
+                                             Margin="0,0,0,2" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                             Checked="SculptBrushModeButton_Checked" Tag="Draw" ToolTip="Draw" />
+                                <RadioButton x:Name="SculptSmoothButton" Content="Sm" GroupName="SculptBrushMode"
                                              Style="{StaticResource GizmoModeButtonStyle}"
-                                             Margin="0,0,0,2" HorizontalContentAlignment="Left"
-                                             Checked="SculptBrushModeButton_Checked" Tag="Smooth" />
-                                <RadioButton x:Name="SculptGrabButton" Content="Grab" GroupName="SculptBrushMode"
+                                             Margin="0,0,0,2" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                             Checked="SculptBrushModeButton_Checked" Tag="Smooth" ToolTip="Smooth" />
+                                <RadioButton x:Name="SculptGrabButton" Content="Gr" GroupName="SculptBrushMode"
                                              Style="{StaticResource GizmoModeButtonStyle}"
-                                             HorizontalContentAlignment="Left"
-                                             Checked="SculptBrushModeButton_Checked" Tag="Grab" />
+                                             Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                             Checked="SculptBrushModeButton_Checked" Tag="Grab" ToolTip="Grab" />
                             </StackPanel>
-                            <TextBlock Text="Radius" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                            <Slider x:Name="SculptBrushRadiusSlider" Minimum="0.05" Maximum="3" Value="0.3"
-                                    Margin="0,0,0,6" ValueChanged="SculptBrushRadiusSlider_ValueChanged" />
-                            <TextBlock Text="Strength" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                            <Slider x:Name="SculptBrushStrengthSlider" Minimum="0.05" Maximum="1" Value="0.5"
-                                    ValueChanged="SculptBrushStrengthSlider_ValueChanged" />
                         </StackPanel>
 
-                        <!-- ==== Texture Paint mode's own brush controls ==== -->
-                        <StackPanel x:Name="TexturePaintToolbar" Style="{StaticResource TexturePaintToolStyle}">
-                            <TextBlock Text="Texture Paint Brush" Style="{StaticResource PanelHeaderStyle}" Margin="2,0,0,2" />
-                            <!-- Radius here is a PIXEL distance into the material's own
-                                 painted texture (see Engine.Editing.TexturePaintSession.BrushRadius's
-                                 own remarks), unlike every other brush's own world-space
-                                 radius - a wider Min/Max reflects that different unit. -->
-                            <TextBlock Text="Color" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       Foreground="{StaticResource TextSecondaryBrush}" />
-                            <TextBox x:Name="TexturePaintColorTextBox" Text="#FF0000" Margin="0,0,0,6"
-                                     TextChanged="TexturePaintColorTextBox_TextChanged" />
-                            <TextBlock Text="Radius" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                            <Slider x:Name="TextureBrushRadiusSlider" Minimum="2" Maximum="120" Value="20"
-                                    Margin="0,0,0,6" ValueChanged="TextureBrushRadiusSlider_ValueChanged" />
-                            <TextBlock Text="Strength" VerticalAlignment="Center" Margin="0,0,0,2"
-                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                            <Slider x:Name="TextureBrushStrengthSlider" Minimum="0.05" Maximum="1" Value="0.5"
-                                    ValueChanged="TextureBrushStrengthSlider_ValueChanged" />
-                        </StackPanel>
+                        <!-- ==== Texture Paint mode: no selector controls of its own (only a
+                             color/radius/strength brush) - now entirely in "[TOOL]" tab; kept
+                             as an empty mode-gated placeholder, same as Vertex Paint above. ==== -->
+                        <StackPanel x:Name="TexturePaintToolbar" Style="{StaticResource TexturePaintToolStyle}" />
                     </StackPanel>
                 </ScrollViewer>
             </Border>
@@ -686,6 +687,14 @@
                 <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
 
             <!-- ================= Properties Inspector ================= -->
+            <!-- Refactored into a Blender-style vertical TabControl (TabStripPlacement="Left",
+                 PropertiesTabControlStyle/PropertiesTabItemStyle above) - [OBJ]/[MOD]/[MAT]/
+                 [DATA]/[TOOL] placeholders for future icons, per the task's own explicit
+                 mapping. Every relocated control below keeps its exact original Binding/
+                 x:Name/event-handler wiring; only its container changed, so no DataContext
+                 binding was broken by this split - each tab's own root StackPanel simply
+                 re-declares "DataContext={Binding SelectedNode}" the way the single original
+                 StackPanel already did. -->
             <Border Grid.Row="2" Background="{StaticResource PanelBackgroundBrush}"
                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,1,0,0">
                 <DockPanel>
@@ -695,213 +704,307 @@
                                TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"
                                Visibility="{Binding SelectedNode, Converter={StaticResource NullToVisibility}, ConverterParameter=Invert}" />
 
-                    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  Visibility="{Binding SelectedNode, Converter={StaticResource NullToVisibility}}">
-                        <StackPanel DataContext="{Binding SelectedNode}" Margin="0,0,0,12">
+                    <TabControl Style="{StaticResource PropertiesTabControlStyle}" TabStripPlacement="Left"
+                                Visibility="{Binding SelectedNode, Converter={StaticResource NullToVisibility}}">
 
-                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="8,4,8,10" TextTrimming="CharacterEllipsis" />
+                        <!-- ================= [OBJ]: Transform + this node's own type-specific data ================= -->
+                        <TabItem Header="[OBJ]" Style="{StaticResource PropertiesTabItemStyle}" ToolTip="Object">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel DataContext="{Binding SelectedNode}" Margin="0,0,0,12">
 
-                            <!-- Position -->
-                            <TextBlock Text="Position" Style="{StaticResource PanelHeaderStyle}" Margin="8,0,8,2" />
-                            <StackPanel Orientation="Horizontal" Margin="8,0">
-                                <TextBlock Text="X" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                <TextBox Text="{Binding PositionX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                <TextBlock Text="Y" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                <TextBox Text="{Binding PositionY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
-                                <TextBlock Text="Z" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                <TextBox Text="{Binding PositionZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                            </StackPanel>
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="8,4,8,10" TextTrimming="CharacterEllipsis" />
 
-                            <!-- Rotation -->
-                            <TextBlock Text="Rotation (degrees)" Style="{StaticResource PanelHeaderStyle}" Margin="8,0,8,2" />
-                            <StackPanel Orientation="Horizontal" Margin="8,0">
-                                <TextBlock Text="X" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                <TextBox Text="{Binding RotationX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                <TextBlock Text="Y" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                <TextBox Text="{Binding RotationY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
-                                <TextBlock Text="Z" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                <TextBox Text="{Binding RotationZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                            </StackPanel>
+                                    <!-- Position -->
+                                    <TextBlock Text="Position" Style="{StaticResource PanelHeaderStyle}" Margin="8,0,8,2" />
+                                    <StackPanel Orientation="Horizontal" Margin="8,0">
+                                        <TextBlock Text="X" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                        <TextBox Text="{Binding PositionX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        <TextBlock Text="Y" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                        <TextBox Text="{Binding PositionY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
+                                        <TextBlock Text="Z" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                        <TextBox Text="{Binding PositionZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                    </StackPanel>
 
-                            <!-- Scale -->
-                            <TextBlock Text="Scale" Style="{StaticResource PanelHeaderStyle}" Margin="8,0,8,2" />
-                            <StackPanel Orientation="Horizontal" Margin="8,0">
-                                <TextBlock Text="X" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                <TextBox Text="{Binding ScaleX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                <TextBlock Text="Y" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                <TextBox Text="{Binding ScaleY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
-                                <TextBlock Text="Z" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                <TextBox Text="{Binding ScaleZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                            </StackPanel>
+                                    <!-- Rotation -->
+                                    <TextBlock Text="Rotation (degrees)" Style="{StaticResource PanelHeaderStyle}" Margin="8,0,8,2" />
+                                    <StackPanel Orientation="Horizontal" Margin="8,0">
+                                        <TextBlock Text="X" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                        <TextBox Text="{Binding RotationX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        <TextBlock Text="Y" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                        <TextBox Text="{Binding RotationY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
+                                        <TextBlock Text="Z" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                        <TextBox Text="{Binding RotationZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                    </StackPanel>
 
-                            <!-- Records this node's CURRENT Position/Rotation/Scale as a
-                                 keyframe at the timeline's own current frame (see
-                                 JolieCat3D.Service.Animation.AnimationTrack.AddKeyframeFromCurrentTransform),
-                                 leaving the segment AFTER it blended per whichever of
-                                 these two is checked (see JolieCat3D.Service.Animation.InterpolationMode). -->
-                            <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                <RadioButton x:Name="LinearInterpolationButton" Content="Linear" GroupName="Interpolation"
-                                             IsChecked="True" Margin="0,0,10,0" VerticalAlignment="Center" />
-                                <RadioButton x:Name="BezierInterpolationButton" Content="Bezier" GroupName="Interpolation"
-                                             VerticalAlignment="Center" />
-                            </StackPanel>
-                            <Button Content="Add Keyframe" Margin="8,0,8,8" Padding="8,4"
-                                    HorizontalAlignment="Left" Click="AddKeyframeButton_Click" />
+                                    <!-- Scale -->
+                                    <TextBlock Text="Scale" Style="{StaticResource PanelHeaderStyle}" Margin="8,0,8,2" />
+                                    <StackPanel Orientation="Horizontal" Margin="8,0">
+                                        <TextBlock Text="X" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                        <TextBox Text="{Binding ScaleX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        <TextBlock Text="Y" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                        <TextBox Text="{Binding ScaleY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
+                                        <TextBlock Text="Z" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                        <TextBox Text="{Binding ScaleZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                    </StackPanel>
 
-                            <!-- Material Inspector - hidden entirely for a mesh-less/materialless node. -->
-                            <StackPanel Visibility="{Binding HasMaterial, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="MATERIAL INSPECTOR" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                    <!-- Shading - immediate, destructive authoring choices (the
+                                         same "Blender itself treats these as instant mesh
+                                         edits, not a modifier" precedent Core.Geometry.Mesh's
+                                         own ShadeSmooth/ShadeFlat remarks give); "Auto Smooth"
+                                         lives in the non-destructive Modifiers stack ([MOD] tab)
+                                         instead (Add Edge Split), since its own angle
+                                         threshold is meant to be tuned interactively. -->
+                                    <StackPanel Visibility="{Binding HasMesh, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="SHADING" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
+                                            <Button Content="Shade Smooth" Margin="0,0,4,0" Padding="8,2" Click="ShadeSmoothButton_Click" />
+                                            <Button Content="Shade Flat" Padding="8,2" Click="ShadeFlatButton_Click" />
+                                        </StackPanel>
+                                    </StackPanel>
 
-                                <!-- Diffuse/albedo -->
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
-                                    <Border Width="26" Height="26" Margin="0,0,8,0"
-                                            Background="{Binding DiffuseColor, Converter={StaticResource ColorToBrush}}"
-                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                            ToolTip="Diffuse/albedo color" />
-                                    <TextBox Text="{Binding DiffuseColorHex, Mode=TwoWay}"
-                                             Style="{StaticResource InspectorFieldTextBoxStyle}" Width="90"
-                                             ToolTip="Diffuse/albedo color (hex)" />
+                                    <!-- Constraints - a non-destructive, evaluated-every-render
+                                         pipeline overriding this node's own rotation (see
+                                         Core.Constraints.Constraint); shown for EVERY node (not
+                                         gated on HasMesh like Modifiers), since a Track To
+                                         constraint's own most common use is a camera/light,
+                                         neither of which has a Mesh. -->
+                                    <StackPanel>
+                                        <TextBlock Text="CONSTRAINTS" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <Button Content="Add Track To" Padding="8,2" Click="AddTrackToConstraintButton_Click" />
+                                        </StackPanel>
+
+                                        <ItemsControl ItemsSource="{Binding Constraints}" Margin="8,0,8,8">
+                                            <ItemsControl.Resources>
+                                                <!-- Aims this node's own ForwardAxis at Target's
+                                                     current world position every render (see
+                                                     Core.Constraints.TrackToConstraint's own
+                                                     remarks) - the Target combo box lists every
+                                                     OTHER node in the scene, showing each one's
+                                                     own Name. -->
+                                                <DataTemplate DataType="{x:Type vm:TrackToConstraintViewModel}">
+                                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                          ToolTip="Enable/disable this constraint without removing it" />
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                                <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveConstraintButton_Click" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                <TextBlock Text="Target:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                <ComboBox ItemsSource="{Binding AvailableTargets}" SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                                                                          DisplayMemberPath="Name" Width="120" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                <TextBlock Text="Forward Axis:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                <ComboBox SelectedValue="{Binding ForwardAxis, Mode=TwoWay}" SelectedValuePath="Content" Width="90">
+                                                                    <ComboBoxItem Content="PlusX" />
+                                                                    <ComboBoxItem Content="MinusX" />
+                                                                    <ComboBoxItem Content="PlusY" />
+                                                                    <ComboBoxItem Content="MinusY" />
+                                                                    <ComboBoxItem Content="PlusZ" />
+                                                                    <ComboBoxItem Content="MinusZ" />
+                                                                </ComboBox>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.Resources>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <!-- Camera Inspector - hidden entirely for a non-camera node.
+                                         Position/Rotation/Scale above already drive where this
+                                         camera looks (see Node.GetWorldForward's own remarks) -
+                                         this section is only the CameraData-specific fields
+                                         (projection/FOV/near-far) plus which camera is active. -->
+                                    <StackPanel Visibility="{Binding HasCamera, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="CAMERA" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <TextBlock Text="Projection:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <ComboBox SelectedValue="{Binding CameraProjectionMode, Mode=TwoWay}" SelectedValuePath="Content" Width="110">
+                                                <ComboBoxItem Content="Perspective" />
+                                                <ComboBoxItem Content="Orthographic" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
+                                                    Visibility="{Binding IsPerspectiveCamera, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Field of View" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding CameraFieldOfView, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
+                                                    Visibility="{Binding IsOrthographicCamera, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Width" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding CameraOrthographicWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0">
+                                            <TextBlock Text="Near" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding CameraNearPlaneDistance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                            <TextBlock Text="Far" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding CameraFarPlaneDistance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        </StackPanel>
+                                        <!-- Sets Scene3D.ActiveCamera to THIS node - Engine.Camera.SceneCameraSync
+                                             then pushes its world transform onto the viewport's
+                                             actual rendering camera on the very next render. -->
+                                        <Button Content="Set as Active Camera" Margin="8,4,8,8" Padding="8,4"
+                                                HorizontalAlignment="Left" Click="SetActiveCameraButton_Click" />
+                                    </StackPanel>
+
+                                    <!-- Light Inspector - hidden entirely for a non-light node. -->
+                                    <StackPanel Visibility="{Binding HasLight, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="LIGHT" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <TextBlock Text="Type:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <ComboBox SelectedValue="{Binding LightType, Mode=TwoWay}" SelectedValuePath="Content" Width="110">
+                                                <ComboBoxItem Content="Directional" />
+                                                <ComboBoxItem Content="Point" />
+                                                <ComboBoxItem Content="Spot" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <TextBlock Text="Color" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding LightColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                            <TextBlock Text="Intensity" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding LightIntensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
+                                                    Visibility="{Binding IsPointOrSpotLight, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Range" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding LightRange, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,8"
+                                                    Visibility="{Binding IsSpotLight, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Spot Angle" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding LightSpotAngle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <!-- Curve Inspector - hidden entirely for a non-curve node.
+                                         Every field here edits CurveData directly and
+                                         regenerates Node.Mesh (the tube/cable) immediately -
+                                         see NodeViewModel.RegenerateCurveMesh's own remarks. -->
+                                    <StackPanel Visibility="{Binding HasCurve, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="CURVE" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <TextBlock Text="Bevel Depth" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding CurveBevelDepth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                            <CheckBox Content="Closed" IsChecked="{Binding CurveClosed, Mode=TwoWay}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <TextBlock Text="Segments/Span" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding CurveSegmentsPerSpan, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                            <TextBlock Text="Radial Segments" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBox Text="{Binding CurveRadialSegments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        </StackPanel>
+
+                                        <TextBlock Text="Control Points" Margin="8,4,8,2" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <ItemsControl ItemsSource="{Binding CurvePoints}" Margin="8,0,8,4">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="Point" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                                <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveCurvePointButton_Click" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                <TextBlock Text="Position:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="70" />
+                                                                <TextBox Text="{Binding PositionX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                                <TextBox Text="{Binding PositionY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                                <TextBox Text="{Binding PositionZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                                <TextBlock Text="Handle In:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="70" />
+                                                                <TextBox Text="{Binding HandleInX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                                <TextBox Text="{Binding HandleInY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                                <TextBox Text="{Binding HandleInZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                                <TextBlock Text="Handle Out:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="70" />
+                                                                <TextBox Text="{Binding HandleOutX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                                <TextBox Text="{Binding HandleOutY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                                                <TextBox Text="{Binding HandleOutZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Content="Add Point" Margin="8,0,8,8" Padding="8,4"
+                                                HorizontalAlignment="Left" Click="AddCurvePointButton_Click" />
+                                    </StackPanel>
+
+                                    <!-- Bone Inspector - hidden entirely for a non-bone node.
+                                         Head/Tail edits regenerate the bone's own small
+                                         octahedron shape immediately (see
+                                         NodeViewModel.RegenerateBoneMesh's own remarks); "Set
+                                         Rest Pose" bakes the bone's CURRENT world transform in
+                                         as its own new skinning baseline (see
+                                         Core.Scene.BoneData.CaptureRestPose). Rotating the bone
+                                         itself uses the SAME Object Mode Transform Gizmo every
+                                         other node already uses - a bone is just a Node with
+                                         BoneData attached, nothing gizmo-specific needed. -->
+                                    <StackPanel Visibility="{Binding HasBone, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="BONE" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
+                                            <TextBlock Text="Head:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="40" />
+                                            <TextBox Text="{Binding BoneHeadX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                            <TextBox Text="{Binding BoneHeadY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                            <TextBox Text="{Binding BoneHeadZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <TextBlock Text="Tail:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="40" />
+                                            <TextBox Text="{Binding BoneTailX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                            <TextBox Text="{Binding BoneTailY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
+                                            <TextBox Text="{Binding BoneTailZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
+                                            <TextBlock Text="Length:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <TextBlock Text="{Binding BoneLength, StringFormat={}{0:F3}}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                                            <Button Content="Set Rest Pose" Padding="8,2" Click="SetBoneRestPoseButton_Click" />
+                                        </StackPanel>
+                                    </StackPanel>
                                 </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
 
-                                <!-- Roughness/Metallic - see Core.Materials.Material's own
-                                     remarks for what these do and how Engine.Geometry.MaterialFactory
-                                     approximates them on WPF's fixed-function pipeline. -->
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
-                                    <TextBlock Text="Roughness" Width="70" VerticalAlignment="Center"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <TextBlock Text="{Binding Roughness, StringFormat={}{0:0.00}}" Width="36" VerticalAlignment="Center"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                </StackPanel>
-                                <Slider Margin="8,0,8,8" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1"
-                                        Value="{Binding Roughness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <!-- ================= [MOD]: Modifier stack ================= -->
+                        <TabItem Header="[MOD]" Style="{StaticResource PropertiesTabItemStyle}" ToolTip="Modifiers">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel DataContext="{Binding SelectedNode}" Margin="0,0,0,12">
+                                    <!-- Modifiers - a non-destructive stack evaluated at render
+                                         time only (see Core.Modifiers.ModifierStack); hidden
+                                         entirely for a mesh-less node, which no modifier would
+                                         ever have anything to evaluate against. -->
+                                    <StackPanel Visibility="{Binding HasMesh, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="MODIFIERS" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <Button Content="Add Mirror" Margin="0,0,4,0" Padding="8,2" Click="AddMirrorModifierButton_Click" />
+                                            <Button Content="Add Subsurf" Margin="0,0,4,0" Padding="8,2" Click="AddSubsurfModifierButton_Click" />
+                                            <Button Content="Add Boolean" Margin="0,0,4,0" Padding="8,2" Click="AddBooleanModifierButton_Click" />
+                                            <Button Content="Add Array" Margin="0,0,4,0" Padding="8,2" Click="AddArrayModifierButton_Click" />
+                                            <Button Content="Add Solidify" Margin="0,0,4,0" Padding="8,2" Click="AddSolidifyModifierButton_Click" />
+                                            <Button Content="Add Edge Split" Padding="8,2" Click="AddEdgeSplitModifierButton_Click" />
+                                        </StackPanel>
 
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
-                                    <TextBlock Text="Metallic" Width="70" VerticalAlignment="Center"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <TextBlock Text="{Binding Metallic, StringFormat={}{0:0.00}}" Width="36" VerticalAlignment="Center"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                </StackPanel>
-                                <Slider Margin="8,0,8,8" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1"
-                                        Value="{Binding Metallic, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                                <!-- Texture - either a plain exported image, or one layer of a
-                                     whole .jolie project (see JolieCat3D.Service.Interop). -->
-                                <Button Content="Load Texture..." Margin="8,0,8,4" Padding="8,4"
-                                        HorizontalAlignment="Left" Click="LoadTextureButton_Click" />
-                                <Button Content="Load From JolieCat Project..." Margin="8,0,8,4" Padding="8,4"
-                                        HorizontalAlignment="Left" Click="LoadFromJolieProjectButton_Click" />
-                                <!-- Imports a JolieCat 2D Clipbar Animation (one frame
-                                     per "Frame NNN" layer) or Sprite Sheet (one frame
-                                     per grid cell) project as an animated texture
-                                     sequence, driven by the playback transport below
-                                     (see JolieCat3D.Service.Interop.ClipbarAnimationBridge). -->
-                                <Button Content="Load Clipbar Animation..." Margin="8,0,8,4" Padding="8,4"
-                                        HorizontalAlignment="Left" Click="LoadClipbarAnimationButton_Click" />
-                                <TextBlock Text="{Binding DiffuseTextureFileName}" Margin="8,0,8,8"
-                                           TextTrimming="CharacterEllipsis" FontStyle="Italic"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           Visibility="{Binding HasDiffuseTexture, Converter={StaticResource BoolToVisibility}}" />
-
-                                <!-- Normal map / packed metallic-roughness map - see
-                                     Core.Materials.Material's own remarks on why the live
-                                     viewport can only approximate these (a normal map not
-                                     at all; metallic-roughness as one averaged scalar),
-                                     while the exported glTF (Service.Export.GltfExporter)
-                                     samples both correctly, per-pixel. -->
-                                <Button Content="Load Normal Map..." Margin="8,0,8,4" Padding="8,4"
-                                        HorizontalAlignment="Left" Click="LoadNormalMapButton_Click" />
-                                <TextBlock Text="{Binding NormalTextureFileName}" Margin="8,0,8,8"
-                                           TextTrimming="CharacterEllipsis" FontStyle="Italic"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           Visibility="{Binding HasNormalTexture, Converter={StaticResource BoolToVisibility}}" />
-
-                                <Button Content="Load Metallic/Roughness Map..." Margin="8,0,8,4" Padding="8,4"
-                                        HorizontalAlignment="Left" Click="LoadMetallicRoughnessMapButton_Click" />
-                                <TextBlock Text="{Binding MetallicRoughnessTextureFileName}" Margin="8,0,8,8"
-                                           TextTrimming="CharacterEllipsis" FontStyle="Italic"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           Visibility="{Binding HasMetallicRoughnessTexture, Converter={StaticResource BoolToVisibility}}" />
-
-                                <!-- UV Projection - (re)maps this mesh's own UVs, for a custom
-                                     primitive or an Edit-Mode-reshaped mesh whose authored UVs
-                                     no longer make sense (see Core.Geometry.UVProjector). -->
-                                <TextBlock Text="UV Projection" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
-                                    <Button Content="Planar" Margin="0,0,4,0" Padding="8,4" Click="PlanarProjectionButton_Click" />
-                                    <Button Content="Box" Margin="0,0,4,0" Padding="8,4" Click="BoxProjectionButton_Click" />
-                                    <Button Content="Spherical" Padding="8,4" Click="SphericalProjectionButton_Click" />
-                                </StackPanel>
-
-                                <!-- Opens JolieCat3D.UI.UVVisualizerWindow - a non-modal
-                                     "leave it open while you paint in JolieCat 2D" tool
-                                     window showing this mesh's own UV wireframe over its
-                                     currently-loaded diffuse texture. -->
-                                <Button Content="View UV Map..." Margin="8,0,8,8" Padding="8,4"
-                                        HorizontalAlignment="Left" Click="ViewUVMapButton_Click" />
-
-                                <!-- Multi-Material Support: one Material per slot, beyond
-                                     the plain diffuse/roughness/metallic material above -
-                                     see Core.Geometry.Mesh.MaterialSlots/Polygon.MaterialSlotIndex.
-                                     "Assign to Selection" points whichever single fully-
-                                     selected Face (Edit Mode, Face component) at this row's
-                                     own slot; a face with no slot assigned at all keeps
-                                     rendering with the plain material above. -->
-                                <TextBlock Text="Material Slots" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                <ItemsControl ItemsSource="{Binding MaterialSlots}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                                <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                         Width="90" Margin="0,0,4,0" />
-                                                <Button Content="Assign" Padding="6,2" Margin="0,0,4,0"
-                                                        Click="AssignMaterialSlotButton_Click"
-                                                        ToolTip="Assign the currently fully-selected face (Edit Mode, Face) to this slot" />
-                                                <Button Content="Remove" Padding="6,2" Click="RemoveMaterialSlotButton_Click" />
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <Button Content="Add Slot" Margin="8,0,8,8" Padding="8,4"
-                                        HorizontalAlignment="Left" Click="AddMaterialSlotButton_Click" />
-                            </StackPanel>
-
-                            <!-- Shading - immediate, destructive authoring choices (the
-                                 same "Blender itself treats these as instant mesh
-                                 edits, not a modifier" precedent Core.Geometry.Mesh's
-                                 own ShadeSmooth/ShadeFlat remarks give); "Auto Smooth"
-                                 lives in the non-destructive Modifiers stack below
-                                 instead (Add Edge Split), since its own angle
-                                 threshold is meant to be tuned interactively. -->
-                            <StackPanel Visibility="{Binding HasMesh, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="SHADING" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
-                                    <Button Content="Shade Smooth" Margin="0,0,4,0" Padding="8,2" Click="ShadeSmoothButton_Click" />
-                                    <Button Content="Shade Flat" Padding="8,2" Click="ShadeFlatButton_Click" />
-                                </StackPanel>
-                            </StackPanel>
-
-                            <!-- Modifiers - a non-destructive stack evaluated at render
-                                 time only (see Core.Modifiers.ModifierStack); hidden
-                                 entirely for a mesh-less node, which no modifier would
-                                 ever have anything to evaluate against. -->
-                            <StackPanel Visibility="{Binding HasMesh, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="MODIFIERS" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                    <Button Content="Add Mirror" Margin="0,0,4,0" Padding="8,2" Click="AddMirrorModifierButton_Click" />
-                                    <Button Content="Add Subsurf" Margin="0,0,4,0" Padding="8,2" Click="AddSubsurfModifierButton_Click" />
-                                    <Button Content="Add Boolean" Margin="0,0,4,0" Padding="8,2" Click="AddBooleanModifierButton_Click" />
-                                    <Button Content="Add Array" Margin="0,0,4,0" Padding="8,2" Click="AddArrayModifierButton_Click" />
-                                    <Button Content="Add Solidify" Margin="0,0,4,0" Padding="8,2" Click="AddSolidifyModifierButton_Click" />
-                                    <Button Content="Add Edge Split" Padding="8,2" Click="AddEdgeSplitModifierButton_Click" />
-                                </StackPanel>
-
-                                <ItemsControl ItemsSource="{Binding Modifiers}" Margin="8,0,8,8">
+                                        <ItemsControl ItemsSource="{Binding Modifiers}" Margin="8,0,8,8">
                                     <ItemsControl.Resources>
                                         <DataTemplate DataType="{x:Type vm:MirrorModifierViewModel}">
                                             <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
@@ -1044,257 +1147,266 @@
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>
-                                    </ItemsControl.Resources>
-                                </ItemsControl>
-                            </StackPanel>
-
-                            <!-- Constraints - a non-destructive, evaluated-every-render
-                                 pipeline overriding this node's own rotation (see
-                                 Core.Constraints.Constraint); shown for EVERY node (not
-                                 gated on HasMesh like Modifiers), since a Track To
-                                 constraint's own most common use is a camera/light,
-                                 neither of which has a Mesh. -->
-                            <StackPanel>
-                                <TextBlock Text="CONSTRAINTS" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                    <Button Content="Add Track To" Padding="8,2" Click="AddTrackToConstraintButton_Click" />
+                                        </ItemsControl.Resources>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
 
-                                <ItemsControl ItemsSource="{Binding Constraints}" Margin="8,0,8,8">
-                                    <ItemsControl.Resources>
-                                        <!-- Aims this node's own ForwardAxis at Target's
-                                             current world position every render (see
-                                             Core.Constraints.TrackToConstraint's own
-                                             remarks) - the Target combo box lists every
-                                             OTHER node in the scene, showing each one's
-                                             own Name. -->
-                                        <DataTemplate DataType="{x:Type vm:TrackToConstraintViewModel}">
-                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
-                                                <StackPanel>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
-                                                                  ToolTip="Enable/disable this constraint without removing it" />
-                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveConstraintButton_Click" />
+                        <!-- ================= [MAT]: Material Inspector ================= -->
+                        <TabItem Header="[MAT]" Style="{StaticResource PropertiesTabItemStyle}" ToolTip="Material">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel DataContext="{Binding SelectedNode}" Margin="0,0,0,12">
+                                    <!-- Material Inspector - hidden entirely for a mesh-less/materialless node. -->
+                                    <StackPanel Visibility="{Binding HasMaterial, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="MATERIAL INSPECTOR" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+
+                                        <!-- Diffuse/albedo -->
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
+                                            <Border Width="26" Height="26" Margin="0,0,8,0"
+                                                    Background="{Binding DiffuseColor, Converter={StaticResource ColorToBrush}}"
+                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                    ToolTip="Diffuse/albedo color" />
+                                            <TextBox Text="{Binding DiffuseColorHex, Mode=TwoWay}"
+                                                     Style="{StaticResource InspectorFieldTextBoxStyle}" Width="90"
+                                                     ToolTip="Diffuse/albedo color (hex)" />
+                                        </StackPanel>
+
+                                        <!-- Roughness/Metallic - see Core.Materials.Material's own
+                                             remarks for what these do and how Engine.Geometry.MaterialFactory
+                                             approximates them on WPF's fixed-function pipeline. -->
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
+                                            <TextBlock Text="Roughness" Width="70" VerticalAlignment="Center"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <TextBlock Text="{Binding Roughness, StringFormat={}{0:0.00}}" Width="36" VerticalAlignment="Center"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <Slider Margin="8,0,8,8" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1"
+                                                Value="{Binding Roughness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
+                                            <TextBlock Text="Metallic" Width="70" VerticalAlignment="Center"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <TextBlock Text="{Binding Metallic, StringFormat={}{0:0.00}}" Width="36" VerticalAlignment="Center"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <Slider Margin="8,0,8,8" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1"
+                                                Value="{Binding Metallic, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+                                        <!-- Texture - either a plain exported image, or one layer of a
+                                             whole .jolie project (see JolieCat3D.Service.Interop). -->
+                                        <Button Content="Load Texture..." Margin="8,0,8,4" Padding="8,4"
+                                                HorizontalAlignment="Left" Click="LoadTextureButton_Click" />
+                                        <Button Content="Load From JolieCat Project..." Margin="8,0,8,4" Padding="8,4"
+                                                HorizontalAlignment="Left" Click="LoadFromJolieProjectButton_Click" />
+                                        <!-- Imports a JolieCat 2D Clipbar Animation (one frame
+                                             per "Frame NNN" layer) or Sprite Sheet (one frame
+                                             per grid cell) project as an animated texture
+                                             sequence, driven by the playback transport below
+                                             (see JolieCat3D.Service.Interop.ClipbarAnimationBridge). -->
+                                        <Button Content="Load Clipbar Animation..." Margin="8,0,8,4" Padding="8,4"
+                                                HorizontalAlignment="Left" Click="LoadClipbarAnimationButton_Click" />
+                                        <TextBlock Text="{Binding DiffuseTextureFileName}" Margin="8,0,8,8"
+                                                   TextTrimming="CharacterEllipsis" FontStyle="Italic"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Visibility="{Binding HasDiffuseTexture, Converter={StaticResource BoolToVisibility}}" />
+
+                                        <!-- Normal map / packed metallic-roughness map - see
+                                             Core.Materials.Material's own remarks on why the live
+                                             viewport can only approximate these (a normal map not
+                                             at all; metallic-roughness as one averaged scalar),
+                                             while the exported glTF (Service.Export.GltfExporter)
+                                             samples both correctly, per-pixel. -->
+                                        <Button Content="Load Normal Map..." Margin="8,0,8,4" Padding="8,4"
+                                                HorizontalAlignment="Left" Click="LoadNormalMapButton_Click" />
+                                        <TextBlock Text="{Binding NormalTextureFileName}" Margin="8,0,8,8"
+                                                   TextTrimming="CharacterEllipsis" FontStyle="Italic"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Visibility="{Binding HasNormalTexture, Converter={StaticResource BoolToVisibility}}" />
+
+                                        <Button Content="Load Metallic/Roughness Map..." Margin="8,0,8,4" Padding="8,4"
+                                                HorizontalAlignment="Left" Click="LoadMetallicRoughnessMapButton_Click" />
+                                        <TextBlock Text="{Binding MetallicRoughnessTextureFileName}" Margin="8,0,8,8"
+                                                   TextTrimming="CharacterEllipsis" FontStyle="Italic"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Visibility="{Binding HasMetallicRoughnessTexture, Converter={StaticResource BoolToVisibility}}" />
+
+                                        <!-- UV Projection - (re)maps this mesh's own UVs, for a custom
+                                             primitive or an Edit-Mode-reshaped mesh whose authored UVs
+                                             no longer make sense (see Core.Geometry.UVProjector). -->
+                                        <TextBlock Text="UV Projection" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
+                                            <Button Content="Planar" Margin="0,0,4,0" Padding="8,4" Click="PlanarProjectionButton_Click" />
+                                            <Button Content="Box" Margin="0,0,4,0" Padding="8,4" Click="BoxProjectionButton_Click" />
+                                            <Button Content="Spherical" Padding="8,4" Click="SphericalProjectionButton_Click" />
+                                        </StackPanel>
+
+                                        <!-- Opens JolieCat3D.UI.UVVisualizerWindow - a non-modal
+                                             "leave it open while you paint in JolieCat 2D" tool
+                                             window showing this mesh's own UV wireframe over its
+                                             currently-loaded diffuse texture. -->
+                                        <Button Content="View UV Map..." Margin="8,0,8,8" Padding="8,4"
+                                                HorizontalAlignment="Left" Click="ViewUVMapButton_Click" />
+
+                                        <!-- Multi-Material Support: one Material per slot, beyond
+                                             the plain diffuse/roughness/metallic material above -
+                                             see Core.Geometry.Mesh.MaterialSlots/Polygon.MaterialSlotIndex.
+                                             "Assign to Selection" points whichever single fully-
+                                             selected Face (Edit Mode, Face component) at this row's
+                                             own slot; a face with no slot assigned at all keeps
+                                             rendering with the plain material above. -->
+                                        <TextBlock Text="Material Slots" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <ItemsControl ItemsSource="{Binding MaterialSlots}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                                        <TextBox Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Width="90" Margin="0,0,4,0" />
+                                                        <Button Content="Assign" Padding="6,2" Margin="0,0,4,0"
+                                                                Click="AssignMaterialSlotButton_Click"
+                                                                ToolTip="Assign the currently fully-selected face (Edit Mode, Face) to this slot" />
+                                                        <Button Content="Remove" Padding="6,2" Click="RemoveMaterialSlotButton_Click" />
                                                     </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                                        <TextBlock Text="Target:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                                        <ComboBox ItemsSource="{Binding AvailableTargets}" SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
-                                                                  DisplayMemberPath="Name" Width="120" />
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                                        <TextBlock Text="Forward Axis:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                                        <ComboBox SelectedValue="{Binding ForwardAxis, Mode=TwoWay}" SelectedValuePath="Content" Width="90">
-                                                            <ComboBoxItem Content="PlusX" />
-                                                            <ComboBoxItem Content="MinusX" />
-                                                            <ComboBoxItem Content="PlusY" />
-                                                            <ComboBoxItem Content="MinusY" />
-                                                            <ComboBoxItem Content="PlusZ" />
-                                                            <ComboBoxItem Content="MinusZ" />
-                                                        </ComboBox>
-                                                    </StackPanel>
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.Resources>
-                                </ItemsControl>
-                            </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <Button Content="Add Slot" Margin="8,0,8,8" Padding="8,4"
+                                                HorizontalAlignment="Left" Click="AddMaterialSlotButton_Click" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
 
-                            <!-- Camera Inspector - hidden entirely for a non-camera node.
-                                 Position/Rotation/Scale above already drive where this
-                                 camera looks (see Node.GetWorldForward's own remarks) -
-                                 this section is only the CameraData-specific fields
-                                 (projection/FOV/near-far) plus which camera is active. -->
-                            <StackPanel Visibility="{Binding HasCamera, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="CAMERA" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                    <TextBlock Text="Projection:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <ComboBox SelectedValue="{Binding CameraProjectionMode, Mode=TwoWay}" SelectedValuePath="Content" Width="110">
-                                        <ComboBoxItem Content="Perspective" />
-                                        <ComboBoxItem Content="Orthographic" />
-                                    </ComboBox>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
-                                            Visibility="{Binding IsPerspectiveCamera, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="Field of View" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding CameraFieldOfView, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
-                                            Visibility="{Binding IsOrthographicCamera, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="Width" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding CameraOrthographicWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="8,0">
-                                    <TextBlock Text="Near" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding CameraNearPlaneDistance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                    <TextBlock Text="Far" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding CameraFarPlaneDistance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                </StackPanel>
-                                <!-- Sets Scene3D.ActiveCamera to THIS node - Engine.Camera.SceneCameraSync
-                                     then pushes its world transform onto the viewport's
-                                     actual rendering camera on the very next render. -->
-                                <Button Content="Set as Active Camera" Margin="8,4,8,8" Padding="8,4"
-                                        HorizontalAlignment="Left" Click="SetActiveCameraButton_Click" />
-                            </StackPanel>
+                        <!-- ================= [DATA]: Keyframes + Armature/Vertex-group (Skinning) data ================= -->
+                        <TabItem Header="[DATA]" Style="{StaticResource PropertiesTabItemStyle}" ToolTip="Object Data">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel DataContext="{Binding SelectedNode}" Margin="0,0,0,12">
+                                    <!-- Records this node's CURRENT Position/Rotation/Scale as a
+                                         keyframe at the timeline's own current frame (see
+                                         JolieCat3D.Service.Animation.AnimationTrack.AddKeyframeFromCurrentTransform),
+                                         leaving the segment AFTER it blended per whichever of
+                                         these two is checked (see JolieCat3D.Service.Animation.InterpolationMode). -->
+                                    <TextBlock Text="KEYFRAMES" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                    <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                        <RadioButton x:Name="LinearInterpolationButton" Content="Linear" GroupName="Interpolation"
+                                                     IsChecked="True" Margin="0,0,10,0" VerticalAlignment="Center" />
+                                        <RadioButton x:Name="BezierInterpolationButton" Content="Bezier" GroupName="Interpolation"
+                                                     VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <Button Content="Add Keyframe" Margin="8,0,8,8" Padding="8,4"
+                                            HorizontalAlignment="Left" Click="AddKeyframeButton_Click" />
 
-                            <!-- Light Inspector - hidden entirely for a non-light node. -->
-                            <StackPanel Visibility="{Binding HasLight, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="LIGHT" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                    <TextBlock Text="Type:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <ComboBox SelectedValue="{Binding LightType, Mode=TwoWay}" SelectedValuePath="Content" Width="110">
-                                        <ComboBoxItem Content="Directional" />
-                                        <ComboBoxItem Content="Point" />
-                                        <ComboBoxItem Content="Spot" />
-                                    </ComboBox>
+                                    <!-- Skinning - shown for any meshed node (bound or not);
+                                         picking an Armature here immediately (re-)binds via
+                                         automatic nearest-bone weights (see
+                                         Core.Skinning.SkinBindingFactory). Weight Paint mode's
+                                         own brush controls live in the Properties panel's own
+                                         "[TOOL]" tab (visible only while that mode is active),
+                                         not here. -->
+                                    <StackPanel Visibility="{Binding HasMesh, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="SKINNING" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <TextBlock Text="Armature:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <ComboBox ItemsSource="{Binding AvailableArmatures}" SelectedItem="{Binding BoundArmature, Mode=TwoWay}"
+                                                      DisplayMemberPath="Name" Width="120" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,8" Visibility="{Binding HasSkinBinding, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Bound bones:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <ItemsControl ItemsSource="{Binding BoundBoneNames}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding}" Margin="0,0,6,0" FontSize="11" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </StackPanel>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                    <TextBlock Text="Color" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding LightColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                    <TextBlock Text="Intensity" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding LightIntensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
-                                            Visibility="{Binding IsPointOrSpotLight, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="Range" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding LightRange, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,8"
-                                            Visibility="{Binding IsSpotLight, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="Spot Angle" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding LightSpotAngle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                </StackPanel>
-                            </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
 
-                            <!-- Curve Inspector - hidden entirely for a non-curve node.
-                                 Every field here edits CurveData directly and
-                                 regenerates Node.Mesh (the tube/cable) immediately -
-                                 see NodeViewModel.RegenerateCurveMesh's own remarks. -->
-                            <StackPanel Visibility="{Binding HasCurve, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="CURVE" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                    <TextBlock Text="Bevel Depth" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding CurveBevelDepth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                    <CheckBox Content="Closed" IsChecked="{Binding CurveClosed, Mode=TwoWay}" Margin="8,0,0,0" VerticalAlignment="Center" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                    <TextBlock Text="Segments/Span" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding CurveSegmentsPerSpan, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                    <TextBlock Text="Radial Segments" Style="{StaticResource InspectorFieldLabelStyle}" />
-                                    <TextBox Text="{Binding CurveRadialSegments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                </StackPanel>
+                        <!-- ================= [TOOL]: Active Tool - the brush Radius/Strength/
+                             Color settings relocated out of the (now icon-only) Left Toolbar;
+                             each section below reuses the SAME CurrentEditorMode-driven Style
+                             the Left Toolbar's own per-mode sections already use, so only the
+                             currently active paint mode's own brush settings show here. ================= -->
+                        <TabItem Header="[TOOL]" Style="{StaticResource PropertiesTabItemStyle}" ToolTip="Active Tool">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="8,8,8,12">
+                                    <StackPanel Style="{StaticResource WeightPaintToolStyle}">
+                                        <TextBlock Text="Weight Brush" Style="{StaticResource PanelHeaderStyle}" Margin="0,0,0,2" />
+                                        <TextBlock Text="Radius" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Slider x:Name="BrushRadiusSlider" Minimum="0.05" Maximum="3" Value="0.3"
+                                                Margin="0,0,0,6" ValueChanged="BrushRadiusSlider_ValueChanged" />
+                                        <TextBlock Text="Strength" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Slider x:Name="BrushStrengthSlider" Minimum="0.05" Maximum="1" Value="0.5"
+                                                ValueChanged="BrushStrengthSlider_ValueChanged" />
+                                    </StackPanel>
 
-                                <TextBlock Text="Control Points" Margin="8,4,8,2" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                <ItemsControl ItemsSource="{Binding CurvePoints}" Margin="8,0,8,4">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
-                                                <StackPanel>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="Point" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveCurvePointButton_Click" />
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                                        <TextBlock Text="Position:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="70" />
-                                                        <TextBox Text="{Binding PositionX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
-                                                        <TextBox Text="{Binding PositionY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
-                                                        <TextBox Text="{Binding PositionZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                                        <TextBlock Text="Handle In:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="70" />
-                                                        <TextBox Text="{Binding HandleInX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
-                                                        <TextBox Text="{Binding HandleInY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
-                                                        <TextBox Text="{Binding HandleInZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                                        <TextBlock Text="Handle Out:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="70" />
-                                                        <TextBox Text="{Binding HandleOutX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
-                                                        <TextBox Text="{Binding HandleOutY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
-                                                        <TextBox Text="{Binding HandleOutZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
-                                                    </StackPanel>
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                                <Button Content="Add Point" Margin="8,0,8,8" Padding="8,4"
-                                        HorizontalAlignment="Left" Click="AddCurvePointButton_Click" />
-                            </StackPanel>
+                                    <StackPanel Style="{StaticResource VertexPaintToolStyle}">
+                                        <TextBlock Text="Vertex Paint Brush" Style="{StaticResource PanelHeaderStyle}" Margin="0,0,0,2" />
+                                        <!-- A plain "#RRGGBB" hex color field, the same convention the
+                                             Properties Inspector's own DiffuseColorHex/LightColorHex
+                                             fields already use. -->
+                                        <TextBlock Text="Color" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBox x:Name="VertexPaintColorTextBox" Text="#FF0000" Margin="0,0,0,6"
+                                                 TextChanged="VertexPaintColorTextBox_TextChanged" />
+                                        <TextBlock Text="Radius" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Slider x:Name="VertexBrushRadiusSlider" Minimum="0.05" Maximum="3" Value="0.3"
+                                                Margin="0,0,0,6" ValueChanged="VertexBrushRadiusSlider_ValueChanged" />
+                                        <TextBlock Text="Strength" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Slider x:Name="VertexBrushStrengthSlider" Minimum="0.05" Maximum="1" Value="0.5"
+                                                ValueChanged="VertexBrushStrengthSlider_ValueChanged" />
+                                    </StackPanel>
 
-                            <!-- Bone Inspector - hidden entirely for a non-bone node.
-                                 Head/Tail edits regenerate the bone's own small
-                                 octahedron shape immediately (see
-                                 NodeViewModel.RegenerateBoneMesh's own remarks); "Set
-                                 Rest Pose" bakes the bone's CURRENT world transform in
-                                 as its own new skinning baseline (see
-                                 Core.Scene.BoneData.CaptureRestPose). Rotating the bone
-                                 itself uses the SAME Object Mode Transform Gizmo every
-                                 other node already uses - a bone is just a Node with
-                                 BoneData attached, nothing gizmo-specific needed. -->
-                            <StackPanel Visibility="{Binding HasBone, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="BONE" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
-                                    <TextBlock Text="Head:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="40" />
-                                    <TextBox Text="{Binding BoneHeadX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
-                                    <TextBox Text="{Binding BoneHeadY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
-                                    <TextBox Text="{Binding BoneHeadZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                    <TextBlock Text="Tail:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Width="40" />
-                                    <TextBox Text="{Binding BoneTailX, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
-                                    <TextBox Text="{Binding BoneTailY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" Margin="0,0,2,0" />
-                                    <TextBox Text="{Binding BoneTailZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="45" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,8">
-                                    <TextBlock Text="Length:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <TextBlock Text="{Binding BoneLength, StringFormat={}{0:F3}}" VerticalAlignment="Center" Margin="0,0,12,0" />
-                                    <Button Content="Set Rest Pose" Padding="8,2" Click="SetBoneRestPoseButton_Click" />
-                                </StackPanel>
-                            </StackPanel>
+                                    <StackPanel Style="{StaticResource SculptToolStyle}">
+                                        <TextBlock Text="Sculpt Brush" Style="{StaticResource PanelHeaderStyle}" Margin="0,0,0,2" />
+                                        <TextBlock Text="Radius" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Slider x:Name="SculptBrushRadiusSlider" Minimum="0.05" Maximum="3" Value="0.3"
+                                                Margin="0,0,0,6" ValueChanged="SculptBrushRadiusSlider_ValueChanged" />
+                                        <TextBlock Text="Strength" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Slider x:Name="SculptBrushStrengthSlider" Minimum="0.05" Maximum="1" Value="0.5"
+                                                ValueChanged="SculptBrushStrengthSlider_ValueChanged" />
+                                    </StackPanel>
 
-                            <!-- Skinning - shown for any meshed node (bound or not);
-                                 picking an Armature here immediately (re-)binds via
-                                 automatic nearest-bone weights (see
-                                 Core.Skinning.SkinBindingFactory). Weight Paint mode's
-                                 own brush controls live in the Left Vertical Toolbar
-                                 (visible only while that mode is active), not here. -->
-                            <StackPanel Visibility="{Binding HasMesh, Converter={StaticResource BoolToVisibility}}">
-                                <TextBlock Text="SKINNING" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                    <TextBlock Text="Armature:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <ComboBox ItemsSource="{Binding AvailableArmatures}" SelectedItem="{Binding BoundArmature, Mode=TwoWay}"
-                                              DisplayMemberPath="Name" Width="120" />
+                                    <StackPanel Style="{StaticResource TexturePaintToolStyle}">
+                                        <TextBlock Text="Texture Paint Brush" Style="{StaticResource PanelHeaderStyle}" Margin="0,0,0,2" />
+                                        <!-- Radius here is a PIXEL distance into the material's own
+                                             painted texture (see Engine.Editing.TexturePaintSession.BrushRadius's
+                                             own remarks), unlike every other brush's own world-space
+                                             radius - a wider Min/Max reflects that different unit. -->
+                                        <TextBlock Text="Color" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <TextBox x:Name="TexturePaintColorTextBox" Text="#FF0000" Margin="0,0,0,6"
+                                                 TextChanged="TexturePaintColorTextBox_TextChanged" />
+                                        <TextBlock Text="Radius" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Slider x:Name="TextureBrushRadiusSlider" Minimum="2" Maximum="120" Value="20"
+                                                Margin="0,0,0,6" ValueChanged="TextureBrushRadiusSlider_ValueChanged" />
+                                        <TextBlock Text="Strength" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <Slider x:Name="TextureBrushStrengthSlider" Minimum="0.05" Maximum="1" Value="0.5"
+                                                ValueChanged="TextureBrushStrengthSlider_ValueChanged" />
+                                    </StackPanel>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="8,0,8,8" Visibility="{Binding HasSkinBinding, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock Text="Bound bones:" VerticalAlignment="Center" Margin="0,0,6,0"
-                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
-                                    <ItemsControl ItemsSource="{Binding BoundBoneNames}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding}" Margin="0,0,6,0" FontSize="11" />
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
                 </DockPanel>
             </Border>
             </Grid>
