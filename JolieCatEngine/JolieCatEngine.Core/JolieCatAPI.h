@@ -18,3 +18,4 @@ JOLIECAT_API void Engine_SetTransform(
 JOLIECAT_API void Engine_ResizeViewport(int width, int height);
 JOLIECAT_API int Engine_GetAssets(char* outBuffer, int maxLength);
 JOLIECAT_API void Engine_SetEditorCamera(float x, float y, float zoom);
+JOLIECAT_API void Engine_ZoomCamera(float factor);

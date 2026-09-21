@@ -17,12 +17,6 @@ namespace JolieCatEngine.Editor
 
         private Entity? _selectedEntity;
 
-        private bool _isPanning;
-        private Point _lastMousePos;
-        private float _camX;
-        private float _camY;
-        private float _camZoom = 1.0f;
-
         public Entity? SelectedEntity
         {
             get => _selectedEntity;
@@ -103,43 +97,9 @@ namespace JolieCatEngine.Editor
             SelectedEntity = e.NewValue as Entity;
         }
 
-        private void ViewportInputOverlay_MouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        private void MainWindow_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            _isPanning = true;
-            _lastMousePos = e.GetPosition(ViewportInputOverlay);
-            ViewportInputOverlay.CaptureMouse();
-        }
-
-        private void ViewportInputOverlay_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            _isPanning = false;
-            ViewportInputOverlay.ReleaseMouseCapture();
-        }
-
-        private void ViewportInputOverlay_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (!_isPanning)
-            {
-                return;
-            }
-
-            var currentPos = e.GetPosition(ViewportInputOverlay);
-            double dx = currentPos.X - _lastMousePos.X;
-            double dy = currentPos.Y - _lastMousePos.Y;
-
-            _camX -= (float)(dx / _camZoom);
-            _camY -= (float)(dy / _camZoom);
-
-            _lastMousePos = currentPos;
-
-            NativeBridge.Engine_SetEditorCamera(_camX, _camY, _camZoom);
-        }
-
-        private void ViewportInputOverlay_MouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            _camZoom = Math.Clamp(e.Delta > 0 ? _camZoom * 1.1f : _camZoom / 1.1f, 0.1f, 10.0f);
-
-            NativeBridge.Engine_SetEditorCamera(_camX, _camY, _camZoom);
+            NativeBridge.Engine_ZoomCamera(e.Delta > 0 ? 1.1f : 0.9f);
         }
 
         private void AssetCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)

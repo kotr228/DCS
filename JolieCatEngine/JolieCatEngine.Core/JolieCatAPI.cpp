@@ -39,6 +39,8 @@ namespace
     {
         using namespace std::chrono;
 
+        POINT lastMousePos{ 0, 0 };
+
         while (g_renderLoopRunning.load(std::memory_order_relaxed))
         {
             HWND hwnd = g_viewportHwnd.load(std::memory_order_relaxed);
@@ -46,6 +48,28 @@ namespace
             {
                 int width = g_viewportWidth.load(std::memory_order_relaxed);
                 int height = g_viewportHeight.load(std::memory_order_relaxed);
+
+                POINT currentMousePos{};
+                GetCursorPos(&currentMousePos);
+                ScreenToClient(hwnd, &currentMousePos);
+
+                bool isPanning = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0
+                    || (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0;
+
+                if (isPanning)
+                {
+                    float panZoom = g_cameraZoom.load(std::memory_order_relaxed);
+                    float deltaX = static_cast<float>(currentMousePos.x - lastMousePos.x);
+                    float deltaY = static_cast<float>(currentMousePos.y - lastMousePos.y);
+
+                    float newCameraX = g_cameraX.load(std::memory_order_relaxed) - deltaX / panZoom;
+                    float newCameraY = g_cameraY.load(std::memory_order_relaxed) - deltaY / panZoom;
+
+                    g_cameraX.store(newCameraX, std::memory_order_relaxed);
+                    g_cameraY.store(newCameraY, std::memory_order_relaxed);
+                }
+
+                lastMousePos = currentMousePos;
 
                 HDC deviceContext = GetDC(hwnd);
                 if (deviceContext != nullptr)
@@ -258,4 +282,20 @@ JOLIECAT_API void Engine_SetEditorCamera(float x, float y, float zoom)
     g_cameraX.store(x, std::memory_order_relaxed);
     g_cameraY.store(y, std::memory_order_relaxed);
     g_cameraZoom.store(zoom, std::memory_order_relaxed);
+}
+
+JOLIECAT_API void Engine_ZoomCamera(float factor)
+{
+    float newZoom = g_cameraZoom.load(std::memory_order_relaxed) * factor;
+
+    if (newZoom < 0.1f)
+    {
+        newZoom = 0.1f;
+    }
+    else if (newZoom > 10.0f)
+    {
+        newZoom = 10.0f;
+    }
+
+    g_cameraZoom.store(newZoom, std::memory_order_relaxed);
 }
