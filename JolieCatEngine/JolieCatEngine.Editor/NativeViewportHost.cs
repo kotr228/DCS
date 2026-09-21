@@ -67,12 +67,15 @@ namespace JolieCatEngine.Editor
                 case WM_MBUTTONDOWN:
                     _isPanning = true;
                     _lastMousePos = GetPointFromLParam(lParam);
+                    SetFocus(hwnd);
+                    SetCapture(hwnd);
                     handled = true;
                     return IntPtr.Zero;
 
                 case WM_RBUTTONUP:
                 case WM_MBUTTONUP:
                     _isPanning = false;
+                    ReleaseCapture();
                     handled = true;
                     return IntPtr.Zero;
 
@@ -191,5 +194,15 @@ namespace JolieCatEngine.Editor
 
         [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true, BestFitMapping = false)]
         private static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetFocus(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr SetCapture(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool ReleaseCapture();
     }
 }
