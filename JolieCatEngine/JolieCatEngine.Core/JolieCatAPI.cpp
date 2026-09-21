@@ -58,11 +58,15 @@ namespace
                         HGDIOBJ previousBrush = SelectObject(deviceContext, entityBrush);
 
                         constexpr int halfSize = 8;
+                        constexpr float pixelsPerUnit = 50.0f;
+                        float screenCenterX = static_cast<float>(width) / 2.0f;
+                        float screenCenterY = static_cast<float>(height) / 2.0f;
+
                         for (const auto& entry : g_entityTransforms)
                         {
                             const Transform& transform = entry.second;
-                            int centerX = static_cast<int>(transform.PositionX);
-                            int centerY = static_cast<int>(transform.PositionY);
+                            int centerX = static_cast<int>(screenCenterX + transform.PositionX * pixelsPerUnit);
+                            int centerY = static_cast<int>(screenCenterY + transform.PositionY * pixelsPerUnit);
                             Rectangle(deviceContext, centerX - halfSize, centerY - halfSize, centerX + halfSize, centerY + halfSize);
                         }
 

@@ -329,7 +329,9 @@
                               BorderThickness="0"
                               Foreground="{StaticResource TextPrimaryBrush}"
                               ItemContainerStyle="{StaticResource DarkTreeViewItemStyle}"
-                              SelectedItemChanged="SceneHierarchyTreeView_SelectedItemChanged">
+                              SelectedItemChanged="SceneHierarchyTreeView_SelectedItemChanged"
+                              AllowDrop="True"
+                              Drop="AssetDropTarget_Drop">
                         <TreeView.Resources>
                             <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF3E3C3A" />
                             <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFFFF" />
@@ -348,7 +350,8 @@
             <Border Grid.Column="2" Background="{StaticResource PanelAltBackgroundBrush}">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="SCENE VIEWPORT" Style="{StaticResource PanelHeaderStyle}" />
-                    <Border Margin="4" Background="#FF151413" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                    <Border Margin="4" Background="#FF151413" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            AllowDrop="True" Drop="AssetDropTarget_Drop">
                         <local:NativeViewportHost x:Name="ViewportHost" />
                     </Border>
                 </DockPanel>
@@ -478,7 +481,8 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                    <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                            PreviewMouseLeftButtonDown="AssetCard_PreviewMouseLeftButtonDown">
                                         <StackPanel Margin="6">
                                             <Border Width="56" Height="56" Background="{StaticResource HoverBackgroundBrush}" HorizontalAlignment="Center" />
                                             <TextBlock Text="{Binding}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />

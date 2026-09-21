@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Text;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Shell;
 using JolieCatEngine.Scripting.CSharp;
 
@@ -93,6 +95,38 @@ namespace JolieCatEngine.Editor
         private void SceneHierarchyTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
             SelectedEntity = e.NewValue as Entity;
+        }
+
+        private void AssetCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement { DataContext: string assetName } element)
+            {
+                return;
+            }
+
+            DragDrop.DoDragDrop(element, assetName, DragDropEffects.Copy);
+        }
+
+        private void AssetDropTarget_Drop(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(DataFormats.StringFormat))
+            {
+                return;
+            }
+
+            if (e.Data.GetData(DataFormats.StringFormat) is not string assetName)
+            {
+                return;
+            }
+
+            var entity = new Entity(Path.GetFileNameWithoutExtension(assetName))
+            {
+                NativeId = NativeBridge.Engine_CreateEntity(),
+            };
+            entity.Transform.NativeId = entity.NativeId;
+            SceneEntities.Add(entity);
+
+            DebugConsole.Log($"[Editor] Dropped asset '{assetName}' and spawned new Entity '{entity.Name}' (Id {entity.NativeId})");
         }
 
         private void SelectedTransform_PropertyChanged(object? sender, PropertyChangedEventArgs e)
