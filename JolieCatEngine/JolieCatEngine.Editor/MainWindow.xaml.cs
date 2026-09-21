@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Shell;
+using JolieCatEngine.Scripting.CSharp;
 
 namespace JolieCatEngine.Editor
 {
@@ -8,6 +9,13 @@ namespace JolieCatEngine.Editor
         public MainWindow()
         {
             InitializeComponent();
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            var version = NativeBridge.Engine_GetVersion();
+            MessageBox.Show($"JolieCatEngine.Core native bridge is linked.\nEngine_GetVersion() returned: {version}",
+                "Native Bridge Test", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)

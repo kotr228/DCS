@@ -11,7 +11,8 @@
         WindowStyle="None"
         ResizeMode="CanResize"
         Background="#FF1E1C1A"
-        StateChanged="MainWindow_StateChanged">
+        StateChanged="MainWindow_StateChanged"
+        Loaded="Window_Loaded">
 
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="36"
@@ -326,6 +327,10 @@
                               BorderThickness="0"
                               Foreground="{StaticResource TextPrimaryBrush}"
                               ItemContainerStyle="{StaticResource DarkTreeViewItemStyle}">
+                        <TreeView.Resources>
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF3E3C3A" />
+                            <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFFFF" />
+                        </TreeView.Resources>
                         <TreeViewItem Header="Root" IsExpanded="True">
                             <TreeViewItem Header="Main Camera" />
                             <TreeViewItem Header="Directional Light" />
