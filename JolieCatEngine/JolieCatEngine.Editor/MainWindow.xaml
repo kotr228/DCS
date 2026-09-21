@@ -362,7 +362,7 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="INSPECTOR / PROPERTIES" Style="{StaticResource PanelHeaderStyle}" />
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel x:Name="InspectorTransformPanel" Margin="8">
+                        <StackPanel x:Name="InspectorTransformPanel" Margin="8" IsEnabled="False">
                             <TextBlock Text="Transform"
                                        Foreground="{StaticResource TextPrimaryBrush}"
                                        FontWeight="Bold" FontSize="12" Margin="0,0,0,8" />
@@ -375,7 +375,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="X" Style="{StaticResource AxisLabelXStyle}" />
-                                    <TextBox Grid.Column="1" Text="{Binding PositionX, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding PositionX, StringFormat=F3, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid Margin="0,0,4,0">
                                     <Grid.ColumnDefinitions>
@@ -383,7 +383,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Y" Style="{StaticResource AxisLabelYStyle}" />
-                                    <TextBox Grid.Column="1" Text="{Binding PositionY, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding PositionY, StringFormat=F3, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -391,7 +391,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Z" Style="{StaticResource AxisLabelZStyle}" />
-                                    <TextBox Grid.Column="1" Text="{Binding PositionZ, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding PositionZ, StringFormat=F3, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                             </UniformGrid>
 
@@ -403,7 +403,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="X" Style="{StaticResource AxisLabelXStyle}" />
-                                    <TextBox Grid.Column="1" Text="{Binding RotationX, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding RotationX, StringFormat=F3, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid Margin="0,0,4,0">
                                     <Grid.ColumnDefinitions>
@@ -411,7 +411,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Y" Style="{StaticResource AxisLabelYStyle}" />
-                                    <TextBox Grid.Column="1" Text="{Binding RotationY, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding RotationY, StringFormat=F3, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -419,7 +419,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Z" Style="{StaticResource AxisLabelZStyle}" />
-                                    <TextBox Grid.Column="1" Text="{Binding RotationZ, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding RotationZ, StringFormat=F3, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                             </UniformGrid>
 
@@ -431,7 +431,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="X" Style="{StaticResource AxisLabelXStyle}" />
-                                    <TextBox Grid.Column="1" Text="{Binding ScaleX, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding ScaleX, StringFormat=F3, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid Margin="0,0,4,0">
                                     <Grid.ColumnDefinitions>
@@ -439,7 +439,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Y" Style="{StaticResource AxisLabelYStyle}" />
-                                    <TextBox Grid.Column="1" Text="{Binding ScaleY, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding ScaleY, StringFormat=F3, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -447,7 +447,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Z" Style="{StaticResource AxisLabelZStyle}" />
-                                    <TextBox Grid.Column="1" Text="{Binding ScaleZ, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding ScaleZ, StringFormat=F3, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                             </UniformGrid>
                         </StackPanel>

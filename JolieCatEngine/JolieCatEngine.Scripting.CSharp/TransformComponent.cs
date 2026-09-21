@@ -38,11 +38,11 @@ namespace JolieCatEngine.Scripting.CSharp
             {
                 field = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-                SyncToNative();
+                SyncToNative(propertyName);
             }
         }
 
-        private void SyncToNative()
+        private void SyncToNative(string? propertyName)
         {
             NativeBridge.Engine_SetTransform(
                 NativeId,
@@ -50,7 +50,24 @@ namespace JolieCatEngine.Scripting.CSharp
                 _rotationX, _rotationY, _rotationZ,
                 _scaleX, _scaleY, _scaleZ);
 
-            DebugConsole.Log($"[Bridge] Synced Entity {NativeId} Transform to Core");
+            (string Label, float Value)? field = propertyName switch
+            {
+                nameof(PositionX) => ("Position X", _positionX),
+                nameof(PositionY) => ("Position Y", _positionY),
+                nameof(PositionZ) => ("Position Z", _positionZ),
+                nameof(RotationX) => ("Rotation X", _rotationX),
+                nameof(RotationY) => ("Rotation Y", _rotationY),
+                nameof(RotationZ) => ("Rotation Z", _rotationZ),
+                nameof(ScaleX) => ("Scale X", _scaleX),
+                nameof(ScaleY) => ("Scale Y", _scaleY),
+                nameof(ScaleZ) => ("Scale Z", _scaleZ),
+                _ => null,
+            };
+
+            if (field is not null)
+            {
+                DebugConsole.Log($"[Bridge] Entity {NativeId} {field.Value.Label} updated to {field.Value.Value:F3}");
+            }
         }
     }
 }

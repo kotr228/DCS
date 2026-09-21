@@ -15,6 +15,33 @@ namespace JolieCatEngine.Editor
 
         private Entity? _selectedEntity;
 
+        public Entity? SelectedEntity
+        {
+            get => _selectedEntity;
+            private set
+            {
+                if (_selectedEntity == value)
+                {
+                    return;
+                }
+
+                if (_selectedEntity is not null)
+                {
+                    _selectedEntity.Transform.PropertyChanged -= SelectedTransform_PropertyChanged;
+                }
+
+                _selectedEntity = value;
+
+                InspectorTransformPanel.DataContext = _selectedEntity?.Transform;
+                InspectorTransformPanel.IsEnabled = _selectedEntity is not null;
+
+                if (_selectedEntity is not null)
+                {
+                    _selectedEntity.Transform.PropertyChanged += SelectedTransform_PropertyChanged;
+                }
+            }
+        }
+
         public MainWindow()
         {
             InitializeComponent();
@@ -65,18 +92,7 @@ namespace JolieCatEngine.Editor
 
         private void SceneHierarchyTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
-            if (_selectedEntity is not null)
-            {
-                _selectedEntity.Transform.PropertyChanged -= SelectedTransform_PropertyChanged;
-            }
-
-            _selectedEntity = e.NewValue as Entity;
-            InspectorTransformPanel.DataContext = _selectedEntity?.Transform;
-
-            if (_selectedEntity is not null)
-            {
-                _selectedEntity.Transform.PropertyChanged += SelectedTransform_PropertyChanged;
-            }
+            SelectedEntity = e.NewValue as Entity;
         }
 
         private void SelectedTransform_PropertyChanged(object? sender, PropertyChangedEventArgs e)

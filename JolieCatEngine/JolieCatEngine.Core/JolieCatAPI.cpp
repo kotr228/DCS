@@ -50,6 +50,26 @@ namespace
                     HBRUSH frameBrush = CreateSolidBrush(RGB(32, 32, 32));
                     FillRect(deviceContext, &clientRect, frameBrush);
                     DeleteObject(frameBrush);
+
+                    {
+                        std::lock_guard<std::mutex> lock(g_entityMutex);
+
+                        HBRUSH entityBrush = CreateSolidBrush(RGB(255, 255, 255));
+                        HGDIOBJ previousBrush = SelectObject(deviceContext, entityBrush);
+
+                        constexpr int halfSize = 8;
+                        for (const auto& entry : g_entityTransforms)
+                        {
+                            const Transform& transform = entry.second;
+                            int centerX = static_cast<int>(transform.PositionX);
+                            int centerY = static_cast<int>(transform.PositionY);
+                            Rectangle(deviceContext, centerX - halfSize, centerY - halfSize, centerX + halfSize, centerY + halfSize);
+                        }
+
+                        SelectObject(deviceContext, previousBrush);
+                        DeleteObject(entityBrush);
+                    }
+
                     ReleaseDC(hwnd, deviceContext);
                 }
             }
