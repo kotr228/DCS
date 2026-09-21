@@ -13,20 +13,7 @@ namespace JolieCatEngine.Editor
         private const int BLACK_BRUSH = 4;
         private const string WindowClassName = "JolieCatViewportWindowClass";
 
-        private const int WM_MOUSEMOVE = 0x0200;
-        private const int WM_RBUTTONDOWN = 0x0204;
-        private const int WM_RBUTTONUP = 0x0205;
-        private const int WM_MBUTTONDOWN = 0x0207;
-        private const int WM_MBUTTONUP = 0x0208;
-        private const int WM_MOUSEWHEEL = 0x020A;
-
         private static bool s_classRegistered;
-
-        private bool _isPanning;
-        private Point _lastMousePos;
-        private float _camX;
-        private float _camY;
-        private float _camZoom = 1.0f;
 
         protected override HandleRef BuildWindowCore(HandleRef hwndParent)
         {
@@ -57,66 +44,6 @@ namespace JolieCatEngine.Editor
             base.OnRenderSizeChanged(sizeInfo);
 
             NativeBridge.Engine_ResizeViewport((int)sizeInfo.NewSize.Width, (int)sizeInfo.NewSize.Height);
-        }
-
-        protected override IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-        {
-            switch (msg)
-            {
-                case WM_RBUTTONDOWN:
-                case WM_MBUTTONDOWN:
-                    _isPanning = true;
-                    _lastMousePos = GetPointFromLParam(lParam);
-                    SetFocus(hwnd);
-                    SetCapture(hwnd);
-                    handled = true;
-                    return IntPtr.Zero;
-
-                case WM_RBUTTONUP:
-                case WM_MBUTTONUP:
-                    _isPanning = false;
-                    ReleaseCapture();
-                    handled = true;
-                    return IntPtr.Zero;
-
-                case WM_MOUSEMOVE:
-                    if (_isPanning)
-                    {
-                        var currentMousePos = GetPointFromLParam(lParam);
-                        var deltaX = currentMousePos.X - _lastMousePos.X;
-                        var deltaY = currentMousePos.Y - _lastMousePos.Y;
-
-                        _camX -= (float)(deltaX / _camZoom);
-                        _camY -= (float)(deltaY / _camZoom);
-
-                        _lastMousePos = currentMousePos;
-
-                        NativeBridge.Engine_SetEditorCamera(_camX, _camY, _camZoom);
-                    }
-                    handled = true;
-                    return IntPtr.Zero;
-
-                case WM_MOUSEWHEEL:
-                {
-                    short wheelDelta = unchecked((short)((wParam.ToInt64() >> 16) & 0xFFFF));
-                    const float zoomStep = 0.1f;
-                    _camZoom = Math.Clamp(_camZoom + Math.Sign(wheelDelta) * zoomStep, 0.1f, 10.0f);
-
-                    NativeBridge.Engine_SetEditorCamera(_camX, _camY, _camZoom);
-                    handled = true;
-                    return IntPtr.Zero;
-                }
-            }
-
-            return base.WndProc(hwnd, msg, wParam, lParam, ref handled);
-        }
-
-        private static Point GetPointFromLParam(IntPtr lParam)
-        {
-            long value = lParam.ToInt64();
-            short x = unchecked((short)(value & 0xFFFF));
-            short y = unchecked((short)((value >> 16) & 0xFFFF));
-            return new Point(x, y);
         }
 
         private static void EnsureWindowClassRegistered()
@@ -194,15 +121,5 @@ namespace JolieCatEngine.Editor
 
         [DllImport("kernel32.dll", CharSet = CharSet.Ansi, SetLastError = true, BestFitMapping = false)]
         private static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr SetFocus(IntPtr hWnd);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern IntPtr SetCapture(IntPtr hWnd);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool ReleaseCapture();
     }
 }
