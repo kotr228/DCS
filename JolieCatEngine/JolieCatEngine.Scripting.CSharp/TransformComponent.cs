@@ -16,6 +16,8 @@ namespace JolieCatEngine.Scripting.CSharp
         private float _scaleY = 1f;
         private float _scaleZ = 1f;
 
+        public uint NativeId { get; set; }
+
         public float PositionX { get => _positionX; set => SetField(ref _positionX, value); }
         public float PositionY { get => _positionY; set => SetField(ref _positionY, value); }
         public float PositionZ { get => _positionZ; set => SetField(ref _positionZ, value); }
@@ -36,7 +38,19 @@ namespace JolieCatEngine.Scripting.CSharp
             {
                 field = value;
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+                SyncToNative();
             }
+        }
+
+        private void SyncToNative()
+        {
+            NativeBridge.Engine_SetTransform(
+                NativeId,
+                _positionX, _positionY, _positionZ,
+                _rotationX, _rotationY, _rotationZ,
+                _scaleX, _scaleY, _scaleZ);
+
+            DebugConsole.Log($"[Bridge] Synced Entity {NativeId} Transform to Core");
         }
     }
 }

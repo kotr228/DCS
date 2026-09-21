@@ -27,6 +27,8 @@ namespace JolieCatEngine.Scripting.CSharp
 
         public TransformComponent Transform { get; }
 
+        public uint NativeId { get; set; }
+
         public event PropertyChangedEventHandler? PropertyChanged;
     }
 }

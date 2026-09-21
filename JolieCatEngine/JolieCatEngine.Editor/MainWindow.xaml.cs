@@ -8,18 +8,26 @@ namespace JolieCatEngine.Editor
 {
     public partial class MainWindow : Window
     {
-        public ObservableCollection<Entity> SceneEntities { get; } = new()
-        {
-            new Entity("Main Camera"),
-            new Entity("Directional Light"),
-            new Entity("Player"),
-        };
+        public ObservableCollection<Entity> SceneEntities { get; } = new();
 
         private Entity? _selectedEntity;
 
         public MainWindow()
         {
             InitializeComponent();
+
+            NativeBridge.Engine_Initialize();
+
+            foreach (var entityName in new[] { "Main Camera", "Directional Light", "Player" })
+            {
+                var entity = new Entity(entityName)
+                {
+                    NativeId = NativeBridge.Engine_CreateEntity(),
+                };
+                entity.Transform.NativeId = entity.NativeId;
+                SceneEntities.Add(entity);
+            }
+
             SceneHierarchyTreeView.ItemsSource = SceneEntities;
         }
 
@@ -30,6 +38,7 @@ namespace JolieCatEngine.Editor
                 "Native Bridge Test", MessageBoxButton.OK, MessageBoxImage.Information);
 
             NativeBridge.Engine_InitializeViewport(ViewportHost.Handle, (int)ViewportHost.ActualWidth, (int)ViewportHost.ActualHeight);
+            NativeBridge.Engine_StartRenderLoop();
         }
 
         private void SceneHierarchyTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
