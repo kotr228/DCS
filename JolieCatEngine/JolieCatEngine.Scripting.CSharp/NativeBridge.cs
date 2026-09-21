@@ -1,3 +1,4 @@
+using System;
 using System.Runtime.InteropServices;
 
 namespace JolieCatEngine.Scripting.CSharp
@@ -14,5 +15,8 @@ namespace JolieCatEngine.Scripting.CSharp
 
         [DllImport(NativeLibrary, CallingConvention = CallingConvention.Cdecl)]
         public static extern int Engine_GetVersion();
+
+        [DllImport(NativeLibrary, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Engine_InitializeViewport(IntPtr hwnd, int width, int height);
     }
 }

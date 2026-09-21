@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:local="clr-namespace:JolieCatEngine.Editor"
+        xmlns:scripting="clr-namespace:JolieCatEngine.Scripting.CSharp;assembly=JolieCatEngine.Scripting.CSharp"
         mc:Ignorable="d"
         Title="JolieCatEngine Editor" Height="720" Width="1280"
         MinHeight="480" MinWidth="800"
@@ -326,16 +327,15 @@
                               Background="Transparent"
                               BorderThickness="0"
                               Foreground="{StaticResource TextPrimaryBrush}"
-                              ItemContainerStyle="{StaticResource DarkTreeViewItemStyle}">
+                              ItemContainerStyle="{StaticResource DarkTreeViewItemStyle}"
+                              SelectedItemChanged="SceneHierarchyTreeView_SelectedItemChanged">
                         <TreeView.Resources>
                             <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF3E3C3A" />
                             <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFFFF" />
+                            <DataTemplate DataType="{x:Type scripting:Entity}">
+                                <TextBlock Text="{Binding Name}" />
+                            </DataTemplate>
                         </TreeView.Resources>
-                        <TreeViewItem Header="Root" IsExpanded="True">
-                            <TreeViewItem Header="Main Camera" />
-                            <TreeViewItem Header="Directional Light" />
-                            <TreeViewItem Header="Player" />
-                        </TreeViewItem>
                     </TreeView>
                 </DockPanel>
             </Border>
@@ -348,7 +348,7 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="SCENE VIEWPORT" Style="{StaticResource PanelHeaderStyle}" />
                     <Border Margin="4" Background="#FF151413" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                        <Grid x:Name="ViewportContainer" Background="#FF151413" />
+                        <local:NativeViewportHost x:Name="ViewportHost" />
                     </Border>
                 </DockPanel>
             </Border>
@@ -361,7 +361,7 @@
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="INSPECTOR / PROPERTIES" Style="{StaticResource PanelHeaderStyle}" />
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel Margin="8">
+                        <StackPanel x:Name="InspectorTransformPanel" Margin="8">
                             <TextBlock Text="Transform"
                                        Foreground="{StaticResource TextPrimaryBrush}"
                                        FontWeight="Bold" FontSize="12" Margin="0,0,0,8" />
@@ -374,7 +374,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="X" Style="{StaticResource AxisLabelXStyle}" />
-                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding PositionX, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid Margin="0,0,4,0">
                                     <Grid.ColumnDefinitions>
@@ -382,7 +382,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Y" Style="{StaticResource AxisLabelYStyle}" />
-                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding PositionY, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -390,7 +390,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Z" Style="{StaticResource AxisLabelZStyle}" />
-                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding PositionZ, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                             </UniformGrid>
 
@@ -402,7 +402,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="X" Style="{StaticResource AxisLabelXStyle}" />
-                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding RotationX, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid Margin="0,0,4,0">
                                     <Grid.ColumnDefinitions>
@@ -410,7 +410,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Y" Style="{StaticResource AxisLabelYStyle}" />
-                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding RotationY, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -418,7 +418,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Z" Style="{StaticResource AxisLabelZStyle}" />
-                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding RotationZ, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                             </UniformGrid>
 
@@ -430,7 +430,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="X" Style="{StaticResource AxisLabelXStyle}" />
-                                    <TextBox Grid.Column="1" Text="1.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding ScaleX, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid Margin="0,0,4,0">
                                     <Grid.ColumnDefinitions>
@@ -438,7 +438,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Y" Style="{StaticResource AxisLabelYStyle}" />
-                                    <TextBox Grid.Column="1" Text="1.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding ScaleY, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -446,7 +446,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="Z" Style="{StaticResource AxisLabelZStyle}" />
-                                    <TextBox Grid.Column="1" Text="1.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                    <TextBox Grid.Column="1" Text="{Binding ScaleZ, StringFormat=F3}" Style="{StaticResource DarkTextBoxStyle}" />
                                 </Grid>
                             </UniformGrid>
                         </StackPanel>
