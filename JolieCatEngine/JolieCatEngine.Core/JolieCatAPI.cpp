@@ -31,6 +31,10 @@ namespace
     std::mutex g_entityMutex;
     std::unordered_map<uint32_t, Transform> g_entityTransforms;
 
+    std::atomic<float> g_cameraX{ 0.0f };
+    std::atomic<float> g_cameraY{ 0.0f };
+    std::atomic<float> g_cameraZoom{ 1.0f };
+
     void RenderLoopMain()
     {
         using namespace std::chrono;
@@ -62,11 +66,18 @@ namespace
                         float screenCenterX = static_cast<float>(width) / 2.0f;
                         float screenCenterY = static_cast<float>(height) / 2.0f;
 
+                        float cameraX = g_cameraX.load(std::memory_order_relaxed);
+                        float cameraY = g_cameraY.load(std::memory_order_relaxed);
+                        float cameraZoom = g_cameraZoom.load(std::memory_order_relaxed);
+                        float effectivePixelsPerUnit = pixelsPerUnit * cameraZoom;
+
                         for (const auto& entry : g_entityTransforms)
                         {
                             const Transform& transform = entry.second;
-                            int centerX = static_cast<int>(screenCenterX + transform.PositionX * pixelsPerUnit);
-                            int centerY = static_cast<int>(screenCenterY + transform.PositionY * pixelsPerUnit);
+                            float relativeX = transform.PositionX - cameraX;
+                            float relativeY = transform.PositionY - cameraY;
+                            int centerX = static_cast<int>(screenCenterX + relativeX * effectivePixelsPerUnit);
+                            int centerY = static_cast<int>(screenCenterY + relativeY * effectivePixelsPerUnit);
                             Rectangle(deviceContext, centerX - halfSize, centerY - halfSize, centerX + halfSize, centerY + halfSize);
                         }
 
@@ -240,4 +251,11 @@ JOLIECAT_API int Engine_GetAssets(char* outBuffer, int maxLength)
     outBuffer[copyLength] = '\0';
 
     return copyLength;
+}
+
+JOLIECAT_API void Engine_SetEditorCamera(float x, float y, float zoom)
+{
+    g_cameraX.store(x, std::memory_order_relaxed);
+    g_cameraY.store(y, std::memory_order_relaxed);
+    g_cameraZoom.store(zoom, std::memory_order_relaxed);
 }

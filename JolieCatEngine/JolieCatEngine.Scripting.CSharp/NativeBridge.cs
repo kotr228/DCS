@@ -38,5 +38,8 @@ namespace JolieCatEngine.Scripting.CSharp
 
         [DllImport(NativeLibrary, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern int Engine_GetAssets(StringBuilder outBuffer, int maxLength);
+
+        [DllImport(NativeLibrary, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Engine_SetEditorCamera(float x, float y, float zoom);
     }
 }
