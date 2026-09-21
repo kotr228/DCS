@@ -82,6 +82,192 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Margin" Value="8,6" />
         </Style>
+
+        <!-- Dark TreeView (Hierarchy) -->
+        <Style x:Key="ExpandCollapseToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Width" Value="12" />
+            <Setter Property="Height" Value="12" />
+            <Setter Property="Margin" Value="2,0,4,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="Transparent">
+                            <Path x:Name="Arrow"
+                                  Data="M 1,1 L 7,6 L 1,11 Z"
+                                  Fill="{StaticResource TextSecondaryBrush}"
+                                  Stretch="Uniform"
+                                  Width="8" Height="8" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Arrow" Property="Data" Value="M 1,1 L 11,1 L 6,7 Z" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkTreeViewItemStyle" TargetType="TreeViewItem">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="4,3" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TreeViewItem">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <ToggleButton x:Name="Expander"
+                                          Grid.Row="0" Grid.Column="0"
+                                          Style="{StaticResource ExpandCollapseToggleStyle}"
+                                          IsChecked="{Binding Path=IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                          Visibility="Collapsed" />
+
+                            <Border x:Name="Bd" Grid.Row="0" Grid.Column="1"
+                                    Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter ContentSource="Header" HorizontalAlignment="Left" />
+                            </Border>
+
+                            <ItemsPresenter x:Name="ItemsHost" Grid.Row="1" Grid.Column="1" Visibility="Collapsed" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="HasItems" Value="True">
+                                <Setter TargetName="Expander" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsExpanded" Value="True">
+                                <Setter TargetName="ItemsHost" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource OnAccentTextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark TextBox (Inspector fields) -->
+        <Style x:Key="DarkTextBoxStyle" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource PanelAltBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4,2" />
+            <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="SelectionBrush" Value="{StaticResource AccentBrush}" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="AxisLabelBaseStyle" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Width" Value="14" />
+            <Setter Property="TextAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="AxisLabelXStyle" TargetType="TextBlock" BasedOn="{StaticResource AxisLabelBaseStyle}">
+            <Setter Property="Foreground" Value="#FFE06C6C" />
+        </Style>
+        <Style x:Key="AxisLabelYStyle" TargetType="TextBlock" BasedOn="{StaticResource AxisLabelBaseStyle}">
+            <Setter Property="Foreground" Value="#FF8FCB6E" />
+        </Style>
+        <Style x:Key="AxisLabelZStyle" TargetType="TextBlock" BasedOn="{StaticResource AxisLabelBaseStyle}">
+            <Setter Property="Foreground" Value="#FF6EA8E0" />
+        </Style>
+
+        <!-- Dark ListBox (Console) -->
+        <Style x:Key="DarkListBoxStyle" TargetType="ListBox">
+            <Setter Property="Background" Value="{StaticResource PanelAltBackgroundBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" />
+        </Style>
+
+        <Style x:Key="DarkListBoxItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource AccentBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource OnAccentTextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark TabControl (Asset Browser / Console) -->
+        <Style x:Key="DarkTabControlStyle" TargetType="TabControl">
+            <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabControl">
+                        <DockPanel Background="{TemplateBinding Background}">
+                            <TabPanel x:Name="HeaderPanel" DockPanel.Dock="Top"
+                                      Background="{StaticResource PanelAltBackgroundBrush}"
+                                      IsItemsHost="True" />
+                            <Border Background="{StaticResource PanelBackgroundBrush}">
+                                <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" />
+                            </Border>
+                        </DockPanel>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkTabItemStyle" TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Bd" Background="Transparent" Padding="{TemplateBinding Padding}"
+                                BorderThickness="0,0,0,2" BorderBrush="Transparent">
+                            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -135,10 +321,17 @@
             <Border Grid.Column="0" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="HIERARCHY / SCENE GRAPH" Style="{StaticResource PanelHeaderStyle}" />
-                    <TextBlock Text="No scene loaded"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               FontStyle="Italic" FontSize="11" />
+                    <TreeView x:Name="SceneHierarchyTreeView"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              ItemContainerStyle="{StaticResource DarkTreeViewItemStyle}">
+                        <TreeViewItem Header="Root" IsExpanded="True">
+                            <TreeViewItem Header="Main Camera" />
+                            <TreeViewItem Header="Directional Light" />
+                            <TreeViewItem Header="Player" />
+                        </TreeViewItem>
+                    </TreeView>
                 </DockPanel>
             </Border>
 
@@ -149,10 +342,9 @@
             <Border Grid.Column="2" Background="{StaticResource PanelAltBackgroundBrush}">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="SCENE VIEWPORT" Style="{StaticResource PanelHeaderStyle}" />
-                    <TextBlock Text="Viewport"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               FontStyle="Italic" FontSize="12" />
+                    <Border Margin="4" Background="#FF151413" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                        <Grid x:Name="ViewportContainer" Background="#FF151413" />
+                    </Border>
                 </DockPanel>
             </Border>
 
@@ -163,10 +355,97 @@
             <Border Grid.Column="4" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
                 <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="INSPECTOR / PROPERTIES" Style="{StaticResource PanelHeaderStyle}" />
-                    <TextBlock Text="No selection"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               FontStyle="Italic" FontSize="11" />
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="8">
+                            <TextBlock Text="Transform"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       FontWeight="Bold" FontSize="12" Margin="0,0,0,8" />
+
+                            <TextBlock Text="Position" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,0,0,2" />
+                            <UniformGrid Columns="3" Margin="0,0,0,8">
+                                <Grid Margin="0,0,4,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="X" Style="{StaticResource AxisLabelXStyle}" />
+                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                </Grid>
+                                <Grid Margin="0,0,4,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Y" Style="{StaticResource AxisLabelYStyle}" />
+                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Z" Style="{StaticResource AxisLabelZStyle}" />
+                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                </Grid>
+                            </UniformGrid>
+
+                            <TextBlock Text="Rotation" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,0,0,2" />
+                            <UniformGrid Columns="3" Margin="0,0,0,8">
+                                <Grid Margin="0,0,4,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="X" Style="{StaticResource AxisLabelXStyle}" />
+                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                </Grid>
+                                <Grid Margin="0,0,4,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Y" Style="{StaticResource AxisLabelYStyle}" />
+                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Z" Style="{StaticResource AxisLabelZStyle}" />
+                                    <TextBox Grid.Column="1" Text="0.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                </Grid>
+                            </UniformGrid>
+
+                            <TextBlock Text="Scale" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,0,0,2" />
+                            <UniformGrid Columns="3">
+                                <Grid Margin="0,0,4,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="X" Style="{StaticResource AxisLabelXStyle}" />
+                                    <TextBox Grid.Column="1" Text="1.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                </Grid>
+                                <Grid Margin="0,0,4,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Y" Style="{StaticResource AxisLabelYStyle}" />
+                                    <TextBox Grid.Column="1" Text="1.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Z" Style="{StaticResource AxisLabelZStyle}" />
+                                    <TextBox Grid.Column="1" Text="1.000" Style="{StaticResource DarkTextBoxStyle}" />
+                                </Grid>
+                            </UniformGrid>
+                        </StackPanel>
+                    </ScrollViewer>
                 </DockPanel>
             </Border>
         </Grid>
@@ -176,13 +455,46 @@
 
         <!-- Asset Browser / Console -->
         <Border Grid.Row="3" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-            <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="ASSET BROWSER / CONSOLE" Style="{StaticResource PanelHeaderStyle}" />
-                <TextBlock Text="No assets"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                           FontStyle="Italic" FontSize="11" />
-            </DockPanel>
+            <TabControl Style="{StaticResource DarkTabControlStyle}" ItemContainerStyle="{StaticResource DarkTabItemStyle}">
+                <TabItem Header="Console">
+                    <ListBox Style="{StaticResource DarkListBoxStyle}" ItemContainerStyle="{StaticResource DarkListBoxItemStyle}">
+                        <ListBoxItem Content="[Info] Engine initialized." />
+                        <ListBoxItem Content="[Info] Scene 'Untitled' loaded." />
+                        <ListBoxItem Content="[Warning] Shader cache is empty; compiling from source." />
+                        <ListBoxItem Content="[Error] Failed to load texture 'grid_default.png'." />
+                    </ListBox>
+                </TabItem>
+                <TabItem Header="Asset Browser">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource PanelBackgroundBrush}">
+                        <WrapPanel Margin="8">
+                            <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <StackPanel Margin="6">
+                                    <Border Width="56" Height="56" Background="{StaticResource HoverBackgroundBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock Text="cube.mesh" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <StackPanel Margin="6">
+                                    <Border Width="56" Height="56" Background="{StaticResource HoverBackgroundBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock Text="texture_grid.png" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <StackPanel Margin="6">
+                                    <Border Width="56" Height="56" Background="{StaticResource HoverBackgroundBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock Text="material_default.mat" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+                            <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                <StackPanel Margin="6">
+                                    <Border Width="56" Height="56" Background="{StaticResource HoverBackgroundBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock Text="audio_click.wav" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </ScrollViewer>
+                </TabItem>
+            </TabControl>
         </Border>
     </Grid>
 </Window>
