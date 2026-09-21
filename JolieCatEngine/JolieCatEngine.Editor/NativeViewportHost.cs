@@ -1,6 +1,8 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Windows;
 using System.Windows.Interop;
+using JolieCatEngine.Scripting.CSharp;
 
 namespace JolieCatEngine.Editor
 {
@@ -35,6 +37,13 @@ namespace JolieCatEngine.Editor
         protected override void DestroyWindowCore(HandleRef hwnd)
         {
             DestroyWindow(hwnd.Handle);
+        }
+
+        protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
+        {
+            base.OnRenderSizeChanged(sizeInfo);
+
+            NativeBridge.Engine_ResizeViewport((int)sizeInfo.NewSize.Width, (int)sizeInfo.NewSize.Height);
         }
 
         private static void EnsureWindowClassRegistered()

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Text;
 using System.Windows;
 using System.Windows.Shell;
 using JolieCatEngine.Scripting.CSharp;
@@ -9,6 +10,8 @@ namespace JolieCatEngine.Editor
     public partial class MainWindow : Window
     {
         public ObservableCollection<Entity> SceneEntities { get; } = new();
+
+        public ObservableCollection<string> Assets { get; } = new();
 
         private Entity? _selectedEntity;
 
@@ -29,6 +32,25 @@ namespace JolieCatEngine.Editor
             }
 
             SceneHierarchyTreeView.ItemsSource = SceneEntities;
+
+            PopulateAssetBrowser();
+            AssetBrowserItemsControl.ItemsSource = Assets;
+        }
+
+        private void PopulateAssetBrowser()
+        {
+            var buffer = new StringBuilder(4096);
+            var writtenLength = NativeBridge.Engine_GetAssets(buffer, buffer.Capacity);
+
+            if (writtenLength <= 0)
+            {
+                return;
+            }
+
+            foreach (var assetName in buffer.ToString().Split('|', StringSplitOptions.RemoveEmptyEntries))
+            {
+                Assets.Add(assetName);
+            }
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)

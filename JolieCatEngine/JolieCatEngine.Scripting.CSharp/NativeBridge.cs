@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace JolieCatEngine.Scripting.CSharp
 {
@@ -31,5 +32,11 @@ namespace JolieCatEngine.Scripting.CSharp
             float positionX, float positionY, float positionZ,
             float rotationX, float rotationY, float rotationZ,
             float scaleX, float scaleY, float scaleZ);
+
+        [DllImport(NativeLibrary, CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Engine_ResizeViewport(int width, int height);
+
+        [DllImport(NativeLibrary, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern int Engine_GetAssets(StringBuilder outBuffer, int maxLength);
     }
 }

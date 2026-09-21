@@ -469,32 +469,23 @@
                 </TabItem>
                 <TabItem Header="Asset Browser">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource PanelBackgroundBrush}">
-                        <WrapPanel Margin="8">
-                            <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                <StackPanel Margin="6">
-                                    <Border Width="56" Height="56" Background="{StaticResource HoverBackgroundBrush}" HorizontalAlignment="Center" />
-                                    <TextBlock Text="cube.mesh" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </Border>
-                            <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                <StackPanel Margin="6">
-                                    <Border Width="56" Height="56" Background="{StaticResource HoverBackgroundBrush}" HorizontalAlignment="Center" />
-                                    <TextBlock Text="texture_grid.png" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </Border>
-                            <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                <StackPanel Margin="6">
-                                    <Border Width="56" Height="56" Background="{StaticResource HoverBackgroundBrush}" HorizontalAlignment="Center" />
-                                    <TextBlock Text="material_default.mat" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </Border>
-                            <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                <StackPanel Margin="6">
-                                    <Border Width="56" Height="56" Background="{StaticResource HoverBackgroundBrush}" HorizontalAlignment="Center" />
-                                    <TextBlock Text="audio_click.wav" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
-                                </StackPanel>
-                            </Border>
-                        </WrapPanel>
+                        <ItemsControl x:Name="AssetBrowserItemsControl" Margin="8">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Width="88" Height="96" Margin="4" Background="{StaticResource PanelAltBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                        <StackPanel Margin="6">
+                                            <Border Width="56" Height="56" Background="{StaticResource HoverBackgroundBrush}" HorizontalAlignment="Center" />
+                                            <TextBlock Text="{Binding}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </ScrollViewer>
                 </TabItem>
             </TabControl>

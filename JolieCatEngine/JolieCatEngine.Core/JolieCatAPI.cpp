@@ -3,9 +3,13 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstring>
+#include <filesystem>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 namespace
 {
@@ -39,16 +43,11 @@ namespace
                 int width = g_viewportWidth.load(std::memory_order_relaxed);
                 int height = g_viewportHeight.load(std::memory_order_relaxed);
 
-                auto elapsedMs = duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
-                long long cycle = elapsedMs % 2000;
-                long long triangle = cycle < 1000 ? cycle : (2000 - cycle);
-                BYTE pulse = static_cast<BYTE>((triangle * 255) / 999);
-
                 HDC deviceContext = GetDC(hwnd);
                 if (deviceContext != nullptr)
                 {
                     RECT clientRect{ 0, 0, width, height };
-                    HBRUSH frameBrush = CreateSolidBrush(RGB(pulse, 28, 26));
+                    HBRUSH frameBrush = CreateSolidBrush(RGB(32, 32, 32));
                     FillRect(deviceContext, &clientRect, frameBrush);
                     DeleteObject(frameBrush);
                     ReleaseDC(hwnd, deviceContext);
@@ -57,6 +56,32 @@ namespace
 
             std::this_thread::sleep_for(milliseconds(16));
         }
+    }
+
+    std::vector<std::string> ScanAssetsFolder()
+    {
+        std::vector<std::string> assetNames;
+
+        wchar_t exePath[MAX_PATH]{};
+        GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+
+        std::filesystem::path assetsDir = std::filesystem::path(exePath).parent_path() / L"Assets";
+
+        std::error_code errorCode;
+        if (!std::filesystem::exists(assetsDir, errorCode) || !std::filesystem::is_directory(assetsDir, errorCode))
+        {
+            return assetNames;
+        }
+
+        for (const auto& entry : std::filesystem::directory_iterator(assetsDir, errorCode))
+        {
+            if (entry.is_regular_file())
+            {
+                assetNames.push_back(entry.path().filename().string());
+            }
+        }
+
+        return assetNames;
     }
 }
 
@@ -147,4 +172,44 @@ JOLIECAT_API void Engine_SetTransform(
     transform.ScaleX = sX;
     transform.ScaleY = sY;
     transform.ScaleZ = sZ;
+}
+
+JOLIECAT_API void Engine_ResizeViewport(int width, int height)
+{
+    g_viewportWidth.store(width, std::memory_order_relaxed);
+    g_viewportHeight.store(height, std::memory_order_relaxed);
+}
+
+JOLIECAT_API int Engine_GetAssets(char* outBuffer, int maxLength)
+{
+    if (outBuffer == nullptr || maxLength <= 0)
+    {
+        return 0;
+    }
+
+    std::vector<std::string> assetNames = ScanAssetsFolder();
+
+    std::string joined;
+    for (size_t i = 0; i < assetNames.size(); ++i)
+    {
+        if (i > 0)
+        {
+            joined += '|';
+        }
+        joined += assetNames[i];
+    }
+
+    int copyLength = static_cast<int>(joined.size());
+    if (copyLength > maxLength - 1)
+    {
+        copyLength = maxLength - 1;
+    }
+
+    if (copyLength > 0)
+    {
+        std::memcpy(outBuffer, joined.data(), copyLength);
+    }
+    outBuffer[copyLength] = '\0';
+
+    return copyLength;
 }
