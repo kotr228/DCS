@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Shell;
 using JolieCatEngine.Scripting.CSharp;
@@ -13,6 +14,8 @@ namespace JolieCatEngine.Editor
             new Entity("Directional Light"),
             new Entity("Player"),
         };
+
+        private Entity? _selectedEntity;
 
         public MainWindow()
         {
@@ -31,7 +34,47 @@ namespace JolieCatEngine.Editor
 
         private void SceneHierarchyTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
-            InspectorTransformPanel.DataContext = (e.NewValue as Entity)?.Transform;
+            if (_selectedEntity is not null)
+            {
+                _selectedEntity.Transform.PropertyChanged -= SelectedTransform_PropertyChanged;
+            }
+
+            _selectedEntity = e.NewValue as Entity;
+            InspectorTransformPanel.DataContext = _selectedEntity?.Transform;
+
+            if (_selectedEntity is not null)
+            {
+                _selectedEntity.Transform.PropertyChanged += SelectedTransform_PropertyChanged;
+            }
+        }
+
+        private void SelectedTransform_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (_selectedEntity is null || sender is not TransformComponent transform)
+            {
+                return;
+            }
+
+            (string Label, float Value)? field = e.PropertyName switch
+            {
+                nameof(TransformComponent.PositionX) => ("Position X", transform.PositionX),
+                nameof(TransformComponent.PositionY) => ("Position Y", transform.PositionY),
+                nameof(TransformComponent.PositionZ) => ("Position Z", transform.PositionZ),
+                nameof(TransformComponent.RotationX) => ("Rotation X", transform.RotationX),
+                nameof(TransformComponent.RotationY) => ("Rotation Y", transform.RotationY),
+                nameof(TransformComponent.RotationZ) => ("Rotation Z", transform.RotationZ),
+                nameof(TransformComponent.ScaleX) => ("Scale X", transform.ScaleX),
+                nameof(TransformComponent.ScaleY) => ("Scale Y", transform.ScaleY),
+                nameof(TransformComponent.ScaleZ) => ("Scale Z", transform.ScaleZ),
+                _ => null,
+            };
+
+            if (field is null)
+            {
+                return;
+            }
+
+            DebugConsole.Log($"[Scene] '{_selectedEntity.Name}' {field.Value.Label} changed to {field.Value.Value:F3}");
         }
 
         private void MinimizeButton_Click(object sender, RoutedEventArgs e)

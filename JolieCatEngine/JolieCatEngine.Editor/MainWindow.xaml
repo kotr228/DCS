@@ -462,12 +462,10 @@
         <Border Grid.Row="3" Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
             <TabControl Style="{StaticResource DarkTabControlStyle}" ItemContainerStyle="{StaticResource DarkTabItemStyle}">
                 <TabItem Header="Console">
-                    <ListBox Style="{StaticResource DarkListBoxStyle}" ItemContainerStyle="{StaticResource DarkListBoxItemStyle}">
-                        <ListBoxItem Content="[Info] Engine initialized." />
-                        <ListBoxItem Content="[Info] Scene 'Untitled' loaded." />
-                        <ListBoxItem Content="[Warning] Shader cache is empty; compiling from source." />
-                        <ListBoxItem Content="[Error] Failed to load texture 'grid_default.png'." />
-                    </ListBox>
+                    <ListBox x:Name="ConsoleListBox"
+                             Style="{StaticResource DarkListBoxStyle}"
+                             ItemContainerStyle="{StaticResource DarkListBoxItemStyle}"
+                             ItemsSource="{x:Static scripting:DebugConsole.Logs}" />
                 </TabItem>
                 <TabItem Header="Asset Browser">
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{StaticResource PanelBackgroundBrush}">
