@@ -352,16 +352,7 @@
                     <TextBlock DockPanel.Dock="Top" Text="SCENE VIEWPORT" Style="{StaticResource PanelHeaderStyle}" />
                     <Border Margin="4" Background="#FF151413" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                             AllowDrop="True" Drop="AssetDropTarget_Drop">
-                        <Grid>
-                            <local:NativeViewportHost x:Name="ViewportHost" />
-                            <Border x:Name="ViewportInputOverlay"
-                                    Background="Transparent"
-                                    Focusable="True"
-                                    MouseDown="ViewportInputOverlay_MouseDown"
-                                    MouseUp="ViewportInputOverlay_MouseUp"
-                                    MouseMove="ViewportInputOverlay_MouseMove"
-                                    MouseWheel="ViewportInputOverlay_MouseWheel" />
-                        </Grid>
+                        <local:NativeViewportHost x:Name="ViewportHost" />
                     </Border>
                 </DockPanel>
             </Border>

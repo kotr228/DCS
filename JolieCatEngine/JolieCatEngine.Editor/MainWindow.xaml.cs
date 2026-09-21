@@ -17,12 +17,6 @@ namespace JolieCatEngine.Editor
 
         private Entity? _selectedEntity;
 
-        private bool _isPanningCamera;
-        private Point _lastCameraPanPoint;
-        private float _cameraX;
-        private float _cameraY;
-        private float _cameraZoom = 1f;
-
         public Entity? SelectedEntity
         {
             get => _selectedEntity;
@@ -101,58 +95,6 @@ namespace JolieCatEngine.Editor
         private void SceneHierarchyTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
             SelectedEntity = e.NewValue as Entity;
-        }
-
-        private void ViewportInputOverlay_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-            if (e.ChangedButton is not (MouseButton.Middle or MouseButton.Right))
-            {
-                return;
-            }
-
-            _isPanningCamera = true;
-            _lastCameraPanPoint = e.GetPosition(ViewportInputOverlay);
-            ViewportInputOverlay.CaptureMouse();
-        }
-
-        private void ViewportInputOverlay_MouseUp(object sender, MouseButtonEventArgs e)
-        {
-            if (e.ChangedButton is not (MouseButton.Middle or MouseButton.Right))
-            {
-                return;
-            }
-
-            _isPanningCamera = false;
-            ViewportInputOverlay.ReleaseMouseCapture();
-        }
-
-        private void ViewportInputOverlay_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (!_isPanningCamera)
-            {
-                return;
-            }
-
-            var currentPoint = e.GetPosition(ViewportInputOverlay);
-            var delta = currentPoint - _lastCameraPanPoint;
-            _lastCameraPanPoint = currentPoint;
-
-            const float panSpeed = 0.02f;
-            _cameraX -= (float)delta.X * panSpeed;
-            _cameraY -= (float)delta.Y * panSpeed;
-
-            NativeBridge.Engine_SetEditorCamera(_cameraX, _cameraY, _cameraZoom);
-        }
-
-        private void ViewportInputOverlay_MouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            const float zoomStep = 0.1f;
-            const float minZoom = 0.1f;
-            const float maxZoom = 5.0f;
-
-            _cameraZoom = Math.Clamp(_cameraZoom + Math.Sign(e.Delta) * zoomStep, minZoom, maxZoom);
-
-            NativeBridge.Engine_SetEditorCamera(_cameraX, _cameraY, _cameraZoom);
         }
 
         private void AssetCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
