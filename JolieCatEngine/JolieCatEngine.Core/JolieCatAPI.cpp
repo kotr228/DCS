@@ -31,15 +31,15 @@ namespace
     std::mutex g_entityMutex;
     std::unordered_map<uint32_t, Transform> g_entityTransforms;
 
-    std::atomic<float> g_cameraX{ 0.0f };
-    std::atomic<float> g_cameraY{ 0.0f };
-    std::atomic<float> g_cameraZoom{ 1.0f };
+    float s_CameraX = 0.0f;
+    float s_CameraY = 0.0f;
+    float s_CameraZoom = 1.0f;
+    POINT s_LastMousePos = { 0, 0 };
+    bool s_IsPanning = false;
 
     void RenderLoopMain()
     {
         using namespace std::chrono;
-
-        POINT lastMousePos{ 0, 0 };
 
         while (g_renderLoopRunning.load(std::memory_order_relaxed))
         {
@@ -49,27 +49,32 @@ namespace
                 int width = g_viewportWidth.load(std::memory_order_relaxed);
                 int height = g_viewportHeight.load(std::memory_order_relaxed);
 
-                POINT currentMousePos{};
-                GetCursorPos(&currentMousePos);
-                ScreenToClient(hwnd, &currentMousePos);
+                bool isButtonDown = (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0
+                    || (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
 
-                bool isPanning = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0
-                    || (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0;
+                POINT currentPos{};
+                GetCursorPos(&currentPos);
+                ScreenToClient(hwnd, &currentPos);
 
-                if (isPanning)
+                if (isButtonDown)
                 {
-                    float panZoom = g_cameraZoom.load(std::memory_order_relaxed);
-                    float deltaX = static_cast<float>(currentMousePos.x - lastMousePos.x);
-                    float deltaY = static_cast<float>(currentMousePos.y - lastMousePos.y);
+                    if (!s_IsPanning)
+                    {
+                        s_IsPanning = true;
+                    }
 
-                    float newCameraX = g_cameraX.load(std::memory_order_relaxed) - deltaX / panZoom;
-                    float newCameraY = g_cameraY.load(std::memory_order_relaxed) - deltaY / panZoom;
+                    float deltaX = static_cast<float>(currentPos.x - s_LastMousePos.x);
+                    float deltaY = static_cast<float>(currentPos.y - s_LastMousePos.y);
 
-                    g_cameraX.store(newCameraX, std::memory_order_relaxed);
-                    g_cameraY.store(newCameraY, std::memory_order_relaxed);
+                    s_CameraX -= deltaX / s_CameraZoom;
+                    s_CameraY -= deltaY / s_CameraZoom;
+                }
+                else
+                {
+                    s_IsPanning = false;
                 }
 
-                lastMousePos = currentMousePos;
+                s_LastMousePos = currentPos;
 
                 HDC deviceContext = GetDC(hwnd);
                 if (deviceContext != nullptr)
@@ -89,17 +94,13 @@ namespace
                         constexpr float pixelsPerUnit = 50.0f;
                         float screenCenterX = static_cast<float>(width) / 2.0f;
                         float screenCenterY = static_cast<float>(height) / 2.0f;
-
-                        float cameraX = g_cameraX.load(std::memory_order_relaxed);
-                        float cameraY = g_cameraY.load(std::memory_order_relaxed);
-                        float cameraZoom = g_cameraZoom.load(std::memory_order_relaxed);
-                        float effectivePixelsPerUnit = pixelsPerUnit * cameraZoom;
+                        float effectivePixelsPerUnit = pixelsPerUnit * s_CameraZoom;
 
                         for (const auto& entry : g_entityTransforms)
                         {
                             const Transform& transform = entry.second;
-                            float relativeX = transform.PositionX - cameraX;
-                            float relativeY = transform.PositionY - cameraY;
+                            float relativeX = transform.PositionX - s_CameraX;
+                            float relativeY = transform.PositionY - s_CameraY;
                             int centerX = static_cast<int>(screenCenterX + relativeX * effectivePixelsPerUnit);
                             int centerY = static_cast<int>(screenCenterY + relativeY * effectivePixelsPerUnit);
                             Rectangle(deviceContext, centerX - halfSize, centerY - halfSize, centerX + halfSize, centerY + halfSize);
@@ -279,14 +280,14 @@ JOLIECAT_API int Engine_GetAssets(char* outBuffer, int maxLength)
 
 JOLIECAT_API void Engine_SetEditorCamera(float x, float y, float zoom)
 {
-    g_cameraX.store(x, std::memory_order_relaxed);
-    g_cameraY.store(y, std::memory_order_relaxed);
-    g_cameraZoom.store(zoom, std::memory_order_relaxed);
+    s_CameraX = x;
+    s_CameraY = y;
+    s_CameraZoom = zoom;
 }
 
 JOLIECAT_API void Engine_ZoomCamera(float factor)
 {
-    float newZoom = g_cameraZoom.load(std::memory_order_relaxed) * factor;
+    float newZoom = s_CameraZoom * factor;
 
     if (newZoom < 0.1f)
     {
@@ -297,5 +298,5 @@ JOLIECAT_API void Engine_ZoomCamera(float factor)
         newZoom = 10.0f;
     }
 
-    g_cameraZoom.store(newZoom, std::memory_order_relaxed);
+    s_CameraZoom = newZoom;
 }
