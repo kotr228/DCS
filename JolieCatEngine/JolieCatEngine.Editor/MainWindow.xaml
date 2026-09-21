@@ -13,7 +13,8 @@
         ResizeMode="CanResize"
         Background="#FF1E1C1A"
         StateChanged="MainWindow_StateChanged"
-        Loaded="Window_Loaded">
+        Loaded="Window_Loaded"
+        Closing="Window_Closing">
 
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="36"

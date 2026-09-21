@@ -188,6 +188,10 @@ JOLIECAT_API int Engine_GetAssets(char* outBuffer, int maxLength)
     }
 
     std::vector<std::string> assetNames = ScanAssetsFolder();
+    if (assetNames.empty())
+    {
+        assetNames = { "player.gltf", "level.scene", "click.wav" };
+    }
 
     std::string joined;
     for (size_t i = 0; i < assetNames.size(); ++i)

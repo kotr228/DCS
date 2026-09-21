@@ -130,6 +130,11 @@ namespace JolieCatEngine.Editor
             SystemCommands.CloseWindow(this);
         }
 
+        private void Window_Closing(object? sender, CancelEventArgs e)
+        {
+            NativeBridge.Engine_Shutdown();
+        }
+
         private void MainWindow_StateChanged(object? sender, EventArgs e)
         {
             var isMaximized = WindowState == WindowState.Maximized;
