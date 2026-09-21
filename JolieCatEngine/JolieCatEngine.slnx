@@ -4,18 +4,18 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="JolieCatEngine.Bridge.JNI/JolieCatEngine.Bridge.JNI.vcxproj">
+  <Project Path="JolieCatEngine.Bridge.JNI/JolieCatEngine.Bridge.JNI.vcxproj" Id="6301be8e-4fff-4493-a5d4-7530a960697e">
     <BuildDependency Project="JolieCatEngine.Core/JolieCatEngine.Core.vcxproj" />
   </Project>
-  <Project Path="JolieCatEngine.Core/JolieCatEngine.Core.vcxproj" />
+  <Project Path="JolieCatEngine.Core/JolieCatEngine.Core.vcxproj" Id="9c3daa42-b38d-4d83-8cb5-1fac9b6467c1" />
   <Project Path="JolieCatEngine.Editor/JolieCatEngine.Editor.csproj">
     <BuildDependency Project="JolieCatEngine.Core/JolieCatEngine.Core.vcxproj" />
   </Project>
-  <Project Path="JolieCatEngine.Runtime/JolieCatEngine.Runtime.vcxproj">
+  <Project Path="JolieCatEngine.Runtime/JolieCatEngine.Runtime.vcxproj" Id="4a47314f-7936-4002-89eb-8921a88020fa">
     <BuildDependency Project="JolieCatEngine.Core/JolieCatEngine.Core.vcxproj" />
   </Project>
   <Project Path="JolieCatEngine.Scripting.CSharp/JolieCatEngine.Scripting.CSharp.csproj" />
-  <Project Path="JolieCatEngine.Scripting.Native/JolieCatEngine.Scripting.Native.vcxproj">
+  <Project Path="JolieCatEngine.Scripting.Native/JolieCatEngine.Scripting.Native.vcxproj" Id="61440e74-69c6-438b-9267-03e98c9cae95">
     <BuildDependency Project="JolieCatEngine.Core/JolieCatEngine.Core.vcxproj" />
   </Project>
 </Solution>
