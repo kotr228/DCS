@@ -1,0 +1,49 @@
+<Window x:Class="JolieCat.UI.Views.CameraRawDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
+        xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+        mc:Ignorable="d"
+        Title="Camera Raw Filter" Width="380" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        d:DataContext="{d:DesignInstance Type=vm:CameraRawViewModel, IsDesignTimeCreatable=False}">
+    <Window.Resources>
+        <Style x:Key="Section" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Margin" Value="0,10,0,4" />
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="16,8,16,16">
+        <TextBlock Text="WHITE BALANCE" Style="{StaticResource Section}" />
+        <controls:LabeledSlider Label="Temperature" Minimum="-100" Maximum="100" Value="{Binding Temperature, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Tint" Minimum="-100" Maximum="100" Value="{Binding Tint, Mode=TwoWay}" />
+
+        <TextBlock Text="TONE" Style="{StaticResource Section}" />
+        <controls:LabeledSlider Label="Exposure" Minimum="-5" Maximum="5" Value="{Binding Exposure, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Contrast" Minimum="-100" Maximum="100" Value="{Binding Contrast, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Highlights" Minimum="-100" Maximum="100" Value="{Binding Highlights, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Shadows" Minimum="-100" Maximum="100" Value="{Binding Shadows, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Whites" Minimum="-100" Maximum="100" Value="{Binding Whites, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Blacks" Minimum="-100" Maximum="100" Value="{Binding Blacks, Mode=TwoWay}" />
+
+        <TextBlock Text="PRESENCE" Style="{StaticResource Section}" />
+        <controls:LabeledSlider Label="Clarity" Minimum="-100" Maximum="100" Value="{Binding Clarity, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Vibrance" Minimum="-100" Maximum="100" Value="{Binding Vibrance, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Saturation" Minimum="-100" Maximum="100" Value="{Binding Saturation, Mode=TwoWay}" />
+
+        <DockPanel Margin="0,16,0,0">
+            <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
+                <Button Content="Auto" Width="60" Margin="0,0,8,0" Command="{Binding AutoCommand}" />
+                <Button Content="Reset" Width="60" Command="{Binding ResetCommand}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" Width="76" Margin="0,0,8,0" IsCancel="True" />
+                <Button Content="OK" Width="76" IsDefault="True" Style="{StaticResource PrimaryButtonStyle}" Click="Ok_Click" />
+            </StackPanel>
+        </DockPanel>
+    </StackPanel>
+</Window>

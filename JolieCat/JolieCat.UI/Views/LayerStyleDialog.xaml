@@ -1,0 +1,238 @@
+<Window x:Class="JolieCat.UI.Views.LayerStyleDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
+        xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+        mc:Ignorable="d"
+        Title="Layer Style" Width="720" Height="470"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        d:DataContext="{d:DesignInstance Type=vm:LayerStyleViewModel, IsDesignTimeCreatable=False}">
+    <Window.Resources>
+        <Style x:Key="Swatch" TargetType="Border">
+            <Setter Property="DockPanel.Dock" Value="Right" />
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style x:Key="FgButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="DockPanel.Dock" Value="Right" />
+            <Setter Property="Content" Value="FG" />
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Margin" Value="6,0,0,0" />
+            <Setter Property="ToolTip" Value="Use the foreground color" />
+            <Setter Property="Command" Value="{Binding UseForegroundCommand}" />
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="Text" Value="Color" />
+            <Setter Property="Width" Value="80" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        </Style>
+        <Style x:Key="ColorRow" TargetType="DockPanel">
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+        <Style x:Key="PageTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+
+        <!-- A row of the effect list: the checkbox switches the effect on/off, the
+             rest of the row picks which effect's settings are shown on the right. -->
+        <Style x:Key="EffectTab" TargetType="RadioButton">
+            <Setter Property="GroupName" Value="EffectPages" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Row" Background="Transparent" CornerRadius="3" Padding="8,6">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{StaticResource PanelAltBackgroundBrush}" />
+                                <Setter TargetName="Row" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="Row" Property="BorderThickness" Value="2,0,0,0" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="EffectToggle" TargetType="CheckBox">
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="16">
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <Button DockPanel.Dock="Left" Content="Clear All" Width="80" Command="{Binding ClearAllCommand}" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True" />
+                <Button Content="OK" Width="80" IsDefault="True" Style="{StaticResource PrimaryButtonStyle}" Click="Ok_Click" />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- Effect list -->
+        <Border DockPanel.Dock="Left" Width="200" Margin="0,0,16,0" Padding="4"
+                Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+            <StackPanel>
+                <RadioButton x:Name="PageBevel" AutomationProperties.Name="Bevel &amp; Emboss settings" Style="{StaticResource EffectTab}">
+                    <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Bevel &amp; Emboss" IsChecked="{Binding Bevel}" /><TextBlock Text="Bevel &amp; Emboss" /></StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="PageStroke" AutomationProperties.Name="Stroke settings" Style="{StaticResource EffectTab}">
+                    <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Stroke" IsChecked="{Binding Stroke}" /><TextBlock Text="Stroke" /></StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="PageInnerShadow" AutomationProperties.Name="Inner Shadow settings" Style="{StaticResource EffectTab}">
+                    <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Inner Shadow" IsChecked="{Binding InnerShadow}" /><TextBlock Text="Inner Shadow" /></StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="PageInnerGlow" AutomationProperties.Name="Inner Glow settings" Style="{StaticResource EffectTab}">
+                    <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Inner Glow" IsChecked="{Binding InnerGlow}" /><TextBlock Text="Inner Glow" /></StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="PageOverlay" AutomationProperties.Name="Color Overlay settings" Style="{StaticResource EffectTab}">
+                    <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Color Overlay" IsChecked="{Binding ColorOverlay}" /><TextBlock Text="Color Overlay" /></StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="PageGradient" AutomationProperties.Name="Gradient Overlay settings" Style="{StaticResource EffectTab}">
+                    <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Gradient Overlay" IsChecked="{Binding GradientOverlay}" /><TextBlock Text="Gradient Overlay" /></StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="PageGlow" AutomationProperties.Name="Outer Glow settings" Style="{StaticResource EffectTab}">
+                    <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Outer Glow" IsChecked="{Binding OuterGlow}" /><TextBlock Text="Outer Glow" /></StackPanel>
+                </RadioButton>
+                <RadioButton x:Name="PageShadow" AutomationProperties.Name="Drop Shadow settings" Style="{StaticResource EffectTab}" IsChecked="True">
+                    <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Drop Shadow" IsChecked="{Binding DropShadow}" /><TextBlock Text="Drop Shadow" /></StackPanel>
+                </RadioButton>
+            </StackPanel>
+        </Border>
+
+        <TextBlock DockPanel.Dock="Bottom" Text="Effects follow whatever you paint on the layer. Changing a setting switches its effect on; the canvas previews live."
+                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" />
+
+        <!-- Settings of the selected effect -->
+        <Grid>
+            <StackPanel Visibility="{Binding IsChecked, ElementName=PageShadow, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Drop Shadow" Style="{StaticResource PageTitle}" />
+                <DockPanel Style="{StaticResource ColorRow}">
+                    <TextBlock Style="{StaticResource FieldLabel}" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="Shadow" />
+                    <Border Style="{StaticResource Swatch}" Background="{Binding ShadowColor}" />
+                    <TextBox Text="{Binding ShadowColor, UpdateSourceTrigger=PropertyChanged}" />
+                </DockPanel>
+                <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding ShadowOpacity, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Angle" Suffix="°" Minimum="-180" Maximum="180" Value="{Binding ShadowAngle, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Distance" Suffix="px" Minimum="0" Maximum="200" Value="{Binding ShadowDistance, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Size" Suffix="px" Minimum="0" Maximum="100" Value="{Binding ShadowSize, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsChecked, ElementName=PageGlow, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Outer Glow" Style="{StaticResource PageTitle}" />
+                <DockPanel Style="{StaticResource ColorRow}">
+                    <TextBlock Style="{StaticResource FieldLabel}" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="Glow" />
+                    <Border Style="{StaticResource Swatch}" Background="{Binding GlowColor}" />
+                    <TextBox Text="{Binding GlowColor, UpdateSourceTrigger=PropertyChanged}" />
+                </DockPanel>
+                <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding GlowOpacity, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Size" Suffix="px" Minimum="0" Maximum="100" Value="{Binding GlowSize, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsChecked, ElementName=PageStroke, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Stroke (outside)" Style="{StaticResource PageTitle}" />
+                <DockPanel Style="{StaticResource ColorRow}">
+                    <TextBlock Style="{StaticResource FieldLabel}" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="Stroke" />
+                    <Border Style="{StaticResource Swatch}" Background="{Binding StrokeColor}" />
+                    <TextBox Text="{Binding StrokeColor, UpdateSourceTrigger=PropertyChanged}" />
+                </DockPanel>
+                <controls:LabeledSlider Label="Size" Suffix="px" Minimum="1" Maximum="50" Value="{Binding StrokeSize, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding StrokeOpacity, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsChecked, ElementName=PageOverlay, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Color Overlay" Style="{StaticResource PageTitle}" />
+                <DockPanel Style="{StaticResource ColorRow}">
+                    <TextBlock Style="{StaticResource FieldLabel}" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="Overlay" />
+                    <Border Style="{StaticResource Swatch}" Background="{Binding OverlayColor}" />
+                    <TextBox Text="{Binding OverlayColor, UpdateSourceTrigger=PropertyChanged}" />
+                </DockPanel>
+                <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding OverlayOpacity, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsChecked, ElementName=PageInnerShadow, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Inner Shadow" Style="{StaticResource PageTitle}" />
+                <DockPanel Style="{StaticResource ColorRow}">
+                    <TextBlock Style="{StaticResource FieldLabel}" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="InnerShadow" />
+                    <Border Style="{StaticResource Swatch}" Background="{Binding InnerShadowColor}" />
+                    <TextBox Text="{Binding InnerShadowColor, UpdateSourceTrigger=PropertyChanged}" />
+                </DockPanel>
+                <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding InnerShadowOpacity, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Angle" Suffix="°" Minimum="-180" Maximum="180" Value="{Binding InnerShadowAngle, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Distance" Suffix="px" Minimum="0" Maximum="100" Value="{Binding InnerShadowDistance, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Size" Suffix="px" Minimum="0" Maximum="100" Value="{Binding InnerShadowSize, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsChecked, ElementName=PageInnerGlow, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Inner Glow" Style="{StaticResource PageTitle}" />
+                <DockPanel Style="{StaticResource ColorRow}">
+                    <TextBlock Style="{StaticResource FieldLabel}" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="InnerGlow" />
+                    <Border Style="{StaticResource Swatch}" Background="{Binding InnerGlowColor}" />
+                    <TextBox Text="{Binding InnerGlowColor, UpdateSourceTrigger=PropertyChanged}" />
+                </DockPanel>
+                <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding InnerGlowOpacity, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Size" Suffix="px" Minimum="0" Maximum="100" Value="{Binding InnerGlowSize, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsChecked, ElementName=PageGradient, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Gradient Overlay" Style="{StaticResource PageTitle}" />
+                <DockPanel Style="{StaticResource ColorRow}">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Start color" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="GradientStart" />
+                    <Border Style="{StaticResource Swatch}" Background="{Binding GradientStart}" />
+                    <TextBox Text="{Binding GradientStart, UpdateSourceTrigger=PropertyChanged}" />
+                </DockPanel>
+                <DockPanel Style="{StaticResource ColorRow}">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="End color" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="GradientEnd" />
+                    <Border Style="{StaticResource Swatch}" Background="{Binding GradientEnd}" />
+                    <TextBox Text="{Binding GradientEnd, UpdateSourceTrigger=PropertyChanged}" />
+                </DockPanel>
+                <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding GradientOpacity, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Angle" Suffix="°" Minimum="-180" Maximum="180" Value="{Binding GradientAngle, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsChecked, ElementName=PageBevel, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Bevel &amp; Emboss" Style="{StaticResource PageTitle}" />
+                <controls:LabeledSlider Label="Size" Suffix="px" Minimum="1" Maximum="50" Value="{Binding BevelSize, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Depth" Suffix="%" Minimum="10" Maximum="300" Value="{Binding BevelDepth, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Light angle" Suffix="°" Minimum="-180" Maximum="180" Value="{Binding BevelAngle, Mode=TwoWay}" />
+                <DockPanel Style="{StaticResource ColorRow}" Margin="0,4,0,8">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Highlight" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="BevelHighlight" />
+                    <Border Style="{StaticResource Swatch}" Background="{Binding BevelHighlight}" />
+                    <TextBox Text="{Binding BevelHighlight, UpdateSourceTrigger=PropertyChanged}" />
+                </DockPanel>
+                <controls:LabeledSlider Label="Highlight opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding BevelHighlightOpacity, Mode=TwoWay}" />
+                <DockPanel Style="{StaticResource ColorRow}" Margin="0,4,0,8">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Shadow" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="BevelShadow" />
+                    <Border Style="{StaticResource Swatch}" Background="{Binding BevelShadow}" />
+                    <TextBox Text="{Binding BevelShadow, UpdateSourceTrigger=PropertyChanged}" />
+                </DockPanel>
+                <controls:LabeledSlider Label="Shadow opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding BevelShadowOpacity, Mode=TwoWay}" />
+            </StackPanel>
+        </Grid>
+    </DockPanel>
+</Window>

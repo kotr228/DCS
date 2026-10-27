@@ -24,6 +24,14 @@ namespace JolieCat.UI.ViewModels.ToolOptions
         [ObservableProperty]
         private double spacing = 20;
 
+        /// <summary>Pen pressure scales the dab size (a mouse always reports full pressure).</summary>
+        [ObservableProperty]
+        private bool pressureAffectsSize = true;
+
+        /// <summary>Pen pressure scales the dab opacity.</summary>
+        [ObservableProperty]
+        private bool pressureAffectsOpacity;
+
         /// <summary>
         /// Whether this tool draws with the foreground color, so its Properties panel
         /// should show the color picker. True for Brush/Pencil; false for Eraser (which

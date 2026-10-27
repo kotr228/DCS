@@ -178,11 +178,17 @@ namespace JolieCat.UI.ViewModels
         /// clobber what the active tab is showing.</summary>
         private void RegisterDocument(DocumentViewModel document)
         {
+            document.Layers.CommandRecorded += command =>
+            {
+                if (ReferenceEquals(document, ActiveDocument)) OnLayersCommandRecorded(command);
+            };
+
             document.Layers.History.Changed += (_, _) =>
             {
                 if (!ReferenceEquals(document, ActiveDocument)) return;
                 UndoCommand.NotifyCanExecuteChanged();
                 RedoCommand.NotifyCanExecuteChanged();
+                RefreshHistorySteps();
             };
 
             // InvalidateRequested covers everything that can change either size
@@ -216,6 +222,7 @@ namespace JolieCat.UI.ViewModels
             CopySelectionCommand.NotifyCanExecuteChanged();
             PasteCommand.NotifyCanExecuteChanged();
             UpdateDimensionDebugText();
+            RefreshHistorySteps();
         }
 
         /// <summary>Refreshes <see cref="DimensionDebugText"/> from the live scene -
@@ -223,11 +230,15 @@ namespace JolieCat.UI.ViewModels
         /// <see cref="LayersViewModel.InvalidateRequested"/> is what drives it.</summary>
         private void UpdateDimensionDebugText()
         {
+            // Runs whenever the active document, active layer or layer stack changes -
+            // the same moments the active-layer-dependent commands need re-checking.
+            EditAdjustmentLayerCommand.NotifyCanExecuteChanged();
+            NotifyLayerStyleCommands();
+
             var activeLayer = Layers.ActiveLayer?.Model;
             DimensionDebugText = activeLayer is null
-                ? $"Canvas {Layers.DocumentWidth}x{Layers.DocumentHeight}"
-                : $"Canvas {Layers.DocumentWidth}x{Layers.DocumentHeight}  |  Layer \"{activeLayer.Name}\" " +
-                  $"{activeLayer.Bitmap.Width}x{activeLayer.Bitmap.Height} @ (0,0)";
+                ? $"{Layers.DocumentWidth} × {Layers.DocumentHeight} px"
+                : $"{Layers.DocumentWidth} × {Layers.DocumentHeight} px  ·  {activeLayer.Name}";
         }
 
         [RelayCommand]
@@ -254,7 +265,8 @@ namespace JolieCat.UI.ViewModels
             var dialog = new NewProjectDialog { Owner = Application.Current.MainWindow };
             if (dialog.ShowDialog() != true) return;
 
-            var document = new DocumentViewModel(Toolbox, $"Untitled {Documents.Count + 1}", dialog.SelectedProjectType);
+            var document = new DocumentViewModel(Toolbox, $"Untitled {Documents.Count + 1}", dialog.SelectedProjectType,
+                dialog.DocumentWidth, dialog.DocumentHeight, dialog.BackgroundFill);
             RegisterDocument(document);
             Documents.Add(document);
             ActiveDocument = document;
@@ -283,10 +295,12 @@ namespace JolieCat.UI.ViewModels
         /// it's removed, so WPF has nothing left to "helpfully" null out.
         /// </remarks>
         [RelayCommand]
-        private void CloseDocument(DocumentViewModel? document)
+        private async Task CloseDocument(DocumentViewModel? document)
         {
             document ??= ActiveDocument;
-            if (document is null) return;
+            if (document is null || IsSaving) return;
+            if (!await ConfirmCloseAsync(document)) return;
+            Recovery.Delete(document);
 
             var index = Documents.IndexOf(document);
             if (index < 0) return;
@@ -319,7 +333,12 @@ namespace JolieCat.UI.ViewModels
             // repaint via CanvasView's own tab-switch handling, exactly like any other
             // cross-tab document change.
             if (document.SmartObjectHostLayer is { } hostLayer)
+            {
                 hostLayer.RefreshSmartObjectContent(document.Layers.DocumentWidth, document.Layers.DocumentHeight);
+                foreach (var parent in Documents)
+                    if (parent.Layers.Scene.Layers.Contains(hostLayer))
+                        parent.Layers.RequestRepaint();
+            }
 
             Documents.Remove(document);
             document.Dispose();
@@ -402,49 +421,104 @@ namespace JolieCat.UI.ViewModels
         /// touches the scene while it's being encoded/written - and the actual write runs
         /// on a background thread (SaveAsync), so awaiting it here never blocks the UI
         /// thread despite IsSaving keeping the UI locked meanwhile.</summary>
+        /// <summary>Ctrl+S: saves the active document to its .jolie file, asking for a
+        /// location only the first time (or when it came from a PSD/image).</summary>
         [RelayCommand]
         private async Task SaveProjectAsync()
         {
-            // The overlay only blocks *mouse* input (it's a hit-test-visible visual on
-            // top of everything) - Ctrl+S is a Window-level KeyBinding, routed by
-            // keyboard focus rather than hit-testing, so it would otherwise reach this
-            // command again even while the overlay is up. Guard here so a second save
-            // can never start concurrently with one already in flight, regardless of
-            // which input triggered it.
-            if (IsSaving) return;
-            if (ActiveDocument is not { } activeDocument) return;
+            if (ActiveDocument is { } document) await SaveDocumentAsync(document, forceDialog: false);
+        }
 
-            var dialog = new SaveFileDialog
+        /// <summary>Ctrl+Shift+S: always asks where to save.</summary>
+        [RelayCommand]
+        private async Task SaveProjectAsAsync()
+        {
+            if (ActiveDocument is { } document) await SaveDocumentAsync(document, forceDialog: true);
+        }
+
+        /// <summary>
+        /// Writes <paramref name="document"/> - every layer's pixels and metadata, plus
+        /// the timeline - as a single .jolie file. <see cref="IsSaving"/> is true for
+        /// exactly the write's duration: MainWindow's overlay blocks edits meanwhile, and
+        /// the write itself runs on a background thread. Returns true if it was saved
+        /// (false if cancelled, failed, or another save is still running).
+        /// </summary>
+        public async Task<bool> SaveDocumentAsync(DocumentViewModel document, bool forceDialog)
+        {
+            // Ctrl+S is a keyboard binding the mouse-blocking overlay doesn't stop, so a
+            // second save must never start while one is in flight.
+            if (IsSaving) return false;
+
+            var path = document.FilePath;
+            var hasProjectPath = path is not null && string.Equals(Path.GetExtension(path), ".jolie", StringComparison.OrdinalIgnoreCase);
+            if (forceDialog || !hasProjectPath)
             {
-                Filter = "JolieCat Project (*.jolie)|*.jolie",
-                DefaultExt = ".jolie",
-                FileName = $"{activeDocument.Title}.jolie",
-            };
-            if (dialog.ShowDialog() != true) return;
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "JolieCat Project (*.jolie)|*.jolie",
+                    DefaultExt = ".jolie",
+                    FileName = $"{document.Title}.jolie",
+                };
+                if (dialog.ShowDialog() != true) return false;
+                path = dialog.FileName;
+            }
 
             IsSaving = true;
             SaveStatusMessage = "Saving project...";
 
             try
             {
-                await ProjectSerializer.SaveAsync(dialog.FileName, activeDocument.Layers.Scene, BuildTimelineData(activeDocument), activeDocument.Timeline.TotalFrames, activeDocument.Timeline.FrameRate,
-                    activeDocument.ProjectType, activeDocument.Layers.SpriteSheetGrid);
+                await ProjectSerializer.SaveAsync(path!, document.Layers.Scene, BuildTimelineData(document), document.Timeline.TotalFrames, document.Timeline.FrameRate,
+                    document.ProjectType, document.Layers.SpriteSheetGrid);
 
-                activeDocument.Title = Path.GetFileNameWithoutExtension(dialog.FileName);
-                activeDocument.FilePath = dialog.FileName;
+                document.Title = Path.GetFileNameWithoutExtension(path!);
+                document.FilePath = path;
+                document.Layers.History.MarkSaved();
+                RememberRecent(path!);
+                Recovery.Delete(document);
 
                 SaveStatusMessage = SaveSuccessMessage;
                 _ = ClearSaveStatusAfterDelayAsync(SaveSuccessMessage);
+                return true;
             }
             catch (Exception ex)
             {
                 SaveStatusMessage = string.Empty;
                 MessageBox.Show($"Couldn't save the project:\n{ex.Message}", "Save Project", MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
             }
             finally
             {
                 IsSaving = false;
             }
+        }
+
+        /// <summary>Asks what to do with unsaved changes before <paramref name="document"/>
+        /// closes. Returns true if it may close (saved, or changes discarded).</summary>
+        public async Task<bool> ConfirmCloseAsync(DocumentViewModel document)
+        {
+            if (!document.IsDirty || document.SmartObjectHostLayer is not null) return true;
+
+            ActiveDocument = document;
+            var answer = MessageBox.Show(Application.Current.MainWindow!,
+                $"Save changes to \"{document.Title}\" before closing?",
+                "JolieCat", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+
+            return answer switch
+            {
+                MessageBoxResult.Yes => await SaveDocumentAsync(document, forceDialog: false),
+                MessageBoxResult.No => true,
+                _ => false,
+            };
+        }
+
+        /// <summary>Asks about every unsaved document in turn. False if the user
+        /// cancelled at any point (the app should then stay open).</summary>
+        public async Task<bool> ConfirmCloseAllAsync()
+        {
+            foreach (var document in Documents.ToList())
+                if (!await ConfirmCloseAsync(document)) return false;
+            return true;
         }
 
         /// <summary>Clears <see cref="SaveStatusMessage"/> back to empty once
@@ -479,15 +553,78 @@ namespace JolieCat.UI.ViewModels
             // one might still be mid-write.
             if (IsSaving) return;
 
-            var dialog = new OpenFileDialog { Filter = "JolieCat Project (*.jolie)|*.jolie" };
+            var dialog = new OpenFileDialog
+            {
+                Filter = "All supported|*.jolie;*.psd;*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif" +
+                         "|JolieCat Project (*.jolie)|*.jolie|Photoshop Document (*.psd)|*.psd" +
+                         "|Images (*.png;*.jpg;*.webp;*.bmp;*.gif)|*.png;*.jpg;*.jpeg;*.webp;*.bmp;*.gif",
+            };
             if (dialog.ShowDialog() != true) return;
+
+            OpenPath(dialog.FileName);
+        }
+
+        /// <summary>The File &gt; Open Recent list, most recent first.</summary>
+        public ObservableCollection<string> RecentFiles { get; } = new(Media.RecentFilesStore.Load());
+
+        public bool HasRecentFiles => RecentFiles.Count > 0;
+
+        [RelayCommand]
+        private void OpenRecent(string? path)
+        {
+            if (IsSaving || string.IsNullOrEmpty(path)) return;
+
+            if (!File.Exists(path))
+            {
+                MessageBox.Show($"'{path}' no longer exists.", "Open Recent", MessageBoxButton.OK, MessageBoxImage.Warning);
+                RecentFiles.Remove(path);
+                Media.RecentFilesStore.Save(RecentFiles);
+                OnPropertyChanged(nameof(HasRecentFiles));
+                return;
+            }
+
+            OpenPath(path);
+        }
+
+        [RelayCommand]
+        private void ClearRecentFiles()
+        {
+            RecentFiles.Clear();
+            Media.RecentFilesStore.Save(RecentFiles);
+            OnPropertyChanged(nameof(HasRecentFiles));
+        }
+
+        private void RememberRecent(string path)
+        {
+            var updated = Media.RecentFilesStore.Promote(RecentFiles, path);
+            RecentFiles.Clear();
+            foreach (var p in updated) RecentFiles.Add(p);
+            Media.RecentFilesStore.Save(RecentFiles);
+            OnPropertyChanged(nameof(HasRecentFiles));
+        }
+
+        /// <summary>Opens a .jolie project, a .psd, or a plain image as a new tab.</summary>
+        public void OpenPath(string path)
+        {
+            var extension = Path.GetExtension(path).ToLowerInvariant();
+            if (extension == ".psd")
+            {
+                OpenPsd(path);
+                return;
+            }
+
+            if (extension != ".jolie")
+            {
+                OpenImage(path);
+                return;
+            }
 
             try
             {
-                var result = ProjectSerializer.Load(dialog.FileName);
-                var name = Path.GetFileNameWithoutExtension(dialog.FileName);
+                var result = ProjectSerializer.Load(path);
+                var name = Path.GetFileNameWithoutExtension(path);
 
-                var document = new DocumentViewModel(Toolbox, name, result.ProjectType) { FilePath = dialog.FileName };
+                var document = new DocumentViewModel(Toolbox, name, result.ProjectType) { FilePath = path };
                 RegisterDocument(document);
                 document.Layers.LoadScene(result.Scene, name, result.ProjectType, result.SpriteSheetGrid);
                 document.Timeline.LoadTracks(result.TimelineTracks, result.TimelineTotalFrames, result.TimelineFrameRate);
@@ -505,10 +642,100 @@ namespace JolieCat.UI.ViewModels
                 Documents.Add(document);
                 ActiveDocument = document;
                 Canvas.ResetView();
+                RememberRecent(path);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Couldn't open '{dialog.FileName}':\n{ex.Message}", "Open Project", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Couldn't open '{path}':\n{ex.Message}", "Open Project", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>Opens a PNG/JPEG/WebP/BMP/GIF as a new one-layer document of the
+        /// image's size. Saving it later asks where to put the .jolie project.</summary>
+        private void OpenImage(string path)
+        {
+            try
+            {
+                using var decoded = SKBitmap.Decode(path)
+                    ?? throw new InvalidDataException("The file isn't an image JolieCat can read.");
+                var name = Path.GetFileNameWithoutExtension(path);
+
+                var document = new DocumentViewModel(Toolbox, name, ProjectType.StandardImage, decoded.Width, decoded.Height, null);
+                RegisterDocument(document);
+                document.Layers.Scene.Layers[0].Canvas.DrawBitmap(decoded, 0, 0);
+                document.Layers.RequestRepaint();
+
+                Documents.Add(document);
+                ActiveDocument = document;
+                Canvas.ResetView();
+                RememberRecent(path);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Couldn't open '{Path.GetFileName(path)}':\n{ex.Message}", "Open", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>Opens a Photoshop file as a new tab, keeping its layers, names,
+        /// opacity, blend modes, visibility and masks (see <see cref="Core.Formats.PsdCodec"/>).</summary>
+        private void OpenPsd(string path)
+        {
+            try
+            {
+                var psd = Core.Formats.PsdCodec.Read(path);
+                var name = Path.GetFileNameWithoutExtension(path);
+
+                var document = new DocumentViewModel(Toolbox, name);
+                RegisterDocument(document);
+                document.Layers.LoadScene(psd.Scene, name);
+
+                Documents.Add(document);
+                ActiveDocument = document;
+                Canvas.ResetView();
+                RememberRecent(path);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Couldn't open '{Path.GetFileName(path)}':\n{ex.Message}", "Open PSD", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>Writes the active document as a layered Photoshop file. The file
+        /// write runs on a background thread under the same <see cref="IsSaving"/> lock
+        /// a project save uses, so nothing edits the layers while they're being read.</summary>
+        [RelayCommand]
+        private async Task ExportPsdAsync()
+        {
+            if (IsSaving) return;
+            if (ActiveDocument is not { } activeDocument) return;
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "Photoshop Document (*.psd)|*.psd",
+                DefaultExt = ".psd",
+                FileName = $"{activeDocument.Title}.psd",
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            IsSaving = true;
+            SaveStatusMessage = "Exporting PSD...";
+
+            try
+            {
+                var layers = activeDocument.Layers;
+                await Task.Run(() => Core.Formats.PsdCodec.Write(dialog.FileName, layers.Scene, layers.DocumentWidth, layers.DocumentHeight));
+
+                SaveStatusMessage = ExportSuccessMessage;
+                _ = ClearSaveStatusAfterDelayAsync(ExportSuccessMessage);
+            }
+            catch (Exception ex)
+            {
+                SaveStatusMessage = string.Empty;
+                MessageBox.Show($"Couldn't export the PSD:\n{ex.Message}", "Export PSD", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsSaving = false;
             }
         }
 
@@ -668,7 +895,73 @@ namespace JolieCat.UI.ViewModels
             var dialog = new ResizeCanvasDialog { DataContext = options, Owner = Application.Current.MainWindow };
             if (dialog.ShowDialog() != true) return;
 
-            Layers.ResizeDocument((int)Math.Round(options.Width), (int)Math.Round(options.Height));
+            Layers.ResizeDocument((int)Math.Round(options.Width), (int)Math.Round(options.Height), options.AnchorCenter);
+        }
+
+        /// <summary>Select &gt; Modify &gt; Expand/Contract/Border/Smooth: asks for the
+        /// amount in pixels, then reshapes the current selection.</summary>
+        [RelayCommand]
+        private void ModifySelection(SelectionModifyKind kind)
+        {
+            if (!Canvas.HasSelection) return;
+
+            var title = kind switch
+            {
+                SelectionModifyKind.Expand => "Expand Selection",
+                SelectionModifyKind.Contract => "Contract Selection",
+                SelectionModifyKind.Border => "Border Selection",
+                SelectionModifyKind.Feather => "Feather Selection",
+                _ => "Smooth Selection",
+            };
+            var label = kind switch
+            {
+                SelectionModifyKind.Expand => "Expand by",
+                SelectionModifyKind.Contract => "Contract by",
+                SelectionModifyKind.Border => "Width",
+                SelectionModifyKind.Feather => "Feather radius",
+                _ => "Sample radius",
+            };
+
+            var dialog = new NumberPromptDialog(title, label, _lastModifyAmount, 1, 500, "px") { Owner = Application.Current.MainWindow };
+            if (dialog.ShowDialog() != true) return;
+
+            _lastModifyAmount = dialog.Value;
+            Canvas.ModifySelection(kind, (float)dialog.Value);
+        }
+
+        private double _lastModifyAmount = 5;
+
+        private double _lastColorRangeFuzziness = 40;
+
+        /// <summary>Select &gt; Color Range: selects everything close to the foreground
+        /// color (pick it with the Eyedropper first), across the whole visible image.</summary>
+        [RelayCommand]
+        private void SelectColorRange()
+        {
+            var dialog = new NumberPromptDialog("Color Range", "Fuzziness", _lastColorRangeFuzziness, 0, 255, "")
+            {
+                Owner = Application.Current.MainWindow,
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            _lastColorRangeFuzziness = dialog.Value;
+            Canvas.SelectColorRange(Canvas.BrushColor, (float)dialog.Value);
+        }
+
+        /// <summary>Image &gt; Image Size: rescales every layer to a new pixel size.</summary>
+        [RelayCommand]
+        private void ImageSize()
+        {
+            if (IsSaving) return;
+
+            var options = new ResizeCanvasViewModel(Layers.DocumentWidth, Layers.DocumentHeight, resample: true);
+            var dialog = new ResizeCanvasDialog { DataContext = options, Owner = Application.Current.MainWindow };
+            if (dialog.ShowDialog() != true) return;
+
+            int oldWidth = Layers.DocumentWidth, oldHeight = Layers.DocumentHeight;
+            int width = (int)Math.Round(options.Width), height = (int)Math.Round(options.Height);
+            Layers.ResampleDocument(width, height);
+            RecordImageSize(width, height, oldWidth, oldHeight);
         }
 
         /// <summary>Type 2 -&gt; Type 3 derivation: builds a brand new Clipbar Animation
@@ -789,11 +1082,21 @@ namespace JolieCat.UI.ViewModels
         [RelayCommand]
         private void OpenFilterDialog(FilterKind kind)
         {
-            if (IsSaving || Layers.ActiveLayer is null) return;
+            if (IsSaving || Layers.ActiveLayer is null || Layers.ActiveLayer.Model.IsGroup) return;
 
-            Canvas.BeginAdjustment();
+            Canvas.BeginAdjustment(FilterOptionsViewModel.TitleOf(kind));
 
             var options = new FilterOptionsViewModel(kind);
+
+            // Filters with no settings (Invert, Desaturate, Find Edges) apply right away.
+            if (!options.HasSettings)
+            {
+                Canvas.UpdateAdjustmentPreview(options.Apply);
+                Canvas.CommitAdjustment();
+                RecordFilter(options);
+                return;
+            }
+
             void UpdatePreview(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
                 Canvas.UpdateAdjustmentPreview(options.Apply);
             options.PropertyChanged += UpdatePreview;
@@ -803,8 +1106,73 @@ namespace JolieCat.UI.ViewModels
             var applied = dialog.ShowDialog() == true;
             options.PropertyChanged -= UpdatePreview;
 
-            if (applied) Canvas.CommitAdjustment();
-            else Canvas.CancelAdjustment();
+            if (applied)
+            {
+                Canvas.CommitAdjustment();
+                RecordFilter(options);
+            }
+            else
+            {
+                Canvas.CancelAdjustment();
+            }
+        }
+
+        /// <summary>Filter > Camera Raw Filter: white balance, exposure, tone and presence
+        /// sliders with a live canvas preview (see <see cref="CameraRawViewModel"/>).</summary>
+        [RelayCommand]
+        private void OpenCameraRaw()
+        {
+            if (IsSaving || Layers.ActiveLayer is null || Layers.ActiveLayer.Model.IsGroup) return;
+
+            Canvas.BeginAdjustment("Camera Raw Filter");
+            var options = new CameraRawViewModel();
+            void UpdatePreview(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+                Canvas.UpdateAdjustmentPreview(options.Apply);
+            options.PropertyChanged += UpdatePreview;
+
+            var dialog = new CameraRawDialog { DataContext = options, Owner = Application.Current.MainWindow };
+            var applied = dialog.ShowDialog() == true;
+            options.PropertyChanged -= UpdatePreview;
+
+            if (applied && !options.Settings.IsNeutral)
+            {
+                Canvas.CommitAdjustment();
+                RecordCameraRaw(options.Settings);
+            }
+            else
+            {
+                Canvas.CancelAdjustment();
+            }
+        }
+
+        /// <summary>Filter > Liquify: brushes that push, pinch, bloat and twirl the
+        /// layer's pixels (see <see cref="LiquifyViewModel"/>). The result is one undo step.</summary>
+        [RelayCommand]
+        private void OpenLiquify()
+        {
+            if (IsSaving || Layers.ActiveLayer is null || Layers.ActiveLayer.Model.IsGroup) return;
+
+            Canvas.BeginAdjustment("Liquify");
+            if (Canvas.AdjustmentSourceBitmap is not { } source) { Canvas.CancelAdjustment(); return; }
+
+            // The other layers, shown under the one being reshaped.
+            var active = Layers.ActiveLayer.Model;
+            var wasVisible = active.IsVisible;
+            active.IsVisible = false;
+            using var backdrop = Core.Rendering.SceneCompositor.Flatten(Layers.Scene, source.Width, source.Height);
+            active.IsVisible = wasVisible;
+
+            using var options = new LiquifyViewModel(source, backdrop: backdrop);
+            var dialog = new LiquifyDialog(options) { Owner = Application.Current.MainWindow };
+            if (dialog.ShowDialog() == true && options.HasChanges)
+            {
+                Canvas.UpdateAdjustmentPreview(options.ApplyTo);
+                Canvas.CommitAdjustment();
+            }
+            else
+            {
+                Canvas.CancelAdjustment();
+            }
         }
 
         /// <summary>Opens the shared Brightness/Contrast or Hue/Saturation/Lightness
@@ -813,9 +1181,10 @@ namespace JolieCat.UI.ViewModels
         [RelayCommand]
         private void OpenSimpleAdjustmentDialog(SimpleAdjustmentKind kind)
         {
-            if (IsSaving || Layers.ActiveLayer is null) return;
+            if (IsSaving || Layers.ActiveLayer is null || Layers.ActiveLayer.Model.IsGroup) return;
 
-            Canvas.BeginAdjustment();
+            var adjustmentTitle = kind switch { SimpleAdjustmentKind.BrightnessContrast => "Brightness/Contrast", SimpleAdjustmentKind.HueSaturation => "Hue/Saturation", _ => kind.ToString() };
+            Canvas.BeginAdjustment(adjustmentTitle);
 
             var options = new SimpleAdjustmentViewModel(kind);
             void UpdatePreview(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
@@ -827,8 +1196,15 @@ namespace JolieCat.UI.ViewModels
             var applied = dialog.ShowDialog() == true;
             options.PropertyChanged -= UpdatePreview;
 
-            if (applied) Canvas.CommitAdjustment();
-            else Canvas.CancelAdjustment();
+            if (applied)
+            {
+                Canvas.CommitAdjustment();
+                RecordSimpleAdjustment(options, adjustmentTitle);
+            }
+            else
+            {
+                Canvas.CancelAdjustment();
+            }
         }
 
         /// <summary>Opens Levels (see <see cref="LevelsViewModel"/>) - same live-
@@ -840,9 +1216,9 @@ namespace JolieCat.UI.ViewModels
         [RelayCommand]
         private void OpenLevelsDialog()
         {
-            if (IsSaving || Layers.ActiveLayer is null) return;
+            if (IsSaving || Layers.ActiveLayer is null || Layers.ActiveLayer.Model.IsGroup) return;
 
-            Canvas.BeginAdjustment();
+            Canvas.BeginAdjustment("Levels");
             if (Canvas.AdjustmentSourceBitmap is not { } source) { Canvas.CancelAdjustment(); return; }
 
             var options = new LevelsViewModel(source);
@@ -855,8 +1231,15 @@ namespace JolieCat.UI.ViewModels
             var applied = dialog.ShowDialog() == true;
             options.PropertyChanged -= UpdatePreview;
 
-            if (applied) Canvas.CommitAdjustment();
-            else Canvas.CancelAdjustment();
+            if (applied)
+            {
+                Canvas.CommitAdjustment();
+                RecordLevels(options);
+            }
+            else
+            {
+                Canvas.CancelAdjustment();
+            }
         }
 
         /// <summary>Opens Curves (see <see cref="CurvesViewModel"/>) - same live-
@@ -865,9 +1248,9 @@ namespace JolieCat.UI.ViewModels
         [RelayCommand]
         private void OpenCurvesDialog()
         {
-            if (IsSaving || Layers.ActiveLayer is null) return;
+            if (IsSaving || Layers.ActiveLayer is null || Layers.ActiveLayer.Model.IsGroup) return;
 
-            Canvas.BeginAdjustment();
+            Canvas.BeginAdjustment("Curves");
 
             var options = new CurvesViewModel();
             void UpdatePreview(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
@@ -879,8 +1262,15 @@ namespace JolieCat.UI.ViewModels
             var applied = dialog.ShowDialog() == true;
             options.PropertyChanged -= UpdatePreview;
 
-            if (applied) Canvas.CommitAdjustment();
-            else Canvas.CancelAdjustment();
+            if (applied)
+            {
+                Canvas.CommitAdjustment();
+                RecordCurves(options);
+            }
+            else
+            {
+                Canvas.CancelAdjustment();
+            }
         }
 
         /// <summary>Maps a document's Timeline panel view models to the plain,

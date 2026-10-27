@@ -4,40 +4,89 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         mc:Ignorable="d"
-        Title="New Project" Height="330" Width="380"
+        Title="New Document" Width="420" SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         ShowInTaskbar="False">
     <Grid Margin="16">
         <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0">
-            <TextBlock Text="Choose a project type:" Margin="0,0,0,12" Foreground="{StaticResource TextPrimaryBrush}" />
+        <!-- Canvas size and background -->
+        <Grid Grid.Row="0" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Text="Preset" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+            <ComboBox Grid.Row="0" Grid.Column="1" x:Name="PresetBox" Margin="0,0,0,8" SelectionChanged="Preset_SelectionChanged">
+                <ComboBoxItem Content="Custom" />
+                <ComboBoxItem Content="Default (1600 × 1200)" Tag="1600x1200" />
+                <ComboBoxItem Content="Full HD (1920 × 1080)" Tag="1920x1080" />
+                <ComboBoxItem Content="4K UHD (3840 × 2160)" Tag="3840x2160" />
+                <ComboBoxItem Content="Square (1080 × 1080)" Tag="1080x1080" />
+                <ComboBoxItem Content="Story / Phone (1080 × 1920)" Tag="1080x1920" />
+                <ComboBoxItem Content="A4 300 ppi (2480 × 3508)" Tag="2480x3508" />
+                <ComboBoxItem Content="Icon (512 × 512)" Tag="512x512" />
+                <ComboBoxItem Content="Pixel art (64 × 64)" Tag="64x64" />
+            </ComboBox>
+
+            <TextBlock Grid.Row="1" Text="Width (px)" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBox x:Name="WidthBox" Width="90" Text="1600" TextChanged="Size_TextChanged" />
+                <Button Content="&#xE8AB;" FontFamily="Segoe MDL2 Assets" Width="28" Margin="8,0" ToolTip="Swap width and height" Click="Swap_Click" />
+            </StackPanel>
+
+            <TextBlock Grid.Row="2" Text="Height (px)" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+            <TextBox Grid.Row="2" Grid.Column="1" x:Name="HeightBox" Width="90" Text="1200" HorizontalAlignment="Left"
+                     Margin="0,0,0,8" TextChanged="Size_TextChanged" />
+
+            <TextBlock Grid.Row="3" Text="Background" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+            <ComboBox Grid.Row="3" Grid.Column="1" x:Name="BackgroundBox" Width="160" HorizontalAlignment="Left">
+                <ComboBoxItem Content="White" IsSelected="True" />
+                <ComboBoxItem Content="Black" />
+                <ComboBoxItem Content="Transparent" />
+            </ComboBox>
+        </Grid>
+
+        <StackPanel Grid.Row="1">
+            <TextBlock Text="Project type" Margin="0,0,0,8" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" />
 
             <RadioButton x:Name="StandardImageOption" Content="Standard Image" GroupName="ProjectType" IsChecked="True"
-                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
-            <TextBlock Text="A plain raster/vector canvas - the ordinary editor, with none of the below."
-                       FontSize="10" Margin="20,0,0,12" TextWrapping="Wrap"
+                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,2" />
+            <TextBlock Text="The ordinary editor."
+                       FontSize="10" Margin="20,0,0,8" TextWrapping="Wrap"
                        Foreground="{StaticResource TextSecondaryBrush}" />
 
             <RadioButton x:Name="SpriteSheetOption" Content="Sprite Sheet" GroupName="ProjectType"
-                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
-            <TextBlock Text="Adds a configurable slicing grid overlay on the canvas, plus a panel to slice and export each cell as its own frame."
-                       FontSize="10" Margin="20,0,0,12" TextWrapping="Wrap"
+                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,2" />
+            <TextBlock Text="Adds a slicing grid overlay and a panel to export each cell as its own frame."
+                       FontSize="10" Margin="20,0,0,8" TextWrapping="Wrap"
                        Foreground="{StaticResource TextSecondaryBrush}" />
 
             <RadioButton x:Name="ClipbarAnimationOption" Content="Clipbar Animation" GroupName="ProjectType"
-                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4" />
-            <TextBlock Text="Opens straight into a dedicated, full-workspace Timeline tab with playback transport controls, instead of the plain canvas."
+                         Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,2" />
+            <TextBlock Text="Opens into a full-workspace Timeline with playback controls."
                        FontSize="10" Margin="20,0,0,0" TextWrapping="Wrap"
                        Foreground="{StaticResource TextSecondaryBrush}" />
         </StackPanel>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
-            <Button Content="Create" Width="80" IsDefault="True" Style="{StaticResource PrimaryButtonStyle}" Click="Create_Click" />
-        </StackPanel>
+        <DockPanel Grid.Row="2" Margin="0,14,0,0">
+            <TextBlock x:Name="ErrorText" DockPanel.Dock="Left" VerticalAlignment="Center" FontSize="11"
+                       Foreground="#E57373" TextWrapping="Wrap" MaxWidth="200" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />
+                <Button Content="Create" Width="80" IsDefault="True" Style="{StaticResource PrimaryButtonStyle}" Click="Create_Click" />
+            </StackPanel>
+        </DockPanel>
     </Grid>
 </Window>

@@ -47,6 +47,24 @@ namespace JolieCat.UI.ViewModels
             RebuildCurveLine();
         }
 
+        /// <summary>Replaces every control point - used when re-editing a Curves
+        /// adjustment layer. Needs at least two points; otherwise nothing changes.</summary>
+        public void LoadPoints(IReadOnlyList<(double X, double Y)> points)
+        {
+            if (points.Count < MinimumPoints) return;
+
+            foreach (var point in Points) point.PropertyChanged -= OnPointPropertyChanged;
+            Points.Clear();
+            foreach (var (x, y) in points.OrderBy(p => p.X))
+            {
+                var point = new CurvePointViewModel(Math.Clamp(x, 0, 255), Math.Clamp(y, 0, 255));
+                point.PropertyChanged += OnPointPropertyChanged;
+                Points.Add(point);
+            }
+
+            RebuildCurveLine();
+        }
+
         /// <summary>Adds a new control point at (<paramref name="x"/>, <paramref name="y"/>) -
         /// the graph background's own click handler in the view's code-behind.</summary>
         public void AddPoint(double x, double y)

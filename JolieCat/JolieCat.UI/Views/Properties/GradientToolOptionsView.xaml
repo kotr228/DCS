@@ -5,14 +5,26 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:controls="clr-namespace:JolieCat.UI.Controls"
              xmlns:views="clr-namespace:JolieCat.UI.Views"
+             xmlns:opts="clr-namespace:JolieCat.UI.ViewModels.ToolOptions"
              mc:Ignorable="d">
     <StackPanel Margin="10">
-        <controls:LabeledSlider Label="Angle" Minimum="0" Maximum="360" Suffix="&#176;" Value="{Binding Angle, Mode=TwoWay}" />
-        <CheckBox Content="Reverse" Foreground="{StaticResource TextPrimaryBrush}"
-                  IsChecked="{Binding Reverse, Mode=TwoWay}" Margin="0,4,0,8" />
+        <TextBlock Text="Type" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+        <ComboBox ItemsSource="{x:Static opts:GradientToolOptionsViewModel.AllKinds}"
+                  SelectedItem="{Binding Kind, Mode=TwoWay}" Margin="0,0,0,8" />
 
-        <!-- Gradient always sweeps from the foreground color, so the picker is
-             unconditional here (unlike the shared brush-tools view). -->
+        <TextBlock Text="Colors" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+        <ComboBox SelectedIndex="{Binding Colors, Mode=TwoWay, Converter={StaticResource EnumToIndex}}" Margin="0,0,0,8">
+            <ComboBoxItem Content="Foreground → Background" />
+            <ComboBoxItem Content="Foreground → Transparent" />
+        </ComboBox>
+
+        <controls:LabeledSlider Label="Opacity" Minimum="0" Maximum="100" Suffix="%" Value="{Binding Opacity, Mode=TwoWay}" />
+        <CheckBox Content="Reverse" Foreground="{StaticResource TextPrimaryBrush}"
+                  IsChecked="{Binding Reverse, Mode=TwoWay}" Margin="0,4,0,0" />
+
+        <TextBlock Text="Drag on the canvas from where the gradient starts to where it ends. Hold Shift for 45° steps."
+                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,8" />
+
         <views:ColorPickerPanel DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Canvas}" />
     </StackPanel>
 </UserControl>

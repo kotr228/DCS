@@ -19,4 +19,8 @@
     <ProjectReference Include="..\JolieCat.Shared\JolieCat.Shared.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="JolieCat.Tests" />
+  </ItemGroup>
+
 </Project>

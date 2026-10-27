@@ -12,6 +12,12 @@
         <controls:LabeledSlider Label="Spacing" Minimum="1" Maximum="200" Suffix="%" Value="{Binding Spacing, Mode=TwoWay}" />
         <controls:LabeledSlider Label="Opacity" Minimum="0" Maximum="100" Suffix="%" Value="{Binding Opacity, Mode=TwoWay}" />
 
+        <TextBlock Text="Pen pressure" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,2" />
+        <CheckBox Content="Controls size" Foreground="{StaticResource TextPrimaryBrush}"
+                  IsChecked="{Binding PressureAffectsSize, Mode=TwoWay}" Margin="0,2,0,0" />
+        <CheckBox Content="Controls opacity" Foreground="{StaticResource TextPrimaryBrush}"
+                  IsChecked="{Binding PressureAffectsOpacity, Mode=TwoWay}" Margin="0,2,0,6" />
+
         <!-- Only Brush/Pencil paint with the foreground color (Eraser and the retouching
              tools that share this view don't), so ShowColorPicker gates it per tool.
              Visibility is bound here, against this view's own DataContext (the options

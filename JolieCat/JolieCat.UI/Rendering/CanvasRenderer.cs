@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using JolieCat.Core.Documents;
 using JolieCat.Core.Rendering;
 using JolieCat.UI.ViewModels;
@@ -41,52 +42,168 @@ namespace JolieCat.UI.Rendering
             canvas.Clear(OutsideDocumentColor);
 
             canvas.Save();
-            canvas.Translate((float)viewModel.PanX, (float)viewModel.PanY);
-            canvas.Scale((float)viewModel.Zoom);
+            canvas.Concat(viewModel.ViewMatrix); // pan, zoom and (optional) view rotation
 
             var documentRect = new SKRect(0, 0, viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight);
 
             DrawCheckerboard(canvas, documentRect);
 
-            // Scene.Layers is already back-to-front, so drawing in list order composites
-            // correctly with no extra sorting. Masking, opacity, and blend mode are all
-            // handled by SceneCompositor - the same code JolieCat.Core's image export
-            // and Scene.MergeLayerDown use, so a masked layer looks identical here, in a
-            // merge, and in an exported file. While Free Transform/Warp is live on the
-            // active layer, its own (as-yet-uncommitted) preview bitmap substitutes for
-            // that one layer's committed content - see CanvasViewModel's own remarks.
+            // Zoomed out, bilinear filtering keeps photos smooth instead of jagged;
+            // zoomed in, nearest neighbour shows crisp pixels.
+            var sampling = viewModel.Zoom < 1.0 || viewModel.IsViewRotated ? new SKSamplingOptions(SKFilterMode.Linear) : default;
+
+            // While Free Transform/Warp/a filter dialog is live on a layer, its
+            // uncommitted preview bitmap stands in for that layer's content.
             var previewLayer = viewModel.LivePreviewLayer;
             using var previewBitmap = viewModel.BuildLivePreviewBitmap();
-            SceneCompositor.DrawLayers(canvas, viewModel.Layers.Scene, viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight, previewLayer, previewBitmap);
 
+            if (viewModel.RenderCache is not LayerRenderCache cache)
+                viewModel.RenderCache = cache = new LayerRenderCache();
+
+            // Layers are composited onto transparency in their own surface (see
+            // LayerRenderCache), and the result goes over the checkerboard - so blend
+            // modes and adjustment layers only ever see the image, never the checkerboard.
+            var frame = cache.Compose(info, canvas.TotalMatrix, viewModel.Layers.Scene,
+                viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight,
+                viewModel.Layers.ContentVersion, sampling, previewLayer, previewBitmap);
+
+            canvas.Save();
+            canvas.ResetMatrix();
+            canvas.DrawSurface(frame, 0, 0);
+            canvas.Restore();
+
+            viewModel.DrawLiveShape(canvas);
+
+            DrawPixelGrid(canvas, info, viewModel);
             DrawSpriteSheetGridOverlay(canvas, viewModel);
             DrawSelectionOverlay(canvas, viewModel);
             DrawCropOverlay(canvas, viewModel);
             DrawTransformOverlay(canvas, viewModel);
             DrawWarpOverlay(canvas, viewModel);
             DrawPenPathOverlay(canvas, viewModel);
+            DrawCloneSourceMarker(canvas, viewModel);
+            DrawGradientGuide(canvas, viewModel);
+            DrawSpotHealingStroke(canvas, viewModel);
+            DrawBrushOutline(canvas, viewModel);
 
             canvas.Restore();
         }
 
-        private static void DrawCheckerboard(SKCanvas canvas, SKRect documentRect)
+        /// <summary>Zoom level from which individual pixels get grid lines.</summary>
+        private const double PixelGridMinZoom = 8.0;
+
+        /// <summary>Thin lines between pixels at high zoom - only the visible part of
+        /// the document, so the cost doesn't grow with document size.</summary>
+        private static void DrawPixelGrid(SKCanvas canvas, SKImageInfo info, CanvasViewModel viewModel)
         {
-            using var lightPaint = new SKPaint { Color = CheckerLight, Style = SKPaintStyle.Fill };
-            using var darkPaint = new SKPaint { Color = CheckerDark, Style = SKPaintStyle.Fill };
+            if (viewModel.Zoom < PixelGridMinZoom) return;
 
-            canvas.Save();
-            canvas.ClipRect(documentRect);
+            var zoom = (float)viewModel.Zoom;
 
-            for (var y = 0; y < documentRect.Height; y += CheckerSize)
+            // The visible part of the document: the screen's corners mapped back into
+            // document space (works for a rotated view too).
+            if (!viewModel.ViewMatrix.TryInvert(out var toDocument)) return;
+            var corners = toDocument.MapPoints(new[] { new SKPoint(0, 0), new SKPoint(info.Width, 0), new SKPoint(0, info.Height), new SKPoint(info.Width, info.Height) });
+            var left = Math.Max(0, (int)Math.Floor(corners.Min(p => p.X)));
+            var top = Math.Max(0, (int)Math.Floor(corners.Min(p => p.Y)));
+            var right = Math.Min(viewModel.Layers.DocumentWidth, (int)Math.Ceiling(corners.Max(p => p.X)));
+            var bottom = Math.Min(viewModel.Layers.DocumentHeight, (int)Math.Ceiling(corners.Max(p => p.Y)));
+            if (right <= left || bottom <= top) return;
+
+            using var paint = new SKPaint { Color = new SKColor(128, 128, 128, 70), StrokeWidth = 1f / zoom, IsAntialias = false };
+            for (var x = left; x <= right; x++) canvas.DrawLine(x, top, x, bottom, paint);
+            for (var y = top; y <= bottom; y++) canvas.DrawLine(left, y, right, y, paint);
+        }
+
+        /// <summary>Circle showing the brush size under the pointer (black and white,
+        /// so it reads on any image).</summary>
+        private static void DrawBrushOutline(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.HoverDocumentPoint is not { } point || viewModel.BrushOutlineDiameter is not { } diameter) return;
+
+            var onScreen = 1f / (float)viewModel.Zoom;
+            var radius = diameter / 2f;
+            if (radius / onScreen < 3f) return; // tiny brush: the crosshair cursor is enough
+
+            using var dark = new SKPaint { Color = new SKColor(0, 0, 0, 160), Style = SKPaintStyle.Stroke, StrokeWidth = onScreen * 3, IsAntialias = true };
+            using var light = new SKPaint { Color = new SKColor(255, 255, 255, 220), Style = SKPaintStyle.Stroke, StrokeWidth = onScreen, IsAntialias = true };
+            canvas.DrawCircle(point, radius, dark);
+            canvas.DrawCircle(point, radius, light);
+        }
+
+        /// <summary>The line being dragged with the Gradient tool, with a dot at each end.</summary>
+        /// <summary>The Spot Healing Brush's stroke, shown as a translucent dark band
+        /// until the mouse is released and the area is healed.</summary>
+        private static void DrawSpotHealingStroke(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.SpotHealingStroke is not { } path) return;
+
+            using var paint = new SKPaint
             {
-                for (var x = 0; x < documentRect.Width; x += CheckerSize)
-                {
-                    var isLight = (x / CheckerSize + y / CheckerSize) % 2 == 0;
-                    canvas.DrawRect(x, y, CheckerSize, CheckerSize, isLight ? lightPaint : darkPaint);
-                }
+                Color = new SKColor(0, 0, 0, 110),
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = viewModel.SpotHealingStrokeWidth,
+                StrokeCap = SKStrokeCap.Round,
+                StrokeJoin = SKStrokeJoin.Round,
+                IsAntialias = true,
+            };
+            canvas.DrawPath(path, paint);
+        }
+
+        private static void DrawGradientGuide(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.GradientGuide is not { } guide) return;
+
+            var onScreen = 1f / (float)viewModel.Zoom;
+            using var dark = new SKPaint { Color = new SKColor(0, 0, 0, 180), StrokeWidth = onScreen * 3, IsAntialias = true };
+            using var light = new SKPaint { Color = SKColors.White, StrokeWidth = onScreen, IsAntialias = true };
+            canvas.DrawLine(guide.Start, guide.End, dark);
+            canvas.DrawLine(guide.Start, guide.End, light);
+            foreach (var point in new[] { guide.Start, guide.End })
+            {
+                canvas.DrawCircle(point, 4 * onScreen, dark);
+                canvas.DrawCircle(point, 3 * onScreen, light);
+            }
+        }
+
+        /// <summary>Crosshair where the Clone Stamp / Healing Brush is sampling from.</summary>
+        private static void DrawCloneSourceMarker(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.CloneSourceMarker is not { } source) return;
+
+            var onScreen = 1f / (float)viewModel.Zoom;
+            var arm = 8f * onScreen;
+            using var dark = new SKPaint { Color = SKColors.Black, StrokeWidth = onScreen * 3, IsAntialias = true };
+            using var light = new SKPaint { Color = SKColors.White, StrokeWidth = onScreen, IsAntialias = true };
+            foreach (var paint in new[] { dark, light })
+            {
+                canvas.DrawLine(source.X - arm, source.Y, source.X + arm, source.Y, paint);
+                canvas.DrawLine(source.X, source.Y - arm, source.X, source.Y + arm, paint);
+            }
+        }
+
+        /// <summary>One 2×2-cell tile, repeated by a shader - a single draw call per frame
+        /// instead of one rectangle per cell (tens of thousands on a large document).</summary>
+        private static readonly SKShader CheckerShader = CreateCheckerShader();
+
+        private static SKShader CreateCheckerShader()
+        {
+            var tile = new SKBitmap(CheckerSize * 2, CheckerSize * 2, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using (var tileCanvas = new SKCanvas(tile))
+            using (var darkPaint = new SKPaint { Color = CheckerDark })
+            {
+                tileCanvas.Clear(CheckerLight);
+                tileCanvas.DrawRect(CheckerSize, 0, CheckerSize, CheckerSize, darkPaint);
+                tileCanvas.DrawRect(0, CheckerSize, CheckerSize, CheckerSize, darkPaint);
             }
 
-            canvas.Restore();
+            return SKShader.CreateBitmap(tile, SKShaderTileMode.Repeat, SKShaderTileMode.Repeat);
+        }
+
+        private static void DrawCheckerboard(SKCanvas canvas, SKRect documentRect)
+        {
+            using var paint = new SKPaint { Shader = CheckerShader, Style = SKPaintStyle.Fill };
+            canvas.DrawRect(documentRect, paint);
         }
 
         /// <summary>

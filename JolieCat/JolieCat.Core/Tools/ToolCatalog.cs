@@ -73,6 +73,10 @@ namespace JolieCat.Core.Tools
             new(ToolType.CloneStamp, ToolCategory.Retouching, "Clone Stamp",
                 "M6,16 L18,16 L16,20 L8,20 Z M9,10 H15 V16 H9 Z M9,7 A3,3 0 1 1 15,7 A3,3 0 1 1 9,7 Z", "S"),
 
+            new(ToolType.SpotHealing, ToolCategory.Retouching, "Spot Healing Brush",
+                "M4.9,15.5 L15.5,4.9 A3.5,3.5 0 0 1 20.5,9.9 L9.9,20.5 A3.5,3.5 0 0 1 4.9,15.5 Z " +
+                "M10.5,10.5 A1,1 0 1 1 10.51,10.5 Z M13.5,13.5 A1,1 0 1 1 13.51,13.5 Z M10.5,13.5 A1,1 0 1 1 10.51,13.5 Z M13.5,10.5 A1,1 0 1 1 13.51,10.5 Z", "J"),
+
             new(ToolType.HealingBrush, ToolCategory.Retouching, "Healing Brush",
                 "M19.6,2.2 L20.8,3.4 L11.8,12.4 L10.6,11.2 Z M7,14 H9 V20 H7 Z M4,16 H12 V18 H4 Z", "J"),
 
@@ -115,16 +119,19 @@ namespace JolieCat.Core.Tools
                 "M4,4 V20 H7 V4 Z M7,10.5 H20 V13.5 H7 Z", "T"),
 
             // Transform
+            new(ToolType.Move, ToolCategory.Transform, "Move",
+                "M12,2 L16,6 H13 V11 H18 V8 L22,12 L18,16 V13 H13 V18 H16 L12,22 L8,18 H11 V13 H6 V16 L2,12 L6,8 V11 H11 V6 H8 Z", "V"),
+
             new(ToolType.Crop, ToolCategory.Transform, "Crop",
                 "M6,2 V18 H22 V20 H6 V22 H4 V20 H2 V18 H4 V6 H2 V4 H4 V2 Z M8,6 H18 V16 H20 V6 Z M8,8 V16 H16 V18 H8 Z", "C"),
 
             new(ToolType.FreeTransform, ToolCategory.Transform, "Free Transform",
                 "M2,2 H8 V4 H4 V8 H2 Z M16,2 H22 V8 H20 V4 H16 Z M2,16 H4 V20 H8 V22 H2 Z M20,16 H22 V22 H16 V20 H20 Z " +
-                "M9,9 A1.5,1.5 0 1 1 12,9 A1.5,1.5 0 1 1 9,9 Z M9,15 A1.5,1.5 0 1 1 12,15 A1.5,1.5 0 1 1 9,15 Z", "T"),
+                "M9,9 A1.5,1.5 0 1 1 12,9 A1.5,1.5 0 1 1 9,9 Z M9,15 A1.5,1.5 0 1 1 12,15 A1.5,1.5 0 1 1 9,15 Z", "Ctrl+T"),
 
             new(ToolType.Warp, ToolCategory.Transform, "Warp",
                 "M2,2 H22 V22 H2 Z M2,9 H22 M2,15 H22 M9,2 V22 M15,2 V22 " +
-                "M9,9 A1.3,1.3 0 1 1 11.6,9 A1.3,1.3 0 1 1 9,9 Z M15,15 A1.3,1.3 0 1 1 17.6,15 A1.3,1.3 0 1 1 15,15 Z", "W"),
+                "M9,9 A1.3,1.3 0 1 1 11.6,9 A1.3,1.3 0 1 1 9,9 Z M15,15 A1.3,1.3 0 1 1 17.6,15 A1.3,1.3 0 1 1 15,15 Z"),
         };
     }
 }

@@ -11,7 +11,7 @@
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="48" />
+                <ColumnDefinition Width="58" />
             </Grid.ColumnDefinitions>
 
             <Slider Grid.Column="0" VerticalAlignment="Center"
@@ -20,8 +20,14 @@
                     Value="{Binding Value, ElementName=Root, Mode=TwoWay}" />
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                <TextBlock Text="{Binding Value, ElementName=Root, StringFormat={}{0:0}}"
-                           Foreground="{StaticResource TextPrimaryBrush}" />
+                <!-- Click to type an exact value; Enter or leaving the box applies it,
+                     Esc restores the current value. -->
+                <TextBox x:Name="ValueBox" Text="{Binding DisplayText, ElementName=Root, Mode=OneWay}"
+                         MinWidth="26" Padding="0" BorderThickness="0,0,0,1" Background="Transparent"
+                         BorderBrush="{StaticResource BorderBrush}" HorizontalContentAlignment="Right"
+                         Foreground="{StaticResource TextPrimaryBrush}" CaretBrush="{StaticResource TextPrimaryBrush}"
+                         ToolTip="Click to type a value" KeyDown="ValueBox_KeyDown" LostKeyboardFocus="ValueBox_LostKeyboardFocus"
+                         GotKeyboardFocus="ValueBox_GotKeyboardFocus" />
                 <TextBlock Text="{Binding Suffix, ElementName=Root}"
                            Foreground="{StaticResource TextSecondaryBrush}" Margin="1,0,0,0" />
             </StackPanel>

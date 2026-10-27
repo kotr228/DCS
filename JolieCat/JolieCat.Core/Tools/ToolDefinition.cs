@@ -19,7 +19,11 @@ namespace JolieCat.Core.Tools
     /// magnifying glass, canvas-rotate) that are "ring/frame" shapes built from a solid
     /// subpath minus an inset one, which only reads as a hole under EvenOdd.
     /// </param>
-    /// <param name="Shortcut">Suggested keyboard shortcut; informational only until
-    /// keyboard routing is implemented.</param>
-    public sealed record ToolDefinition(ToolType Type, ToolCategory Category, string DisplayName, string IconData, string? Shortcut = null);
+    /// <param name="Shortcut">Keyboard shortcut. Single letters are live (pressing one
+    /// repeatedly cycles through tools sharing it - see <c>ToolboxViewModel.SelectToolByShortcut</c>).</param>
+    public sealed record ToolDefinition(ToolType Type, ToolCategory Category, string DisplayName, string IconData, string? Shortcut = null)
+    {
+        /// <summary>"Brush (B)" - the Tools panel tooltip, so shortcuts are discoverable.</summary>
+        public string ToolTip => string.IsNullOrEmpty(Shortcut) ? DisplayName : $"{DisplayName} ({Shortcut})";
+    }
 }

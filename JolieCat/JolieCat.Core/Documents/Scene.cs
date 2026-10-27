@@ -22,7 +22,7 @@ namespace JolieCat.Core.Documents
     /// second <c>IScene</c>/<c>IDocument</c> implementation (e.g. a serialized-project
     /// loader) is still free to reintroduce that layer of indirection when it exists.
     /// </remarks>
-    public sealed class Scene : IDisposable
+    public sealed partial class Scene : IDisposable
     {
         private readonly List<Layer> _layers = new();
 
@@ -64,6 +64,15 @@ namespace JolieCat.Core.Documents
             return layer;
         }
 
+        /// <summary>Inserts <paramref name="layer"/> at <paramref name="index"/> (0 = backmost),
+        /// clamped to the stack.</summary>
+        public void InsertLayer(int index, Layer layer)
+        {
+            ArgumentNullException.ThrowIfNull(layer);
+            _layers.Insert(Math.Clamp(index, 0, _layers.Count), layer);
+            ActiveLayer ??= layer;
+        }
+
         /// <summary>Removes and disposes <paramref name="layer"/>. If it was the active
         /// layer, a neighboring layer (preferring the one that took its position, else the
         /// new topmost) becomes active instead.</summary>
@@ -72,36 +81,61 @@ namespace JolieCat.Core.Documents
             var index = _layers.IndexOf(layer);
             if (index < 0) return false;
 
-            _layers.RemoveAt(index);
+            // A group goes together with everything inside it.
+            var (start, end) = BlockOf(layer);
+            var removed = CutBlock(start, end);
 
-            if (ActiveLayer == layer)
-                ActiveLayer = _layers.Count == 0 ? null : _layers[Math.Min(index, _layers.Count - 1)];
+            if (removed.Contains(ActiveLayer!))
+                ActiveLayer = _layers.Count == 0 ? null : _layers[Math.Min(start, _layers.Count - 1)];
 
-            layer.Dispose();
+            foreach (var gone in removed) gone.Dispose();
             return true;
+        }
+
+        /// <summary>Copies <paramref name="layer"/> (pixels, mask and settings) into a new
+        /// layer directly above it and makes the copy active. Smart Objects are copied
+        /// as their current rendered pixels. Returns null if the layer isn't in this scene.</summary>
+        public Layer? DuplicateLayer(Layer layer)
+        {
+            var index = _layers.IndexOf(layer);
+            if (index < 0) return null;
+            if (layer.IsGroup) return DuplicateGroup(layer);
+
+            var copy = new Layer($"{layer.Name} copy", layer.Bitmap.Width, layer.Bitmap.Height,
+                layer.IsAdjustment ? Shared.Enums.LayerType.Adjustment : Shared.Enums.LayerType.Raster)
+            {
+                IsVisible = layer.IsVisible,
+                Opacity = layer.Opacity,
+                BlendMode = layer.BlendMode,
+                Adjustment = layer.Adjustment,
+                Style = layer.Style,
+                ParentId = layer.ParentId,
+                IsClipped = layer.IsClipped,
+                Text = layer.Text,
+            };
+            copy.Canvas.DrawBitmap(layer.Bitmap, 0, 0);
+
+            if (layer.Mask is { } mask)
+            {
+                var copyMask = copy.AddMask();
+                copyMask.IsEnabled = mask.IsEnabled;
+                copyMask.Canvas.Clear(SKColors.Transparent);
+                copyMask.Canvas.DrawBitmap(mask.Bitmap, 0, 0);
+                copy.IsMaskActive = layer.IsMaskActive;
+            }
+
+            _layers.Insert(index + 1, copy);
+            ActiveLayer = copy;
+            return copy;
         }
 
         /// <summary>Moves a layer one step toward the front (up in a Layers panel that
         /// shows the frontmost layer first).</summary>
-        public bool MoveLayerUp(Layer layer)
-        {
-            var index = _layers.IndexOf(layer);
-            if (index < 0 || index >= _layers.Count - 1) return false;
-
-            (_layers[index], _layers[index + 1]) = (_layers[index + 1], _layers[index]);
-            return true;
-        }
+        public bool MoveLayerUp(Layer layer) => _layers.Contains(layer) && MoveUnitUp(layer);
 
         /// <summary>Moves a layer one step toward the back (down in a Layers panel that
         /// shows the frontmost layer first).</summary>
-        public bool MoveLayerDown(Layer layer)
-        {
-            var index = _layers.IndexOf(layer);
-            if (index <= 0) return false;
-
-            (_layers[index], _layers[index - 1]) = (_layers[index - 1], _layers[index]);
-            return true;
-        }
+        public bool MoveLayerDown(Layer layer) => _layers.Contains(layer) && MoveUnitDown(layer);
 
         /// <summary>
         /// Composites <paramref name="layer"/> onto the layer directly behind it - using
@@ -111,15 +145,35 @@ namespace JolieCat.Core.Documents
         public bool MergeLayerDown(Layer layer)
         {
             var index = _layers.IndexOf(layer);
+            if (layer.IsGroup) return MergeGroup(layer) is not null; // Merge Group
             if (index <= 0) return false;
 
             var below = _layers[index - 1];
+            if (below.IsAdjustment) return false; // nothing to merge pixels into
+            // Only into a plain layer in the same group (not a group, nor out of one).
+            if (below.IsGroup || below.ParentId != layer.ParentId) return false;
 
             // Delegates to SceneCompositor rather than drawing layer.Bitmap directly, so
             // a masked layer merges down showing exactly what it already looked like
             // composited on screen - not its full, unmasked content suddenly reappearing
             // the moment it merges into the layer below.
-            SceneCompositor.DrawLayer(below.Canvas, layer, layer.Bitmap.Width, layer.Bitmap.Height);
+            if (layer.IsClipped && !below.IsClipped)
+            {
+                // Clipped to `below`: only what lies on its pixels survives.
+                using var baseShape = below.Bitmap.Copy();
+                var bounds = new SKRect(0, 0, below.Bitmap.Width, below.Bitmap.Height);
+                below.Canvas.SaveLayer(bounds, null);
+                SceneCompositor.DrawLayer(below.Canvas, layer, layer.Bitmap, layer.Bitmap.Width, layer.Bitmap.Height,
+                    default, () => SKImage.FromBitmap(below.Bitmap));
+                using (var cut = new SKPaint { BlendMode = SKBlendMode.DstIn })
+                    below.Canvas.DrawBitmap(baseShape, 0, 0, cut);
+                below.Canvas.Restore();
+            }
+            else
+            {
+                SceneCompositor.DrawLayer(below.Canvas, layer, layer.Bitmap, layer.Bitmap.Width, layer.Bitmap.Height,
+                    default, () => SKImage.FromBitmap(below.Bitmap));
+            }
 
             return RemoveLayer(layer);
         }
@@ -135,7 +189,12 @@ namespace JolieCat.Core.Documents
         /// in-place operation, and this keeps every layer's identity-churn-on-structural-
         /// change behavior consistent with <see cref="RestoreLayers"/>.
         /// </summary>
-        public void ResizeLayers(int newWidth, int newHeight)
+        public void ResizeLayers(int newWidth, int newHeight) => ResizeLayers(newWidth, newHeight, 0, 0);
+
+        /// <summary>Canvas Size with the old content placed at (<paramref name="offsetX"/>,
+        /// <paramref name="offsetY"/>) on the new canvas - e.g. half the size difference
+        /// to keep it centered.</summary>
+        public void ResizeLayers(int newWidth, int newHeight, int offsetX, int offsetY)
         {
             if (newWidth <= 0) throw new ArgumentOutOfRangeException(nameof(newWidth));
             if (newHeight <= 0) throw new ArgumentOutOfRangeException(nameof(newHeight));
@@ -143,16 +202,22 @@ namespace JolieCat.Core.Documents
             for (var i = 0; i < _layers.Count; i++)
             {
                 var old = _layers[i];
-                if (old.Bitmap.Width == newWidth && old.Bitmap.Height == newHeight) continue;
+                if (old.Bitmap.Width == newWidth && old.Bitmap.Height == newHeight && offsetX == 0 && offsetY == 0) continue;
 
-                var resized = new Layer(old.Name, newWidth, newHeight, old.Type)
+                var resized = new Layer(old.Name, newWidth, newHeight, old.Type, old.Id)
                 {
                     IsVisible = old.IsVisible,
                     IsLocked = old.IsLocked,
                     Opacity = old.Opacity,
                     BlendMode = old.BlendMode,
+                    Adjustment = old.Adjustment,
+                    Style = old.Style,
+                    ParentId = old.ParentId,
+                    IsExpanded = old.IsExpanded,
+                    IsClipped = old.IsClipped,
                 };
-                resized.Canvas.DrawBitmap(old.Bitmap, 0, 0);
+                resized.Canvas.DrawBitmap(old.Bitmap, offsetX, offsetY);
+                resized.Text = old.Text?.MovedBy(offsetX, offsetY);
 
                 // A mask is resized the same way as the layer's own content - anchored
                 // at its top-left corner, cropped or padded-with-white (fully visible,
@@ -162,7 +227,7 @@ namespace JolieCat.Core.Documents
                     var resizedMask = resized.AddMask();
                     resizedMask.IsEnabled = oldMask.IsEnabled;
                     resizedMask.Canvas.Clear(SKColors.White);
-                    resizedMask.Canvas.DrawBitmap(oldMask.Bitmap, 0, 0);
+                    resizedMask.Canvas.DrawBitmap(oldMask.Bitmap, offsetX, offsetY);
                     resized.IsMaskActive = old.IsMaskActive;
                 }
 
@@ -193,12 +258,17 @@ namespace JolieCat.Core.Documents
                 var old = _layers[i];
                 var center = new SKPoint(old.Bitmap.Width / 2f, old.Bitmap.Height / 2f);
 
-                var cropped = new Layer(old.Name, cropRect.Width, cropRect.Height, old.Type)
+                var cropped = new Layer(old.Name, cropRect.Width, cropRect.Height, old.Type, old.Id)
                 {
                     IsVisible = old.IsVisible,
                     IsLocked = old.IsLocked,
                     Opacity = old.Opacity,
                     BlendMode = old.BlendMode,
+                    Adjustment = old.Adjustment,
+                    Style = old.Style,
+                    ParentId = old.ParentId,
+                    IsExpanded = old.IsExpanded,
+                    IsClipped = old.IsClipped,
                 };
 
                 RotateAndCropInto(cropped.Canvas, old.Bitmap, center, rotationDegrees, cropRect, SKColors.Transparent);
@@ -246,6 +316,183 @@ namespace JolieCat.Core.Documents
             destCanvas.DrawBitmap(rotated, -cropRect.Left, -cropRect.Top);
         }
 
+        /// <summary>Image Size: rescales every layer (and mask) to the new dimensions.
+        /// Downscaling uses mipmapped linear filtering (no aliasing/moire); upscaling uses
+        /// bicubic (Mitchell) so edges stay smooth without ringing.</summary>
+        public void ResampleLayers(int newWidth, int newHeight)
+        {
+            if (newWidth <= 0) throw new ArgumentOutOfRangeException(nameof(newWidth));
+            if (newHeight <= 0) throw new ArgumentOutOfRangeException(nameof(newHeight));
+            if (_layers.Count == 0) return;
+
+            var old = _layers[0].Bitmap;
+            var downscale = newWidth < old.Width || newHeight < old.Height;
+            var sampling = downscale
+                ? new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)
+                : new SKSamplingOptions(SKCubicResampler.Mitchell);
+            var dest = SKRect.Create(0, 0, newWidth, newHeight);
+
+            RebuildLayers(newWidth, newHeight, (canvas, source) =>
+            {
+                using var image = SKImage.FromBitmap(source);
+                canvas.DrawImage(image, dest, sampling);
+            });
+        }
+
+        /// <summary>Rotates the whole image by <paramref name="quarterTurns"/> × 90°
+        /// clockwise (negative = counter-clockwise). Odd turns swap width and height.</summary>
+        public void RotateLayers(int quarterTurns)
+        {
+            if (_layers.Count == 0) return;
+
+            var turns = ((quarterTurns % 4) + 4) % 4;
+            if (turns == 0) return;
+
+            var oldWidth = _layers[0].Bitmap.Width;
+            var oldHeight = _layers[0].Bitmap.Height;
+            var newWidth = turns % 2 == 1 ? oldHeight : oldWidth;
+            var newHeight = turns % 2 == 1 ? oldWidth : oldHeight;
+
+            RebuildLayers(newWidth, newHeight, (canvas, source) =>
+            {
+                canvas.Save();
+                switch (turns)
+                {
+                    case 1: canvas.Translate(newWidth, 0); break;
+                    case 2: canvas.Translate(newWidth, newHeight); break;
+                    case 3: canvas.Translate(0, newHeight); break;
+                }
+
+                canvas.RotateDegrees(90 * turns);
+                canvas.DrawBitmap(source, 0, 0);
+                canvas.Restore();
+            });
+        }
+
+        /// <summary>Mirrors the whole image (every layer and mask).</summary>
+        public void FlipLayers(bool horizontal)
+        {
+            if (_layers.Count == 0) return;
+
+            var width = _layers[0].Bitmap.Width;
+            var height = _layers[0].Bitmap.Height;
+            RebuildLayers(width, height, (canvas, source) => DrawFlipped(canvas, source, horizontal));
+        }
+
+        /// <summary>Mirrors one layer's pixels in place (Edit &gt; Transform &gt; Flip).
+        /// Only the layer content - not its mask - like Photoshop when the mask is unlinked.</summary>
+        public static void FlipLayerContent(Layer layer, bool horizontal)
+        {
+            ArgumentNullException.ThrowIfNull(layer);
+
+            using var copy = layer.Bitmap.Copy();
+            layer.Canvas.Clear(SKColors.Transparent);
+            DrawFlipped(layer.Canvas, copy, horizontal);
+        }
+
+        private static void DrawFlipped(SKCanvas canvas, SKBitmap source, bool horizontal)
+        {
+            canvas.Save();
+            if (horizontal)
+            {
+                canvas.Translate(source.Width, 0);
+                canvas.Scale(-1, 1);
+            }
+            else
+            {
+                canvas.Translate(0, source.Height);
+                canvas.Scale(1, -1);
+            }
+
+            canvas.DrawBitmap(source, 0, 0);
+            canvas.Restore();
+        }
+
+        /// <summary>Flatten Image: merges every visible layer into a single layer named
+        /// "Background" (hidden layers are discarded, as in Photoshop). Transparency is kept.</summary>
+        public void Flatten()
+        {
+            if (_layers.Count == 0) return;
+
+            var width = _layers[0].Bitmap.Width;
+            var height = _layers[0].Bitmap.Height;
+            var flat = new Layer("Background", width, height);
+            SceneCompositor.DrawLayersInto(flat.Bitmap, this);
+
+            foreach (var layer in _layers) layer.Dispose();
+            _layers.Clear();
+            _layers.Add(flat);
+            ActiveLayer = flat;
+        }
+
+        /// <summary>Merge Visible: merges every visible layer into the lowest visible
+        /// one's position, leaving hidden layers untouched. Returns false if fewer than
+        /// two layers are visible.</summary>
+        public bool MergeVisible()
+        {
+            // Everything that shows (groups included); hidden layers and hidden groups stay.
+            var visible = _layers.Where(IsEffectivelyVisible).ToList();
+            if (visible.Count(l => !l.IsGroup) < 2) return false;
+            var bottomPixel = visible.First(l => !l.IsGroup);
+            visible.Remove(bottomPixel);
+            visible.Insert(0, bottomPixel);
+
+            var width = _layers[0].Bitmap.Width;
+            var height = _layers[0].Bitmap.Height;
+            var bottom = visible[0];
+            var merged = new Layer(bottom.Name, width, height, Shared.Enums.LayerType.Raster, bottom.Id) { ParentId = bottom.ParentId };
+            SceneCompositor.DrawLayersInto(merged.Bitmap, this);
+
+            var index = _layers.IndexOf(bottom);
+            _layers[index] = merged;
+            foreach (var layer in visible)
+            {
+                if (!ReferenceEquals(layer, bottom)) _layers.Remove(layer);
+                layer.Dispose();
+            }
+
+            NormalizeGroups();
+            ActiveLayer = merged;
+            return true;
+        }
+
+        /// <summary>Replaces every layer with a fresh one of the new size whose content
+        /// (and mask, if any) is produced by <paramref name="draw"/> from the old bitmap.
+        /// Ids and settings carry over, so history entries keep pointing at the right layer.</summary>
+        private void RebuildLayers(int newWidth, int newHeight, Action<SKCanvas, SKBitmap> draw)
+        {
+            for (var i = 0; i < _layers.Count; i++)
+            {
+                var old = _layers[i];
+                var rebuilt = new Layer(old.Name, newWidth, newHeight, old.Type == Shared.Enums.LayerType.SmartObject ? Shared.Enums.LayerType.Raster : old.Type, old.Id)
+                {
+                    IsVisible = old.IsVisible,
+                    IsLocked = old.IsLocked,
+                    Opacity = old.Opacity,
+                    BlendMode = old.BlendMode,
+                    Adjustment = old.Adjustment,
+                    Style = old.Style,
+                    ParentId = old.ParentId,
+                    IsExpanded = old.IsExpanded,
+                    IsClipped = old.IsClipped,
+                };
+                draw(rebuilt.Canvas, old.Bitmap);
+
+                if (old.Mask is { } oldMask)
+                {
+                    var mask = rebuilt.AddMask();
+                    mask.IsEnabled = oldMask.IsEnabled;
+                    mask.Canvas.Clear(SKColors.White);
+                    draw(mask.Canvas, oldMask.Bitmap);
+                    rebuilt.IsMaskActive = old.IsMaskActive;
+                }
+
+                _layers[i] = rebuilt;
+                if (ActiveLayer == old) ActiveLayer = rebuilt;
+                old.Dispose();
+            }
+        }
+
         /// <summary>Freezes every layer's metadata and pixel content - the History
         /// system's before/after state for a structural change (see
         /// <see cref="History.SceneStructuralCommand"/>).</summary>
@@ -253,7 +500,8 @@ namespace JolieCat.Core.Documents
             .Select(layer => new LayerSnapshot(
                 layer.Name, layer.Bitmap.Width, layer.Bitmap.Height, layer.Type,
                 layer.IsVisible, layer.IsLocked, layer.Opacity, layer.BlendMode, layer.Bitmap.Pixels,
-                layer.Mask is not null, layer.Mask?.IsEnabled ?? false, layer.Mask?.Bitmap.Pixels))
+                layer.Mask is not null, layer.Mask?.IsEnabled ?? false, layer.Mask?.Bitmap.Pixels,
+                layer.Id, layer.SmartObject, layer.SmartObjectTransform?.Matrix, layer.Adjustment, layer.Style, layer.ParentId, layer.IsExpanded, layer.IsClipped, layer.Text))
             .ToList();
 
         /// <summary>
@@ -280,14 +528,22 @@ namespace JolieCat.Core.Documents
 
             foreach (var entry in snapshot)
             {
-                var layer = new Layer(entry.Name, entry.Width, entry.Height, entry.Type)
+                var layer = new Layer(entry.Name, entry.Width, entry.Height, entry.Type, entry.Id == Guid.Empty ? null : entry.Id)
                 {
                     IsVisible = entry.IsVisible,
                     IsLocked = entry.IsLocked,
                     Opacity = entry.Opacity,
                     BlendMode = entry.BlendMode,
+                    Style = entry.Style,
+                    ParentId = entry.ParentId,
+                    IsExpanded = entry.IsExpanded,
+                    IsClipped = entry.IsClipped,
+                    Text = entry.Text,
                 };
                 layer.Bitmap.Pixels = entry.Pixels;
+
+                if (entry.SmartObject is { } smartObject && entry.SmartObjectMatrix is { } matrix)
+                    layer.AttachSmartObject(smartObject, matrix);
 
                 if (entry.HasMask)
                 {
@@ -295,6 +551,12 @@ namespace JolieCat.Core.Documents
                     mask.IsEnabled = entry.IsMaskEnabled;
                     if (entry.MaskPixels is { } maskPixels)
                         mask.Bitmap.Pixels = maskPixels;
+                }
+
+                if (entry.Adjustment is { } adjustment)
+                {
+                    layer.Adjustment = adjustment;
+                    layer.IsMaskActive = layer.Mask is not null; // an adjustment layer is painted through its mask
                 }
 
                 _layers.Add(layer);

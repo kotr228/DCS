@@ -31,6 +31,10 @@ namespace JolieCat.UI.ViewModels.Layers
             BlendMode.SoftLight => "Soft Light",
             BlendMode.Difference => "Difference",
             BlendMode.Exclusion => "Exclusion",
+            BlendMode.Hue => "Hue",
+            BlendMode.Saturation => "Saturation",
+            BlendMode.Color => "Color",
+            BlendMode.Luminosity => "Luminosity",
             _ => mode.ToString(),
         };
     }

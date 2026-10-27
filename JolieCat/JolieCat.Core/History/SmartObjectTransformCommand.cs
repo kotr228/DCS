@@ -18,12 +18,14 @@ namespace JolieCat.Core.History
     public sealed class SmartObjectTransformCommand : IEditCommand
     {
         private readonly Layer _layer;
+        private readonly Scene? _scene;
         private readonly SKMatrix _before;
         private readonly SKMatrix _after;
 
-        public SmartObjectTransformCommand(Layer layer, SKMatrix before, SKMatrix after)
+        public SmartObjectTransformCommand(Layer layer, SKMatrix before, SKMatrix after, Scene? scene = null)
         {
             _layer = layer ?? throw new ArgumentNullException(nameof(layer));
+            _scene = scene;
             _before = before;
             _after = after;
         }
@@ -34,10 +36,18 @@ namespace JolieCat.Core.History
 
         private void Apply(SKMatrix matrix)
         {
-            if (_layer.SmartObjectTransform is null) return;
+            // Structural undo/redo may have rebuilt the layer (same Id, new object).
+            var layer = _layer;
+            if (_scene is not null)
+            {
+                foreach (var candidate in _scene.Layers)
+                    if (candidate.Id == _layer.Id) { layer = candidate; break; }
+            }
 
-            _layer.SmartObjectTransform.Matrix = matrix;
-            _layer.RenderSmartObject();
+            if (layer.SmartObjectTransform is null) return;
+
+            layer.SmartObjectTransform.Matrix = matrix;
+            layer.RenderSmartObject();
         }
     }
 }

@@ -22,7 +22,7 @@ namespace JolieCat.Core.Filters
         /// blur's cost is quadratic in its kernel's side length - an unbounded radius
         /// from a stray large slider value would make one preview frame arbitrarily
         /// slow rather than merely "very blurred".</summary>
-        private const float MaxBoxBlurRadius = 25f;
+        private const float MaxBoxBlurRadius = 100f;
 
         public static SKBitmap Apply(SKBitmap source, BlurType type, float radius)
         {
@@ -36,17 +36,25 @@ namespace JolieCat.Core.Filters
             return ApplyImageFilter(source, filter);
         }
 
+        /// <summary>A box blur is separable: a horizontal pass followed by a vertical
+        /// one gives the same result as the full square kernel at O(r) instead of
+        /// O(r²) cost per pixel.</summary>
         private static SKImageFilter CreateBoxBlurFilter(float radius)
         {
             var side = Math.Max(1, (int)Math.Round(radius)) * 2 + 1;
-            var kernel = new float[side * side];
-            var weight = 1f / (side * side);
+            var kernel = new float[side];
+            var weight = 1f / side;
             for (var i = 0; i < kernel.Length; i++) kernel[i] = weight;
 
-            return SKImageFilter.CreateMatrixConvolution(
-                new SKSizeI(side, side), kernel, gain: 1f, bias: 0f,
-                kernelOffset: new SKPointI(side / 2, side / 2),
+            using var horizontal = SKImageFilter.CreateMatrixConvolution(
+                new SKSizeI(side, 1), kernel, gain: 1f, bias: 0f,
+                kernelOffset: new SKPointI(side / 2, 0),
                 tileMode: SKShaderTileMode.Clamp, convolveAlpha: false);
+
+            return SKImageFilter.CreateMatrixConvolution(
+                new SKSizeI(1, side), kernel, gain: 1f, bias: 0f,
+                kernelOffset: new SKPointI(0, side / 2),
+                tileMode: SKShaderTileMode.Clamp, convolveAlpha: false, input: horizontal);
         }
 
         /// <summary>Draws <paramref name="source"/> through an <see cref="SKImageFilter"/>

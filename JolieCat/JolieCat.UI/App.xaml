@@ -1,7 +1,8 @@
 <Application x:Class="JolieCat.UI.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:JolieCat.UI">
+             xmlns:local="clr-namespace:JolieCat.UI"
+             xmlns:converters="clr-namespace:JolieCat.UI.Converters">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -14,6 +15,7 @@
                  Resources isn't guaranteed reachable by StaticResource from a separately-
                  compiled UserControl's XAML. -->
             <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+            <converters:EnumToIndexConverter x:Key="EnumToIndex" />
 
             <!-- ================= "JolieCat" Theme Palette ================= -->
             <!-- Professional dark workspace (a "BlackCat"-style neutral-charcoal card
@@ -391,6 +393,140 @@
                                 </Trigger>
                                 <Trigger Property="IsEnabled" Value="False">
                                     <Setter Property="Opacity" Value="0.5" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- ================= Menu ================= -->
+            <!-- WPF's stock menu draws its drop-downs with the light OS look, where this
+                 app's global white TextBlock color made every item unreadable. These
+                 templates give the menu bar and its drop-downs the dark card look of the
+                 rest of the app, with the shortcut shown right-aligned. -->
+            <Style TargetType="{x:Type Menu}">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+
+            <Style x:Key="{x:Static MenuItem.SeparatorStyleKey}" TargetType="{x:Type Separator}">
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type Separator}">
+                            <Border Height="1" Margin="8,4" Background="{StaticResource BorderBrush}" />
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="{x:Type MenuItem}">
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type MenuItem}">
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="3" Padding="8,4">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition x:Name="CheckCol" Width="18" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition x:Name="GestureCol" Width="Auto" />
+                                        <ColumnDefinition x:Name="ArrowCol" Width="14" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock x:Name="Check" Grid.Column="0" Text="&#x2713;" Visibility="Hidden"
+                                               Foreground="{StaticResource ActiveIndicatorBrush}" VerticalAlignment="Center" />
+                                    <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True"
+                                                      VerticalAlignment="Center" />
+                                    <TextBlock x:Name="Gesture" Grid.Column="2" Text="{TemplateBinding InputGestureText}"
+                                               Margin="24,0,0,0" VerticalAlignment="Center"
+                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                    <Path x:Name="Arrow" Grid.Column="3" Data="M0,0 L4,4 L0,8 Z" Visibility="Collapsed"
+                                          Fill="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+
+                                    <Popup x:Name="PART_Popup" IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                           Placement="Right" HorizontalOffset="4" VerticalOffset="-5"
+                                           AllowsTransparency="True" Focusable="False" PopupAnimation="Fade">
+                                        <Border Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                                BorderThickness="1" CornerRadius="5" Padding="4" MinWidth="200">
+                                            <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" />
+                                        </Border>
+                                    </Popup>
+                                </Grid>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <!-- Menu bar entries: just the header, drop-down opens below. -->
+                                <Trigger Property="Role" Value="TopLevelHeader">
+                                    <Setter TargetName="CheckCol" Property="Width" Value="0" />
+                                    <Setter TargetName="GestureCol" Property="Width" Value="0" />
+                                    <Setter TargetName="ArrowCol" Property="Width" Value="0" />
+                                    <Setter TargetName="PART_Popup" Property="Placement" Value="Bottom" />
+                                    <Setter TargetName="PART_Popup" Property="HorizontalOffset" Value="-8" />
+                                    <Setter TargetName="PART_Popup" Property="VerticalOffset" Value="4" />
+                                    <Setter TargetName="Bd" Property="Padding" Value="10,4" />
+                                </Trigger>
+                                <Trigger Property="Role" Value="TopLevelItem">
+                                    <Setter TargetName="CheckCol" Property="Width" Value="0" />
+                                    <Setter TargetName="GestureCol" Property="Width" Value="0" />
+                                    <Setter TargetName="ArrowCol" Property="Width" Value="0" />
+                                    <Setter TargetName="Bd" Property="Padding" Value="10,4" />
+                                </Trigger>
+                                <Trigger Property="Role" Value="SubmenuHeader">
+                                    <Setter TargetName="Arrow" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Check" Property="Visibility" Value="Visible" />
+                                </Trigger>
+                                <Trigger Property="IsHighlighted" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsSubmenuOpen" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- Small square icon button (Segoe MDL2 glyph) for compact toolbars. -->
+            <Style x:Key="IconButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="Width" Value="30" />
+                <Setter Property="Height" Value="26" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="2,0" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+            </Style>
+
+            <!-- Eye / lock style toggles in the Layers list: a glyph that dims when off. -->
+            <Style x:Key="GlyphToggleStyle" TargetType="{x:Type ToggleButton}">
+                <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Width" Value="22" />
+                <Setter Property="Height" Value="22" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Focusable" Value="False" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type ToggleButton}">
+                            <Border x:Name="Bd" Background="Transparent" CornerRadius="3">
+                                <ContentPresenter x:Name="Glyph" HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.3" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Glyph" Property="Opacity" Value="1" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="#22FFFFFF" />
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>

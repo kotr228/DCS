@@ -16,6 +16,13 @@ namespace JolieCat.Shared.Enums
         HardLight,
         SoftLight,
         Difference,
-        Exclusion
+        Exclusion,
+
+        // Component modes - appended so the numeric values of the modes above (which
+        // saved projects may store) stay unchanged.
+        Hue,
+        Saturation,
+        Color,
+        Luminosity
     }
 }

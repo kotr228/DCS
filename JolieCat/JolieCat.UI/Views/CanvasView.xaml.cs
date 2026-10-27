@@ -118,7 +118,59 @@ namespace JolieCat.UI.Views
             if (Surface.ActualHeight > 0) _dpiScaleY = e.Info.Height / Surface.ActualHeight;
 
             if (ViewModel is { } viewModel)
+            {
+                // May fit/center the document on the very first frame - the render
+                // below then already uses the fitted view.
+                viewModel.SetViewportSize(e.Info.Width, e.Info.Height);
                 CanvasRenderer.Render(e.Surface.Canvas, e.Info, viewModel);
+            }
+        }
+
+        private void Surface_MouseLeave(object sender, MouseEventArgs e)
+        {
+            if (!Surface.IsMouseCaptured) ViewModel?.ClearHover();
+        }
+
+        /// <summary>Middle mouse button pans with any tool active.</summary>
+        private void Surface_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Middle || ViewModel is not { } viewModel) return;
+
+            Surface.Focus();
+            Surface.CaptureMouse();
+            viewModel.BeginPan(ToDevicePixels(e.GetPosition(Surface)));
+            Surface.Cursor = Cursors.ScrollAll;
+            e.Handled = true;
+        }
+
+        private void Surface_MouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Middle || ViewModel is not { } viewModel) return;
+
+            viewModel.EndPan();
+            Surface.ReleaseMouseCapture();
+            RestoreToolCursor();
+            e.Handled = true;
+        }
+
+        /// <summary>Re-binds the surface cursor to the active tool after a temporary
+        /// override (panning) replaced the XAML binding.</summary>
+        private void RestoreToolCursor() =>
+            Surface.SetBinding(CursorProperty, new System.Windows.Data.Binding(nameof(CanvasViewModel.ActiveToolType))
+            {
+                Converter = (System.Windows.Data.IValueConverter)Resources["ToolTypeToCursor"],
+            });
+
+        /// <summary>Space held: show the hand cursor; a left-drag pans (see
+        /// <see cref="CanvasViewModel.IsSpacePanArmed"/>). Called from MainWindow's
+        /// keyboard handling so it works whatever has keyboard focus.</summary>
+        public void SetSpacePan(bool armed)
+        {
+            if (ViewModel is not { } viewModel || viewModel.IsSpacePanArmed == armed) return;
+
+            viewModel.IsSpacePanArmed = armed;
+            if (armed) Surface.Cursor = Cursors.Hand;
+            else RestoreToolCursor();
         }
 
         private void Surface_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -128,7 +180,20 @@ namespace JolieCat.UI.Views
             Surface.Focus();
             Surface.CaptureMouse();
             // ClickCount == 2 is Polygonal Lasso's "close the polygon" gesture.
-            viewModel.OnPointerPressed(ToDevicePixels(e.GetPosition(Surface)), e.ClickCount == 2);
+            viewModel.OnPointerPressed(ToDevicePixels(e.GetPosition(Surface)), e.ClickCount == 2, ReadPressure(e));
+        }
+
+        /// <summary>Pen pressure (0-1) for a pointer event promoted from a stylus/tablet;
+        /// a plain mouse reports full pressure. Some tablet drivers report no pressure
+        /// at all (a constant 0.5), which still paints sensibly.</summary>
+        private float ReadPressure(MouseEventArgs e)
+        {
+            if (e.StylusDevice is not { } stylus) return 1f;
+
+            var points = stylus.GetStylusPoints(Surface);
+            if (points.Count == 0) return 1f;
+
+            return Math.Clamp(points[^1].PressureFactor, 0.02f, 1f);
         }
 
         /// <summary>Enter commits and Escape cancels whichever of Crop/Free Transform/
@@ -161,7 +226,7 @@ namespace JolieCat.UI.Views
 
         private void Surface_MouseMove(object sender, MouseEventArgs e)
         {
-            ViewModel?.OnPointerMoved(ToDevicePixels(e.GetPosition(Surface)));
+            ViewModel?.OnPointerMoved(ToDevicePixels(e.GetPosition(Surface)), ReadPressure(e));
         }
 
         private void Surface_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)

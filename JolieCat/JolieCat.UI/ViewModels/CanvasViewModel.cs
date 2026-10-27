@@ -29,8 +29,10 @@ namespace JolieCat.UI.ViewModels
     /// </summary>
     public partial class CanvasViewModel : ObservableObject, IDisposable
     {
-        private const double MinZoom = 0.1;
-        private const double MaxZoom = 8.0;
+        private const double MinZoom = 0.05;
+
+        /// <summary>High enough to edit individual pixels of small sprites.</summary>
+        private const double MaxZoom = 32.0;
         private const double ZoomWheelFactor = 1.1;
 
         /// <summary>Zoomed out a little so the whole document tends to fit in a typical
@@ -54,6 +56,15 @@ namespace JolieCat.UI.ViewModels
         /// so spacing stays even across mouse-move samples, not just within one. Reset by
         /// PaintDot at the start of every new stroke.</summary>
         private float _distanceUntilNextDab;
+
+        /// <summary>Pen pressure at the previous pointer sample - interpolated toward the
+        /// new sample's pressure along each painted segment so strokes taper smoothly.</summary>
+        private float _lastPressure = 1f;
+
+        /// <summary>Document-space cursor position for the status bar ("X: 120  Y: 48"),
+        /// empty while the pointer is outside the document.</summary>
+        [ObservableProperty]
+        private string cursorPositionText = string.Empty;
 
         /// <summary>The layer a Brush/Pencil/Eraser stroke is currently painting onto, and
         /// its pixel content from right before the stroke began - <see cref="Layers.History"/>'s
@@ -87,107 +98,6 @@ namespace JolieCat.UI.ViewModels
         /// in practice: switching tools commits first, see <see cref="OnToolboxPropertyChanged"/>).</summary>
         private bool _isVerticalTextEdit;
 
-        // ================= Crop =================
-
-        private enum CropHandle { None, TopLeft, Top, TopRight, Right, BottomRight, Bottom, BottomLeft, Left, Inside }
-
-        /// <summary>Device-pixel radius a click/drag has to land within a handle to hit
-        /// it - converted to document space via <see cref="Zoom"/> at test time, so
-        /// handles stay equally easy to grab regardless of zoom level.</summary>
-        private const float HandleHitRadius = 10f;
-
-        private bool _isCropping;
-        private SKRect _cropRect;
-        private CropHandle _activeCropHandle = CropHandle.None;
-        private SKPoint _cropDragStart;
-        private SKRect _cropDragStartRect;
-
-        // ================= Free Transform =================
-
-        private enum TransformHandle { None, TopLeft, TopRight, BottomLeft, BottomRight, Rotate, Inside }
-
-        private bool _isTransforming;
-        private Core.Documents.Layer? _transformLayer;
-        private SKBitmap? _transformOriginalBitmap;
-        private SKRect _transformOriginalBounds;
-        private float _transformScaleX = 1f;
-        private float _transformScaleY = 1f;
-        private float _transformRotation;
-        private float _transformTranslateX;
-        private float _transformTranslateY;
-        private TransformHandle _activeTransformHandle = TransformHandle.None;
-        private SKPoint _transformDragStart;
-        private float _transformDragStartScaleX;
-        private float _transformDragStartScaleY;
-        private float _transformDragStartRotation;
-        private float _transformDragStartTranslateX;
-        private float _transformDragStartTranslateY;
-
-        // ================= Warp =================
-
-        private bool _isWarping;
-        private Core.Documents.Layer? _warpLayer;
-        private SKBitmap? _warpOriginalBitmap;
-        private Core.Transform.MeshWarp? _warpMesh;
-        private int _warpDragRow = -1;
-        private int _warpDragCol = -1;
-
-        // ================= Pen Tool / Vector Paths =================
-
-        private enum PenNodeDragTarget { None, Anchor, InHandle, OutHandle }
-
-        /// <summary>Below this document-space drag distance, a Pen-tool click-drag is
-        /// still treated as a plain click (the anchor stays a Corner with no handles at
-        /// all) rather than the deliberate drag that defines a Smooth point's handles -
-        /// avoids a barely-moved click accidentally acquiring a zero-length handle pair.</summary>
-        private const float PenHandleDragThreshold = 3f;
-
-        /// <summary>The Pen tool's transient working path - built up by clicking
-        /// anchors, edited further by Path Selection/Direct Selection, and consumed by
-        /// <see cref="ConvertPenPathToSelection"/>/<see cref="StrokePenPath"/>/
-        /// <see cref="FillPenPath"/>. Deliberately not a persisted per-layer vector data
-        /// model - transient, exactly like <see cref="LiveSelectionPath"/> is for the
-        /// Lasso tools - so the existing selection/paint machinery can be reused for all
-        /// three outputs instead of inventing new persistence.</summary>
-        private VectorPath? _penPath;
-
-        /// <summary>True while still actively appending anchors (from the first click
-        /// until Enter, a double-click, or clicking back on the start point closes it) -
-        /// false once finished, when only Path Selection/Direct Selection edit
-        /// <see cref="_penPath"/> further.</summary>
-        private bool _isDrawingPen;
-
-        private bool _isDraggingPenHandle;
-        private int _penPendingAnchorIndex = -1;
-
-        /// <summary>The pointer's current document position while <see cref="_isDrawingPen"/> -
-        /// draws the rubber-band segment from the last placed anchor to here, the same
-        /// live-preview convention <see cref="_polygonHoverPoint"/> uses for Polygonal Lasso.</summary>
-        private SKPoint _penHoverPoint;
-
-        private PenNodeDragTarget _penNodeDragTarget = PenNodeDragTarget.None;
-        private int _penNodeDragAnchorIndex = -1;
-        private SKPoint _penNodeDragStart;
-        private SKPoint _penNodeDragOriginalPosition;
-        private SKPoint? _penNodeDragOriginalInHandle;
-        private SKPoint? _penNodeDragOriginalOutHandle;
-
-        private bool _isDraggingPenPath;
-        private SKPoint _penPathDragStart;
-
-        /// <summary>Every anchor's Position/InHandle/OutHandle exactly as they were when
-        /// the Path Selection drag started - each move recomputes from this snapshot
-        /// plus the drag's total delta (not incrementally from the previous move), the
-        /// same drag-start-snapshot approach Free Transform's own scale/rotate drag
-        /// uses, so repeated moves can't accumulate floating-point drift.</summary>
-        private List<(SKPoint Position, SKPoint? InHandle, SKPoint? OutHandle)>? _penPathDragSnapshot;
-
-        // ================= Filter / Color Adjustment Preview =================
-
-        private Core.Documents.Layer? _adjustmentLayer;
-        private SKBitmap? _adjustmentOriginalBitmap;
-        private Func<SKBitmap, SKBitmap>? _adjustmentPreview;
-
         private bool _disposed;
 
         [ObservableProperty]
@@ -202,7 +112,7 @@ namespace JolieCat.UI.ViewModels
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(PrimaryColorBrush))]
         [NotifyPropertyChangedFor(nameof(HexCode))]
-        private Color primaryColor = Colors.White;
+        private Color primaryColor = Colors.Black;
 
         /// <summary>The color picker's own copy of <see cref="PrimaryColor"/>'s hue, kept
         /// as a separate 0-360 value (rather than always re-deriving it from RGB) so a
@@ -255,9 +165,9 @@ namespace JolieCat.UI.ViewModels
         /// point - recomputed from <see cref="_textEditOrigin"/> whenever <see cref="Zoom"/>
         /// or pan changes (see the partial On*Changed methods), so the overlay tracks its
         /// anchored document position live if the user pans or zooms mid-edit.</summary>
-        public double TextEditScreenX => _textEditOrigin.X * Zoom + PanX;
+        public double TextEditScreenX => ToRotatedScreen(new SKPoint((float)(_textEditOrigin.X * Zoom + PanX), (float)(_textEditOrigin.Y * Zoom + PanY))).X;
 
-        public double TextEditScreenY => _textEditOrigin.Y * Zoom + PanY;
+        public double TextEditScreenY => ToRotatedScreen(new SKPoint((float)(_textEditOrigin.X * Zoom + PanX), (float)(_textEditOrigin.Y * Zoom + PanY))).Y;
 
         /// <summary>
         /// The in-progress selection outline while a marquee/lasso/polygon is being
@@ -361,10 +271,20 @@ namespace JolieCat.UI.ViewModels
         /// so the view can bind the canvas cursor to it without needing the whole toolbox.</summary>
         public ToolType ActiveToolType => _toolbox.ActiveTool.Type;
 
+        /// <summary>Tools that change the active layer's pixels (so need a real layer,
+        /// not a group).</summary>
+        internal static bool EditsPixels(ToolType type) => type is
+            ToolType.Brush or ToolType.Pencil or ToolType.Eraser or ToolType.PaintBucket or ToolType.Gradient or
+            ToolType.CloneStamp or ToolType.HealingBrush or ToolType.SpotHealing or ToolType.Blur or ToolType.Sharpen or
+            ToolType.Sponge or ToolType.Dodge or ToolType.Burn or ToolType.Shape or
+            ToolType.Pen or ToolType.FreeTransform or ToolType.Warp;
+
         /// <summary>Raised after any change the view should repaint for - layer pixel
         /// content and selection state included, neither of which is an observable
         /// property the view can react to directly.</summary>
         public event EventHandler? InvalidateRequested;
+
+        private (int Width, int Height) _lastDocumentSize;
 
         public CanvasViewModel(ToolboxViewModel toolbox, LayersViewModel layers)
         {
@@ -373,6 +293,21 @@ namespace JolieCat.UI.ViewModels
 
             Layers = layers ?? throw new ArgumentNullException(nameof(layers));
             Layers.InvalidateRequested += OnLayersInvalidateRequested;
+
+            // Rotating the canvas, Image/Canvas Size, cropping (and undoing them) change
+            // the document's size: fit the new shape into the view, like Photoshop.
+            _lastDocumentSize = (Layers.DocumentWidth, Layers.DocumentHeight);
+            Layers.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is not (nameof(LayersViewModel.DocumentWidth) or nameof(LayersViewModel.DocumentHeight))) return;
+                var size = (Layers.DocumentWidth, Layers.DocumentHeight);
+                if (size == _lastDocumentSize) return;
+                _lastDocumentSize = size;
+                if (_viewportWidth > 0 && _viewportHeight > 0) ZoomToFit();
+            };
+
+            // History panel names: pixel edits are named after the tool that made them.
+            Layers.History.DefaultName = _ => _toolbox.ActiveTool.DisplayName;
 
             // Anchored at the top-left (pan starts at 0,0) rather than centered - true
             // centering needs the viewport's size, which isn't known yet at construction
@@ -392,6 +327,15 @@ namespace JolieCat.UI.ViewModels
             Zoom = DefaultZoom;
             PanX = 0;
             PanY = 0;
+
+            // Fit and center the document once the viewport size is known (right away
+            // if it already is).
+            _fitPending = true;
+            if (_viewportWidth > 0 && _viewportHeight > 0)
+            {
+                _fitPending = false;
+                ZoomToFit();
+            }
         }
 
         private void OnToolboxPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -437,6 +381,14 @@ namespace JolieCat.UI.ViewModels
             else if (_toolbox.ActiveTool.Type == ToolType.FreeTransform) StartTransform();
             else if (_toolbox.ActiveTool.Type == ToolType.Warp) StartWarp();
 
+            ToolHintText = _toolbox.ActiveTool.Type switch
+            {
+                ToolType.CloneStamp or ToolType.HealingBrush when _cloneSource is null => "Alt+click to set the clone source",
+                ToolType.Zoom => "Click to zoom in, Alt+click to zoom out",
+                ToolType.Move => "Drag to move the layer (or the selected pixels)",
+                _ => string.Empty,
+            };
+
             OnPropertyChanged(nameof(ActiveToolType));
             RaiseInvalidate();
         }
@@ -453,16 +405,45 @@ namespace JolieCat.UI.ViewModels
         /// <param name="isDoubleClick">True for the second click of a double-click (WPF's
         /// <c>MouseButtonEventArgs.ClickCount == 2</c>) - Polygonal Lasso's "close the
         /// polygon" gesture.</param>
-        public void OnPointerPressed(SKPoint devicePoint, bool isDoubleClick = false)
+        /// <param name="pressure">Pen pressure 0-1 (1 for a mouse).</param>
+        public void OnPointerPressed(SKPoint devicePoint, bool isDoubleClick = false, float pressure = 1f)
         {
+            if (IsSpacePanArmed)
+            {
+                BeginPan(devicePoint);
+                return;
+            }
+
             var doc = ToDocumentSpace(devicePoint);
             var activeLayer = Layers.ActiveLayer?.Model;
+            _lastPressure = pressure;
+
+            // A group has no pixels: tools that edit pixels need a layer inside it.
+            if (activeLayer is { IsGroup: true, IsMaskActive: false } && EditsPixels(_toolbox.ActiveTool.Type))
+            {
+                ToolHintText = "A group is selected - pick a layer inside it to edit pixels";
+                return;
+            }
+
+            // Painting on live text rasterizes it first (one undoable step), like Photoshop.
+            if (activeLayer is { IsText: true } && EditsPixels(_toolbox.ActiveTool.Type))
+                RasterizeIfText(activeLayer);
+
+            if (TryHandleExtendedToolPress(devicePoint, doc, activeLayer))
+                return;
 
             switch (_toolbox.ActiveTool.Type)
             {
                 case ToolType.Brush:
                 case ToolType.Pencil:
                 case ToolType.Eraser:
+                case ToolType.CloneStamp:
+                case ToolType.HealingBrush:
+                case ToolType.Blur:
+                case ToolType.Sharpen:
+                case ToolType.Sponge:
+                case ToolType.Dodge:
+                case ToolType.Burn:
                     if (activeLayer is null || activeLayer.IsLocked) break;
 
                     _isPainting = true;
@@ -475,19 +456,24 @@ namespace JolieCat.UI.ViewModels
 
                 case ToolType.RectangularMarquee:
                 case ToolType.EllipticalMarquee:
+                    CaptureSelectionCombine();
                     _isDraggingMarquee = true;
                     _marqueeStart = doc;
                     UpdateLiveMarqueePath(doc);
                     break;
 
-                // Magnetic Lasso behaves as a plain freehand lasso here - true edge-
-                // snapping (tracing high-contrast edges under the cursor, a la Sobel/
-                // Canny) is a real image-analysis feature and a reasonable follow-up;
-                // this gives it working selection behavior now rather than none.
+                // Magnetic Lasso is the same freehand gesture with its points snapped
+                // to nearby edges (see CanvasViewModel.MagneticLasso.cs).
                 case ToolType.Lasso:
                 case ToolType.MagneticLasso:
+                    CaptureSelectionCombine();
                     _isDrawingLasso = true;
                     _lassoPath = new SKPath();
+                    if (_toolbox.ActiveTool.Type == ToolType.MagneticLasso && activeLayer is not null)
+                    {
+                        BeginMagneticLasso(activeLayer, doc);
+                        doc = SnapToEdge(doc);
+                    }
                     _lassoPath.MoveTo(doc);
                     LiveSelectionPath = _lassoPath;
                     RaiseInvalidate();
@@ -497,11 +483,7 @@ namespace JolieCat.UI.ViewModels
                     HandlePolygonClick(doc, isDoubleClick);
                     break;
 
-                // Quick Selection behaves as click-to-flood-select here, identical to
-                // Magic Wand - true "paint to grow an adaptive region" is a reasonable
-                // follow-up; this gives it working selection behavior now rather than none.
                 case ToolType.MagicWand:
-                case ToolType.QuickSelection:
                     if (activeLayer is not null)
                         SelectByColor(activeLayer, doc);
                     break;
@@ -513,20 +495,12 @@ namespace JolieCat.UI.ViewModels
 
                 case ToolType.TextHorizontal:
                 case ToolType.TextVertical:
-                    if (activeLayer is null || activeLayer.IsLocked) break;
-
-                    // A previous edit still open (the user clicked a second spot with a
-                    // Text tool still active, without pressing Enter or switching tools
-                    // first) is finalized before starting the new one at the new point.
-                    CommitTextEdit();
-
-                    _textEditOrigin = doc;
-                    _isVerticalTextEdit = _toolbox.ActiveTool.Type == ToolType.TextVertical;
-                    TextEditContent = string.Empty;
-                    IsTextEditing = true;
+                    // New text goes on a new text layer, so the active layer doesn't matter.
+                    BeginTextAt(doc);
                     break;
 
                 case ToolType.Hand:
+                    MarkViewChangedByUser();
                     _isPanning = true;
                     _panDragStart = devicePoint;
                     _panStartX = PanX;
@@ -538,16 +512,7 @@ namespace JolieCat.UI.ViewModels
 
                     var beforeFill = activeLayer.PaintBitmap.Pixels;
                     FloodFill(activeLayer, doc);
-                    Layers.History.Push(new LayerPixelsCommand(activeLayer.PaintBitmap, beforeFill, activeLayer.PaintBitmap.Pixels));
-                    RaiseInvalidate();
-                    break;
-
-                case ToolType.Gradient:
-                    if (activeLayer is null || activeLayer.IsLocked) break;
-
-                    var beforeGradient = activeLayer.PaintBitmap.Pixels;
-                    ApplyGradient(activeLayer, doc);
-                    Layers.History.Push(new LayerPixelsCommand(activeLayer.PaintBitmap, beforeGradient, activeLayer.PaintBitmap.Pixels));
+                    Layers.History.Push(PixelEdit(activeLayer, beforeFill));
                     RaiseInvalidate();
                     break;
 
@@ -598,9 +563,27 @@ namespace JolieCat.UI.ViewModels
             }
         }
 
-        public void OnPointerMoved(SKPoint devicePoint)
+        public void OnPointerMoved(SKPoint devicePoint, float pressure = 1f)
         {
             var doc = ToDocumentSpace(devicePoint);
+            CursorPositionText = doc.X >= 0 && doc.Y >= 0 && doc.X < Layers.DocumentWidth && doc.Y < Layers.DocumentHeight
+                ? $"X: {(int)doc.X}  Y: {(int)doc.Y}"
+                : string.Empty;
+
+            HoverDocumentPoint = doc;
+
+            if (_isRotatingView)
+            {
+                UpdateRotateView(devicePoint);
+                return;
+            }
+
+            if (TryHandleExtendedToolMove(doc))
+                return;
+
+            // Keeps the brush-size outline following the pointer.
+            if (!_isPainting && BrushOutlineDiameter is not null)
+                RaiseInvalidate();
 
             if (_isPainting)
             {
@@ -611,8 +594,9 @@ namespace JolieCat.UI.ViewModels
                     return;
                 }
 
-                PaintLineTo(activeLayer, _lastPaintPoint, doc);
+                PaintLineTo(activeLayer, _lastPaintPoint, doc, _lastPressure, pressure);
                 _lastPaintPoint = doc;
+                _lastPressure = pressure;
                 RaiseInvalidate();
             }
             else if (_isDraggingMarquee)
@@ -621,7 +605,10 @@ namespace JolieCat.UI.ViewModels
             }
             else if (_isDrawingLasso && _lassoPath is not null)
             {
-                _lassoPath.LineTo(doc);
+                if (_magneticLuma is not null)
+                    ExtendMagneticLasso(_lassoPath, doc);
+                else
+                    _lassoPath.LineTo(doc);
                 LiveSelectionPath = _lassoPath;
                 RaiseInvalidate();
             }
@@ -636,8 +623,11 @@ namespace JolieCat.UI.ViewModels
                 // an unsnapped Pan here would misalign the *entire* composited frame
                 // (checkerboard and every layer alike) against the device-pixel grid for
                 // as long as the pan lasts, not just this one gesture's own drawing.
-                PanX = SnapToPixel(_panStartX + (devicePoint.X - _panDragStart.X));
-                PanY = SnapToPixel(_panStartY + (devicePoint.Y - _panDragStart.Y));
+                // With a rotated view the drag is turned back into unrotated space.
+                var now = ToUnrotatedScreen(devicePoint);
+                var start = ToUnrotatedScreen(_panDragStart);
+                PanX = SnapToPixel(_panStartX + (now.X - start.X));
+                PanY = SnapToPixel(_panStartY + (now.Y - start.Y));
             }
             else if (_isCropping && _activeCropHandle != CropHandle.None)
             {
@@ -677,9 +667,11 @@ namespace JolieCat.UI.ViewModels
         {
             if (_isPainting)
             {
-                OnPointerMoved(devicePoint);
+                OnPointerMoved(devicePoint, _lastPressure);
                 CommitStrokeHistory();
             }
+
+            HandleExtendedToolRelease();
 
             if (_isDraggingMarquee)
                 CommitLiveSelection();
@@ -694,6 +686,7 @@ namespace JolieCat.UI.ViewModels
             _isPanning = false;
             _isDraggingMarquee = false;
             _isDrawingLasso = false;
+            EndMagneticLasso();
             _lassoPath = null;
 
             // Crop/Free Transform/Warp deliberately survive a mouse-up (unlike every
@@ -727,7 +720,7 @@ namespace JolieCat.UI.ViewModels
         {
             if (_strokeLayer is null || _strokeBeforePixels is null) return;
 
-            Layers.History.Push(new LayerPixelsCommand(_strokeLayer.PaintBitmap, _strokeBeforePixels, _strokeLayer.PaintBitmap.Pixels));
+            Layers.History.Push(PixelEdit(_strokeLayer, _strokeBeforePixels));
 
             _strokeLayer = null;
             _strokeBeforePixels = null;
@@ -748,10 +741,13 @@ namespace JolieCat.UI.ViewModels
             if (_isPainting)
                 CommitStrokeHistory();
 
+            CancelExtendedTools();
+
             _isPainting = false;
             _isPanning = false;
             _isDraggingMarquee = false;
             _isDrawingLasso = false;
+            EndMagneticLasso();
             _lassoPath = null;
             _isDrawingPolygon = false;
             _polygonVertices.Clear();
@@ -779,12 +775,14 @@ namespace JolieCat.UI.ViewModels
         /// pointer fixed on screen.</summary>
         public void OnMouseWheel(SKPoint devicePoint, int wheelDelta)
         {
+            MarkViewChangedByUser();
             var factor = wheelDelta > 0 ? ZoomWheelFactor : 1.0 / ZoomWheelFactor;
             var newZoom = Math.Clamp(Zoom * factor, MinZoom, MaxZoom);
 
             var doc = ToDocumentSpace(devicePoint);
-            PanX = SnapToPixel(devicePoint.X - doc.X * newZoom);
-            PanY = SnapToPixel(devicePoint.Y - doc.Y * newZoom);
+            var screen = ToUnrotatedScreen(devicePoint);
+            PanX = SnapToPixel(screen.X - doc.X * newZoom);
+            PanY = SnapToPixel(screen.Y - doc.Y * newZoom);
             Zoom = newZoom;
         }
 
@@ -804,1486 +802,10 @@ namespace JolieCat.UI.ViewModels
         /// </summary>
         private static double SnapToPixel(double value) => Math.Round(value, MidpointRounding.AwayFromZero);
 
-        private SKPoint ToDocumentSpace(SKPoint devicePoint) => new(
-            (float)((devicePoint.X - PanX) / Zoom),
-            (float)((devicePoint.Y - PanY) / Zoom));
-
-        // ================= Marquee / Lasso / Polygon selection =================
-
-        private void UpdateLiveMarqueePath(SKPoint current)
+        private SKPoint ToDocumentSpace(SKPoint devicePoint)
         {
-            var start = _marqueeStart;
-
-            // Sprite Sheet grid snapping: both the drag's start and current points snap
-            // independently to the nearest grid line, so a marquee drawn anywhere near a
-            // cell's edges lands exactly on them - the "snap selections to the grid
-            // intersections" behavior for a SpriteSheet project, gated on both the
-            // project type and the panel's own toggle (see LayersViewModel.SnapToSpriteSheetGrid).
-            if (Layers.IsSpriteSheetProject && Layers.SnapToSpriteSheetGrid)
-            {
-                var grid = Layers.SpriteSheetGrid;
-                start = grid.SnapPoint(start, Layers.DocumentWidth, Layers.DocumentHeight);
-                current = grid.SnapPoint(current, Layers.DocumentWidth, Layers.DocumentHeight);
-            }
-
-            var x = Math.Min(start.X, current.X);
-            var y = Math.Min(start.Y, current.Y);
-            var width = Math.Abs(current.X - start.X);
-            var height = Math.Abs(current.Y - start.Y);
-            var rect = new SKRect(x, y, x + width, y + height);
-
-            var path = new SKPath();
-            if (_toolbox.ActiveTool.Type == ToolType.EllipticalMarquee)
-                path.AddOval(rect);
-            else
-                path.AddRect(rect);
-
-            LiveSelectionPath = path;
-            RaiseInvalidate();
-        }
-
-        /// <summary>Commits <see cref="LiveSelectionPath"/> (a finished marquee drag or
-        /// lasso stroke) to the scene's selection - or clears the selection instead if
-        /// the drag was smaller than <see cref="MinSelectionExtent"/> (a click, not a
-        /// drag), giving click-to-deselect for free.</summary>
-        private void CommitLiveSelection()
-        {
-            var path = LiveSelectionPath;
-            LiveSelectionPath = null;
-
-            var selection = Layers.Scene.Selection;
-            var bounds = path?.Bounds ?? SKRect.Empty;
-
-            if (path is null || bounds.Width < MinSelectionExtent || bounds.Height < MinSelectionExtent)
-                selection.Clear();
-            else
-                selection.SetPath(path, Layers.DocumentWidth, Layers.DocumentHeight);
-
-            RaiseInvalidate();
-        }
-
-        private void HandlePolygonClick(SKPoint doc, bool isDoubleClick)
-        {
-            if (isDoubleClick)
-            {
-                if (_polygonVertices.Count >= 3)
-                    CommitPolygonSelection();
-                else
-                    CancelPolygonSelection();
-                return;
-            }
-
-            if (!_isDrawingPolygon)
-            {
-                _isDrawingPolygon = true;
-                _polygonVertices.Clear();
-            }
-
-            _polygonVertices.Add(doc);
-            _polygonHoverPoint = doc;
-            RebuildPolygonPreviewPath();
-        }
-
-        private void RebuildPolygonPreviewPath()
-        {
-            if (_polygonVertices.Count == 0)
-            {
-                LiveSelectionPath = null;
-                return;
-            }
-
-            var path = new SKPath();
-            path.MoveTo(_polygonVertices[0]);
-            for (var i = 1; i < _polygonVertices.Count; i++)
-                path.LineTo(_polygonVertices[i]);
-            path.LineTo(_polygonHoverPoint); // rubber-band segment to the current pointer position
-
-            LiveSelectionPath = path;
-            RaiseInvalidate();
-        }
-
-        private void CommitPolygonSelection()
-        {
-            var path = new SKPath();
-            path.MoveTo(_polygonVertices[0]);
-            for (var i = 1; i < _polygonVertices.Count; i++)
-                path.LineTo(_polygonVertices[i]);
-            path.Close();
-
-            LiveSelectionPath = path;
-            CommitLiveSelection();
-
-            _isDrawingPolygon = false;
-            _polygonVertices.Clear();
-        }
-
-        private void CancelPolygonSelection()
-        {
-            _isDrawingPolygon = false;
-            _polygonVertices.Clear();
-            LiveSelectionPath = null;
-            RaiseInvalidate();
-        }
-
-        /// <summary>Magic Wand/Quick Selection: replaces the scene's selection with every
-        /// pixel reachable from <paramref name="point"/> within the active tool's
-        /// Tolerance.</summary>
-        private void SelectByColor(Core.Documents.Layer layer, SKPoint point)
-        {
-            var options = _toolbox.CurrentToolOptions as SelectionToolOptionsViewModel;
-            var tolerance = (float)(options?.Tolerance ?? 32);
-
-            var region = Selection.CreateRegionFromColorFlood(layer.Bitmap, (int)point.X, (int)point.Y, tolerance);
-            Layers.Scene.Selection.SetRegion(region);
-            RaiseInvalidate();
-        }
-
-        /// <summary>Eyedropper: reads the active layer's pixel at <paramref name="point"/>
-        /// and adopts it (alpha included) as <see cref="PrimaryColor"/>. A click outside
-        /// the document bounds is ignored rather than clamped, since there's no pixel
-        /// there to sample.</summary>
-        private void SampleColor(Core.Documents.Layer layer, SKPoint point)
-        {
-            var bitmap = layer.Bitmap;
-            var x = (int)point.X;
-            var y = (int)point.Y;
-            if (x < 0 || y < 0 || x >= bitmap.Width || y >= bitmap.Height) return;
-
-            var sampled = bitmap.GetPixel(x, y);
-            PrimaryColor = Color.FromArgb(sampled.Alpha, sampled.Red, sampled.Green, sampled.Blue);
-        }
-
-        // ================= Image import =================
-
-        private static readonly HashSet<string> SupportedImageExtensions =
-            new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp", ".webp" };
-
-        /// <summary>
-        /// Imports every supported image among <paramref name="paths"/> (PNG/JPG/JPEG/
-        /// BMP/WEBP - anything else is silently skipped) as its own new topmost layer,
-        /// named after its file - the file dialog's (<c>MainViewModel.ImportImageCommand</c>)
-        /// and the canvas's drag-and-drop (<see cref="Views.CanvasView"/>'s Drop handler)
-        /// both funnel through here. If any image's size doesn't already match the
-        /// document, the user is asked once per batch (not once per file) whether to
-        /// resize the canvas to match it or fit the image(s) within the canvas as it is -
-        /// see <see cref="Layers"/>' <c>ImportImage</c> for what either choice actually
-        /// does. Answering "cancel" abandons the whole batch, including any files not
-        /// yet processed.
-        /// </summary>
-        public void ImportImageFiles(IReadOnlyList<string> paths)
-        {
-            ArgumentNullException.ThrowIfNull(paths);
-
-            // Only the first successfully-decoded image in the batch can trigger the
-            // resize prompt/choice - every image after it always imports via "fit to the
-            // canvas", which by then is whatever size this first choice left it at.
-            // Re-asking (or worse, re-resizing) per file would otherwise let a later,
-            // differently-sized image in the same drop/selection resize the canvas out
-            // from under an image already imported earlier in this same call.
-            var isFirstImage = true;
-
-            foreach (var path in paths)
-            {
-                if (!SupportedImageExtensions.Contains(Path.GetExtension(path))) continue;
-
-                try
-                {
-                    using var bitmap = SKBitmap.Decode(path);
-                    if (bitmap is null)
-                    {
-                        MessageBox.Show($"Couldn't read '{Path.GetFileName(path)}' as an image.", "Import Image",
-                            MessageBoxButton.OK, MessageBoxImage.Warning);
-                        continue;
-                    }
-
-                    var resizeDocumentToMatch = false;
-                    if (isFirstImage)
-                    {
-                        if (bitmap.Width != Layers.DocumentWidth || bitmap.Height != Layers.DocumentHeight)
-                        {
-                            var choice = PromptResizeChoice(bitmap.Width, bitmap.Height, Layers.DocumentWidth, Layers.DocumentHeight);
-                            if (choice is null) return; // cancelled - abandon the whole batch
-
-                            resizeDocumentToMatch = choice.Value;
-                        }
-
-                        isFirstImage = false;
-                    }
-
-                    Layers.ImportImage(bitmap, Path.GetFileNameWithoutExtension(path), resizeDocumentToMatch);
-                }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-                {
-                    // The file vanished, is locked, or isn't readable between being
-                    // dropped/picked and being decoded - reported and skipped rather than
-                    // aborting the rest of the batch.
-                    MessageBox.Show($"Couldn't read '{Path.GetFileName(path)}':\n{ex.Message}", "Import Image",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
-                }
-            }
-        }
-
-        /// <summary>Asks whether an about-to-be-imported image's size, which doesn't
-        /// match the document's current size, should instead become the document's new
-        /// size (every existing layer resized to match) or be left as the document's
-        /// size is, fitting the image within it. Null means the user cancelled - abandon
-        /// the import rather than guessing.</summary>
-        private static bool? PromptResizeChoice(int imageWidth, int imageHeight, int canvasWidth, int canvasHeight)
-        {
-            var result = MessageBox.Show(
-                $"This image is {imageWidth}×{imageHeight}, but the canvas is {canvasWidth}×{canvasHeight}.\n\n" +
-                "Yes - resize the canvas to match this image.\n" +
-                "No - keep the canvas size and fit the image within it.",
-                "Import Image",
-                MessageBoxButton.YesNoCancel,
-                MessageBoxImage.Question);
-
-            return result switch
-            {
-                MessageBoxResult.Yes => true,
-                MessageBoxResult.No => false,
-                _ => null,
-            };
-        }
-
-        // ================= Text =================
-
-        /// <summary>Rasterizes the in-progress text edit onto the active layer at its
-        /// anchor point, then ends the edit - the Horizontal/Vertical Text tools' commit
-        /// step. A no-op if nothing is being edited; empty typed content ends the edit
-        /// without drawing anything, so an accidental click-then-click-away leaves no
-        /// debris on the layer. Explicitly repaints afterward - unlike every other paint
-        /// operation, this one isn't invoked from <see cref="OnPointerPressed"/> or
-        /// <see cref="OnPointerMoved"/> (which already repaint themselves after calling
-        /// into a paint method), so without this the text would be written to the
-        /// bitmap correctly but never actually appear until some unrelated action (a pan,
-        /// a zoom, another stroke) happened to trigger a redraw.</summary>
-        public void CommitTextEdit()
-        {
-            if (!IsTextEditing) return;
-
-            var text = TextEditContent;
-            var layer = Layers.ActiveLayer?.Model;
-            if (!string.IsNullOrEmpty(text) && layer is not null && !layer.IsLocked)
-            {
-                var before = layer.PaintBitmap.Pixels;
-                DrawTextOnLayer(layer, text);
-                Layers.History.Push(new LayerPixelsCommand(layer.PaintBitmap, before, layer.PaintBitmap.Pixels));
-                RaiseInvalidate();
-            }
-
-            EndTextEdit();
-        }
-
-        /// <summary>Ends the in-progress text edit without drawing anything - Escape's behavior.</summary>
-        public void CancelTextEdit() => EndTextEdit();
-
-        private void EndTextEdit()
-        {
-            IsTextEditing = false;
-            TextEditContent = string.Empty;
-        }
-
-        /// <summary>Draws <paramref name="text"/> onto <paramref name="layer"/> at
-        /// <see cref="_textEditOrigin"/>, using the active Text tool's FontFamily/
-        /// FontSize/Bold/Italic options and the current <see cref="PrimaryColor"/> -
-        /// clipped to the selection like every other paint operation.</summary>
-        private void DrawTextOnLayer(Core.Documents.Layer layer, string text)
-        {
-            var options = _toolbox.CurrentToolOptions as TextToolOptionsViewModel;
-            var fontFamily = options?.FontFamily ?? "Segoe UI";
-            var fontSize = (float)(options?.FontSize ?? 24);
-            var weight = options?.IsBold == true ? SKFontStyleWeight.Bold : SKFontStyleWeight.Normal;
-            var slant = options?.IsItalic == true ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright;
-
-            using var typeface = SKTypeface.FromFamilyName(fontFamily, weight, SKFontStyleWidth.Normal, slant);
-            using var font = new SKFont(typeface, fontSize, 1f, 0f);
-            using var paint = new SKPaint { Color = BrushColor, IsAntialias = true };
-
-            // A literal newline (Shift+Enter in the overlay) starts a new line for
-            // Horizontal Text, or a new column for Vertical Text - see DrawVerticalText.
-            var lines = text.Replace("\r\n", "\n").Split('\n');
-
-            WithSelectionClip(layer.PaintCanvas, canvas =>
-            {
-                if (_isVerticalTextEdit)
-                    DrawVerticalText(canvas, lines, font, paint);
-                else
-                    DrawHorizontalText(canvas, lines, font, paint);
-            });
-        }
-
-        private void DrawHorizontalText(SKCanvas canvas, string[] lines, SKFont font, SKPaint paint)
-        {
-            // Ascent is negative (distance above the baseline) in Skia's convention, so
-            // subtracting it moves the first line's baseline down by that distance -
-            // placing the anchor point at the text's top-left, matching where the user
-            // actually clicked rather than where the first baseline would otherwise fall.
-            var firstBaseline = _textEditOrigin.Y - font.Metrics.Ascent;
-
-            for (var i = 0; i < lines.Length; i++)
-                canvas.DrawText(lines[i], _textEditOrigin.X, firstBaseline + i * font.Spacing, font, paint);
-        }
-
-        /// <summary>
-        /// A real, working vertical layout - not true CJK vertical typesetting (no
-        /// glyph rotation or script-aware spacing rules), but genuinely renders each
-        /// character stacked top-to-bottom rather than faking the tool with a horizontal
-        /// fallback. Each Shift+Enter-delimited "line" becomes its own column, columns
-        /// advancing left-to-right by one line's spacing.
-        /// </summary>
-        private void DrawVerticalText(SKCanvas canvas, string[] lines, SKFont font, SKPaint paint)
-        {
-            var firstBaseline = _textEditOrigin.Y - font.Metrics.Ascent;
-            var columnWidth = font.Spacing;
-
-            for (var column = 0; column < lines.Length; column++)
-            {
-                var x = _textEditOrigin.X + column * columnWidth;
-                var y = firstBaseline;
-
-                foreach (var character in lines[column])
-                {
-                    canvas.DrawText(character.ToString(), x, y, font, paint);
-                    y += font.Spacing;
-                }
-            }
-        }
-
-        // ================= Painting =================
-
-        /// <summary>Runs <paramref name="draw"/> against <paramref name="canvas"/>,
-        /// clipped to the scene's current selection if one is active - the mechanism
-        /// that makes Rectangular/Elliptical Marquee, Lasso, Polygonal Lasso, and Magic
-        /// Wand/Quick Selection actually constrain painting, erasing, and gradients to
-        /// the selected pixels rather than just drawing a decorative overlay. Clipping
-        /// (unlike the DstOut/DstIn masking tricks) applies uniformly regardless of the
-        /// paint's own blend mode, so this works correctly for the eraser too. Clips by
-        /// <see cref="Core.Documents.Selection.Path"/> (not the region) so the mask gets
-        /// the same anti-aliased edge as everything else drawn on the layer, rather than
-        /// the region's hard-edged, integer-aligned approximation of the same shape.</summary>
-        private void WithSelectionClip(SKCanvas canvas, Action<SKCanvas> draw)
-        {
-            var selection = Layers.Scene.Selection;
-            if (!selection.HasSelection || selection.Path is not { } clipPath)
-            {
-                draw(canvas);
-                return;
-            }
-
-            canvas.Save();
-            canvas.ClipPath(clipPath, SKClipOperation.Intersect, antialias: true);
-            draw(canvas);
-            canvas.Restore();
-        }
-
-        /// <summary>Brush/Eraser paint with a single circular "dab", stamped once at the
-        /// pointer-down point - the stroke's first mark, before any spacing has a
-        /// previous dab to measure from. Pencil instead keeps its plain hard-edged single
-        /// pixel (<c>DrawPoint</c>), matching its established always-aliased behavior.</summary>
-        private void PaintDot(Core.Documents.Layer layer, SKPoint point)
-        {
-            if (_toolbox.ActiveTool.Type == ToolType.Pencil)
-            {
-                using var pencilPaint = CreatePencilPaint();
-                WithSelectionClip(layer.PaintCanvas, canvas => canvas.DrawPoint(point, pencilPaint));
-                return;
-            }
-
-            var size = Math.Max(1f, (float)((_toolbox.CurrentToolOptions as PaintToolOptionsViewModel)?.Size ?? 24));
-            var radius = size / 2f;
-
-            using var dabPaint = CreateDabPaint(radius);
-            WithSelectionClip(layer.PaintCanvas, canvas => DrawDab(canvas, point, radius, dabPaint));
-
-            // The next dab (from the first PaintLineTo call of this stroke) should land
-            // one full spacing interval past this one.
-            _distanceUntilNextDab = ComputeDabSpacing(size);
-        }
-
-        /// <summary>Brush/Eraser paint between two consecutive pointer-move samples: not
-        /// a single stroked line (which can't vary its edge across its own width the way
-        /// a soft brush needs to), but a series of circular dabs stamped at even
-        /// intervals along the segment - <see cref="_distanceUntilNextDab"/> carries any
-        /// leftover distance from one segment into the next so spacing stays even across
-        /// the whole stroke, not just within one mouse-move sample. Pencil keeps its
-        /// plain hard-edged <c>DrawLine</c>.</summary>
-        private void PaintLineTo(Core.Documents.Layer layer, SKPoint from, SKPoint to)
-        {
-            if (_toolbox.ActiveTool.Type == ToolType.Pencil)
-            {
-                using var pencilPaint = CreatePencilPaint();
-                WithSelectionClip(layer.PaintCanvas, canvas => canvas.DrawLine(from, to, pencilPaint));
-                return;
-            }
-
-            var size = Math.Max(1f, (float)((_toolbox.CurrentToolOptions as PaintToolOptionsViewModel)?.Size ?? 24));
-            var radius = size / 2f;
-            var stepDistance = ComputeDabSpacing(size);
-
-            var dx = to.X - from.X;
-            var dy = to.Y - from.Y;
-            var segmentLength = MathF.Sqrt(dx * dx + dy * dy);
-            if (segmentLength <= 0f) return;
-
-            using var dabPaint = CreateDabPaint(radius);
-
-            WithSelectionClip(layer.PaintCanvas, canvas =>
-            {
-                var nextDabAt = _distanceUntilNextDab;
-                while (nextDabAt <= segmentLength)
-                {
-                    var t = nextDabAt / segmentLength;
-                    DrawDab(canvas, new SKPoint(from.X + dx * t, from.Y + dy * t), radius, dabPaint);
-                    nextDabAt += stepDistance;
-                }
-
-                _distanceUntilNextDab = nextDabAt - segmentLength;
-            });
-        }
-
-        /// <summary>Stamps one dab centered at <paramref name="center"/>. Translates the
-        /// canvas rather than rebuilding <paramref name="dabPaint"/>'s shader per dab
-        /// position - <see cref="CreateDabPaint"/>'s radial gradient is centered at the
-        /// local origin once, and reused (via this translate) for every dab in a stroke.</summary>
-        private static void DrawDab(SKCanvas canvas, SKPoint center, float radius, SKPaint dabPaint)
-        {
-            canvas.Save();
-            canvas.Translate(center.X, center.Y);
-            canvas.DrawCircle(0, 0, radius, dabPaint);
-            canvas.Restore();
-        }
-
-        /// <summary>Distance (in pixels) between consecutive dabs - Spacing is a percentage
-        /// of the brush's own diameter, matching how Spacing is conventionally expressed
-        /// (100% spacing = dabs just touching; well under 100% = a smooth continuous
-        /// stroke; well over 100% = a visibly dotted/dashed one).</summary>
-        private float ComputeDabSpacing(float size)
-        {
-            var options = _toolbox.CurrentToolOptions as PaintToolOptionsViewModel;
-            var spacingPercent = Math.Clamp(options?.Spacing ?? 20, 1, 500);
-            return Math.Max(1f, size * (float)(spacingPercent / 100.0));
-        }
-
-        /// <summary>One circular dab's fill paint: solid out to Hardness% of its radius,
-        /// then fading linearly to fully transparent at the edge - a real soft/hard brush
-        /// edge via a radial-gradient alpha falloff, rather than a flat hard-edged circle
-        /// with no Hardness control at all. Hardness 100 skips the gradient entirely (a
-        /// plain solid fill) since a fade ending exactly at the edge is indistinguishable
-        /// from none, and the eraser gets the same falloff (through its established
-        /// DstOut blend mode) so it can un-paint just as softly as the brush paints.</summary>
-        private SKPaint CreateDabPaint(float radius)
-        {
-            var isEraser = _toolbox.ActiveTool.Type == ToolType.Eraser;
-            var options = _toolbox.CurrentToolOptions as PaintToolOptionsViewModel;
-            var hardness = Math.Clamp(options?.Hardness ?? 100, 0, 100);
-            var opacityPercent = options?.Opacity ?? 100;
-            var alpha = (byte)Math.Clamp(opacityPercent / 100.0 * 255, 0, 255);
-
-            // Color only matters for its alpha channel when erasing - DstOut (not Clear)
-            // removes destination alpha in proportion to the source's, so the eraser's
-            // Opacity slider genuinely does partial erasing instead of always punching
-            // fully through regardless of it; RGB is irrelevant. See PaintDot/PaintLineTo's
-            // callers for why this is shared with the brush's own coloring.
-            var color = isEraser ? SKColors.Black.WithAlpha(alpha) : BrushColor.WithAlpha(alpha);
-
-            var paint = new SKPaint
-            {
-                Style = SKPaintStyle.Fill,
-                IsAntialias = true,
-                BlendMode = isEraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
-            };
-
-            if (hardness >= 100 || radius <= 0f)
-            {
-                paint.Color = color;
-            }
-            else
-            {
-                // Centered at the local origin (0,0), not the dab's actual canvas
-                // position - DrawDab translates the canvas per dab instead of rebuilding
-                // this shader for every dab's position.
-                paint.Shader = SKShader.CreateRadialGradient(
-                    new SKPoint(0, 0), radius,
-                    new[] { color, color, color.WithAlpha(0) },
-                    new[] { 0f, (float)(hardness / 100.0), 1f },
-                    SKShaderTileMode.Clamp);
-            }
-
-            return paint;
-        }
-
-        /// <summary>Pencil's plain hard-edged, non-antialiased stroke paint - unaffected
-        /// by Hardness/Spacing, which only apply to the Brush/Eraser's dab-based painting.</summary>
-        private SKPaint CreatePencilPaint()
-        {
-            var options = _toolbox.CurrentToolOptions as PaintToolOptionsViewModel;
-            var size = (float)(options?.Size ?? 24);
-            var opacityPercent = options?.Opacity ?? 100;
-            var alpha = (byte)Math.Clamp(opacityPercent / 100.0 * 255, 0, 255);
-
-            return new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = Math.Max(1f, size),
-                StrokeCap = SKStrokeCap.Round,
-                StrokeJoin = SKStrokeJoin.Round,
-                IsAntialias = false,
-                BlendMode = SKBlendMode.SrcOver,
-                Color = BrushColor.WithAlpha(alpha),
-            };
-        }
-
-        private void FloodFill(Core.Documents.Layer layer, SKPoint point)
-        {
-            var bitmap = layer.PaintBitmap;
-            var x0 = (int)point.X;
-            var y0 = (int)point.Y;
-            if (x0 < 0 || y0 < 0 || x0 >= bitmap.Width || y0 >= bitmap.Height)
-                return;
-
-            var selection = Layers.Scene.Selection;
-            if (!selection.Contains(x0, y0))
-                return;
-
-            var options = _toolbox.CurrentToolOptions as FillToolOptionsViewModel;
-            var tolerance = (float)(options?.Tolerance ?? 32);
-            var contiguous = options?.Contiguous ?? true;
-
-            var width = bitmap.Width;
-            var height = bitmap.Height;
-            var pixels = bitmap.Pixels;
-            var targetColor = pixels[y0 * width + x0];
-            var fillColor = BrushColor;
-
-            if (ColorTolerance.IsWithin(targetColor, fillColor, 0))
-                return;
-
-            if (contiguous)
-                FloodFillContiguous(pixels, width, height, x0, y0, targetColor, fillColor, tolerance, selection);
-            else
-                FloodFillGlobal(pixels, width, height, targetColor, fillColor, tolerance, selection);
-
-            bitmap.Pixels = pixels;
-        }
-
-        /// <summary>
-        /// Stack-based flood fill, seeded from (x0, y0). Each pixel is marked visited
-        /// the moment it's pushed - not when it's popped - so it can only ever enter the
-        /// stack once, bounding the stack to one entry per pixel instead of letting
-        /// duplicates pile up on a large uniform region (a fresh, blank layer is exactly
-        /// that).
-        /// </summary>
-        private static void FloodFillContiguous(
-            SKColor[] pixels, int width, int height, int x0, int y0,
-            SKColor targetColor, SKColor fillColor, float tolerance, Selection selection)
-        {
-            var visited = new bool[width * height];
-            var stack = new Stack<(int X, int Y)>();
-
-            visited[y0 * width + x0] = true;
-            stack.Push((x0, y0));
-
-            while (stack.Count > 0)
-            {
-                var (x, y) = stack.Pop();
-                pixels[y * width + x] = fillColor;
-
-                TryVisit(x + 1, y);
-                TryVisit(x - 1, y);
-                TryVisit(x, y + 1);
-                TryVisit(x, y - 1);
-            }
-
-            void TryVisit(int x, int y)
-            {
-                if (x < 0 || x >= width || y < 0 || y >= height)
-                    return;
-
-                var index = y * width + x;
-                if (visited[index] || !selection.Contains(x, y) || !ColorTolerance.IsWithin(pixels[index], targetColor, tolerance))
-                    return;
-
-                visited[index] = true;
-                stack.Push((x, y));
-            }
-        }
-
-        private static void FloodFillGlobal(SKColor[] pixels, int width, int height, SKColor targetColor, SKColor fillColor, float tolerance, Selection selection)
-        {
-            for (var y = 0; y < height; y++)
-            {
-                for (var x = 0; x < width; x++)
-                {
-                    var index = y * width + x;
-                    if (selection.Contains(x, y) && ColorTolerance.IsWithin(pixels[index], targetColor, tolerance))
-                        pixels[index] = fillColor;
-                }
-            }
-        }
-
-        private void ApplyGradient(Core.Documents.Layer layer, SKPoint point)
-        {
-            var options = _toolbox.CurrentToolOptions as GradientToolOptionsViewModel;
-            var angleDegrees = options?.Angle ?? 90;
-            var reverse = options?.Reverse ?? false;
-
-            var startColor = reverse ? SKColors.Transparent : BrushColor;
-            var endColor = reverse ? BrushColor : SKColors.Transparent;
-
-            var radians = angleDegrees * Math.PI / 180.0;
-            var directionX = (float)Math.Cos(radians);
-            var directionY = (float)Math.Sin(radians);
-            var reach = Math.Max(layer.Bitmap.Width, layer.Bitmap.Height);
-
-            var start = new SKPoint(point.X - directionX * reach, point.Y - directionY * reach);
-            var end = new SKPoint(point.X + directionX * reach, point.Y + directionY * reach);
-
-            using var shader = SKShader.CreateLinearGradient(start, end, new[] { startColor, endColor }, null, SKShaderTileMode.Clamp);
-            using var paint = new SKPaint { Shader = shader };
-
-            WithSelectionClip(layer.PaintCanvas, canvas =>
-                canvas.DrawRect(new SKRect(0, 0, layer.Bitmap.Width, layer.Bitmap.Height), paint));
-        }
-
-        // ================= Crop =================
-
-        /// <summary>The live crop rectangle, in document space, or null while the Crop
-        /// tool isn't active - <see cref="Rendering.CanvasRenderer"/>'s own read of this
-        /// drives the darkened-outside-area overlay and handle positions.</summary>
-        public SKRect? CropRect => _isCropping ? _cropRect : null;
-
-        private void StartCrop()
-        {
-            _cropRect = SKRect.Create(0, 0, Layers.DocumentWidth, Layers.DocumentHeight);
-            _isCropping = true;
-        }
-
-        /// <summary>Applies the live crop rectangle (and the Crop tool's own straighten
-        /// angle) to the whole document - see <see cref="Core.Documents.Scene.CropLayers"/>.
-        /// A no-op if Crop isn't active or the rectangle has collapsed to nothing.</summary>
-        public void CommitCrop()
-        {
-            if (!_isCropping) return;
-
-            var rect = SKRectI.Round(_cropRect);
-            if (rect.Width > 0 && rect.Height > 0)
-            {
-                var rotation = (float)((_toolbox.CurrentToolOptions as CropToolOptionsViewModel)?.RotationDegrees ?? 0);
-                Layers.CropDocument(rect, rotation);
-            }
-
-            _isCropping = false;
-            _activeCropHandle = CropHandle.None;
-            RaiseInvalidate();
-        }
-
-        /// <summary>Discards the in-progress crop rectangle without changing the
-        /// document - Escape's behavior for the Crop tool.</summary>
-        public void CancelCrop()
-        {
-            _isCropping = false;
-            _activeCropHandle = CropHandle.None;
-            RaiseInvalidate();
-        }
-
-        private CropHandle HitTestCropHandle(SKPoint doc)
-        {
-            var r = _cropRect;
-            var radius = HandleHitRadius / (float)Zoom;
-
-            bool Near(float x, float y) => Math.Abs(doc.X - x) <= radius && Math.Abs(doc.Y - y) <= radius;
-
-            if (Near(r.Left, r.Top)) return CropHandle.TopLeft;
-            if (Near(r.Right, r.Top)) return CropHandle.TopRight;
-            if (Near(r.Left, r.Bottom)) return CropHandle.BottomLeft;
-            if (Near(r.Right, r.Bottom)) return CropHandle.BottomRight;
-            if (Near(r.MidX, r.Top)) return CropHandle.Top;
-            if (Near(r.MidX, r.Bottom)) return CropHandle.Bottom;
-            if (Near(r.Left, r.MidY)) return CropHandle.Left;
-            if (Near(r.Right, r.MidY)) return CropHandle.Right;
-            return r.Contains(doc) ? CropHandle.Inside : CropHandle.None;
-        }
-
-        private void UpdateCropDrag(SKPoint doc)
-        {
-            if (_activeCropHandle == CropHandle.None) return;
-
-            var dx = doc.X - _cropDragStart.X;
-            var dy = doc.Y - _cropDragStart.Y;
-            var start = _cropDragStartRect;
-
-            if (_activeCropHandle == CropHandle.Inside)
-            {
-                _cropRect = SKRect.Create(start.Left + dx, start.Top + dy, start.Width, start.Height);
-                return;
-            }
-
-            var left = start.Left;
-            var top = start.Top;
-            var right = start.Right;
-            var bottom = start.Bottom;
-
-            switch (_activeCropHandle)
-            {
-                case CropHandle.TopLeft: left += dx; top += dy; break;
-                case CropHandle.Top: top += dy; break;
-                case CropHandle.TopRight: right += dx; top += dy; break;
-                case CropHandle.Right: right += dx; break;
-                case CropHandle.BottomRight: right += dx; bottom += dy; break;
-                case CropHandle.Bottom: bottom += dy; break;
-                case CropHandle.BottomLeft: left += dx; bottom += dy; break;
-                case CropHandle.Left: left += dx; break;
-            }
-
-            // A minimum size - not clamped to the document's own bounds, since
-            // dragging a handle past the original edge is how this tool also extends
-            // the canvas (padding the new area with transparency/a fully-visible
-            // mask) rather than only ever being able to shrink it.
-            const float minSize = 8f;
-            if (right - left < minSize)
-            {
-                if (_activeCropHandle is CropHandle.TopLeft or CropHandle.Left or CropHandle.BottomLeft) left = right - minSize;
-                else right = left + minSize;
-            }
-            if (bottom - top < minSize)
-            {
-                if (_activeCropHandle is CropHandle.TopLeft or CropHandle.Top or CropHandle.TopRight) top = bottom - minSize;
-                else bottom = top + minSize;
-            }
-
-            _cropRect = ApplyCropAspectLock(SKRect.Create(left, top, right - left, bottom - top), _activeCropHandle);
-        }
-
-        /// <summary>Recomputes whichever dimension the dragged handle didn't primarily
-        /// control from the other, to match the Crop tool's current aspect-ratio lock -
-        /// a no-op (returns <paramref name="rect"/> unchanged) while it's Free. Keeps
-        /// the rectangle anchored at whichever corner/edge is opposite the one being
-        /// dragged, rather than letting it drift as the locked dimension changes.</summary>
-        private SKRect ApplyCropAspectLock(SKRect rect, CropHandle handle)
-        {
-            if (_toolbox.CurrentToolOptions is not CropToolOptionsViewModel options) return rect;
-
-            var ratio = options.AspectRatio == CropAspectRatioMode.Original
-                ? (Layers.DocumentHeight > 0 ? (double)Layers.DocumentWidth / Layers.DocumentHeight : (double?)null)
-                : options.GetFixedRatio();
-            if (ratio is not { } r || r <= 0) return rect;
-
-            var width = rect.Width;
-            var height = rect.Height;
-
-            // Dragging a purely-vertical edge (Top/Bottom) primarily changed height,
-            // so width follows it; every other handle (the corners, and the purely-
-            // horizontal Left/Right edges) primarily changed width, so height follows.
-            if (handle is CropHandle.Top or CropHandle.Bottom)
-                width = (float)(height * r);
-            else
-                height = (float)(width / r);
-
-            return handle switch
-            {
-                CropHandle.TopLeft or CropHandle.Top or CropHandle.TopRight => SKRect.Create(rect.Right - width, rect.Bottom - height, width, height),
-                CropHandle.BottomLeft or CropHandle.Left => SKRect.Create(rect.Right - width, rect.Top, width, height),
-                _ => SKRect.Create(rect.Left, rect.Top, width, height),
-            };
-        }
-
-        // ================= Free Transform =================
-
-        /// <summary>The active layer, while Free Transform, Warp, or a filter/color
-        /// adjustment dialog is live-previewing it rather than its own committed
-        /// bitmap - <see cref="Rendering.CanvasRenderer"/> substitutes
-        /// <see cref="BuildLivePreviewBitmap"/>'s result for exactly this one layer
-        /// (see <see cref="Rendering.SceneCompositor.DrawLayers"/>'s preview-layer
-        /// overload) so it composites correctly against the layers above and below
-        /// it while mid-gesture/mid-preview.</summary>
-        public Core.Documents.Layer? LivePreviewLayer => _transformLayer ?? _warpLayer ?? _adjustmentLayer;
-
-        /// <summary>Bakes the current Free Transform/Warp gesture's, or filter/color
-        /// adjustment dialog's, live preview into a fresh bitmap for
-        /// <see cref="Rendering.CanvasRenderer"/> to draw in place of
-        /// <see cref="LivePreviewLayer"/>'s own committed content - null when none of
-        /// them is active. Rebuilt fresh on every call rather than cached: it's only
-        /// ever called once per repaint, and a repaint only happens when something (a
-        /// drag, or a dialog's slider) actually changed, so there's nothing to gain
-        /// from caching it.</summary>
-        public SKBitmap? BuildLivePreviewBitmap()
-        {
-            if (_isTransforming && _transformLayer is not null && _transformOriginalBitmap is not null)
-            {
-                var matrix = BuildLiveTransformMatrix();
-                return Core.Transform.LayerTransformer.Bake(_transformOriginalBitmap, matrix, _transformLayer.Bitmap.Width, _transformLayer.Bitmap.Height);
-            }
-
-            if (_isWarping && _warpMesh is not null && _warpOriginalBitmap is not null)
-                return _warpMesh.Bake(_warpOriginalBitmap);
-
-            if (_adjustmentLayer is not null && _adjustmentOriginalBitmap is not null && _adjustmentPreview is not null)
-                return _adjustmentPreview(_adjustmentOriginalBitmap);
-
-            return null;
-        }
-
-        /// <summary>The Free Transform box's current (live) four corners, in document
-        /// space - null while it isn't active. <see cref="Rendering.CanvasRenderer"/>
-        /// draws the box outline and its corner/rotate handles from these.</summary>
-        public SKPoint[]? TransformCorners()
-        {
-            if (!_isTransforming) return null;
-
-            var matrix = BuildLiveTransformMatrix();
-            var b = _transformOriginalBounds;
-            return new[]
-            {
-                matrix.MapPoint(new SKPoint(b.Left, b.Top)),
-                matrix.MapPoint(new SKPoint(b.Right, b.Top)),
-                matrix.MapPoint(new SKPoint(b.Right, b.Bottom)),
-                matrix.MapPoint(new SKPoint(b.Left, b.Bottom)),
-            };
-        }
-
-        /// <summary>The Free Transform box's rotate handle position, in document space -
-        /// a fixed screen distance beyond the box's own top edge, along whichever
-        /// direction that edge currently faces (so it stays "above" the box through any
-        /// rotation) - or null while Free Transform isn't active.</summary>
-        public SKPoint? TransformRotateHandle()
-        {
-            if (!_isTransforming) return null;
-
-            var matrix = BuildLiveTransformMatrix();
-            var b = _transformOriginalBounds;
-            var center = matrix.MapPoint(new SKPoint(b.MidX, b.MidY));
-            var topMid = matrix.MapPoint(new SKPoint(b.MidX, b.Top));
-
-            var dx = topMid.X - center.X;
-            var dy = topMid.Y - center.Y;
-            var length = MathF.Sqrt(dx * dx + dy * dy);
-            if (length < 0.001f) return topMid;
-
-            var offset = 30f / (float)Zoom;
-            return new SKPoint(topMid.X + dx / length * offset, topMid.Y + dy / length * offset);
-        }
-
-        private void StartTransform()
-        {
-            var layer = Layers.ActiveLayer?.Model;
-            if (layer is null) return;
-
-            _transformLayer = layer;
-            _transformOriginalBitmap?.Dispose();
-            _transformOriginalBitmap = layer.Bitmap.Copy();
-            _transformOriginalBounds = SKRect.Create(0, 0, layer.Bitmap.Width, layer.Bitmap.Height);
-            _transformScaleX = 1f;
-            _transformScaleY = 1f;
-            _transformRotation = 0f;
-            _transformTranslateX = 0f;
-            _transformTranslateY = 0f;
-            _isTransforming = true;
-        }
-
-        /// <summary>Bakes the live scale/rotation/translation into the active layer's
-        /// actual bitmap (see <see cref="Core.Transform.LayerTransformer.Bake"/>) and
-        /// records it as one undo/redo entry - a no-op if Free Transform isn't active.
-        /// A Smart Object layer (<see cref="Core.Documents.Layer.SmartObjectTransform"/>
-        /// non-null) never bakes pixels directly - see the branch below for why.</summary>
-        public void CommitTransform()
-        {
-            if (!_isTransforming || _transformLayer is null || _transformOriginalBitmap is null)
-            {
-                EndTransform();
-                return;
-            }
-
-            var matrix = BuildLiveTransformMatrix();
-
-            if (_transformLayer.SmartObjectTransform is { } smartTransform)
-            {
-                // Baking pixels directly here would defeat the whole point of a Smart
-                // Object: repeated transforms would compound resampling loss exactly
-                // like an ordinary raster layer, and SmartObjectTransform itself would
-                // go stale, so a later "Edit Contents" refresh would silently discard
-                // this placement. Instead, this gesture's own matrix is folded into the
-                // existing placement (PostConcat - see SmartObjectTransform's own
-                // remarks for why that composition, not a decomposed scale/rotate/
-                // translate, is what generalizes to two gestures with different
-                // pivots), and the layer is re-rendered fresh from its pristine source.
-                var before = smartTransform.Matrix;
-                var after = before.PostConcat(matrix);
-                Layers.History.Push(new SmartObjectTransformCommand(_transformLayer, before, after));
-                smartTransform.Matrix = after;
-                _transformLayer.RenderSmartObject();
-            }
-            else
-            {
-                var before = _transformLayer.Bitmap.Pixels;
-                using (var baked = Core.Transform.LayerTransformer.Bake(_transformOriginalBitmap, matrix, _transformLayer.Bitmap.Width, _transformLayer.Bitmap.Height))
-                    _transformLayer.Bitmap.Pixels = baked.Pixels;
-
-                Layers.History.Push(new LayerPixelsCommand(_transformLayer.Bitmap, before, _transformLayer.Bitmap.Pixels));
-            }
-
-            EndTransform();
-            RaiseInvalidate();
-        }
-
-        /// <summary>Discards the in-progress transform - the active layer's actual
-        /// bitmap was never touched (only ever live-previewed), so this is just
-        /// dropping the preview state, not undoing a write.</summary>
-        public void CancelTransform()
-        {
-            EndTransform();
-            RaiseInvalidate();
-        }
-
-        private void EndTransform()
-        {
-            _isTransforming = false;
-            _transformLayer = null;
-            _transformOriginalBitmap?.Dispose();
-            _transformOriginalBitmap = null;
-            _activeTransformHandle = TransformHandle.None;
-        }
-
-        private SKMatrix BuildLiveTransformMatrix() => Core.Transform.LayerTransformer.BuildMatrix(
-            new SKPoint(_transformOriginalBounds.MidX, _transformOriginalBounds.MidY),
-            _transformScaleX, _transformScaleY, _transformRotation, _transformTranslateX, _transformTranslateY);
-
-        private TransformHandle HitTestTransformHandle(SKPoint doc)
-        {
-            if (_transformLayer is null) return TransformHandle.None;
-
-            var radius = HandleHitRadius / (float)Zoom;
-            bool Near(SKPoint p) => SKPoint.Distance(p, doc) <= radius;
-
-            if (TransformRotateHandle() is { } rotateHandle && Near(rotateHandle)) return TransformHandle.Rotate;
-
-            var corners = TransformCorners();
-            if (corners is not null)
-            {
-                if (Near(corners[0])) return TransformHandle.TopLeft;
-                if (Near(corners[1])) return TransformHandle.TopRight;
-                if (Near(corners[2])) return TransformHandle.BottomRight;
-                if (Near(corners[3])) return TransformHandle.BottomLeft;
-            }
-
-            // Inside test: map the click back into the box's own original
-            // (untransformed) space via the inverse matrix, then a plain axis-aligned
-            // Contains check - correct regardless of the box's current rotation.
-            var matrix = BuildLiveTransformMatrix();
-            if (matrix.TryInvert(out var inverse) && _transformOriginalBounds.Contains(inverse.MapPoint(doc)))
-                return TransformHandle.Inside;
-
-            return TransformHandle.None;
-        }
-
-        private void UpdateTransformDrag(SKPoint doc)
-        {
-            switch (_activeTransformHandle)
-            {
-                case TransformHandle.Inside:
-                    _transformTranslateX = _transformDragStartTranslateX + (doc.X - _transformDragStart.X);
-                    _transformTranslateY = _transformDragStartTranslateY + (doc.Y - _transformDragStart.Y);
-                    break;
-
-                case TransformHandle.Rotate:
-                {
-                    var center = new SKPoint(
-                        _transformOriginalBounds.MidX + _transformDragStartTranslateX,
-                        _transformOriginalBounds.MidY + _transformDragStartTranslateY);
-                    var startAngle = MathF.Atan2(_transformDragStart.Y - center.Y, _transformDragStart.X - center.X);
-                    var currentAngle = MathF.Atan2(doc.Y - center.Y, doc.X - center.X);
-                    _transformRotation = _transformDragStartRotation + (currentAngle - startAngle) * (180f / MathF.PI);
-                    break;
-                }
-
-                // Corner handles scale uniformly, by how much further from (or closer
-                // to) the box's own original center the drag point is now versus where
-                // the drag started - rotation-agnostic (it's a plain radial distance
-                // ratio) and the same regardless of which corner was grabbed.
-                case TransformHandle.TopLeft:
-                case TransformHandle.TopRight:
-                case TransformHandle.BottomLeft:
-                case TransformHandle.BottomRight:
-                {
-                    var center = new SKPoint(_transformOriginalBounds.MidX, _transformOriginalBounds.MidY);
-                    var startDistance = SKPoint.Distance(center, _transformDragStart);
-                    var currentDistance = SKPoint.Distance(center, doc);
-                    if (startDistance > 0.001f)
-                    {
-                        var factor = currentDistance / startDistance;
-                        _transformScaleX = _transformDragStartScaleX * factor;
-                        _transformScaleY = _transformDragStartScaleY * factor;
-                    }
-                    break;
-                }
-            }
-        }
-
-        // ================= Warp =================
-
-        /// <summary>The live control-point grid, or null while the Warp tool isn't
-        /// active - <see cref="Rendering.CanvasRenderer"/> draws the grid lines/points
-        /// from this alongside <see cref="LivePreviewLayer"/>'s warped preview.</summary>
-        public Core.Transform.MeshWarp? WarpMesh => _isWarping ? _warpMesh : null;
-
-        private void StartWarp()
-        {
-            var layer = Layers.ActiveLayer?.Model;
-            if (layer is null) return;
-
-            var gridSize = Math.Clamp((_toolbox.CurrentToolOptions as WarpToolOptionsViewModel)?.GridSize ?? 3, 2, 4);
-
-            _warpLayer = layer;
-            _warpOriginalBitmap?.Dispose();
-            _warpOriginalBitmap = layer.Bitmap.Copy();
-            _warpMesh = new Core.Transform.MeshWarp(gridSize, gridSize, layer.Bitmap.Width, layer.Bitmap.Height);
-            _isWarping = true;
-        }
-
-        /// <summary>Bakes the live-warped mesh into the active layer's actual bitmap
-        /// (see <see cref="Core.Transform.MeshWarp.Bake"/>) and records it as one
-        /// undo/redo entry - a no-op if Warp isn't active.</summary>
-        public void CommitWarp()
-        {
-            if (!_isWarping || _warpLayer is null || _warpOriginalBitmap is null || _warpMesh is null)
-            {
-                EndWarp();
-                return;
-            }
-
-            var before = _warpLayer.Bitmap.Pixels;
-            using (var baked = _warpMesh.Bake(_warpOriginalBitmap))
-                _warpLayer.Bitmap.Pixels = baked.Pixels;
-
-            Layers.History.Push(new LayerPixelsCommand(_warpLayer.Bitmap, before, _warpLayer.Bitmap.Pixels));
-            EndWarp();
-            RaiseInvalidate();
-        }
-
-        /// <summary>Discards the in-progress warp - the active layer's actual bitmap
-        /// was never touched (only ever live-previewed), so this just drops the
-        /// preview state, not undoing a write.</summary>
-        public void CancelWarp()
-        {
-            EndWarp();
-            RaiseInvalidate();
-        }
-
-        private void EndWarp()
-        {
-            _isWarping = false;
-            _warpLayer = null;
-            _warpOriginalBitmap?.Dispose();
-            _warpOriginalBitmap = null;
-            _warpMesh = null;
-            _warpDragRow = -1;
-            _warpDragCol = -1;
-        }
-
-        // ================= Pen Tool / Vector Paths =================
-
-        /// <summary>The Pen tool's current working path - see <see cref="_penPath"/>'s
-        /// own remarks - null when nothing has been drawn yet. <see cref="Rendering.CanvasRenderer"/>
-        /// draws its Bezier outline, anchor squares, and handle lines from this while
-        /// the Pen/Path Selection/Direct Selection tools are active.</summary>
-        public VectorPath? PenPath => _penPath;
-
-        /// <summary>The rubber-band segment endpoint from the last placed anchor to the
-        /// current pointer position, while still actively placing anchors - null once
-        /// the path is finished (or nothing is being drawn).</summary>
-        public SKPoint? PenHoverPoint => _isDrawingPen ? _penHoverPoint : null;
-
-        private static bool IsPenPathTool(ToolType type) =>
-            type is ToolType.Pen or ToolType.PathSelection or ToolType.DirectSelection;
-
-        /// <summary>Pen tool click: adds a new corner-point anchor at <paramref name="doc"/>
-        /// and arms it to become a Smooth point if the click turns into a drag (see
-        /// <see cref="UpdatePenHandleDrag"/>) - or, if this lands back on the path's own
-        /// first anchor with at least two already placed, closes the path instead of
-        /// adding another one, exactly like every mainstream vector tool's own Pen tool.
-        /// <paramref name="isDoubleClick"/> finishes the path open (no closing segment) -
-        /// the same "double-click to end" gesture Polygonal Lasso already uses.</summary>
-        private void HandlePenPress(SKPoint doc, bool isDoubleClick)
-        {
-            _penPath ??= new VectorPath();
-
-            if (isDoubleClick)
-            {
-                FinishDrawingPen();
-                return;
-            }
-
-            var radius = HandleHitRadius / (float)Zoom;
-            if (_isDrawingPen && _penPath.Anchors.Count >= 2 && SKPoint.Distance(_penPath.Anchors[0].Position, doc) <= radius)
-            {
-                _penPath.IsClosed = true;
-                FinishDrawingPen();
-                return;
-            }
-
-            _isDrawingPen = true;
-            _penPath.Anchors.Add(new PathAnchor(doc));
-            _penPendingAnchorIndex = _penPath.Anchors.Count - 1;
-            _isDraggingPenHandle = true;
-            _penHoverPoint = doc;
-            RaiseInvalidate();
-        }
-
-        /// <summary>Ends the anchor-placing phase without closing the path - reached by
-        /// a double-click, by clicking back on the start point (which also sets
-        /// <see cref="VectorPath.IsClosed"/> first), or by <see cref="CommitPenPath"/>
-        /// (Enter). <see cref="_penPath"/> itself survives - only <see cref="_isDrawingPen"/>
-        /// and its own in-progress drag state end - so Path Selection/Direct Selection
-        /// can keep editing it afterward.</summary>
-        private void FinishDrawingPen()
-        {
-            _isDrawingPen = false;
-            _isDraggingPenHandle = false;
-            _penPendingAnchorIndex = -1;
-            RaiseInvalidate();
-        }
-
-        /// <summary>Finishes the in-progress Pen path without closing it - Enter's
-        /// behavior, mirroring <see cref="CommitCrop"/>/<see cref="CommitTransform"/>/
-        /// <see cref="CommitWarp"/>. A no-op once the path is already finished (or
-        /// nothing has been drawn), so Path Selection/Direct Selection editing the same
-        /// path afterward is unaffected by an extra Enter press.</summary>
-        public void CommitPenPath()
-        {
-            if (!_isDrawingPen) return;
-            FinishDrawingPen();
-        }
-
-        /// <summary>Discards the whole working path - Escape's behavior for the Pen/
-        /// Path Selection/Direct Selection tools, mirroring <see cref="CancelCrop"/>/
-        /// <see cref="CancelTransform"/>/<see cref="CancelWarp"/>.</summary>
-        public void CancelPenPath() => ClearPenPath();
-
-        private void ClearPenPath()
-        {
-            _penPath = null;
-            _isDrawingPen = false;
-            _isDraggingPenHandle = false;
-            _penPendingAnchorIndex = -1;
-            _penNodeDragTarget = PenNodeDragTarget.None;
-            _penNodeDragAnchorIndex = -1;
-            _isDraggingPenPath = false;
-            _penPathDragSnapshot = null;
-            RaiseInvalidate();
-        }
-
-        /// <summary>Grows the anchor just placed by <see cref="HandlePenPress"/> into a
-        /// Smooth point with symmetric handles once the drag has traveled far enough
-        /// (<see cref="PenHandleDragThreshold"/>) to count as deliberate rather than
-        /// jitter from a plain click - a release before that threshold leaves it a
-        /// Corner point with no handles at all, matching every mainstream vector tool's
-        /// own Pen tool.</summary>
-        private void UpdatePenHandleDrag(SKPoint doc)
-        {
-            if (_penPath is null || _penPendingAnchorIndex < 0 || _penPendingAnchorIndex >= _penPath.Anchors.Count) return;
-
-            var anchor = _penPath.Anchors[_penPendingAnchorIndex];
-            _penHoverPoint = doc;
-
-            if (SKPoint.Distance(anchor.Position, doc) >= PenHandleDragThreshold / (float)Zoom)
-            {
-                anchor.Type = AnchorPointType.Smooth;
-                anchor.SetOutHandleMirrored(doc);
-            }
-
-            RaiseInvalidate();
-        }
-
-        /// <summary>Direct Selection click: hit-tests every anchor and handle of
-        /// <see cref="_penPath"/> and, if one is hit, arms it to be dragged by the next
-        /// <see cref="OnPointerMoved"/> calls (see <see cref="UpdatePenNodeDrag"/>) - a
-        /// no-op on an empty click, leaving nothing dragging.</summary>
-        private void HandleDirectSelectionPress(SKPoint doc)
-        {
-            var (target, index) = HitTestPenNode(doc);
-            if (target == PenNodeDragTarget.None || _penPath is null) return;
-
-            var anchor = _penPath.Anchors[index];
-            _penNodeDragTarget = target;
-            _penNodeDragAnchorIndex = index;
-            _penNodeDragStart = doc;
-            _penNodeDragOriginalPosition = anchor.Position;
-            _penNodeDragOriginalInHandle = anchor.InHandle;
-            _penNodeDragOriginalOutHandle = anchor.OutHandle;
-        }
-
-        /// <summary>Path Selection click: hit-tests <see cref="_penPath"/> as a whole
-        /// (its filled interior if closed, else a thin band around its own stroked
-        /// outline - see <see cref="HitTestPenPath"/>) and, if hit, arms the entire path
-        /// to be dragged by the next <see cref="OnPointerMoved"/> calls (see
-        /// <see cref="UpdatePenPathDrag"/>).</summary>
-        private void HandlePathSelectionPress(SKPoint doc)
-        {
-            if (_penPath is null || !HitTestPenPath(doc)) return;
-
-            _isDraggingPenPath = true;
-            _penPathDragStart = doc;
-            _penPathDragSnapshot = new List<(SKPoint Position, SKPoint? InHandle, SKPoint? OutHandle)>(_penPath.Anchors.Count);
-            foreach (var anchor in _penPath.Anchors)
-                _penPathDragSnapshot.Add((anchor.Position, anchor.InHandle, anchor.OutHandle));
-        }
-
-        /// <summary>Moves whichever anchor/handle <see cref="HandleDirectSelectionPress"/>
-        /// armed to <paramref name="doc"/>. Moving the anchor itself carries both its
-        /// handles along, unchanged relative to it, rather than leaving them behind;
-        /// moving a single handle goes through <see cref="PathAnchor.SetOutHandleMirrored"/>/
-        /// <see cref="PathAnchor.SetInHandleMirrored"/> so a Smooth point's opposite
-        /// handle keeps mirroring, exactly as it would while first drawing the path.</summary>
-        private void UpdatePenNodeDrag(SKPoint doc)
-        {
-            if (_penPath is null || _penNodeDragAnchorIndex < 0 || _penNodeDragAnchorIndex >= _penPath.Anchors.Count) return;
-
-            var anchor = _penPath.Anchors[_penNodeDragAnchorIndex];
-            var deltaX = doc.X - _penNodeDragStart.X;
-            var deltaY = doc.Y - _penNodeDragStart.Y;
-
-            switch (_penNodeDragTarget)
-            {
-                case PenNodeDragTarget.Anchor:
-                    anchor.Position = new SKPoint(_penNodeDragOriginalPosition.X + deltaX, _penNodeDragOriginalPosition.Y + deltaY);
-                    if (_penNodeDragOriginalInHandle is { } inH)
-                        anchor.InHandle = new SKPoint(inH.X + deltaX, inH.Y + deltaY);
-                    if (_penNodeDragOriginalOutHandle is { } outH)
-                        anchor.OutHandle = new SKPoint(outH.X + deltaX, outH.Y + deltaY);
-                    break;
-
-                case PenNodeDragTarget.InHandle:
-                    anchor.SetInHandleMirrored(doc);
-                    break;
-
-                case PenNodeDragTarget.OutHandle:
-                    anchor.SetOutHandleMirrored(doc);
-                    break;
-            }
-
-            RaiseInvalidate();
-        }
-
-        /// <summary>Translates every anchor (position and both handles alike) by the
-        /// Path Selection drag's total delta from <see cref="_penPathDragSnapshot"/> -
-        /// recomputed fresh from that drag-start snapshot on every call rather than
-        /// incrementally, so repeated moves can't accumulate floating-point drift (the
-        /// same approach Free Transform's own scale/rotate drag uses).</summary>
-        private void UpdatePenPathDrag(SKPoint doc)
-        {
-            if (_penPath is null || _penPathDragSnapshot is null) return;
-
-            var deltaX = doc.X - _penPathDragStart.X;
-            var deltaY = doc.Y - _penPathDragStart.Y;
-
-            for (var i = 0; i < _penPath.Anchors.Count && i < _penPathDragSnapshot.Count; i++)
-            {
-                var (position, inHandle, outHandle) = _penPathDragSnapshot[i];
-                var anchor = _penPath.Anchors[i];
-                anchor.Position = new SKPoint(position.X + deltaX, position.Y + deltaY);
-                anchor.InHandle = inHandle is { } inH ? new SKPoint(inH.X + deltaX, inH.Y + deltaY) : null;
-                anchor.OutHandle = outHandle is { } outH ? new SKPoint(outH.X + deltaX, outH.Y + deltaY) : null;
-            }
-
-            RaiseInvalidate();
-        }
-
-        /// <summary>Hit-tests every anchor and handle of <see cref="_penPath"/> against
-        /// <paramref name="doc"/>, within <see cref="HandleHitRadius"/> (converted to
-        /// document space via <see cref="Zoom"/>, matching Crop/Free Transform's own
-        /// handle hit tests) - anchors take priority over handles when both are within
-        /// radius, since an anchor and its own handle can land very close together.</summary>
-        private (PenNodeDragTarget Target, int AnchorIndex) HitTestPenNode(SKPoint doc)
-        {
-            if (_penPath is null) return (PenNodeDragTarget.None, -1);
-
-            var radius = HandleHitRadius / (float)Zoom;
-            for (var i = 0; i < _penPath.Anchors.Count; i++)
-            {
-                var anchor = _penPath.Anchors[i];
-                if (SKPoint.Distance(anchor.Position, doc) <= radius) return (PenNodeDragTarget.Anchor, i);
-            }
-            for (var i = 0; i < _penPath.Anchors.Count; i++)
-            {
-                var anchor = _penPath.Anchors[i];
-                if (anchor.OutHandle is { } outH && SKPoint.Distance(outH, doc) <= radius) return (PenNodeDragTarget.OutHandle, i);
-                if (anchor.InHandle is { } inH && SKPoint.Distance(inH, doc) <= radius) return (PenNodeDragTarget.InHandle, i);
-            }
-
-            return (PenNodeDragTarget.None, -1);
-        }
-
-        /// <summary>Whether <paramref name="doc"/> lands "on" <see cref="_penPath"/> -
-        /// inside it for a closed path, or within a thin band of its own stroked
-        /// outline for an open one (built via <see cref="SKPaint.GetFillPath(SKPath, SKPath)"/>,
-        /// widening the path's centerline into a fillable/hit-testable region rather
-        /// than needing a bespoke point-to-segment distance test) - the Path Selection
-        /// tool's own hit test for "drag the whole path" versus "click on empty canvas,
-        /// do nothing".</summary>
-        private bool HitTestPenPath(SKPoint doc)
-        {
-            if (_penPath is null || _penPath.Anchors.Count == 0) return false;
-
-            using var skPath = _penPath.ToSKPath();
-            if (_penPath.IsClosed && skPath.Contains(doc.X, doc.Y)) return true;
-
-            var radius = Math.Max(HandleHitRadius / (float)Zoom, 4f);
-            using var hitTestStrokePaint = new SKPaint { Style = SKPaintStyle.Stroke, StrokeWidth = radius * 2 };
-            using var strokedRegion = new SKPath();
-            hitTestStrokePaint.GetFillPath(skPath, strokedRegion);
-            return strokedRegion.Contains(doc.X, doc.Y);
-        }
-
-        /// <summary>"Convert to Selection": rasterizes <see cref="_penPath"/> into the
-        /// scene's pixel selection via <see cref="Core.Documents.Selection.SetPath"/> -
-        /// the same machinery every marquee/lasso tool already commits its own path
-        /// into, so painting/erasing/filling immediately respects it exactly like any
-        /// other selection. A no-op with fewer than two anchors (nothing to enclose).</summary>
-        [RelayCommand]
-        private void ConvertPenPathToSelection()
-        {
-            if (_penPath is null || _penPath.Anchors.Count < 2) return;
-
-            var skPath = _penPath.ToSKPath();
-            Layers.Scene.Selection.SetPath(skPath, Layers.DocumentWidth, Layers.DocumentHeight);
-            RaiseInvalidate();
-        }
-
-        /// <summary>"Stroke Path": paints <see cref="_penPath"/>'s own outline onto the
-        /// active layer with the current <see cref="PrimaryColor"/> and the Pen tool's
-        /// Stroke Width option - clipped to the scene's selection like every other
-        /// paint operation (<see cref="WithSelectionClip"/>). Recorded as one undo/redo
-        /// entry. A no-op with fewer than two anchors, no active layer, or a locked one.</summary>
-        [RelayCommand]
-        private void StrokePenPath()
-        {
-            var layer = Layers.ActiveLayer?.Model;
-            if (_penPath is null || _penPath.Anchors.Count < 2 || layer is null || layer.IsLocked) return;
-
-            var options = _toolbox.CurrentToolOptions as PenToolOptionsViewModel;
-            var strokeWidth = Math.Max(1f, (float)(options?.StrokeWidth ?? 2));
-
-            using var paint = new SKPaint
-            {
-                Style = SKPaintStyle.Stroke,
-                StrokeWidth = strokeWidth,
-                Color = BrushColor,
-                IsAntialias = true,
-                StrokeCap = SKStrokeCap.Round,
-                StrokeJoin = SKStrokeJoin.Round,
-            };
-
-            var before = layer.PaintBitmap.Pixels;
-            using (var skPath = _penPath.ToSKPath())
-                WithSelectionClip(layer.PaintCanvas, canvas => canvas.DrawPath(skPath, paint));
-
-            Layers.History.Push(new LayerPixelsCommand(layer.PaintBitmap, before, layer.PaintBitmap.Pixels));
-            RaiseInvalidate();
-        }
-
-        /// <summary>"Fill Path": fills <see cref="_penPath"/>'s enclosed area (Skia
-        /// implicitly closes an open path for filling, same as every vector tool's own
-        /// Fill Path) with the current <see cref="PrimaryColor"/> - clipped to the
-        /// scene's selection like every other paint operation. Recorded as one undo/redo
-        /// entry. A no-op with fewer than three anchors (no enclosed area), no active
-        /// layer, or a locked one.</summary>
-        [RelayCommand]
-        private void FillPenPath()
-        {
-            var layer = Layers.ActiveLayer?.Model;
-            if (_penPath is null || _penPath.Anchors.Count < 3 || layer is null || layer.IsLocked) return;
-
-            using var paint = new SKPaint { Style = SKPaintStyle.Fill, Color = BrushColor, IsAntialias = true };
-
-            var before = layer.PaintBitmap.Pixels;
-            using (var skPath = _penPath.ToSKPath())
-                WithSelectionClip(layer.PaintCanvas, canvas => canvas.DrawPath(skPath, paint));
-
-            Layers.History.Push(new LayerPixelsCommand(layer.PaintBitmap, before, layer.PaintBitmap.Pixels));
-            RaiseInvalidate();
-        }
-
-        // ================= Filter / Color Adjustment Preview =================
-
-        /// <summary>The active layer's pixels exactly as they were the moment
-        /// <see cref="BeginAdjustment"/> snapshotted them - what a filter/adjustment
-        /// dialog's own live preview (see <see cref="UpdateAdjustmentPreview"/>) is
-        /// always computed from, and what a dialog reads to build things like
-        /// <see cref="Core.Adjustments.Histogram"/> from the pixels as they actually
-        /// are right now, not some earlier state. Null unless an adjustment is in
-        /// progress.</summary>
-        public SKBitmap? AdjustmentSourceBitmap => _adjustmentOriginalBitmap;
-
-        /// <summary>Snapshots the active layer's current pixels and starts a live
-        /// preview session - called once, right before a filter/color adjustment
-        /// dialog is shown. The layer's real bitmap is never touched until
-        /// <see cref="CommitAdjustment"/> runs, exactly like Free Transform/Warp:
-        /// <see cref="CancelAdjustment"/> (the dialog's Cancel button, or closing it
-        /// without applying) is always a true no-op on the actual document.</summary>
-        public void BeginAdjustment()
-        {
-            var layer = Layers.ActiveLayer?.Model;
-            if (layer is null) return;
-
-            _adjustmentLayer = layer;
-            _adjustmentOriginalBitmap?.Dispose();
-            _adjustmentOriginalBitmap = layer.Bitmap.Copy();
-            _adjustmentPreview = null;
-            RaiseInvalidate();
-        }
-
-        /// <summary>Sets (or replaces) the function the live preview renders through -
-        /// called every time a dialog's own slider/control-point/etc. changes, so the
-        /// canvas always shows what committing right now would actually produce.
-        /// <paramref name="preview"/> receives <see cref="AdjustmentSourceBitmap"/>
-        /// (the original, untouched snapshot) each time it's invoked - never a
-        /// previous preview's own output - so repeated adjustments of the same
-        /// slider never compound against each other.</summary>
-        public void UpdateAdjustmentPreview(Func<SKBitmap, SKBitmap> preview)
-        {
-            _adjustmentPreview = preview ?? throw new ArgumentNullException(nameof(preview));
-            RaiseInvalidate();
-        }
-
-        /// <summary>Bakes whatever the live preview currently shows into the active
-        /// layer's actual bitmap and records it as one undo/redo entry - the dialog's
-        /// Apply/OK button. A no-op (same as <see cref="CancelAdjustment"/>) if
-        /// nothing was ever previewed, so opening a dialog and immediately closing it
-        /// with Apply/OK never pushes a do-nothing history entry.</summary>
-        public void CommitAdjustment()
-        {
-            if (_adjustmentLayer is null || _adjustmentOriginalBitmap is null || _adjustmentPreview is null)
-            {
-                EndAdjustment();
-                RaiseInvalidate();
-                return;
-            }
-
-            var before = _adjustmentLayer.Bitmap.Pixels;
-            using (var baked = _adjustmentPreview(_adjustmentOriginalBitmap))
-                _adjustmentLayer.Bitmap.Pixels = baked.Pixels;
-
-            Layers.History.Push(new LayerPixelsCommand(_adjustmentLayer.Bitmap, before, _adjustmentLayer.Bitmap.Pixels));
-            EndAdjustment();
-            RaiseInvalidate();
-        }
-
-        /// <summary>Discards the live preview without changing the document - the
-        /// dialog's Cancel button, or closing it any other way. The active layer's
-        /// actual bitmap was never touched (only ever live-previewed), so this is
-        /// just dropping the preview state, not undoing a write.</summary>
-        public void CancelAdjustment()
-        {
-            EndAdjustment();
-            RaiseInvalidate();
-        }
-
-        private void EndAdjustment()
-        {
-            _adjustmentLayer = null;
-            _adjustmentOriginalBitmap?.Dispose();
-            _adjustmentOriginalBitmap = null;
-            _adjustmentPreview = null;
+            var screen = ToUnrotatedScreen(devicePoint);
+            return new SKPoint((float)((screen.X - PanX) / Zoom), (float)((screen.Y - PanY) / Zoom));
         }
 
         private void RaiseInvalidate()
@@ -2313,6 +835,7 @@ namespace JolieCat.UI.ViewModels
         partial void OnZoomChanged(double value)
         {
             RaiseInvalidate();
+            OnPropertyChanged(nameof(ZoomText));
             OnPropertyChanged(nameof(TextEditScreenX));
             OnPropertyChanged(nameof(TextEditScreenY));
         }
@@ -2323,7 +846,14 @@ namespace JolieCat.UI.ViewModels
 
             _toolbox.PropertyChanged -= OnToolboxPropertyChanged;
             Layers.InvalidateRequested -= OnLayersInvalidateRequested;
+            RenderCache?.Dispose();
+            RenderCache = null;
             _disposed = true;
         }
+
+        /// <summary>Renderer-owned cache of the composited layers above/below the
+        /// active one (see <c>Rendering.LayerRenderCache</c>). Lives here so it's
+        /// per-document and freed with the document.</summary>
+        internal IDisposable? RenderCache { get; set; }
     }
 }

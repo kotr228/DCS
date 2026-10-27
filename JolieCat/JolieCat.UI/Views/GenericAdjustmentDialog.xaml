@@ -1,0 +1,45 @@
+<Window x:Class="JolieCat.UI.Views.GenericAdjustmentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
+        xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+        mc:Ignorable="d"
+        Title="{Binding Title}" Width="400" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        d:DataContext="{d:DesignInstance Type=vm:GenericAdjustmentViewModel, IsDesignTimeCreatable=False}">
+    <StackPanel Margin="16">
+        <!-- One row per setting, in the order the adjustment stores them. -->
+        <ItemsControl ItemsSource="{Binding Fields}">
+            <ItemsControl.Resources>
+                <DataTemplate DataType="{x:Type vm:AdjustmentSliderField}">
+                    <controls:LabeledSlider Margin="0,0,0,6" Label="{Binding Label}" Suffix="{Binding Suffix}"
+                                            Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                            Value="{Binding Value, Mode=TwoWay}" />
+                </DataTemplate>
+                <DataTemplate DataType="{x:Type vm:AdjustmentCheckField}">
+                    <CheckBox Content="{Binding Label}" IsChecked="{Binding IsChecked}" Margin="0,2,0,8"
+                              Foreground="{StaticResource TextPrimaryBrush}" />
+                </DataTemplate>
+                <DataTemplate DataType="{x:Type vm:AdjustmentColorField}">
+                    <DockPanel Margin="0,0,0,8">
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding Label}" Width="110" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                        <Border DockPanel.Dock="Right" Width="22" Height="22" Margin="6,0,0,0" CornerRadius="3"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{Binding Hex}" />
+                        <TextBox Text="{Binding Hex, UpdateSourceTrigger=PropertyChanged}" />
+                    </DockPanel>
+                </DataTemplate>
+            </ItemsControl.Resources>
+        </ItemsControl>
+
+        <TextBlock Text="Preview updates live on the canvas. Colors are #RRGGBB."
+                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True" />
+            <Button Content="OK" Width="80" IsDefault="True" Style="{StaticResource PrimaryButtonStyle}" Click="Ok_Click" />
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -24,6 +24,9 @@ namespace JolieCat.Core.Serialization
     {
         private const string ManifestEntryName = "manifest.json";
 
+        /// <summary>Writes the project to <paramref name="path"/> safely: the archive is
+        /// written to a temporary file next to it first and only then swapped in, so a
+        /// crash or a full disk mid-save never leaves a half-written project behind.</summary>
         public static void Save(
             string path,
             Scene scene,
@@ -32,6 +35,28 @@ namespace JolieCat.Core.Serialization
             double timelineFrameRate,
             ProjectType projectType = ProjectType.StandardImage,
             Documents.SpriteSheetGrid? spriteSheetGrid = null)
+        {
+            var temporaryPath = path + ".saving";
+            try
+            {
+                WriteArchive(temporaryPath, scene, timelineTracks, timelineTotalFrames, timelineFrameRate, projectType, spriteSheetGrid);
+                File.Move(temporaryPath, path, overwrite: true);
+            }
+            catch
+            {
+                try { File.Delete(temporaryPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                throw;
+            }
+        }
+
+        private static void WriteArchive(
+            string path,
+            Scene scene,
+            IReadOnlyList<TimelineTrackData> timelineTracks,
+            double timelineTotalFrames,
+            double timelineFrameRate,
+            ProjectType projectType,
+            Documents.SpriteSheetGrid? spriteSheetGrid)
         {
             ArgumentNullException.ThrowIfNull(scene);
             if (scene.Layers.Count == 0)
@@ -99,6 +124,16 @@ namespace JolieCat.Core.Serialization
                     HasMask = layer.Mask is not null,
                     IsMaskEnabled = layer.Mask?.IsEnabled ?? true,
                     MaskEntryName = maskEntryName,
+                    Adjustment = layer.Adjustment?.Serialize(),
+                    Style = layer.Style?.Serialize(),
+                    ParentIndex = layer.ParentId is { } parentId && scene.FindById(parentId) is { } parent ? scene.IndexOf(parent) : null,
+                    IsExpanded = layer.IsExpanded,
+                    IsClipped = layer.IsClipped,
+                    Text = layer.Text is { } t ? new TextLayerManifest
+                    {
+                        Text = t.Text, FontFamily = t.FontFamily, FontSize = t.FontSize, Bold = t.Bold, Italic = t.Italic,
+                        Color = t.Color.ToString(), X = t.Origin.X, Y = t.Origin.Y, Vertical = t.Vertical,
+                    } : null,
                 });
 
                 var entry = archive.CreateEntry(entryName, CompressionLevel.Optimal);
@@ -224,8 +259,30 @@ namespace JolieCat.Core.Serialization
                         mask.Canvas.DrawBitmap(decodedMask, 0, 0);
                 }
 
+                if (Adjustments.AdjustmentSettings.Deserialize(layerEntry.Adjustment) is { } adjustment)
+                {
+                    layer.Adjustment = adjustment;
+                    layer.IsMaskActive = layer.Mask is not null;
+                }
+
+                layer.Style = Effects.LayerStyle.Deserialize(layerEntry.Style);
+                layer.IsExpanded = layerEntry.IsExpanded;
+                layer.IsClipped = layerEntry.IsClipped;
+                if (layerEntry.Text is { } text)
+                {
+                    layer.Text = new TextContent(text.Text, text.FontFamily, text.FontSize, text.Bold, text.Italic,
+                        SKColor.TryParse(text.Color, out var color) ? color : SKColors.Black,
+                        new SKPoint(text.X, text.Y), text.Vertical);
+                }
+
                 scene.AddLayer(layer);
             }
+
+            // Group links, by index (layer Ids aren't stored in the file).
+            for (var i = 0; i < manifest.Layers.Count && i < scene.Layers.Count; i++)
+                if (manifest.Layers[i].ParentIndex is int parentIndex && parentIndex >= 0 && parentIndex < scene.Layers.Count)
+                    scene.Layers[i].ParentId = scene.Layers[parentIndex].Id;
+            scene.NormalizeGroups();
 
             if (manifest.ActiveLayerIndex >= 0 && manifest.ActiveLayerIndex < scene.Layers.Count)
                 scene.ActiveLayer = scene.Layers[manifest.ActiveLayerIndex];

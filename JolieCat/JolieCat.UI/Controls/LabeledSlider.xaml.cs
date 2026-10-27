@@ -14,13 +14,13 @@ namespace JolieCat.UI.Controls
             DependencyProperty.Register(nameof(Label), typeof(string), typeof(LabeledSlider), new PropertyMetadata(string.Empty));
 
         public static readonly DependencyProperty MinimumProperty =
-            DependencyProperty.Register(nameof(Minimum), typeof(double), typeof(LabeledSlider), new PropertyMetadata(0.0));
+            DependencyProperty.Register(nameof(Minimum), typeof(double), typeof(LabeledSlider), new PropertyMetadata(0.0, (d, _) => ((LabeledSlider)d).UpdateDisplay()));
 
         public static readonly DependencyProperty MaximumProperty =
-            DependencyProperty.Register(nameof(Maximum), typeof(double), typeof(LabeledSlider), new PropertyMetadata(100.0));
+            DependencyProperty.Register(nameof(Maximum), typeof(double), typeof(LabeledSlider), new PropertyMetadata(100.0, (d, _) => ((LabeledSlider)d).UpdateDisplay()));
 
         public static readonly DependencyProperty ValueProperty =
-            DependencyProperty.Register(nameof(Value), typeof(double), typeof(LabeledSlider), new PropertyMetadata(0.0));
+            DependencyProperty.Register(nameof(Value), typeof(double), typeof(LabeledSlider), new PropertyMetadata(0.0, (d, _) => ((LabeledSlider)d).UpdateDisplay()));
 
         public static readonly DependencyProperty SuffixProperty =
             DependencyProperty.Register(nameof(Suffix), typeof(string), typeof(LabeledSlider), new PropertyMetadata(string.Empty));
@@ -56,9 +56,57 @@ namespace JolieCat.UI.Controls
             set => SetValue(SuffixProperty, value);
         }
 
+        private static readonly DependencyPropertyKey DisplayTextKey =
+            DependencyProperty.RegisterReadOnly(nameof(DisplayText), typeof(string), typeof(LabeledSlider), new PropertyMetadata("0"));
+
+        /// <summary>The readout: whole numbers for wide ranges (sizes, percentages),
+        /// one decimal for narrow ones (0-1 opacity, 0-5 strength) where it matters.</summary>
+        public string DisplayText => (string)GetValue(DisplayTextKey.DependencyProperty);
+
+        private void UpdateDisplay()
+        {
+            var format = Maximum - Minimum <= 10 ? "0.##" : "0";
+            SetValue(DisplayTextKey, Value.ToString(format, System.Globalization.CultureInfo.CurrentCulture));
+        }
+
         public LabeledSlider()
         {
             InitializeComponent();
+            UpdateDisplay();
+        }
+
+        private void ValueBox_GotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) =>
+            ValueBox.Dispatcher.BeginInvoke(ValueBox.SelectAll);
+
+        private void ValueBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Enter)
+            {
+                CommitTypedValue();
+                e.Handled = true;
+            }
+            else if (e.Key == System.Windows.Input.Key.Escape)
+            {
+                ValueBox.Text = DisplayText;
+                ValueBox.SelectAll();
+                e.Handled = true;
+            }
+        }
+
+        private void ValueBox_LostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) => CommitTypedValue();
+
+        /// <summary>Parses the typed number (current culture or invariant, so both
+        /// "1,5" and "1.5" work) and applies it clamped to the slider's range.</summary>
+        private void CommitTypedValue()
+        {
+            var text = ValueBox.Text.Trim().TrimEnd('%', ' ');
+            if (double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture, out var typed) ||
+                double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out typed))
+            {
+                SetCurrentValue(ValueProperty, System.Math.Clamp(typed, Minimum, Maximum));
+            }
+
+            ValueBox.Text = DisplayText;
         }
     }
 }

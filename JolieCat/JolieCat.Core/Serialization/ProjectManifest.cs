@@ -75,6 +75,25 @@ namespace JolieCat.Core.Serialization
         /// <summary>Zip entry name (under "layers/") holding this layer's mask as a PNG -
         /// only present when <see cref="HasMask"/> is true.</summary>
         public string? MaskEntryName { get; set; }
+
+        /// <summary>Adjustment layers only: the adjustment's settings (see
+        /// <c>AdjustmentSettings.Serialize</c>). Null for every other layer.</summary>
+        public string? Adjustment { get; set; }
+
+        /// <summary>Layer style effects (see <c>LayerStyle.Serialize</c>), or null.</summary>
+        public string? Style { get; set; }
+
+        /// <summary>Index (in this list) of the group this layer is in, or null at the top level.</summary>
+        public int? ParentIndex { get; set; }
+
+        /// <summary>Groups: whether the Layers panel shows the members.</summary>
+        public bool IsExpanded { get; set; } = true;
+
+        /// <summary>Clipped to the layer below (clipping mask).</summary>
+        public bool IsClipped { get; set; }
+
+        /// <summary>Editable text layers: the text and its settings. Null otherwise.</summary>
+        public TextLayerManifest? Text { get; set; }
     }
 
     /// <summary>One timeline track's clips and keyframes - enough to reconstruct
@@ -115,5 +134,20 @@ namespace JolieCat.Core.Serialization
         public int MarginX { get; set; }
 
         public int MarginY { get; set; }
+    }
+
+    /// <summary>An editable text layer's content (see <c>Documents.TextContent</c>).</summary>
+    public sealed class TextLayerManifest
+    {
+        public string Text { get; set; } = string.Empty;
+        public string FontFamily { get; set; } = "Segoe UI";
+        public float FontSize { get; set; } = 24;
+        public bool Bold { get; set; }
+        public bool Italic { get; set; }
+        /// <summary>#AARRGGBB</summary>
+        public string Color { get; set; } = "#FF000000";
+        public float X { get; set; }
+        public float Y { get; set; }
+        public bool Vertical { get; set; }
     }
 }

@@ -10,8 +10,19 @@ namespace JolieCat.Core.History
     /// for why a full-scene snapshot (rather than a targeted inverse of each operation)
     /// is this system's uniform answer for every structural change.
     /// </summary>
-    public sealed class SceneStructuralCommand : IEditCommand
+    public sealed class SceneStructuralCommand : IEditCommand, ISizedEditCommand
     {
+        public long ByteSize
+        {
+            get
+            {
+                long total = 0;
+                foreach (var s in _before) total += s.ByteSize;
+                foreach (var s in _after) total += s.ByteSize;
+                return total;
+            }
+        }
+
         private readonly Scene _scene;
         private readonly IReadOnlyList<LayerSnapshot> _before;
         private readonly int _beforeActiveIndex;

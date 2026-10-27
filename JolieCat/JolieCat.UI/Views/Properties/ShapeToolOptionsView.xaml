@@ -4,10 +4,25 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+             xmlns:views="clr-namespace:JolieCat.UI.Views"
+             xmlns:opts="clr-namespace:JolieCat.UI.ViewModels.ToolOptions"
              mc:Ignorable="d">
     <StackPanel Margin="10">
+        <TextBlock Text="Shape" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+        <ComboBox ItemsSource="{x:Static opts:ShapeToolOptionsViewModel.AllKinds}"
+                  SelectedItem="{Binding Kind, Mode=TwoWay}" Margin="0,0,0,8" />
+
         <controls:LabeledSlider Label="Stroke Width" Minimum="0" Maximum="40" Suffix="px" Value="{Binding StrokeWidth, Mode=TwoWay}" />
-        <CheckBox Content="Fill Shape" Foreground="{StaticResource TextPrimaryBrush}"
+        <controls:LabeledSlider Label="Corner Radius" Minimum="0" Maximum="200" Suffix="px" Value="{Binding CornerRadius, Mode=TwoWay}" />
+
+        <CheckBox Content="Fill shape" Foreground="{StaticResource TextPrimaryBrush}"
                   IsChecked="{Binding FillEnabled, Mode=TwoWay}" Margin="0,4,0,0" />
+        <CheckBox Content="Anti-alias" Foreground="{StaticResource TextPrimaryBrush}"
+                  IsChecked="{Binding AntiAlias, Mode=TwoWay}" Margin="0,4,0,0" />
+
+        <TextBlock Text="Drag on the canvas. Hold Shift for a square, circle or 45° line."
+                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,8" />
+
+        <views:ColorPickerPanel DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Canvas}" />
     </StackPanel>
 </UserControl>

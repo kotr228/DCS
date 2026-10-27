@@ -22,15 +22,16 @@ namespace JolieCat.UI.Converters
             {
                 ToolType.Hand => Cursors.Hand,
 
-                ToolType.Zoom => Cursors.SizeAll,
+                ToolType.Move => Cursors.SizeAll,
 
                 ToolType.RectangularMarquee or ToolType.EllipticalMarquee or ToolType.Lasso or
                     ToolType.PolygonalLasso or ToolType.MagneticLasso or ToolType.QuickSelection or
-                    ToolType.MagicWand or ToolType.Eyedropper => Cursors.Cross,
+                    ToolType.MagicWand or ToolType.Eyedropper or ToolType.Shape or ToolType.Zoom => Cursors.Cross,
 
+                // A small crosshair: the canvas itself draws the brush-size outline around it.
                 ToolType.Brush or ToolType.Pencil or ToolType.Eraser or ToolType.CloneStamp or
-                    ToolType.HealingBrush or ToolType.Blur or ToolType.Sharpen or ToolType.Sponge or
-                    ToolType.Dodge or ToolType.Burn => Cursors.Pen,
+                    ToolType.HealingBrush or ToolType.SpotHealing or ToolType.Blur or ToolType.Sharpen or ToolType.Sponge or
+                    ToolType.Dodge or ToolType.Burn => Cursors.Cross,
 
                 _ => Cursors.Arrow,
             };

@@ -44,16 +44,80 @@ namespace JolieCat.UI.ViewModels.Layers
         [ObservableProperty]
         private BitmapSource? maskThumbnail;
 
-        public LayerViewModel(Layer model)
+        /// <summary>Small preview of the layer's content for its Layers panel row.</summary>
+        [ObservableProperty]
+        private BitmapSource? thumbnail;
+
+        public LayerViewModel(Layer model, int depth = 0)
         {
             Model = model ?? throw new ArgumentNullException(nameof(model));
+            Depth = depth;
+            if (!model.IsGroup) RefreshThumbnail();
             RefreshMaskThumbnail();
+        }
+
+        /// <summary>How many groups this layer is inside - the row's indent.</summary>
+        public int Depth { get; }
+
+        /// <summary>Row indent in pixels.</summary>
+        public System.Windows.Thickness Indent => new(Depth * 14, 0, 0, 0);
+
+        public bool IsGroup => Model.IsGroup;
+
+        public bool IsNotGroup => !Model.IsGroup;
+
+        // Drag and drop in the Layers panel: where the dragged layer would land.
+        [ObservableProperty] private bool dropAbove;
+        [ObservableProperty] private bool dropBelow;
+        [ObservableProperty] private bool dropInto;
+
+        public void ClearDropHint() => DropAbove = DropBelow = DropInto = false;
+
+        /// <summary>Raised when a group is expanded or collapsed (the panel's rows change).</summary>
+        public event EventHandler? ExpandedChanged;
+
+        /// <summary>Groups: members shown in the Layers panel.</summary>
+        public bool IsExpanded
+        {
+            get => Model.IsExpanded;
+            set
+            {
+                if (Model.IsExpanded == value) return;
+                Model.IsExpanded = value;
+                OnPropertyChanged();
+                ExpandedChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public void RefreshThumbnail()
+        {
+            if (!Model.IsGroup) Thumbnail = SkiaImageConverter.ToThumbnail(Model.Bitmap);
         }
 
         /// <summary>Whether this layer currently has a mask attached at all - the
         /// Layers panel row shows either the mask thumbnail (see
         /// <see cref="MaskThumbnail"/>) or a plain "add mask" affordance based on this.</summary>
         public bool HasMask => Model.Mask is not null;
+
+        public bool IsAdjustment => Model.IsAdjustment;
+
+        /// <summary>An editable text layer - the thumbnail shows a "T".</summary>
+        public bool IsText => Model.IsText;
+
+        /// <summary>True if the layer has layer style effects - shows the "fx" badge.</summary>
+        public bool HasStyle => Model.Style is { HasAnyEffect: true };
+
+        /// <summary>Clipped to the layer below - the row shows an arrow and is indented.</summary>
+        public bool IsClipped => Model.IsClipped;
+
+        public void RefreshStyleState()
+        {
+            OnPropertyChanged(nameof(HasStyle));
+            OnPropertyChanged(nameof(IsClipped));
+            OnPropertyChanged(nameof(IsText));
+        }
+
+        public string? AdjustmentToolTip => Model.Adjustment is { } a ? $"{a.DisplayName} adjustment - double-click to edit" : null;
 
         /// <summary>Whether an existing mask currently affects compositing - mirrors
         /// <see cref="LayerMask.IsEnabled"/>; meaningless (and left false) while

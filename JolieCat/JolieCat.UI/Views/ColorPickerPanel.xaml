@@ -39,9 +39,25 @@
                                   Margin="0,0,0,6" />
 
         <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-            <!-- Active color preview -->
-            <Border Width="30" Height="30" Margin="0,0,8,0" Background="{Binding PrimaryColorBrush}"
-                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" ToolTip="Foreground color" />
+            <!-- Foreground / background swatches (Photoshop layout): the picker edits the
+                 foreground; X swaps the two, D resets to black/white. -->
+            <Grid Width="46" Height="40" Margin="0,0,8,0">
+                <Button Width="26" Height="26" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                        Background="{Binding SecondaryColorBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        Style="{StaticResource SwatchButtonStyle}" Command="{Binding SwapColorsCommand}"
+                        ToolTip="Background color - click to swap (X)" />
+                <Border Width="26" Height="26" HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Background="{Binding PrimaryColorBrush}" BorderBrush="#FFF5F5F5" BorderThickness="1"
+                        ToolTip="Foreground color (edited by the picker above)" />
+                <Button HorizontalAlignment="Right" VerticalAlignment="Top" Width="14" Height="14" Padding="0"
+                        Content="&#xE8AB;" FontFamily="Segoe MDL2 Assets" FontSize="9"
+                        Style="{StaticResource IconButtonStyle}" Command="{Binding SwapColorsCommand}"
+                        ToolTip="Swap colors (X)" />
+                <Button HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="14" Height="14" Padding="0"
+                        Content="&#xE72C;" FontFamily="Segoe MDL2 Assets" FontSize="9"
+                        Style="{StaticResource IconButtonStyle}" Command="{Binding ResetColorsCommand}"
+                        ToolTip="Default colors: black / white (D)" />
+            </Grid>
 
             <!-- Hex code - commits on Enter/focus-loss (TextBox.Text's default
                  UpdateSourceTrigger), so a color typed mid-edit doesn't fail to parse

@@ -28,7 +28,20 @@ namespace JolieCat.UI.ViewModels
         /// <summary>The tab header's text - the document's filename once saved/opened,
         /// or "Untitled N" for a new, never-saved document.</summary>
         [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(TabTitle))]
         private string title;
+
+        /// <summary>Names this document's crash-recovery file (see <c>DocumentRecovery</c>).</summary>
+        public Guid RecoveryId { get; } = Guid.NewGuid();
+
+        /// <summary><see cref="Core.History.HistoryManager.ChangeCounter"/> at the last autosave.</summary>
+        public long LastAutosavedChange { get; set; } = -1;
+
+        /// <summary>True when the document has changes that aren't saved yet.</summary>
+        public bool IsDirty => Layers.History.IsDirty;
+
+        /// <summary>Tab text: the title, with a trailing dot while there are unsaved changes.</summary>
+        public string TabTitle => IsDirty ? $"{Title} •" : Title;
 
         /// <summary>Absolute path of the <c>.jolie</c> file this document was opened
         /// from or last saved to, or null if it has never been saved.</summary>
@@ -73,13 +86,21 @@ namespace JolieCat.UI.ViewModels
         public bool IsTimelineMode => WorkspaceMode == WorkspaceMode.Timeline;
 
         public DocumentViewModel(ToolboxViewModel toolbox, string title, ProjectType projectType = ProjectType.StandardImage)
+            : this(toolbox, title, projectType, 1600, 1200, SkiaSharp.SKColors.White)
+        {
+        }
+
+        /// <summary>A new document of the given canvas size; <paramref name="background"/>
+        /// fills the Background layer (null = transparent).</summary>
+        public DocumentViewModel(ToolboxViewModel toolbox, string title, ProjectType projectType, int width, int height, SkiaSharp.SKColor? background)
         {
             ArgumentNullException.ThrowIfNull(toolbox);
             if (string.IsNullOrWhiteSpace(title)) throw new ArgumentException("Document title cannot be empty.", nameof(title));
 
             this.title = title;
-            Layers = new LayersViewModel(projectType);
+            Layers = new LayersViewModel(projectType, width, height, background);
             Canvas = new CanvasViewModel(toolbox, Layers);
+            Layers.History.DirtyChanged += OnHistoryDirtyChanged;
             Timeline = new TimelineViewModel();
 
             // The Timeline's own flipbook logic (see TimelineViewModel.UpdateFrameLayerVisibility)
@@ -92,6 +113,12 @@ namespace JolieCat.UI.ViewModels
         }
 
         private void OnTimelineFrameVisibilityChanged(object? sender, EventArgs e) => Layers.RequestRepaint();
+
+        private void OnHistoryDirtyChanged(object? sender, EventArgs e)
+        {
+            OnPropertyChanged(nameof(IsDirty));
+            OnPropertyChanged(nameof(TabTitle));
+        }
 
         /// <summary>Disposes <see cref="Canvas"/> (which unsubscribes from the shared,
         /// long-lived <see cref="ToolboxViewModel"/>'s events - without this, a closed
@@ -113,6 +140,7 @@ namespace JolieCat.UI.ViewModels
             if (_disposed) return;
 
             Timeline.FrameVisibilityChanged -= OnTimelineFrameVisibilityChanged;
+            Layers.History.DirtyChanged -= OnHistoryDirtyChanged;
             Canvas.Dispose();
             Timeline.Dispose();
             if (SmartObjectHostLayer is null)

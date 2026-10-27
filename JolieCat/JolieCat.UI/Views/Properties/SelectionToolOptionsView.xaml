@@ -6,9 +6,20 @@
              xmlns:controls="clr-namespace:JolieCat.UI.Controls"
              mc:Ignorable="d">
     <StackPanel Margin="10">
+        <TextBlock Text="Mode" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+        <ComboBox SelectedIndex="{Binding Mode, Mode=TwoWay, Converter={StaticResource EnumToIndex}}" Margin="0,0,0,8">
+            <ComboBoxItem Content="New selection" />
+            <ComboBoxItem Content="Add to selection (Shift)" />
+            <ComboBoxItem Content="Subtract from selection (Alt)" />
+            <ComboBoxItem Content="Intersect with selection (Shift+Alt)" />
+        </ComboBox>
+
         <controls:LabeledSlider Label="Feather" Minimum="0" Maximum="250" Suffix="px" Value="{Binding FeatherRadius, Mode=TwoWay}" />
-        <controls:LabeledSlider Label="Tolerance" Minimum="0" Maximum="255" Value="{Binding Tolerance, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Tolerance (Magic Wand, Quick Selection)" Minimum="0" Maximum="255" Value="{Binding Tolerance, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Quick Selection brush" Minimum="2" Maximum="300" Suffix="px" Value="{Binding BrushSize, Mode=TwoWay}" />
         <CheckBox Content="Anti-alias" Foreground="{StaticResource TextPrimaryBrush}"
                   IsChecked="{Binding AntiAlias, Mode=TwoWay}" Margin="0,4,0,0" />
+        <TextBlock Text="Hold Shift to add, Alt to subtract, Shift+Alt to intersect. Quick Selection: paint over what you want selected."
+                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,0" />
     </StackPanel>
 </UserControl>

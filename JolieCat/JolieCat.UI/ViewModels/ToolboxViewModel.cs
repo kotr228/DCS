@@ -34,10 +34,14 @@ namespace JolieCat.UI.ViewModels
         [ObservableProperty]
         private object currentToolOptions;
 
+        /// <summary>One options instance per tool, kept for the session, so a tool's
+        /// settings (brush size, tolerance, font...) survive switching away and back.</summary>
+        private readonly Dictionary<ToolType, object> _optionsByTool = new();
+
         public ToolboxViewModel()
         {
             activeTool = Tools[0];
-            currentToolOptions = CreateOptions(activeTool.Type);
+            currentToolOptions = GetOptions(activeTool.Type);
         }
 
         [RelayCommand]
@@ -47,7 +51,51 @@ namespace JolieCat.UI.ViewModels
                 ActiveTool = tool;
         }
 
-        partial void OnActiveToolChanged(ToolDefinition value) => CurrentToolOptions = CreateOptions(value.Type);
+        public void SelectTool(ToolType type)
+        {
+            var tool = Tools.FirstOrDefault(t => t.Type == type);
+            if (tool is not null) ActiveTool = tool;
+        }
+
+        /// <summary>Last tool used from each shortcut group, so "M" brings back whichever
+        /// marquee you used last (Photoshop behavior).</summary>
+        private readonly Dictionary<string, ToolDefinition> _lastToolByShortcut = new(System.StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Keyboard tool switching, Photoshop-style: a letter selects the
+        /// group's most recently used tool (staying put if one is already active);
+        /// with <paramref name="cycle"/> (Shift+letter) it steps to the next tool in the
+        /// group instead. Returns false if no tool uses that letter.</summary>
+        public bool SelectToolByShortcut(string letter, bool cycle = false)
+        {
+            var matches = Tools.Where(t => string.Equals(t.Shortcut, letter, System.StringComparison.OrdinalIgnoreCase)).ToList();
+            if (matches.Count == 0) return false;
+
+            var currentIndex = matches.IndexOf(ActiveTool);
+            if (cycle)
+                ActiveTool = matches[(currentIndex + 1) % matches.Count];
+            else if (currentIndex < 0)
+                ActiveTool = _lastToolByShortcut.TryGetValue(letter, out var last) ? last : matches[0];
+
+            return true;
+        }
+
+        partial void OnActiveToolChanged(ToolDefinition value)
+        {
+            CurrentToolOptions = GetOptions(value.Type);
+            if (!string.IsNullOrEmpty(value.Shortcut))
+                _lastToolByShortcut[value.Shortcut] = value;
+        }
+
+        private object GetOptions(ToolType type)
+        {
+            if (!_optionsByTool.TryGetValue(type, out var options))
+            {
+                options = CreateOptions(type);
+                _optionsByTool[type] = options;
+            }
+
+            return options;
+        }
 
         private static object CreateOptions(ToolType type) => type switch
         {
@@ -55,7 +103,7 @@ namespace JolieCat.UI.ViewModels
             // tools don't, so their shared Properties view hides the color picker for them.
             ToolType.Brush or ToolType.Pencil => new PaintToolOptionsViewModel(showColorPicker: true),
 
-            ToolType.Eraser or ToolType.CloneStamp or ToolType.HealingBrush or ToolType.Blur or
+            ToolType.Eraser or ToolType.CloneStamp or ToolType.HealingBrush or ToolType.SpotHealing or ToolType.Blur or
                 ToolType.Sharpen or ToolType.Sponge or ToolType.Dodge or ToolType.Burn =>
                 new PaintToolOptionsViewModel(showColorPicker: false),
 

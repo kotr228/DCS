@@ -1,0 +1,65 @@
+<Window x:Class="JolieCat.UI.Views.BatchDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
+        xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+        mc:Ignorable="d"
+        Title="Batch" Width="520" SizeToContent="Height"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        d:DataContext="{d:DesignInstance Type=vm:BatchViewModel, IsDesignTimeCreatable=False}">
+    <Window.Resources>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+        </Style>
+        <Style x:Key="Row" TargetType="DockPanel">
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="16">
+        <TextBlock Text="Plays an action on every image in a folder and saves the results to another folder."
+                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,14" />
+
+        <DockPanel Style="{StaticResource Row}">
+            <TextBlock Text="Action" Width="110" Style="{StaticResource Label}" />
+            <ComboBox ItemsSource="{Binding Actions}" SelectedItem="{Binding SelectedAction}" DisplayMemberPath="Name"
+                      AutomationProperties.Name="Action" />
+        </DockPanel>
+
+        <DockPanel Style="{StaticResource Row}">
+            <TextBlock Text="Source folder" Width="110" Style="{StaticResource Label}" />
+            <Button DockPanel.Dock="Right" Content="Browse..." Width="80" Margin="8,0,0,0" Click="BrowseSource_Click" />
+            <TextBox Text="{Binding SourceFolder, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Source folder" />
+        </DockPanel>
+        <CheckBox Content="Include subfolders" IsChecked="{Binding IncludeSubfolders}" Margin="120,-2,0,12" />
+
+        <DockPanel Style="{StaticResource Row}">
+            <TextBlock Text="Output folder" Width="110" Style="{StaticResource Label}" />
+            <Button DockPanel.Dock="Right" Content="Browse..." Width="80" Margin="8,0,0,0" Click="BrowseOutput_Click" />
+            <TextBox Text="{Binding OutputFolder, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Output folder" />
+        </DockPanel>
+
+        <DockPanel Style="{StaticResource Row}">
+            <TextBlock Text="Save as" Width="110" Style="{StaticResource Label}" />
+            <ComboBox ItemsSource="{Binding Formats}" SelectedItem="{Binding Format}" Width="100" HorizontalAlignment="Left" />
+            <TextBlock Text="Name suffix" Style="{StaticResource Label}" Margin="20,0,10,0" />
+            <TextBox Text="{Binding Suffix, UpdateSourceTrigger=PropertyChanged}" ToolTip="Added to each file name, e.g. _edited" />
+        </DockPanel>
+
+        <controls:LabeledSlider Label="Quality (JPEG, WebP)" Suffix="%" Minimum="1" Maximum="100"
+                                Value="{Binding Quality, Mode=TwoWay}" IsEnabled="{Binding UsesQuality}" />
+
+        <ProgressBar Height="6" Minimum="0" Maximum="1" Value="{Binding Progress}" Margin="0,4,0,8" />
+        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextPrimaryBrush}" MinHeight="30" />
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Stop" Width="80" Margin="0,0,8,0" Command="{Binding CancelRunCommand}" />
+            <Button Content="Close" Width="80" Margin="0,0,8,0" IsCancel="True" Click="Close_Click" />
+            <Button Content="Run" Width="80" IsDefault="True" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding RunCommand}" />
+        </StackPanel>
+    </StackPanel>
+</Window>

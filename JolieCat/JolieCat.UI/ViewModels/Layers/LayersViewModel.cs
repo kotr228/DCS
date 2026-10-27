@@ -165,9 +165,18 @@ namespace JolieCat.UI.ViewModels.Layers
         }
 
         public LayersViewModel(ProjectType projectType = ProjectType.StandardImage)
+            : this(projectType, DefaultDocumentWidth, DefaultDocumentHeight, SKColors.White)
+        {
+        }
+
+        /// <param name="background">Fill for the "Background" layer; null or
+        /// transparent leaves it transparent.</param>
+        public LayersViewModel(ProjectType projectType, int width, int height, SKColor? background)
         {
             _document = new Document("Untitled") { ProjectType = projectType };
-            Scene.AddLayer("Background", DocumentWidth, DocumentHeight);
+            var backgroundLayer = Scene.AddLayer("Background", Math.Max(1, width), Math.Max(1, height));
+            if (background is { Alpha: > 0 } fill)
+                backgroundLayer.Canvas.Clear(fill);
             RebuildFromScene();
             SyncSpriteSheetGridFields();
 
@@ -178,26 +187,221 @@ namespace JolieCat.UI.ViewModels.Layers
             History.Changed += (_, _) =>
             {
                 RebuildFromScene();
+                RefreshThumbnails(all: History.LastChangeWasUndoOrRedo);
                 RaiseInvalidate();
             };
         }
 
-        partial void OnActiveLayerChanged(LayerViewModel? value) => Scene.ActiveLayer = value?.Model;
+        partial void OnActiveLayerChanged(LayerViewModel? value)
+        {
+            Scene.ActiveLayer = value?.Model;
+            UngroupCommand.NotifyCanExecuteChanged();
+            ToggleClippingMaskCommand.NotifyCanExecuteChanged();
+            RasterizeActiveTypeCommand.NotifyCanExecuteChanged();
+        }
+
+        /// <summary>A new edit only ever changes the active layer, so only its thumbnail
+        /// is rebuilt then (cheap); undo/redo can touch any layer, so all are.</summary>
+        private void RefreshThumbnails(bool all)
+        {
+            if (all)
+            {
+                foreach (var item in Items) item.RefreshThumbnail();
+            }
+            else
+            {
+                ActiveLayer?.RefreshThumbnail();
+            }
+        }
 
         [RelayCommand]
-        private void AddLayer() => ExecuteStructuralChange(() =>
+        private void AddLayer()
         {
-            var layer = Scene.AddLayer($"Layer {Scene.Layers.Count + 1}", DocumentWidth, DocumentHeight);
+            AddLayerCore();
+            Recorded();
+        }
+
+        private void AddLayerCore() => ExecuteStructuralChange(() =>
+        {
+            // Like Photoshop: directly above the active layer (or group), in the same group.
+            var layer = new Layer($"Layer {Scene.Layers.Count(l => !l.IsGroup) + 1}", DocumentWidth, DocumentHeight);
+            if (Scene.ActiveLayer is { } active && Scene.IndexOf(active) >= 0)
+            {
+                layer.ParentId = active.ParentId;
+                Scene.InsertLayer(Scene.BlockOf(active).End + 1, layer);
+            }
+            else
+            {
+                Scene.AddLayer(layer);
+            }
             Scene.ActiveLayer = layer;
         });
+
+        // ================= Text layers =================
+
+        /// <summary>A new text layer above the active layer (in its group). One undo step.</summary>
+        public void AddTextLayer(TextContent content)
+        {
+            ExecuteStructuralChange(() =>
+            {
+                var firstLine = content.Text.Replace("\r", "").Split('\n')[0].Trim();
+                var name = string.IsNullOrEmpty(firstLine) ? "Text" : firstLine.Length > 30 ? firstLine[..30] + "…" : firstLine;
+                var layer = new Layer(name, DocumentWidth, DocumentHeight, LayerType.Text) { Text = content };
+                layer.RenderText();
+
+                if (Scene.ActiveLayer is { } active && Scene.IndexOf(active) >= 0)
+                {
+                    layer.ParentId = active.ParentId;
+                    Scene.InsertLayer(Scene.BlockOf(active).End + 1, layer);
+                }
+                else
+                {
+                    Scene.AddLayer(layer);
+                }
+                Scene.ActiveLayer = layer;
+            });
+        }
+
+        private bool CanRasterizeType() => ActiveLayer?.Model.IsText == true;
+
+        /// <summary>Layer &gt; Rasterize Type: the text layer becomes ordinary pixels.</summary>
+        [RelayCommand(CanExecute = nameof(CanRasterizeType))]
+        private void RasterizeActiveType()
+        {
+            if (ActiveLayer?.Model is { IsText: true } layer) RasterizeType(layer);
+        }
+
+        /// <summary>Turns a text layer into a plain pixel layer (same pixels). Undoable.</summary>
+        public void RasterizeType(Layer layer)
+        {
+            if (!layer.IsText) return;
+            ExecuteStructuralChange(() => layer.Text = null);
+        }
+
+        // ================= Groups =================
+
+        /// <summary>Layer &gt; New &gt; Group: an empty group above the active layer.</summary>
+        [RelayCommand]
+        private void NewGroup() => ExecuteStructuralChange(() =>
+            Scene.NewGroup(Scene.ActiveLayer, DocumentWidth, DocumentHeight, NextGroupName()));
+
+        /// <summary>Ctrl+G: puts the selected layers (or just the active one) into a new group.</summary>
+        [RelayCommand(CanExecute = nameof(HasActiveLayer))]
+        private void GroupLayers()
+        {
+            if (ActiveLayer is null) return;
+            var layers = SelectionForCommand();
+            ExecuteStructuralChange(() => Scene.GroupLayers(layers, NextGroupName()));
+        }
+
+        // ================= Multi-selection =================
+
+        private List<Layer> _selectedLayers = new();
+
+        /// <summary>Layers picked in the Layers panel with Ctrl/Shift+click (the active
+        /// layer is always one of them). Set by the view.</summary>
+        public IReadOnlyList<Layer> SelectedLayers => _selectedLayers;
+
+        public void SetSelectedLayers(IEnumerable<Layer> layers)
+        {
+            _selectedLayers = layers.Distinct().ToList();
+            MergeDownCommand.NotifyCanExecuteChanged();
+        }
+
+        /// <summary>What a layer command acts on: the selection, if the active layer
+        /// is part of a multi-selection, else just the active layer.</summary>
+        private List<Layer> SelectionForCommand()
+        {
+            var active = ActiveLayer?.Model;
+            if (active is null) return new List<Layer>();
+            var live = _selectedLayers.Where(l => Scene.IndexOf(l) >= 0).ToList();
+            return live.Count > 1 && live.Contains(active) ? live : new List<Layer> { active };
+        }
+
+        /// <summary>Drag and drop in the Layers panel: moves the selection (or the
+        /// dragged layer) next to - or into - <paramref name="target"/>. One undo step.</summary>
+        public bool MoveLayers(Layer dragged, Layer target, LayerDropPosition position)
+        {
+            var layers = _selectedLayers.Contains(dragged) && _selectedLayers.Count > 1 ? _selectedLayers.ToList() : new List<Layer> { dragged };
+            var moved = false;
+            var before = Scene.CaptureLayers();
+            var beforeActive = IndexOfLayer(ActiveLayer?.Model);
+            moved = Scene.MoveLayers(layers, target, position);
+            if (!moved) return false;
+            Scene.ActiveLayer = dragged;
+            History.PushStructural(new SceneStructuralCommand(Scene, before, beforeActive, Scene.CaptureLayers(), IndexOfLayer(Scene.ActiveLayer)),
+                layers.Count > 1 ? "Move Layers" : "Move Layer");
+            return true;
+        }
+
+        private bool CanUngroup() => ActiveLayer?.Model.IsGroup == true;
+
+        /// <summary>Ctrl+Shift+G: removes the active group, keeping its members.</summary>
+        [RelayCommand(CanExecute = nameof(CanUngroup))]
+        private void Ungroup()
+        {
+            if (ActiveLayer?.Model is not { IsGroup: true } group) return;
+            ExecuteStructuralChange(() => Scene.Ungroup(group));
+        }
+
+        private bool CanToggleClippingMask() => ActiveLayer?.Model is { IsGroup: false } layer && Scene.IndexOf(layer) > 0;
+
+        /// <summary>Ctrl+Alt+G: clips the active layer to the layer below it (Create
+        /// Clipping Mask), or releases it if it already is.</summary>
+        [RelayCommand(CanExecute = nameof(CanToggleClippingMask))]
+        private void ToggleClippingMask()
+        {
+            if (ActiveLayer?.Model is not { IsGroup: false } layer) return;
+            ExecuteStructuralChange(() => layer.IsClipped = !layer.IsClipped);
+        }
+
+        private string NextGroupName() => $"Group {Scene.Layers.Count(l => l.IsGroup) + 1}";
+
+        /// <summary>A group was expanded/collapsed: rebuild the rows. Collapsing the
+        /// group that holds the active layer selects the group instead.</summary>
+        private void OnLayerExpandedChanged(object? sender, EventArgs e)
+        {
+            if (sender is LayerViewModel { Model: { IsGroup: true, IsExpanded: false } group }
+                && Scene.ActiveLayer is { } active && Scene.IsDescendantOf(active, group))
+                Scene.ActiveLayer = group;
+
+            History.MarkModified();
+            RebuildFromScene();
+        }
 
         [RelayCommand(CanExecute = nameof(HasActiveLayer))]
         private void DeleteLayer()
         {
+            DeleteLayerCore();
+            Recorded();
+        }
+
+        private void DeleteLayerCore()
+        {
             if (ActiveLayer is null) return;
 
-            var layer = ActiveLayer.Model;
-            ExecuteStructuralChange(() => Scene.RemoveLayer(layer));
+            var layers = SelectionForCommand();
+            ExecuteStructuralChange(() => Scene.RemoveLayers(layers));
+        }
+
+        /// <summary>Ctrl+J: a copy of the active layer, directly above it.</summary>
+        [RelayCommand(CanExecute = nameof(HasActiveLayer))]
+        private void DuplicateLayer()
+        {
+            DuplicateLayerCore();
+            Recorded();
+        }
+
+        private void DuplicateLayerCore()
+        {
+            if (ActiveLayer is null) return;
+
+            var layers = Scene.TopUnits(SelectionForCommand());
+            ExecuteStructuralChange(() =>
+            {
+                // Top down, so each copy lands right above its original.
+                foreach (var layer in Enumerable.Reverse(layers)) Scene.DuplicateLayer(layer);
+            });
         }
 
         [RelayCommand(CanExecute = nameof(HasActiveLayer))]
@@ -223,7 +427,21 @@ namespace JolieCat.UI.ViewModels.Layers
         [RelayCommand(CanExecute = nameof(HasActiveLayer))]
         private void MergeDown()
         {
+            MergeDownCore();
+            Recorded();
+        }
+
+        private void MergeDownCore()
+        {
             if (ActiveLayer is null) return;
+
+            var layers = SelectionForCommand();
+            if (layers.Count > 1)
+            {
+                // Several selected: Merge Layers.
+                ExecuteStructuralChange(() => Scene.MergeLayers(layers));
+                return;
+            }
 
             var layer = ActiveLayer.Model;
             ExecuteStructuralChange(() => Scene.MergeLayerDown(layer));
@@ -239,6 +457,8 @@ namespace JolieCat.UI.ViewModels.Layers
 
             var layer = ActiveLayer.Model;
             ExecuteStructuralChange(() => layer.AddMask());
+            // A group has nothing else to paint on: brushes go straight to its mask.
+            if (layer.IsGroup) layer.IsMaskActive = true;
             ActiveLayer?.RefreshMaskThumbnail();
         }
 
@@ -261,11 +481,133 @@ namespace JolieCat.UI.ViewModels.Layers
         /// transparency if growing; see <see cref="Scene.ResizeLayers"/>). A no-op if the
         /// document is already that size. Recorded as one undo/redo entry like any other
         /// layer-list operation.</summary>
-        public void ResizeDocument(int newWidth, int newHeight)
+        public void ResizeDocument(int newWidth, int newHeight, bool centered = false)
         {
             if (newWidth == DocumentWidth && newHeight == DocumentHeight) return;
 
-            ExecuteStructuralChange(() => Scene.ResizeLayers(newWidth, newHeight));
+            var offsetX = centered ? (newWidth - DocumentWidth) / 2 : 0;
+            var offsetY = centered ? (newHeight - DocumentHeight) / 2 : 0;
+            ExecuteStructuralChange(() =>
+            {
+                Scene.ResizeLayers(newWidth, newHeight, offsetX, offsetY);
+                Scene.Selection.Clear();
+            });
+        }
+
+        /// <summary>Image &gt; Image Size: rescales every layer. Clears the selection,
+        /// which no longer lines up with the content.</summary>
+        public void ResampleDocument(int newWidth, int newHeight)
+        {
+            if (newWidth == DocumentWidth && newHeight == DocumentHeight) return;
+
+            ExecuteStructuralChange(() =>
+            {
+                Scene.ResampleLayers(newWidth, newHeight);
+                Scene.Selection.Clear();
+            });
+        }
+
+        /// <summary>Image &gt; Image Rotation: 90° steps, clockwise for positive turns.</summary>
+        [RelayCommand] private void Rotate90Clockwise()
+        {
+            Rotate90ClockwiseCore();
+            Recorded();
+        }
+
+        private void Rotate90ClockwiseCore() => RotateDocument(1);
+        [RelayCommand] private void Rotate90CounterClockwise()
+        {
+            Rotate90CounterClockwiseCore();
+            Recorded();
+        }
+
+        private void Rotate90CounterClockwiseCore() => RotateDocument(-1);
+        [RelayCommand] private void Rotate180()
+        {
+            Rotate180Core();
+            Recorded();
+        }
+
+        private void Rotate180Core() => RotateDocument(2);
+        [RelayCommand] private void FlipCanvasHorizontal()
+        {
+            FlipCanvasHorizontalCore();
+            Recorded();
+        }
+
+        private void FlipCanvasHorizontalCore() => FlipDocument(true);
+        [RelayCommand] private void FlipCanvasVertical()
+        {
+            FlipCanvasVerticalCore();
+            Recorded();
+        }
+
+        private void FlipCanvasVerticalCore() => FlipDocument(false);
+        [RelayCommand] private void FlipLayerHorizontal()
+        {
+            FlipLayerHorizontalCore();
+            Recorded();
+        }
+
+        private void FlipLayerHorizontalCore() => FlipActiveLayer(true);
+        [RelayCommand] private void FlipLayerVertical()
+        {
+            FlipLayerVerticalCore();
+            Recorded();
+        }
+
+        private void FlipLayerVerticalCore() => FlipActiveLayer(false);
+
+        public void RotateDocument(int quarterTurns) => ExecuteStructuralChange(() =>
+        {
+            Scene.RotateLayers(quarterTurns);
+            Scene.Selection.Clear();
+        });
+
+        /// <summary>Image &gt; Image Rotation &gt; Flip Canvas Horizontal/Vertical.</summary>
+        public void FlipDocument(bool horizontal) => ExecuteStructuralChange(() =>
+        {
+            Scene.FlipLayers(horizontal);
+            Scene.Selection.Clear();
+        });
+
+        /// <summary>Edit &gt; Transform &gt; Flip Horizontal/Vertical for the active layer
+        /// only - recorded as a cheap pixel edit, not a whole-scene snapshot.</summary>
+        public void FlipActiveLayer(bool horizontal)
+        {
+            if (ActiveLayer?.Model is not { } layer || layer.IsLocked) return;
+
+            var before = layer.Bitmap.Pixels;
+            Scene.FlipLayerContent(layer, horizontal);
+            History.Push(new LayerPixelsCommand(Scene, layer, false, before, layer.Bitmap.Pixels), "Flip Layer");
+        }
+
+        /// <summary>Layer &gt; Flatten Image.</summary>
+        [RelayCommand]
+        private void FlattenImage()
+        {
+            FlattenImageCore();
+            Recorded();
+        }
+
+        private void FlattenImageCore()
+        {
+            if (Scene.Layers.Count < 2 && Scene.Layers.All(l => l.IsVisible)) return;
+            ExecuteStructuralChange(Scene.Flatten);
+        }
+
+        /// <summary>Layer &gt; Merge Visible.</summary>
+        [RelayCommand]
+        private void MergeVisible()
+        {
+            MergeVisibleCore();
+            Recorded();
+        }
+
+        private void MergeVisibleCore()
+        {
+            if (Scene.Layers.Count(l => l.IsVisible) < 2) return;
+            ExecuteStructuralChange(() => Scene.MergeVisible());
         }
 
         /// <summary>Crops the whole document to <paramref name="cropRect"/> (see
@@ -412,6 +754,103 @@ namespace JolieCat.UI.ViewModels.Layers
 
         private bool HasActiveLayer() => ActiveLayer is not null;
 
+        // ================= Adjustment layers =================
+        //
+        // A new adjustment layer is added right away (so its dialog can preview live on
+        // the canvas) but only recorded in history when the dialog is confirmed;
+        // cancelling removes it again as if nothing happened.
+
+        private IReadOnlyList<LayerSnapshot>? _pendingAdjustmentBefore;
+        private int _pendingAdjustmentBeforeActive;
+        private Layer? _pendingAdjustmentLayer;
+
+        /// <summary>Adds an adjustment layer (with an all-white mask, which painting
+        /// tools then edit) directly above the active layer and makes it active.</summary>
+        public Layer BeginNewAdjustmentLayer(Core.Adjustments.AdjustmentSettings settings)
+        {
+            CancelNewAdjustmentLayer();
+
+            _pendingAdjustmentBefore = Scene.CaptureLayers();
+            _pendingAdjustmentBeforeActive = IndexOf(ActiveLayer?.Model);
+
+            var layer = new Layer(settings.DisplayName, DocumentWidth, DocumentHeight, LayerType.Adjustment) { Adjustment = settings };
+            layer.AddMask();
+            layer.IsMaskActive = true;
+
+            var index = _pendingAdjustmentBeforeActive < 0 ? Scene.Layers.Count : _pendingAdjustmentBeforeActive + 1;
+            Scene.InsertLayer(index, layer);
+            Scene.ActiveLayer = layer;
+            _pendingAdjustmentLayer = layer;
+
+            RebuildFromScene();
+            RaiseInvalidate();
+            return layer;
+        }
+
+        /// <summary>Records the pending new adjustment layer as one undo step.</summary>
+        public void CommitNewAdjustmentLayer()
+        {
+            if (_pendingAdjustmentLayer is null || _pendingAdjustmentBefore is null) return;
+
+            var after = Scene.CaptureLayers();
+            History.PushStructural(new SceneStructuralCommand(Scene, _pendingAdjustmentBefore, _pendingAdjustmentBeforeActive,
+                after, IndexOf(Scene.ActiveLayer)), "New Adjustment Layer");
+            _pendingAdjustmentLayer = null;
+            _pendingAdjustmentBefore = null;
+        }
+
+        /// <summary>Removes the pending new adjustment layer (dialog cancelled).</summary>
+        public void CancelNewAdjustmentLayer()
+        {
+            if (_pendingAdjustmentLayer is not { } layer) return;
+
+            _pendingAdjustmentLayer = null;
+            _pendingAdjustmentBefore = null;
+            Scene.RemoveLayer(layer);
+            if (_pendingAdjustmentBeforeActive >= 0 && _pendingAdjustmentBeforeActive < Scene.Layers.Count)
+                Scene.ActiveLayer = Scene.Layers[_pendingAdjustmentBeforeActive];
+
+            RebuildFromScene();
+            RaiseInvalidate();
+        }
+
+        /// <summary>Live-updates an adjustment layer's settings while its dialog is
+        /// open (no history entry yet).</summary>
+        public void PreviewAdjustment(Layer layer, Core.Adjustments.AdjustmentSettings settings)
+        {
+            layer.Adjustment = settings;
+            if (ReferenceEquals(layer, _pendingAdjustmentLayer)) layer.Name = settings.DisplayName;
+            RaiseInvalidate();
+        }
+
+        /// <summary>Records re-editing an existing adjustment layer as one undo step.</summary>
+        public void CommitAdjustmentEdit(Layer layer, Core.Adjustments.AdjustmentSettings before, Core.Adjustments.AdjustmentSettings after)
+        {
+            layer.Adjustment = after;
+            History.Push(new AdjustmentChangeCommand(Scene, layer, before, after));
+        }
+
+        /// <summary>Live-updates a layer's style while the Layer Style dialog is open
+        /// (no history entry yet).</summary>
+        public void PreviewLayerStyle(Layer layer, Core.Effects.LayerStyle? style)
+        {
+            layer.Style = style is { HasAnyEffect: true } ? style : null;
+            RaiseInvalidate();
+        }
+
+        /// <summary>Records a layer style change as one undo step.</summary>
+        public void CommitLayerStyle(Layer layer, Core.Effects.LayerStyle? before, Core.Effects.LayerStyle? after)
+        {
+            after = after is { HasAnyEffect: true } ? after : null;
+            layer.Style = after;
+            if (before == after) { RaiseInvalidate(); return; }
+
+            History.Push(new LayerStyleChangeCommand(Scene, layer, before, after), after is null ? "Clear Layer Style" : "Layer Style");
+            foreach (var item in Items) item.RefreshStyleState();
+        }
+
+        private int IndexOf(Layer? layer) => IndexOfLayer(layer);
+
         /// <summary>Runs a layer-list operation (add/delete/reorder/merge), recording it
         /// as one undo/redo entry via a whole-scene before/after snapshot - see
         /// <see cref="HistoryManager.PushStructural"/> for why every structural change
@@ -419,7 +858,7 @@ namespace JolieCat.UI.ViewModels.Layers
         /// The Layers list rebuild and canvas repaint both happen via <see cref="History"/>'s
         /// own Changed subscription (see the constructor), so this doesn't need to call
         /// either itself.</summary>
-        private void ExecuteStructuralChange(Action operation)
+        private void ExecuteStructuralChange(Action operation, [System.Runtime.CompilerServices.CallerMemberName] string caller = "")
         {
             var before = Scene.CaptureLayers();
             var beforeActiveIndex = IndexOfLayer(ActiveLayer?.Model);
@@ -429,8 +868,64 @@ namespace JolieCat.UI.ViewModels.Layers
             var after = Scene.CaptureLayers();
             var afterActiveIndex = IndexOfLayer(Scene.ActiveLayer);
 
-            History.PushStructural(new SceneStructuralCommand(Scene, before, beforeActiveIndex, after, afterActiveIndex));
+            History.PushStructural(new SceneStructuralCommand(Scene, before, beforeActiveIndex, after, afterActiveIndex), StepName(caller));
         }
+
+        /// <summary>History panel name for a structural change, from the method that made it.</summary>
+        /// <summary>Commands the Actions panel can record and play back by name
+        /// (see <see cref="CommandRecorded"/>).</summary>
+        public static readonly IReadOnlyList<string> RecordableCommands = new[]
+        {
+            nameof(AddLayer), nameof(DeleteLayer), nameof(DuplicateLayer), nameof(MergeDown), nameof(MergeVisible),
+            nameof(FlattenImage), nameof(Rotate90Clockwise), nameof(Rotate90CounterClockwise), nameof(Rotate180),
+            nameof(FlipCanvasHorizontal), nameof(FlipCanvasVertical), nameof(FlipLayerHorizontal), nameof(FlipLayerVertical),
+        };
+
+        /// <summary>Raised after a recordable command ran, with its name.</summary>
+        public event Action<string>? CommandRecorded;
+
+        private void Recorded([System.Runtime.CompilerServices.CallerMemberName] string command = "") =>
+            CommandRecorded?.Invoke(command);
+
+        /// <summary>Runs a recordable command by name (Actions playback).</summary>
+        public bool RunRecordableCommand(string command)
+        {
+            if (!RecordableCommands.Contains(command)) return false;
+            if (GetType().GetProperty(command + "Command")?.GetValue(this) is not System.Windows.Input.ICommand cmd || !cmd.CanExecute(null))
+                return false;
+            cmd.Execute(null);
+            return true;
+        }
+
+        public static string TitleOf(string command) => command switch
+        {
+            nameof(AddLayer) => "New Layer",
+            nameof(Rotate90Clockwise) => "Rotate Canvas 90° CW",
+            nameof(Rotate90CounterClockwise) => "Rotate Canvas 90° CCW",
+            nameof(Rotate180) => "Rotate Canvas 180°",
+            _ => System.Text.RegularExpressions.Regex.Replace(command, "(?<=[a-z])(?=[A-Z])", " "),
+        };
+
+        private static string StepName(string caller) =>
+            StepNameOf(caller.EndsWith("Core", StringComparison.Ordinal) ? caller[..^4] : caller);
+
+        private static string StepNameOf(string caller) => caller switch
+        {
+            nameof(AddLayer) => "New Layer",
+            nameof(ResizeDocument) => "Canvas Size",
+            nameof(ResampleDocument) => "Image Size",
+            nameof(RotateDocument) => "Rotate Canvas",
+            nameof(FlipDocument) => "Flip Canvas",
+            nameof(CropDocument) => "Crop",
+            nameof(PlaceSmartObject) => "Place Embedded",
+            nameof(PasteAsNewLayer) => "Paste",
+            nameof(AddMask) => "Add Layer Mask",
+            nameof(ToggleClippingMask) => "Clipping Mask",
+            nameof(AddTextLayer) => "Type Layer",
+            nameof(RasterizeType) => "Rasterize Type",
+            nameof(RemoveMask) => "Delete Layer Mask",
+            _ => System.Text.RegularExpressions.Regex.Replace(caller, "(?<=[a-z])(?=[A-Z])", " "),
+        };
 
         private int IndexOfLayer(Layer? layer)
         {
@@ -463,30 +958,74 @@ namespace JolieCat.UI.ViewModels.Layers
             // undoing/redoing a stroke would needlessly flicker/reset the Layers panel's
             // list and re-wire every item's VisualStateChanged subscription for no
             // reason - Items is front-to-back, the reverse of Scene.Layers' own order.
-            if (Items.Select(item => item.Model).SequenceEqual(Scene.Layers.Reverse()))
+            var rows = PanelRows();
+            if (Items.Select(item => (item.Model, item.Depth)).SequenceEqual(rows))
             {
+                foreach (var item in Items) item.RefreshStyleState();
                 ActiveLayer = Items.FirstOrDefault(item => item.Model == Scene.ActiveLayer) ?? Items.FirstOrDefault();
                 return;
             }
 
             foreach (var item in Items)
+            {
                 item.VisualStateChanged -= OnLayerVisualStateChanged;
+                item.ExpandedChanged -= OnLayerExpandedChanged;
+            }
 
             Items.Clear();
 
-            for (var i = Scene.Layers.Count - 1; i >= 0; i--)
+            foreach (var (model, depth) in rows)
             {
-                var itemViewModel = new LayerViewModel(Scene.Layers[i]);
+                var itemViewModel = new LayerViewModel(model, depth);
                 itemViewModel.VisualStateChanged += OnLayerVisualStateChanged;
+                itemViewModel.ExpandedChanged += OnLayerExpandedChanged;
                 Items.Add(itemViewModel);
             }
 
             ActiveLayer = Items.FirstOrDefault(item => item.Model == Scene.ActiveLayer) ?? Items.FirstOrDefault();
         }
 
-        private void OnLayerVisualStateChanged(object? sender, EventArgs e) => RaiseInvalidate();
+        /// <summary>The Layers panel's rows, front to back: every layer except those
+        /// inside a collapsed group, with how deep in groups each one is.</summary>
+        private List<(Layer Model, int Depth)> PanelRows()
+        {
+            var rows = new List<(Layer, int)>();
+            for (var i = Scene.Layers.Count - 1; i >= 0; i--)
+            {
+                var layer = Scene.Layers[i];
+                var hidden = false;
+                var depth = 0;
+                for (var parent = Scene.ParentOf(layer); parent is not null && depth < 64; parent = Scene.ParentOf(parent))
+                {
+                    depth++;
+                    if (!parent.IsExpanded) hidden = true;
+                }
+                if (!hidden) rows.Add((layer, depth));
+            }
+            return rows;
+        }
 
-        private void RaiseInvalidate() => InvalidateRequested?.Invoke(this, EventArgs.Empty);
+        private void OnLayerVisualStateChanged(object? sender, EventArgs e)
+        {
+            History.MarkModified();
+            RaiseInvalidate();
+        }
+
+        /// <summary>For edits that touch layers other than the active one outside of
+        /// history (e.g. a live multi-layer move): repaint without the layer cache.</summary>
+        public void NotifyContentChanged() => RaiseInvalidate();
+
+        private void RaiseInvalidate()
+        {
+            ContentVersion++;
+            InvalidateRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Bumped whenever something other than a live stroke on the active
+        /// layer may have changed what the canvas shows (history, structure, a layer's
+        /// visibility/opacity/blend). The renderer keeps the layers above and below the
+        /// active one cached until this changes.</summary>
+        public long ContentVersion { get; private set; }
 
         /// <summary>Public counterpart of <see cref="RaiseInvalidate"/> for a caller
         /// outside this class that just mutated a <see cref="Layer"/> directly (not

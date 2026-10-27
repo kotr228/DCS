@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
         xmlns:controls="clr-namespace:JolieCat.UI.Controls"
         mc:Ignorable="d"
-        Title="{Binding Title}" Height="180" Width="360"
+        Title="{Binding Title}" Width="380" SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         ShowInTaskbar="False"
         d:DataContext="{d:DesignInstance Type=vm:FilterOptionsViewModel, IsDesignTimeCreatable=False}">
@@ -16,13 +16,22 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Every filter in this dialog (Gaussian Blur, Box Blur, Sharpen, Noise) is
-             just this one slider - see FilterOptionsViewModel for why one shell
-             covers all four rather than a separate dialog each. -->
-        <controls:LabeledSlider Grid.Row="0" VerticalAlignment="Top"
-                                 Label="{Binding AmountLabel}"
-                                 Minimum="{Binding AmountMin}" Maximum="{Binding AmountMax}"
-                                 Value="{Binding Amount, Mode=TwoWay}" />
+        <!-- Every filter with settings is just this one slider - see
+             FilterOptionsViewModel for why one shell covers all of them. The canvas
+             previews each change live behind the dialog. -->
+        <StackPanel Grid.Row="0">
+            <controls:LabeledSlider VerticalAlignment="Top"
+                                     Label="{Binding AmountLabel}" Suffix="{Binding Suffix}"
+                                     Minimum="{Binding AmountMin}" Maximum="{Binding AmountMax}"
+                                     Value="{Binding Amount, Mode=TwoWay}" />
+            <controls:LabeledSlider VerticalAlignment="Top" Margin="0,8,0,0"
+                                     Visibility="{Binding HasSecondAmount, Converter={StaticResource BoolToVisibility}}"
+                                     Label="{Binding SecondAmountLabel}" Suffix="{Binding SecondSuffix}"
+                                     Minimum="{Binding SecondAmountMin}" Maximum="{Binding SecondAmountMax}"
+                                     Value="{Binding SecondAmount, Mode=TwoWay}" />
+            <TextBlock Text="Preview updates live on the canvas. Applies inside the selection, if there is one."
+                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+        </StackPanel>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Cancel" Width="80" Margin="0,0,8,0" IsCancel="True" Click="Cancel_Click" />

@@ -19,7 +19,10 @@ namespace JolieCat.Core.Documents
         private double _opacity = 1.0;
         private bool _disposed;
 
-        public Guid Id { get; } = Guid.NewGuid();
+        /// <summary>Stable identity. Kept when a layer is rebuilt by structural undo/redo,
+        /// a canvas resize or a crop, so pixel history entries can find "the same layer"
+        /// again (see <see cref="History.LayerPixelsCommand"/>).</summary>
+        public Guid Id { get; }
 
         public string Name { get; set; }
 
@@ -85,12 +88,55 @@ namespace JolieCat.Core.Documents
         /// destructive pixel bake.</summary>
         public SmartObjectTransform? SmartObjectTransform { get; private set; }
 
-        public Layer(string name, int width, int height, LayerType type = LayerType.Raster)
+        /// <summary>Set for a non-destructive adjustment layer: instead of drawing its
+        /// own pixels, the layer applies this adjustment to everything beneath it
+        /// (limited by its mask, scaled by its opacity). Null for every other layer.</summary>
+        public Adjustments.AdjustmentSettings? Adjustment { get; set; }
+
+        public bool IsAdjustment => Adjustment is not null;
+
+        /// <summary>Live effects (drop shadow, glow, stroke, color overlay) drawn around
+        /// this layer's pixels by the compositor. Null when the layer has none.</summary>
+        public Effects.LayerStyle? Style { get; set; }
+
+        /// <summary>The group this layer belongs to (a <see cref="LayerType.Group"/>
+        /// layer's Id), or null at the top level. A group's members always sit directly
+        /// below it in <see cref="Scene.Layers"/>, as one unbroken block.</summary>
+        public Guid? ParentId { get; set; }
+
+        /// <summary>A layer group (folder): has no pixels of its own; it composites its
+        /// members together, with its own visibility, opacity and blend mode.</summary>
+        public bool IsGroup => Type == LayerType.Group;
+
+        /// <summary>Groups only: whether the Layers panel shows its members.</summary>
+        public bool IsExpanded { get; set; } = true;
+
+        /// <summary>Clipping mask: this layer shows only where the layer below it (its
+        /// "base", the nearest unclipped layer under it in the same group) has pixels.</summary>
+        public bool IsClipped { get; set; }
+
+        /// <summary>Set for an editable text layer: its pixels are this text, drawn by
+        /// <see cref="RenderText"/>. Null for every other layer (including a text layer
+        /// that was rasterized).</summary>
+        public TextContent? Text { get; set; }
+
+        public bool IsText => Text is not null;
+
+        /// <summary>Redraws a text layer's pixels from <see cref="Text"/>.</summary>
+        public void RenderText()
+        {
+            if (Text is null) return;
+            Canvas.Clear(SKColors.Transparent);
+            Text.Render(Canvas);
+        }
+
+        public Layer(string name, int width, int height, LayerType type = LayerType.Raster, Guid? id = null)
         {
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Layer name cannot be empty.", nameof(name));
             if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width));
             if (height <= 0) throw new ArgumentOutOfRangeException(nameof(height));
 
+            Id = id ?? Guid.NewGuid();
             Name = name;
             Type = type;
 
@@ -200,15 +246,30 @@ namespace JolieCat.Core.Documents
             BlendMode.SoftLight => SKBlendMode.SoftLight,
             BlendMode.Difference => SKBlendMode.Difference,
             BlendMode.Exclusion => SKBlendMode.Exclusion,
+            BlendMode.Hue => SKBlendMode.Hue,
+            BlendMode.Saturation => SKBlendMode.Saturation,
+            BlendMode.Color => SKBlendMode.Color,
+            BlendMode.Luminosity => SKBlendMode.Luminosity,
             _ => SKBlendMode.SrcOver,
         };
+
+        /// <summary>Re-attaches Smart Object content to a layer rebuilt by structural
+        /// undo/redo, so undoing e.g. "delete layer" brings back a real Smart Object
+        /// rather than its flattened pixels.</summary>
+        internal void AttachSmartObject(SmartObjectContent content, SKMatrix matrix)
+        {
+            SmartObject = content;
+            SmartObjectTransform = new SmartObjectTransform { Matrix = matrix };
+        }
 
         public void Dispose()
         {
             if (_disposed) return;
 
+            // SmartObject content is deliberately not disposed here: undo history
+            // snapshots may still share it (see AttachSmartObject). Its bitmaps are
+            // released by their finalizers once nothing references them.
             Mask?.Dispose();
-            SmartObject?.Dispose();
             Canvas.Dispose();
             Bitmap.Dispose();
             _disposed = true;

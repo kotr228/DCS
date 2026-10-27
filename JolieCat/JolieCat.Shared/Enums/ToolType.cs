@@ -49,6 +49,10 @@ namespace JolieCat.Shared.Enums
         // Transform
         Crop,
         FreeTransform,
-        Warp
+        Warp,
+
+        // Appended last so existing numeric values don't shift.
+        Move,
+        SpotHealing
     }
 }

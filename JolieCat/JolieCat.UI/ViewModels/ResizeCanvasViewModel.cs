@@ -35,15 +35,55 @@ namespace JolieCat.UI.ViewModels
         [ObservableProperty]
         private bool lockAspectRatio = true;
 
-        public ResizeCanvasViewModel(int currentWidth, int currentHeight)
+        /// <summary>True for Image Size (content is rescaled); false for Canvas Size
+        /// (content keeps its pixel size and is cropped or padded).</summary>
+        public bool IsResample { get; }
+
+        public bool IsCanvasSize => !IsResample;
+
+        public string Title => IsResample ? "Image Size" : "Canvas Size";
+
+        public string ApplyLabel => IsResample ? "Resize" : "Apply";
+
+        public string Description => IsResample
+            ? "Every layer and mask is rescaled to the new size. Lock the aspect ratio to avoid stretching."
+            : "Content keeps its size: cropped if you shrink, padded with transparency if you grow.";
+
+        /// <summary>Canvas Size only: keep the content centered (Photoshop's default
+        /// anchor) instead of pinned to the top-left corner.</summary>
+        [ObservableProperty]
+        private bool anchorCenter = true;
+
+        [ObservableProperty]
+        private double percent = 100;
+
+        private readonly int _originalWidth;
+
+        public ResizeCanvasViewModel(int currentWidth, int currentHeight, bool resample = false)
         {
+            IsResample = resample;
+            _originalWidth = Math.Max(1, currentWidth);
             width = Math.Max(1, currentWidth);
             height = Math.Max(1, currentHeight);
             _aspectRatio = currentHeight > 0 ? (double)currentWidth / currentHeight : 1.0;
         }
 
+        /// <summary>Image Size shortcut: a percentage of the original size (both sides).</summary>
+        partial void OnPercentChanged(double value)
+        {
+            if (_isSyncing || value <= 0) return;
+
+            var wasLocked = LockAspectRatio;
+            LockAspectRatio = true;
+            Width = Math.Max(1, Math.Round(_originalWidth * value / 100.0));
+            LockAspectRatio = wasLocked;
+        }
+
         partial void OnWidthChanged(double value)
         {
+            percent = Math.Round(value * 100.0 / _originalWidth, 1);
+            OnPropertyChanged(nameof(Percent));
+
             if (_isSyncing || !LockAspectRatio || _aspectRatio <= 0) return;
 
             _isSyncing = true;
