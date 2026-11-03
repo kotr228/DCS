@@ -273,8 +273,10 @@ namespace JolieCat.UI.ViewModels
         private void EditActiveLayerPixels(string historyName, Action<SKCanvas> draw)
         {
             var layer = Layers.ActiveLayer?.Model;
-            if (layer is null || layer.IsLocked || (layer.IsGroup && !layer.IsMaskActive)) return;
-            RasterizeIfText(layer);
+            if (layer is null || layer.IsLocked && layer.PaintRedirect is null || (layer.IsGroup && !layer.PaintsMask)) return;
+            if (IsQuickMask) layer.PaintRedirect = _quickMask;
+            if (BlockedBySmartFilters(layer)) return;
+            if (!layer.PaintsMask) RasterizeIfText(layer);
 
             var before = layer.PaintBitmap.Pixels;
             WithSelectionClip(layer.PaintCanvas, draw);
@@ -288,9 +290,15 @@ namespace JolieCat.UI.ViewModels
         /// undo time, so it survives structural undo/redo.</summary>
         private LayerPixelsCommand PixelEdit(Core.Documents.Layer layer, SKColor[] before, bool contentOnly = false)
         {
+            if (!contentOnly && layer.PaintRedirect is { } quickMask)
+                return new LayerPixelsCommand(quickMask.Bitmap, before, quickMask.Bitmap.Pixels);
+
             var isMask = !contentOnly && layer.IsMaskActive && layer.Mask is not null;
             var target = isMask ? layer.Mask!.Bitmap : layer.Bitmap;
-            return new LayerPixelsCommand(Layers.Scene, layer, isMask, before, target.Pixels);
+            var after = target.Pixels;
+            var command = new LayerPixelsCommand(Layers.Scene, layer, isMask, before, after);
+            RememberForFade(layer, isMask, before, after, command);
+            return command;
         }
 
         // ================= Brush size =================

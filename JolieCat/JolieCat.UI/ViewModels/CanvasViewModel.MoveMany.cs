@@ -58,13 +58,22 @@ namespace JolieCat.UI.ViewModels
             }).ToList();
             _moveManyStart = doc;
             _moveManyDelta = default;
+
+            // The union of everything being moved, for snapping to guides.
+            _moveManyBounds = SKRect.Empty;
+            foreach (var moving in _movingMany)
+                if (Core.Rendering.SceneCompositor.ContentBounds(moving.Content) is { IsEmpty: false } b)
+                    _moveManyBounds = _moveManyBounds.IsEmpty ? b : SKRect.Union(_moveManyBounds, b);
         }
+
+        private SKRect _moveManyBounds;
 
         private void UpdateMoveMany(SKPoint doc)
         {
             if (_movingMany is null) return;
 
             var delta = new SKPointI((int)MathF.Round(doc.X - _moveManyStart.X), (int)MathF.Round(doc.Y - _moveManyStart.Y));
+            delta = SnapMoveDelta(_moveManyBounds, delta);
             if (delta == _moveManyDelta) return;
             _moveManyDelta = delta;
 
@@ -94,7 +103,21 @@ namespace JolieCat.UI.ViewModels
                 var commands = new List<IEditCommand>();
                 foreach (var m in moving)
                 {
-                    commands.Add(new LayerPixelsCommand(Layers.Scene, m.Layer, false, m.Content.Pixels, m.Layer.Bitmap.Pixels));
+                    if (m.Layer.HasSmartFilters)
+                    {
+                        m.Layer.Bitmap.Pixels = m.Content.Pixels; // the filters redraw it from the moved original
+                        commands.Add(ShiftSmartFilterSource(m.Layer, _moveManyDelta));
+                    }
+                    else
+                    {
+                        commands.Add(new LayerPixelsCommand(Layers.Scene, m.Layer, false, m.Content.Pixels, m.Layer.Bitmap.Pixels));
+                    }
+                    if (m.Layer.Shape is { } shape)
+                    {
+                        var movedShape = shape.MovedBy(_moveManyDelta.X, _moveManyDelta.Y);
+                        m.Layer.Shape = movedShape;
+                        commands.Add(new ShapeChangeCommand(Layers.Scene, m.Layer, shape, movedShape));
+                    }
                     if (m.Layer.Text is { } text)
                     {
                         // Keep the text editable: its position moves with the pixels.

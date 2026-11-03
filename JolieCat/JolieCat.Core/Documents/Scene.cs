@@ -41,6 +41,13 @@ namespace JolieCat.Core.Documents
         /// no selection, not null) so callers never need a null check before reading it.</summary>
         public Selection Selection { get; } = new();
 
+        /// <summary>Select > Save Selection: named selections, as SVG path data (saved
+        /// with the project).</summary>
+        public Dictionary<string, string> SavedSelections { get; } = new();
+
+        /// <summary>The document's guides (saved with the project).</summary>
+        public List<Guide> Guides { get; } = new();
+
         public Scene(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("Scene name cannot be empty.", nameof(name));
@@ -112,8 +119,12 @@ namespace JolieCat.Core.Documents
                 ParentId = layer.ParentId,
                 IsClipped = layer.IsClipped,
                 Text = layer.Text,
+                Shape = layer.Shape,
+                Fill = layer.Fill,
             };
             copy.Canvas.DrawBitmap(layer.Bitmap, 0, 0);
+            if (layer.SmartFilterSource is { } smartSource)
+                copy.SetSmartFilters(smartSource.Copy(), layer.SmartFilters);
 
             if (layer.Mask is { } mask)
             {
@@ -198,6 +209,7 @@ namespace JolieCat.Core.Documents
         {
             if (newWidth <= 0) throw new ArgumentOutOfRangeException(nameof(newWidth));
             if (newHeight <= 0) throw new ArgumentOutOfRangeException(nameof(newHeight));
+            ShiftGuides(offsetX, offsetY, newWidth, newHeight);
 
             for (var i = 0; i < _layers.Count; i++)
             {
@@ -218,6 +230,7 @@ namespace JolieCat.Core.Documents
                 };
                 resized.Canvas.DrawBitmap(old.Bitmap, offsetX, offsetY);
                 resized.Text = old.Text?.MovedBy(offsetX, offsetY);
+                resized.Shape = old.Shape?.MovedBy(offsetX, offsetY);
 
                 // A mask is resized the same way as the layer's own content - anchored
                 // at its top-left corner, cropped or padded-with-white (fully visible,
@@ -230,6 +243,10 @@ namespace JolieCat.Core.Documents
                     resizedMask.Canvas.DrawBitmap(oldMask.Bitmap, offsetX, offsetY);
                     resized.IsMaskActive = old.IsMaskActive;
                 }
+
+                CarrySmartFilters(old, resized, (canvas, source) => canvas.DrawBitmap(source, offsetX, offsetY));
+
+                KeepFill(old, resized);
 
                 _layers[i] = resized;
                 if (ActiveLayer == old) ActiveLayer = resized;
@@ -252,6 +269,7 @@ namespace JolieCat.Core.Documents
         public void CropLayers(SKRectI cropRect, float rotationDegrees)
         {
             if (cropRect.Width <= 0 || cropRect.Height <= 0) throw new ArgumentOutOfRangeException(nameof(cropRect));
+            ShiftGuides(-cropRect.Left, -cropRect.Top, cropRect.Width, cropRect.Height);
 
             for (var i = 0; i < _layers.Count; i++)
             {
@@ -280,6 +298,11 @@ namespace JolieCat.Core.Documents
                     RotateAndCropInto(croppedMask.Canvas, oldMask.Bitmap, center, rotationDegrees, cropRect, SKColors.White);
                     cropped.IsMaskActive = old.IsMaskActive;
                 }
+
+                CarrySmartFilters(old, cropped, (canvas, source) =>
+                    RotateAndCropInto(canvas, source, center, rotationDegrees, cropRect, SKColors.Transparent));
+
+                KeepFill(old, cropped);
 
                 _layers[i] = cropped;
                 if (ActiveLayer == old) ActiveLayer = cropped;
@@ -326,17 +349,19 @@ namespace JolieCat.Core.Documents
             if (_layers.Count == 0) return;
 
             var old = _layers[0].Bitmap;
+            ScaleGuides((float)newWidth / old.Width, (float)newHeight / old.Height, newWidth, newHeight);
             var downscale = newWidth < old.Width || newHeight < old.Height;
             var sampling = downscale
                 ? new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)
                 : new SKSamplingOptions(SKCubicResampler.Mitchell);
             var dest = SKRect.Create(0, 0, newWidth, newHeight);
+            float sx = (float)newWidth / old.Width, sy = (float)newHeight / old.Height;
 
             RebuildLayers(newWidth, newHeight, (canvas, source) =>
             {
                 using var image = SKImage.FromBitmap(source);
                 canvas.DrawImage(image, dest, sampling);
-            });
+            }, new VectorMap(p => new SKPoint(p.X * sx, p.Y * sy), (sx + sy) / 2, TurnsOrMirrors: false));
         }
 
         /// <summary>Rotates the whole image by <paramref name="quarterTurns"/> × 90°
@@ -352,6 +377,7 @@ namespace JolieCat.Core.Documents
             var oldHeight = _layers[0].Bitmap.Height;
             var newWidth = turns % 2 == 1 ? oldHeight : oldWidth;
             var newHeight = turns % 2 == 1 ? oldWidth : oldHeight;
+            RotateGuides(turns, oldWidth, oldHeight);
 
             RebuildLayers(newWidth, newHeight, (canvas, source) =>
             {
@@ -366,7 +392,12 @@ namespace JolieCat.Core.Documents
                 canvas.RotateDegrees(90 * turns);
                 canvas.DrawBitmap(source, 0, 0);
                 canvas.Restore();
-            });
+            }, new VectorMap(p => turns switch
+            {
+                1 => new SKPoint(oldHeight - p.Y, p.X),
+                2 => new SKPoint(oldWidth - p.X, oldHeight - p.Y),
+                _ => new SKPoint(p.Y, oldWidth - p.X),
+            }, 1, TurnsOrMirrors: true));
         }
 
         /// <summary>Mirrors the whole image (every layer and mask).</summary>
@@ -376,7 +407,9 @@ namespace JolieCat.Core.Documents
 
             var width = _layers[0].Bitmap.Width;
             var height = _layers[0].Bitmap.Height;
-            RebuildLayers(width, height, (canvas, source) => DrawFlipped(canvas, source, horizontal));
+            FlipGuides(horizontal, width, height);
+            RebuildLayers(width, height, (canvas, source) => DrawFlipped(canvas, source, horizontal),
+                new VectorMap(p => horizontal ? new SKPoint(width - p.X, p.Y) : new SKPoint(p.X, height - p.Y), 1, TurnsOrMirrors: true));
         }
 
         /// <summary>Mirrors one layer's pixels in place (Edit &gt; Transform &gt; Flip).
@@ -459,7 +492,36 @@ namespace JolieCat.Core.Documents
         /// <summary>Replaces every layer with a fresh one of the new size whose content
         /// (and mask, if any) is produced by <paramref name="draw"/> from the old bitmap.
         /// Ids and settings carry over, so history entries keep pointing at the right layer.</summary>
-        private void RebuildLayers(int newWidth, int newHeight, Action<SKCanvas, SKBitmap> draw)
+        /// <summary>How a canvas change moves points (and scales sizes), so text and shape
+        /// layers can stay editable. <paramref name="TurnsOrMirrors"/>: text can't be
+        /// turned or mirrored (and polygons/stars wouldn't keep their look), so those
+        /// become pixels.</summary>
+        private sealed record VectorMap(Func<SKPoint, SKPoint> Point, float Scale, bool TurnsOrMirrors);
+
+        /// <summary>Keeps <paramref name="old"/>'s text / shape on <paramref name="rebuilt"/>
+        /// where <paramref name="map"/> allows, redrawn crisply.</summary>
+        private static void KeepVectors(Layer old, Layer rebuilt, VectorMap? map)
+        {
+            if (map is null) return;
+            if (old.Shape is { } shape && !(map.TurnsOrMirrors && shape.Kind is VectorShapeKind.Polygon or VectorShapeKind.Star))
+            {
+                rebuilt.Shape = shape with
+                {
+                    Start = map.Point(shape.Start),
+                    End = map.Point(shape.End),
+                    StrokeWidth = shape.StrokeWidth * map.Scale,
+                    CornerRadius = shape.CornerRadius * map.Scale,
+                };
+                rebuilt.RenderShape();
+            }
+            if (old.Text is { } text && !map.TurnsOrMirrors)
+            {
+                rebuilt.Text = text with { Origin = map.Point(text.Origin), FontSize = text.FontSize * map.Scale };
+                rebuilt.RenderText();
+            }
+        }
+
+        private void RebuildLayers(int newWidth, int newHeight, Action<SKCanvas, SKBitmap> draw, VectorMap? vectors = null)
         {
             for (var i = 0; i < _layers.Count; i++)
             {
@@ -487,10 +549,35 @@ namespace JolieCat.Core.Documents
                     rebuilt.IsMaskActive = old.IsMaskActive;
                 }
 
+                CarrySmartFilters(old, rebuilt, draw);
+
+                KeepFill(old, rebuilt);
+                KeepVectors(old, rebuilt, vectors);
+
                 _layers[i] = rebuilt;
                 if (ActiveLayer == old) ActiveLayer = rebuilt;
                 old.Dispose();
             }
+        }
+
+        /// <summary>A fill layer stays a fill when the canvas changes: redrawn at the new size.</summary>
+        private static void KeepFill(Layer old, Layer rebuilt)
+        {
+            if (old.Fill is null) return;
+            rebuilt.Fill = old.Fill;
+            rebuilt.RenderFill();
+        }
+
+        /// <summary>When a canvas change rebuilds a Smart Filter layer, its untouched
+        /// original goes through the same change and the filters run again on it.</summary>
+        private static void CarrySmartFilters(Layer old, Layer rebuilt, Action<SKCanvas, SKBitmap> draw)
+        {
+            if (old.SmartFilterSource is not { } oldSource) return;
+            var source = new SKBitmap(rebuilt.Bitmap.Width, rebuilt.Bitmap.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            source.Erase(SKColors.Transparent);
+            using (var canvas = new SKCanvas(source))
+                draw(canvas, oldSource);
+            rebuilt.SetSmartFilters(source, old.SmartFilters);
         }
 
         /// <summary>Freezes every layer's metadata and pixel content - the History
@@ -501,7 +588,8 @@ namespace JolieCat.Core.Documents
                 layer.Name, layer.Bitmap.Width, layer.Bitmap.Height, layer.Type,
                 layer.IsVisible, layer.IsLocked, layer.Opacity, layer.BlendMode, layer.Bitmap.Pixels,
                 layer.Mask is not null, layer.Mask?.IsEnabled ?? false, layer.Mask?.Bitmap.Pixels,
-                layer.Id, layer.SmartObject, layer.SmartObjectTransform?.Matrix, layer.Adjustment, layer.Style, layer.ParentId, layer.IsExpanded, layer.IsClipped, layer.Text))
+                layer.Id, layer.SmartObject, layer.SmartObjectTransform?.Matrix, layer.Adjustment, layer.Style, layer.ParentId, layer.IsExpanded, layer.IsClipped, layer.Text,
+                layer.SmartFilterSource?.Pixels, layer.HasSmartFilters ? layer.SmartFilters : null, layer.Shape, layer.Fill))
             .ToList();
 
         /// <summary>
@@ -539,8 +627,16 @@ namespace JolieCat.Core.Documents
                     IsExpanded = entry.IsExpanded,
                     IsClipped = entry.IsClipped,
                     Text = entry.Text,
+                    Shape = entry.Shape,
+                    Fill = entry.Fill,
                 };
                 layer.Bitmap.Pixels = entry.Pixels;
+
+                if (entry.SmartFilterSource is { } sourcePixels)
+                {
+                    var source = new SKBitmap(entry.Width, entry.Height, SKColorType.Rgba8888, SKAlphaType.Premul) { Pixels = sourcePixels };
+                    layer.SetSmartFilters(source, entry.SmartFilters ?? Array.Empty<Effects.SmartFilter>());
+                }
 
                 if (entry.SmartObject is { } smartObject && entry.SmartObjectMatrix is { } matrix)
                     layer.AttachSmartObject(smartObject, matrix);

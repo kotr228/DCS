@@ -61,6 +61,12 @@ namespace JolieCat.UI.ViewModels
             gradientOpacity = s.GradientOpacity;
             gradientAngle = s.GradientAngle;
 
+            patternOverlay = s.PatternOverlay;
+            patternName = s.PatternName;
+            patternColor = Hex(s.PatternColor);
+            patternScale = s.PatternScale;
+            patternOpacity = s.PatternOpacity;
+
             bevel = s.Bevel;
             bevelSize = s.BevelSize;
             bevelDepth = s.BevelDepth;
@@ -110,6 +116,21 @@ namespace JolieCat.UI.ViewModels
         [ObservableProperty] private double gradientOpacity;
         [ObservableProperty] private double gradientAngle;
 
+        [ObservableProperty] private bool patternOverlay;
+        [ObservableProperty] private string patternName;
+        [ObservableProperty] private string patternColor;
+        [ObservableProperty] private double patternScale;
+        [ObservableProperty] private double patternOpacity;
+
+        public System.Collections.Generic.IReadOnlyList<string> PatternNames
+        {
+            get
+            {
+                Media.PatternLibrary.EnsureLoaded();
+                return PatternTiles.Names;
+            }
+        }
+
         [ObservableProperty] private bool bevel;
         [ObservableProperty] private double bevelSize;
         [ObservableProperty] private double bevelDepth;
@@ -145,6 +166,10 @@ namespace JolieCat.UI.ViewModels
         partial void OnGradientEndChanged(string value) => GradientOverlay = true;
         partial void OnGradientOpacityChanged(double value) => GradientOverlay = true;
         partial void OnGradientAngleChanged(double value) => GradientOverlay = true;
+        partial void OnPatternNameChanged(string value) => PatternOverlay = true;
+        partial void OnPatternColorChanged(string value) => PatternOverlay = true;
+        partial void OnPatternScaleChanged(double value) => PatternOverlay = true;
+        partial void OnPatternOpacityChanged(double value) => PatternOverlay = true;
         partial void OnBevelSizeChanged(double value) => Bevel = true;
         partial void OnBevelDepthChanged(double value) => Bevel = true;
         partial void OnBevelAngleChanged(double value) => Bevel = true;
@@ -168,6 +193,7 @@ namespace JolieCat.UI.ViewModels
                 case "GradientStart": GradientStart = hex; break;
                 case "GradientEnd": GradientEnd = hex; break;
                 case "BevelHighlight": BevelHighlight = hex; break;
+                case "Pattern": PatternColor = hex; break;
                 case "BevelShadow": BevelShadow = hex; break;
             }
         }
@@ -182,6 +208,7 @@ namespace JolieCat.UI.ViewModels
             InnerShadow = false;
             InnerGlow = false;
             GradientOverlay = false;
+            PatternOverlay = false;
             Bevel = false;
         }
 
@@ -219,6 +246,11 @@ namespace JolieCat.UI.ViewModels
             GradientEnd = Parse(GradientEnd, SKColors.White),
             GradientOpacity = GradientOpacity,
             GradientAngle = GradientAngle,
+            PatternOverlay = PatternOverlay,
+            PatternName = PatternName,
+            PatternColor = Parse(PatternColor, SKColors.Black),
+            PatternScale = PatternScale,
+            PatternOpacity = PatternOpacity,
             Bevel = Bevel,
             BevelSize = BevelSize,
             BevelDepth = BevelDepth,

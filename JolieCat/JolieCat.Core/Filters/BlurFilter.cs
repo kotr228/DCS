@@ -29,10 +29,10 @@ namespace JolieCat.Core.Filters
             ArgumentNullException.ThrowIfNull(source);
             radius = Math.Max(0f, radius);
 
-            using var filter = type == BlurType.Gaussian
-                ? SKImageFilter.CreateBlur(radius, radius)
-                : CreateBoxBlurFilter(Math.Min(radius, MaxBoxBlurRadius));
+            if (type == BlurType.Gaussian)
+                return GaussianWithEdges(source, radius);
 
+            using var filter = CreateBoxBlurFilter(Math.Min(radius, MaxBoxBlurRadius));
             return ApplyImageFilter(source, filter);
         }
 
@@ -55,6 +55,33 @@ namespace JolieCat.Core.Filters
                 new SKSizeI(1, side), kernel, gain: 1f, bias: 0f,
                 kernelOffset: new SKPointI(0, side / 2),
                 tileMode: SKShaderTileMode.Clamp, convolveAlpha: false, input: horizontal);
+        }
+
+        /// <summary>Gaussian blur that treats the area past the image's edge as more of
+        /// the edge pixels (like Photoshop), so an opaque photo's border stays opaque
+        /// instead of fading to see-through: the image is padded with its own edges,
+        /// blurred, and the middle cut back out.</summary>
+        private static SKBitmap GaussianWithEdges(SKBitmap source, float sigma)
+        {
+            var pad = (int)Math.Ceiling(sigma * 3) + 1;
+            using var padded = new SKBitmap(source.Width + pad * 2, source.Height + pad * 2, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using (var canvas = new SKCanvas(padded))
+            using (var edges = SKShader.CreateBitmap(source, SKShaderTileMode.Clamp, SKShaderTileMode.Clamp, SKMatrix.CreateTranslation(pad, pad)))
+            using (var paint = new SKPaint { Shader = edges })
+            {
+                canvas.Clear(SKColors.Transparent);
+                canvas.DrawRect(0, 0, padded.Width, padded.Height, paint);
+            }
+
+            var result = new SKBitmap(source.Width, source.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using (var canvas = new SKCanvas(result))
+            using (var filter = SKImageFilter.CreateBlur(sigma, sigma))
+            using (var paint = new SKPaint { ImageFilter = filter })
+            {
+                canvas.Clear(SKColors.Transparent);
+                canvas.DrawBitmap(padded, -pad, -pad, paint);
+            }
+            return result;
         }
 
         /// <summary>Draws <paramref name="source"/> through an <see cref="SKImageFilter"/>

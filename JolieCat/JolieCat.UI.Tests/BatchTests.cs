@@ -69,6 +69,28 @@ namespace JolieCat.UI.Tests
         });
 
         [Fact]
+        public void PsdFiles_AreProcessed_WithTheirLayers() => Sta(() =>
+        {
+            using (var scene = new JolieCat.Core.Documents.Scene("P"))
+            {
+                scene.AddLayer("Bg", 30, 20).Canvas.Clear(SKColors.White);
+                var top = scene.AddLayer("Top", 30, 20);
+                using var red = new SKPaint { Color = SKColors.Red };
+                top.Canvas.DrawRect(0, 0, 10, 20, red);
+                JolieCat.Core.Formats.PsdCodec.Write(Path.Combine(_root, "in", "layered.psd"), scene, 30, 20);
+            }
+            var batch = Batch(new ActionStep { Kind = "Layers", Command = "FlipCanvasHorizontal", Title = "Flip" });
+            batch.Format = BatchFormat.Png;
+
+            Assert.Contains(batch.FindFiles(), f => f.EndsWith("layered.psd", StringComparison.Ordinal));
+            Assert.Null(batch.ProcessFile(Path.Combine(_root, "in", "layered.psd")));
+
+            using var result = SKBitmap.Decode(Path.Combine(_root, "out", "layered.png"));
+            Assert.Equal(SKColors.Red, result.GetPixel(25, 10));   // flipped: red is now on the right
+            Assert.Equal(SKColors.White, result.GetPixel(2, 10));
+        });
+
+        [Fact]
         public void FindFiles_OnlyImages_AndSubfoldersOnRequest() => Sta(() =>
         {
             WritePng("a.png", 4, 4, SKColors.Red);

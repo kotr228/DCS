@@ -74,19 +74,201 @@ namespace JolieCat.UI.Rendering
 
             viewModel.DrawLiveShape(canvas);
 
+            DrawQuickMask(canvas, viewModel);
             DrawPixelGrid(canvas, info, viewModel);
             DrawSpriteSheetGridOverlay(canvas, viewModel);
             DrawSelectionOverlay(canvas, viewModel);
             DrawCropOverlay(canvas, viewModel);
+            DrawPerspectiveCropOverlay(canvas, viewModel);
             DrawTransformOverlay(canvas, viewModel);
             DrawWarpOverlay(canvas, viewModel);
+            DrawPuppetOverlay(canvas, viewModel);
             DrawPenPathOverlay(canvas, viewModel);
             DrawCloneSourceMarker(canvas, viewModel);
+            DrawColorSamplers(canvas, viewModel);
             DrawGradientGuide(canvas, viewModel);
             DrawSpotHealingStroke(canvas, viewModel);
             DrawBrushOutline(canvas, viewModel);
+            DrawGrid(canvas, info, viewModel);
+            DrawGuides(canvas, info, viewModel);
 
             canvas.Restore();
+
+            DrawRulers(canvas, info, viewModel);
+        }
+
+        /// <summary>Perspective Crop: the area outside the four corners dimmed, the
+        /// corners joined, a 3x3 grid inside (it shows the perspective), and handles.</summary>
+        private static void DrawPerspectiveCropOverlay(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.PerspectiveQuad is not { } q) return;
+            var onScreen = 1f / (float)viewModel.Zoom;
+
+            using var shape = new SKPath();
+            shape.AddPoly(q, close: true);
+            using (var outside = new SKPath())
+            {
+                outside.AddRect(new SKRect(-1e5f, -1e5f, 1e5f, 1e5f));
+                using var dimmed = outside.Op(shape, SKPathOp.Difference);
+                using var dim = new SKPaint { Color = new SKColor(0, 0, 0, 110) };
+                if (dimmed is not null) canvas.DrawPath(dimmed, dim);
+            }
+
+            using var grid = new SKPaint { Color = new SKColor(255, 255, 255, 120), Style = SKPaintStyle.Stroke, StrokeWidth = onScreen, IsAntialias = true };
+            static SKPoint Lerp(SKPoint a, SKPoint b, float t) => new(a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t);
+            for (var k = 1; k < 3; k++)
+            {
+                var t = k / 3f;
+                canvas.DrawLine(Lerp(q[0], q[1], t), Lerp(q[3], q[2], t), grid);
+                canvas.DrawLine(Lerp(q[0], q[3], t), Lerp(q[1], q[2], t), grid);
+            }
+
+            using var edge = new SKPaint { Color = SKColors.White, Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f * onScreen, IsAntialias = true };
+            canvas.DrawPath(shape, edge);
+            foreach (var corner in q) DrawHandle(canvas, corner, onScreen);
+        }
+
+        /// <summary>Quick Mask: a half-transparent red over everything not selected
+        /// (black in the mask), clear where it's white.</summary>
+        private static void DrawQuickMask(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.QuickMaskBitmap is not { } mask) return;
+            var area = new SKRect(0, 0, mask.Width, mask.Height);
+            canvas.SaveLayer(area, null);
+            canvas.DrawRect(area, QuickMaskRed);
+            using (var cut = new SKPaint { BlendMode = SKBlendMode.DstOut, ColorFilter = SKColorFilter.CreateLumaColor() })
+                canvas.DrawBitmap(mask, 0, 0, cut);
+            canvas.Restore();
+        }
+
+        private static readonly SKPaint QuickMaskRed = new() { Color = new SKColor(255, 0, 0, 128) };
+
+        // ----- Grid, guides, rulers -----
+
+        private static readonly SKColor GuideColor = new(0, 200, 255);
+
+        /// <summary>The document area visible on screen (works for a rotated view too).</summary>
+        private static SKRect VisibleDocumentRect(SKImageInfo info, CanvasViewModel viewModel)
+        {
+            if (!viewModel.ViewMatrix.TryInvert(out var toDocument)) return SKRect.Empty;
+            var corners = toDocument.MapPoints(new[] { new SKPoint(0, 0), new SKPoint(info.Width, 0), new SKPoint(0, info.Height), new SKPoint(info.Width, info.Height) });
+            return new SKRect(corners.Min(p => p.X), corners.Min(p => p.Y), corners.Max(p => p.X), corners.Max(p => p.Y));
+        }
+
+        private static void DrawGrid(SKCanvas canvas, SKImageInfo info, CanvasViewModel viewModel)
+        {
+            if (!viewModel.ShowGrid || viewModel.GridSize <= 0) return;
+            var step = viewModel.GridSize;
+            if (step * viewModel.Zoom < 4) return; // too dense to be useful
+
+            var visible = VisibleDocumentRect(info, viewModel);
+            var width = viewModel.Layers.DocumentWidth;
+            var height = viewModel.Layers.DocumentHeight;
+            var left = Math.Max(0, (int)Math.Floor(visible.Left / step) * step);
+            var top = Math.Max(0, (int)Math.Floor(visible.Top / step) * step);
+            var right = Math.Min(width, visible.Right);
+            var bottom = Math.Min(height, visible.Bottom);
+
+            var onScreen = 1f / (float)viewModel.Zoom;
+            using var paint = new SKPaint { Color = new SKColor(120, 120, 140, 110), StrokeWidth = onScreen, IsAntialias = false };
+            using var major = new SKPaint { Color = new SKColor(90, 90, 120, 170), StrokeWidth = onScreen, IsAntialias = false };
+            for (var x = left; x <= right; x += step)
+                canvas.DrawLine(x, 0, x, height, x % (step * 4) == 0 ? major : paint);
+            for (var y = top; y <= bottom; y += step)
+                canvas.DrawLine(0, y, width, y, y % (step * 4) == 0 ? major : paint);
+        }
+
+        private static void DrawGuides(SKCanvas canvas, SKImageInfo info, CanvasViewModel viewModel)
+        {
+            var dragged = viewModel.DraggedGuide;
+            if ((!viewModel.ShowGuides || viewModel.Guides.Count == 0) && dragged is null) return;
+
+            // Guides run across the whole view, past the document's edges, like Photoshop's.
+            var visible = VisibleDocumentRect(info, viewModel);
+            using var paint = new SKPaint { Color = GuideColor, StrokeWidth = 1f / (float)viewModel.Zoom, IsAntialias = false };
+
+            void Draw(Guide guide)
+            {
+                if (guide.IsVertical) canvas.DrawLine(guide.Position, visible.Top, guide.Position, visible.Bottom, paint);
+                else canvas.DrawLine(visible.Left, guide.Position, visible.Right, guide.Position, paint);
+            }
+
+            if (viewModel.ShowGuides)
+                foreach (var guide in viewModel.Guides) Draw(guide);
+            if (dragged is not null) Draw(dragged);
+        }
+
+        /// <summary>A "nice" ruler step (1, 2, 5 x 10^n document pixels) at least
+        /// <paramref name="minDevice"/> screen pixels apart.</summary>
+        internal static double RulerStep(double zoom, double minDevice = 60)
+        {
+            var raw = minDevice / Math.Max(zoom, 1e-6);
+            var power = Math.Pow(10, Math.Floor(Math.Log10(raw)));
+            foreach (var m in new[] { 1.0, 2.0, 5.0, 10.0 })
+                if (m * power >= raw) return Math.Max(1, m * power);
+            return Math.Max(1, 10 * power);
+        }
+
+        private static void DrawRulers(SKCanvas canvas, SKImageInfo info, CanvasViewModel viewModel)
+        {
+            if (!viewModel.ShowRulers || viewModel.IsViewRotated) return;
+
+            var size = CanvasViewModel.RulerSize;
+            var zoom = viewModel.Zoom;
+            var origin = viewModel.ViewMatrix.MapPoint(new SKPoint(0, 0)); // document (0,0) on screen
+            var step = RulerStep(zoom);
+            var minor = step / 5;
+
+            using var background = new SKPaint { Color = new SKColor(0x2E, 0x29, 0x29) };
+            using var line = new SKPaint { Color = new SKColor(0x8A, 0x83, 0x7C), StrokeWidth = 1, IsAntialias = false };
+            using var font = new SKFont(SKTypeface.Default, 10);
+            using var text = new SKPaint { Color = new SKColor(0xC9, 0xC2, 0xB8), IsAntialias = true };
+            using var cursor = new SKPaint { Color = GuideColor, StrokeWidth = 1, IsAntialias = false };
+
+            canvas.DrawRect(0, 0, info.Width, size, background);
+            canvas.DrawRect(0, 0, size, info.Height, background);
+
+            // Top ruler: document x.
+            var firstX = Math.Floor(-origin.X / zoom / minor) * minor;
+            for (var v = firstX; ; v += minor)
+            {
+                var x = (float)(origin.X + v * zoom);
+                if (x > info.Width) break;
+                if (x < size) continue;
+                var isMajor = Math.Abs(v / step - Math.Round(v / step)) < 1e-6;
+                canvas.DrawLine(x, isMajor ? 2 : size - 5, x, size, line);
+                if (isMajor) canvas.DrawText(((int)Math.Round(v)).ToString(System.Globalization.CultureInfo.InvariantCulture), x + 3, 11, font, text);
+            }
+
+            // Left ruler: document y, numbers written downwards.
+            var firstY = Math.Floor(-origin.Y / zoom / minor) * minor;
+            for (var v = firstY; ; v += minor)
+            {
+                var y = (float)(origin.Y + v * zoom);
+                if (y > info.Height) break;
+                if (y < size) continue;
+                var isMajor = Math.Abs(v / step - Math.Round(v / step)) < 1e-6;
+                canvas.DrawLine(isMajor ? 2 : size - 5, y, size, y, line);
+                if (isMajor)
+                {
+                    canvas.Save();
+                    canvas.RotateDegrees(-90, 11, y - 3);
+                    canvas.DrawText(((int)Math.Round(v)).ToString(System.Globalization.CultureInfo.InvariantCulture), 11, y - 3, font, text);
+                    canvas.Restore();
+                }
+            }
+
+            // Where the pointer is, on both rulers.
+            if (viewModel.HoverDocumentPoint is { } hover)
+            {
+                var p = viewModel.ViewMatrix.MapPoint(hover);
+                if (p.X >= size) canvas.DrawLine(p.X, 0, p.X, size, cursor);
+                if (p.Y >= size) canvas.DrawLine(0, p.Y, size, p.Y, cursor);
+            }
+
+            canvas.DrawLine(0, size, info.Width, size, line);
+            canvas.DrawLine(size, 0, size, info.Height, line);
+            canvas.DrawRect(0, 0, size, size, background);
         }
 
         /// <summary>Zoom level from which individual pixels get grid lines.</summary>
@@ -127,8 +309,15 @@ namespace JolieCat.UI.Rendering
 
             using var dark = new SKPaint { Color = new SKColor(0, 0, 0, 160), Style = SKPaintStyle.Stroke, StrokeWidth = onScreen * 3, IsAntialias = true };
             using var light = new SKPaint { Color = new SKColor(255, 255, 255, 220), Style = SKPaintStyle.Stroke, StrokeWidth = onScreen, IsAntialias = true };
-            canvas.DrawCircle(point, radius, dark);
-            canvas.DrawCircle(point, radius, light);
+            // The outline follows the tip's shape: an ellipse turned by its angle.
+            var (angle, roundness) = viewModel.BrushOutlineShape;
+            canvas.Save();
+            canvas.Translate(point.X, point.Y);
+            canvas.RotateDegrees(-angle);
+            var oval = new SKRect(-radius, -radius * roundness, radius, radius * roundness);
+            canvas.DrawOval(oval, dark);
+            canvas.DrawOval(oval, light);
+            canvas.Restore();
         }
 
         /// <summary>The line being dragged with the Gradient tool, with a dot at each end.</summary>
@@ -163,6 +352,35 @@ namespace JolieCat.UI.Rendering
             {
                 canvas.DrawCircle(point, 4 * onScreen, dark);
                 canvas.DrawCircle(point, 3 * onScreen, light);
+            }
+        }
+
+        /// <summary>Color Sampler points: a ringed crosshair with its number.</summary>
+        private static void DrawColorSamplers(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.ColorSamplers.Count == 0) return;
+            var onScreen = 1f / (float)viewModel.Zoom;
+            using var dark = new SKPaint { Color = SKColors.Black, StrokeWidth = onScreen * 3, IsAntialias = true, Style = SKPaintStyle.Stroke };
+            using var light = new SKPaint { Color = SKColors.White, StrokeWidth = onScreen, IsAntialias = true, Style = SKPaintStyle.Stroke };
+            using var font = new SKFont(SKTypeface.Default, 11 * onScreen);
+            using var textDark = new SKPaint { Color = SKColors.Black, IsAntialias = true, Style = SKPaintStyle.Stroke, StrokeWidth = onScreen * 3 };
+            using var textLight = new SKPaint { Color = SKColors.White, IsAntialias = true };
+
+            for (var i = 0; i < viewModel.ColorSamplers.Count; i++)
+            {
+                var p = viewModel.ColorSamplers[i];
+                float ring = 5 * onScreen, arm = 9 * onScreen;
+                foreach (var paint in new[] { dark, light })
+                {
+                    canvas.DrawCircle(p, ring, paint);
+                    canvas.DrawLine(p.X - arm, p.Y, p.X - ring, p.Y, paint);
+                    canvas.DrawLine(p.X + ring, p.Y, p.X + arm, p.Y, paint);
+                    canvas.DrawLine(p.X, p.Y - arm, p.X, p.Y - ring, paint);
+                    canvas.DrawLine(p.X, p.Y + ring, p.X, p.Y + arm, paint);
+                }
+                var label = (i + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                canvas.DrawText(label, p.X + arm, p.Y + arm + 4 * onScreen, font, textDark);
+                canvas.DrawText(label, p.X + arm, p.Y + arm + 4 * onScreen, font, textLight);
             }
         }
 
@@ -371,6 +589,36 @@ namespace JolieCat.UI.Rendering
             for (var row = 0; row < mesh.Rows; row++)
                 for (var col = 0; col < mesh.Columns; col++)
                     DrawHandle(canvas, mesh.WarpedGrid[row, col], onScreenScale);
+        }
+
+        /// <summary>Puppet Warp: the (bent) mesh, faintly, and the pins.</summary>
+        private static void DrawPuppetOverlay(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.Puppet is not { } puppet) return;
+            var onScreen = 1f / (float)viewModel.Zoom;
+            var mesh = puppet.Mesh;
+
+            if (viewModel.ShowPuppetMesh)
+            {
+                using var line = new SKPaint { Color = new SKColor(120, 200, 255, 110), StrokeWidth = onScreen, IsAntialias = true };
+                for (var r = 0; r < mesh.Rows; r++)
+                    for (var c = 0; c < mesh.Columns - 1; c++)
+                        canvas.DrawLine(mesh.WarpedGrid[r, c], mesh.WarpedGrid[r, c + 1], line);
+                for (var c = 0; c < mesh.Columns; c++)
+                    for (var r = 0; r < mesh.Rows - 1; r++)
+                        canvas.DrawLine(mesh.WarpedGrid[r, c], mesh.WarpedGrid[r + 1, c], line);
+            }
+
+            using var ring = new SKPaint { Color = SKColors.Black, Style = SKPaintStyle.Stroke, StrokeWidth = onScreen * 1.5f, IsAntialias = true };
+            using var fill = new SKPaint { Color = new SKColor(255, 214, 10), IsAntialias = true };
+            using var active = new SKPaint { Color = SKColors.Black, IsAntialias = true };
+            for (var i = 0; i < puppet.Pins.Count; i++)
+            {
+                var p = puppet.Pins[i].Current;
+                canvas.DrawCircle(p, 5 * onScreen, fill);
+                canvas.DrawCircle(p, 5 * onScreen, ring);
+                if (i == viewModel.ActivePuppetPin) canvas.DrawCircle(p, 2 * onScreen, active);
+            }
         }
 
         /// <summary>Draws the Pen tool's working path: its Bezier outline (plus a

@@ -13,6 +13,8 @@
 
         <!-- Paint Bucket always fills with the foreground color, so the picker is
              unconditional here (unlike the shared brush-tools view). -->
-        <views:ColorPickerPanel DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Canvas}" />
+        <Border Visibility="{Binding ShowColorPicker, Converter={StaticResource BoolToVisibility}}">
+            <views:ColorPickerPanel DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Canvas}" />
+        </Border>
     </StackPanel>
 </UserControl>

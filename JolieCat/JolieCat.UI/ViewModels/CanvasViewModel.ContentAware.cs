@@ -82,7 +82,7 @@ namespace JolieCat.UI.ViewModels
         private void HealArea(Action<SKCanvas> drawArea, string historyName, bool throughSelection)
         {
             var layer = Layers.ActiveLayer?.Model;
-            if (layer is null || layer.IsLocked || layer.IsAdjustment || layer.IsGroup)
+            if (layer is null || layer.IsLocked || layer.IsAdjustment || layer.IsGroup || BlockedBySmartFilters(layer))
             {
                 RaiseInvalidate();
                 return;

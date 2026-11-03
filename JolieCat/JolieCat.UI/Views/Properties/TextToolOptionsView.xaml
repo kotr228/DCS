@@ -4,20 +4,44 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:controls="clr-namespace:JolieCat.UI.Controls"
+             xmlns:opts="clr-namespace:JolieCat.UI.ViewModels.ToolOptions"
              mc:Ignorable="d">
     <StackPanel Margin="10">
         <TextBlock Text="Font Family" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
-        <ComboBox ItemsSource="{Binding AvailableFontFamilies}" SelectedItem="{Binding FontFamily, Mode=TwoWay}" Margin="0,0,0,10" />
+        <ComboBox ItemsSource="{Binding AvailableFontFamilies}" SelectedItem="{Binding FontFamily, Mode=TwoWay}" Margin="0,0,0,10"
+                  IsTextSearchEnabled="True" MaxDropDownHeight="360" AutomationProperties.Name="Font family" />
 
         <controls:LabeledSlider Label="Font Size" Minimum="6" Maximum="288" Suffix="pt" Value="{Binding FontSize, Mode=TwoWay}" />
 
-        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-            <ToggleButton Content="B" Width="28" FontWeight="Bold"
+        <StackPanel Orientation="Horizontal" Margin="0,4,0,10">
+            <ToggleButton Content="B" Width="28" FontWeight="Bold" ToolTip="Bold"
                           Style="{StaticResource PanelToggleButtonStyle}"
                           IsChecked="{Binding IsBold, Mode=TwoWay}" Margin="0,0,4,0" />
-            <ToggleButton Content="I" Width="28" FontStyle="Italic"
+            <ToggleButton Content="I" Width="28" FontStyle="Italic" ToolTip="Italic"
                           Style="{StaticResource PanelToggleButtonStyle}"
-                          IsChecked="{Binding IsItalic, Mode=TwoWay}" />
+                          IsChecked="{Binding IsItalic, Mode=TwoWay}" Margin="0,0,4,0" />
+            <ToggleButton Width="28" ToolTip="Underline" Style="{StaticResource PanelToggleButtonStyle}"
+                          IsChecked="{Binding IsUnderline, Mode=TwoWay}" Margin="0,0,4,0">
+                <TextBlock Text="U" TextDecorations="Underline" />
+            </ToggleButton>
+            <ToggleButton Width="28" ToolTip="Strikethrough" Style="{StaticResource PanelToggleButtonStyle}"
+                          IsChecked="{Binding IsStrikethrough, Mode=TwoWay}">
+                <TextBlock Text="S" TextDecorations="Strikethrough" />
+            </ToggleButton>
         </StackPanel>
+
+        <TextBlock Text="Alignment" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+        <ComboBox ItemsSource="{x:Static opts:TextToolOptionsViewModel.AllAlignments}" SelectedItem="{Binding Alignment, Mode=TwoWay}"
+                  Margin="0,0,0,10" AutomationProperties.Name="Alignment" />
+
+        <controls:LabeledSlider Label="Leading (line spacing)" Minimum="50" Maximum="300" Suffix="%" Value="{Binding Leading, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Tracking (letter spacing)" Minimum="-200" Maximum="1000" Suffix="" Value="{Binding Tracking, Mode=TwoWay}" />
+        <TextBlock Text="Warp Text" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+        <ComboBox ItemsSource="{x:Static opts:TextToolOptionsViewModel.AllWarpStyles}" SelectedItem="{Binding WarpStyle, Mode=TwoWay}"
+                  Margin="0,0,0,6" AutomationProperties.Name="Warp style" />
+        <controls:LabeledSlider Label="Bend" Minimum="-100" Maximum="100" Suffix="%" Value="{Binding Warp, Mode=TwoWay}" />
+
+        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                   Text="Click to type; Shift+Enter for a new line. With a text layer selected, these settings change it straight away." />
     </StackPanel>
 </UserControl>

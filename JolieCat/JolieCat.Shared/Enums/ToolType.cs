@@ -53,6 +53,18 @@ namespace JolieCat.Shared.Enums
 
         // Appended last so existing numeric values don't shift.
         Move,
-        SpotHealing
+        SpotHealing,
+        Patch,
+        ContentAwareMove,
+        PerspectiveCrop,
+        Smudge,
+        HistoryBrush,
+        BackgroundEraser,
+        MagicEraser,
+        RedEye,
+        ColorSampler,
+        PuppetWarp,
+        PatternStamp,
+        MixerBrush
     }
 }

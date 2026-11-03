@@ -65,6 +65,8 @@ namespace JolieCat.Core.Serialization
             var manifest = new ProjectManifest
             {
                 SceneName = scene.Name,
+                SavedSelections = new Dictionary<string, string>(scene.SavedSelections),
+                Guides = scene.Guides.Select(g => (g.IsVertical ? "v:" : "h:") + g.Position.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).ToList(),
                 ProjectType = projectType.ToString(),
                 SpriteSheetGrid = spriteSheetGrid is null
                     ? new SpriteSheetGridData()
@@ -111,6 +113,7 @@ namespace JolieCat.Core.Serialization
                 var layer = scene.Layers[i];
                 var entryName = $"layers/{i}.png";
                 var maskEntryName = layer.Mask is not null ? $"layers/{i}.mask.png" : null;
+                var smartSourceEntryName = layer.HasSmartFilters ? $"layers/{i}.smartsource.png" : null;
 
                 manifest.Layers.Add(new LayerManifestEntry
                 {
@@ -124,6 +127,10 @@ namespace JolieCat.Core.Serialization
                     HasMask = layer.Mask is not null,
                     IsMaskEnabled = layer.Mask?.IsEnabled ?? true,
                     MaskEntryName = maskEntryName,
+                    SmartFilterSourceEntryName = smartSourceEntryName,
+                    Shape = layer.Shape?.Serialize(),
+                    Fill = layer.Fill?.Serialize(),
+                    SmartFilters = layer.HasSmartFilters ? Effects.SmartFilter.Serialize(layer.SmartFilters) : null,
                     Adjustment = layer.Adjustment?.Serialize(),
                     Style = layer.Style?.Serialize(),
                     ParentIndex = layer.ParentId is { } parentId && scene.FindById(parentId) is { } parent ? scene.IndexOf(parent) : null,
@@ -133,6 +140,8 @@ namespace JolieCat.Core.Serialization
                     {
                         Text = t.Text, FontFamily = t.FontFamily, FontSize = t.FontSize, Bold = t.Bold, Italic = t.Italic,
                         Color = t.Color.ToString(), X = t.Origin.X, Y = t.Origin.Y, Vertical = t.Vertical,
+                        Alignment = t.Alignment.ToString(), Leading = t.Leading, Tracking = t.Tracking,
+                        Underline = t.Underline, Strikethrough = t.Strikethrough, Warp = t.Warp, WarpStyle = t.WarpStyle.ToString(),
                     } : null,
                 });
 
@@ -145,6 +154,13 @@ namespace JolieCat.Core.Serialization
                     var maskEntry = archive.CreateEntry(maskEntryName!, CompressionLevel.Optimal);
                     using var maskEntryStream = maskEntry.Open();
                     mask.Bitmap.Encode(maskEntryStream, SKEncodedImageFormat.Png, 100);
+                }
+
+                if (layer.SmartFilterSource is { } smartSource)
+                {
+                    var sourceEntry = archive.CreateEntry(smartSourceEntryName!, CompressionLevel.Optimal);
+                    using var sourceEntryStream = sourceEntry.Open();
+                    smartSource.Encode(sourceEntryStream, SKEncodedImageFormat.Png, 100);
                 }
             }
 
@@ -268,11 +284,38 @@ namespace JolieCat.Core.Serialization
                 layer.Style = Effects.LayerStyle.Deserialize(layerEntry.Style);
                 layer.IsExpanded = layerEntry.IsExpanded;
                 layer.IsClipped = layerEntry.IsClipped;
+                layer.Shape = ShapeContent.Deserialize(layerEntry.Shape);
+                layer.Fill = FillContent.Deserialize(layerEntry.Fill);
+
+                // Smart Filters: the original comes back, the saved result stays on
+                // screen (the filters only re-run when the list is changed).
+                if (layerEntry.SmartFilterSourceEntryName is { } sourceName && archive.GetEntry(sourceName) is { } sourceEntry)
+                {
+                    using var sourceStream = sourceEntry.Open();
+                    using var bufferedSource = new MemoryStream();
+                    sourceStream.CopyTo(bufferedSource);
+                    bufferedSource.Position = 0;
+                    if (SKBitmap.Decode(bufferedSource) is { } decodedSource)
+                    {
+                        var source = new SKBitmap(manifest.DocumentWidth, manifest.DocumentHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
+                        source.Erase(SKColors.Transparent);
+                        using (var sourceCanvas = new SKCanvas(source))
+                            sourceCanvas.DrawBitmap(decodedSource, 0, 0);
+                        decodedSource.Dispose();
+                        var shown = layer.Bitmap.Pixels;
+                        layer.SetSmartFilters(source, Effects.SmartFilter.Deserialize(layerEntry.SmartFilters));
+                        layer.Bitmap.Pixels = shown;
+                    }
+                }
+
                 if (layerEntry.Text is { } text)
                 {
                     layer.Text = new TextContent(text.Text, text.FontFamily, text.FontSize, text.Bold, text.Italic,
                         SKColor.TryParse(text.Color, out var color) ? color : SKColors.Black,
-                        new SKPoint(text.X, text.Y), text.Vertical);
+                        new SKPoint(text.X, text.Y), text.Vertical,
+                        Enum.TryParse<TextAlignment>(text.Alignment, out var alignment) ? alignment : TextAlignment.Left,
+                        text.Leading <= 0 ? 100 : text.Leading, text.Tracking, text.Underline, text.Strikethrough, text.Warp,
+                        Enum.TryParse<TextWarpStyle>(text.WarpStyle, out var warpStyle) ? warpStyle : TextWarpStyle.Arc);
                 }
 
                 scene.AddLayer(layer);
@@ -283,6 +326,14 @@ namespace JolieCat.Core.Serialization
                 if (manifest.Layers[i].ParentIndex is int parentIndex && parentIndex >= 0 && parentIndex < scene.Layers.Count)
                     scene.Layers[i].ParentId = scene.Layers[parentIndex].Id;
             scene.NormalizeGroups();
+
+            foreach (var (name, svg) in manifest.SavedSelections ?? new Dictionary<string, string>())
+                scene.SavedSelections[name] = svg;
+
+            foreach (var text in manifest.Guides ?? new List<string>())
+                if (text.Length > 2 && (text[0] == 'v' || text[0] == 'h') && text[1] == ':'
+                    && float.TryParse(text[2..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var position))
+                    scene.Guides.Add(new Guide(text[0] == 'v', position));
 
             if (manifest.ActiveLayerIndex >= 0 && manifest.ActiveLayerIndex < scene.Layers.Count)
                 scene.ActiveLayer = scene.Layers[manifest.ActiveLayerIndex];

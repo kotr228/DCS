@@ -1,7 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:opts="clr-namespace:JolieCat.UI.ViewModels.ToolOptions"
-                    xmlns:views="clr-namespace:JolieCat.UI.Views.Properties">
+                    xmlns:views="clr-namespace:JolieCat.UI.Views.Properties"
+                    xmlns:controls="clr-namespace:JolieCat.UI.Controls">
 
     <!-- Implicit DataTemplates: the Properties panel's ContentControl just binds
          Content to Toolbox.CurrentToolOptions and WPF picks the matching view below
@@ -31,8 +32,35 @@
         <views:FillToolOptionsView />
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type opts:RedEyeToolOptionsViewModel}">
+        <StackPanel Margin="10">
+            <controls:LabeledSlider Label="Pupil Size" Suffix="px" Minimum="3" Maximum="300" Value="{Binding PupilSize, Mode=TwoWay}" />
+            <controls:LabeledSlider Label="Darken Amount" Suffix="%" Minimum="0" Maximum="100" Value="{Binding DarkenAmount, Mode=TwoWay}" />
+            <TextBlock Text="Click on a red pupil to fix it." TextWrapping="Wrap" FontSize="11" Margin="0,6,0,0"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+        </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:PuppetWarpToolOptionsViewModel}">
+        <StackPanel Margin="10">
+            <controls:LabeledSlider Label="Mesh Cell Size" Suffix="px" Minimum="6" Maximum="48" Value="{Binding Density, Mode=TwoWay}" />
+            <controls:LabeledSlider Label="Rigidity" Minimum="0.5" Maximum="3" Value="{Binding Rigidity, Mode=TwoWay}" />
+            <CheckBox Content="Show Mesh" IsChecked="{Binding ShowMesh}" Margin="0,4,0,6" Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                       Text="Click to stick pins into the layer, then drag a pin: the image bends around the others. Alt+click a pin to remove it. Enter applies, Esc cancels. Mesh Cell Size takes effect on the next puppet warp." />
+        </StackPanel>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type opts:GradientToolOptionsViewModel}">
         <views:GradientToolOptionsView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:PatchToolOptionsViewModel}">
+        <views:PatchToolOptionsView />
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type opts:ContentAwareMoveToolOptionsViewModel}">
+        <views:ContentAwareMoveToolOptionsView />
     </DataTemplate>
 
     <DataTemplate DataType="{x:Type opts:EyedropperToolOptionsViewModel}">

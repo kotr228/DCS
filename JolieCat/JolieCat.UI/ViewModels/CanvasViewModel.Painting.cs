@@ -32,6 +32,9 @@ namespace JolieCat.UI.ViewModels
         /// pointer-down point - the stroke's first mark, before any spacing has a
         /// previous dab to measure from. Pencil instead keeps its plain hard-edged single
         /// pixel (<c>DrawPoint</c>), matching its established always-aliased behavior.</summary>
+        /// <summary>Random numbers for brush jitter/scatter (one sequence per session).</summary>
+        private Random? _brushRandom;
+
         private void PaintDot(Core.Documents.Layer layer, SKPoint point)
         {
             if (_toolbox.ActiveTool.Type == ToolType.Pencil)
@@ -46,8 +49,11 @@ namespace JolieCat.UI.ViewModels
 
             using var dabPaint = CreateDabPaint(radius);
             var baseAlpha = dabPaint.Color.Alpha;
+            // Scattered dabs can land well away from the pointer.
+            var options = _toolbox.CurrentToolOptions as PaintToolOptionsViewModel;
+            var reach = radius * (1 + 2 * (float)Math.Max(0, (options?.Scatter ?? 0) / 100.0));
             WithSelectionClip(layer.PaintCanvas, canvas => DrawDab(canvas, point, radius, dabPaint, baseAlpha, _lastPressure),
-                StrokeArea(point, point, radius));
+                StrokeArea(point, point, reach));
 
             // The next dab (from the first PaintLineTo call of this stroke) should land
             // one full spacing interval past this one.
@@ -110,7 +116,8 @@ namespace JolieCat.UI.ViewModels
             var sizeScale = options?.PressureAffectsSize == true ? Math.Max(0.05f, pressure) : 1f;
             var alphaScale = options?.PressureAffectsOpacity == true ? pressure : 1f;
 
-            dabPaint.Color = dabPaint.Color.WithAlpha((byte)Math.Clamp(baseAlpha * alphaScale, 0, 255));
+            var flow = (float)Math.Clamp((options?.Flow ?? 100) / 100.0, 0.01, 1);
+            dabPaint.Color = dabPaint.Color.WithAlpha((byte)Math.Clamp(baseAlpha * alphaScale * flow, 0, 255));
 
             if (IsRetouchTool(_toolbox.ActiveTool.Type))
             {
@@ -118,9 +125,24 @@ namespace JolieCat.UI.ViewModels
                 return;
             }
 
+            // Brush tip dynamics: random size and sideways spread per dab.
+            var random = _brushRandom ??= new Random();
+            var jitter = (float)Math.Clamp((options?.SizeJitter ?? 0) / 100.0, 0, 1);
+            if (jitter > 0) sizeScale *= 1 - (float)random.NextDouble() * jitter;
+            var scatter = (float)Math.Max(0, (options?.Scatter ?? 0) / 100.0);
+            if (scatter > 0)
+            {
+                var reach = radius * 2 * scatter;
+                center = new SKPoint(center.X + ((float)random.NextDouble() * 2 - 1) * reach,
+                                     center.Y + ((float)random.NextDouble() * 2 - 1) * reach);
+            }
+
+            // Tip shape: an ellipse (Roundness) turned by Angle.
+            var roundness = (float)Math.Clamp((options?.Roundness ?? 100) / 100.0, 0.02, 1);
             canvas.Save();
             canvas.Translate(center.X, center.Y);
-            canvas.Scale(sizeScale);
+            if (options?.Angle is { } tipAngle && tipAngle != 0) canvas.RotateDegrees(-(float)tipAngle);
+            canvas.Scale(sizeScale, sizeScale * roundness);
             canvas.DrawCircle(0, 0, radius, dabPaint);
             canvas.Restore();
         }
@@ -205,7 +227,9 @@ namespace JolieCat.UI.ViewModels
             };
         }
 
-        private void FloodFill(Core.Documents.Layer layer, SKPoint point)
+        /// <summary>Paint Bucket (fills with the foreground color) and Magic Eraser
+        /// (<paramref name="color"/> transparent).</summary>
+        private void FloodFill(Core.Documents.Layer layer, SKPoint point, SKColor? color = null)
         {
             var bitmap = layer.PaintBitmap;
             var x0 = (int)point.X;
@@ -225,7 +249,7 @@ namespace JolieCat.UI.ViewModels
             var height = bitmap.Height;
             var pixels = bitmap.Pixels;
             var targetColor = pixels[y0 * width + x0];
-            var fillColor = BrushColor;
+            var fillColor = color ?? BrushColor;
 
             if (ColorTolerance.IsWithin(targetColor, fillColor, 0))
                 return;

@@ -156,7 +156,7 @@ namespace JolieCat.UI.ViewModels
             var applied = dialog.ShowDialog() == true;
             options.PropertyChanged -= UpdatePreview;
 
-            if (applied) Canvas.CommitAdjustment();
+            if (applied) CommitFilter(StepForSettings(options.ToSettings()));
             else Canvas.CancelAdjustment();
         }
 

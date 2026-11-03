@@ -110,9 +110,21 @@ namespace JolieCat.UI.ViewModels.Layers
         /// <summary>Clipped to the layer below - the row shows an arrow and is indented.</summary>
         public bool IsClipped => Model.IsClipped;
 
+        /// <summary>An editable shape layer (shape badge on the thumbnail).</summary>
+        public bool IsShape => Model.IsShape;
+
+        /// <summary>A fill layer (solid color / gradient / pattern).</summary>
+        public bool IsFill => Model.IsFill;
+
+        /// <summary>The layer has Smart Filters ("SF" badge).</summary>
+        public bool HasSmartFilters => Model.HasSmartFilters;
+
         public void RefreshStyleState()
         {
             OnPropertyChanged(nameof(HasStyle));
+            OnPropertyChanged(nameof(HasSmartFilters));
+            OnPropertyChanged(nameof(IsShape));
+            OnPropertyChanged(nameof(IsFill));
             OnPropertyChanged(nameof(IsClipped));
             OnPropertyChanged(nameof(IsText));
         }

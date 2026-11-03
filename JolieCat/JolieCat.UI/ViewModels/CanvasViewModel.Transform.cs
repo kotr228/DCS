@@ -48,7 +48,7 @@ namespace JolieCat.UI.ViewModels
         /// (see <see cref="Rendering.SceneCompositor.DrawLayers"/>'s preview-layer
         /// overload) so it composites correctly against the layers above and below
         /// it while mid-gesture/mid-preview.</summary>
-        public Core.Documents.Layer? LivePreviewLayer => _transformLayer ?? _warpLayer ?? _adjustmentLayer;
+        public Core.Documents.Layer? LivePreviewLayer => _transformLayer ?? _warpLayer ?? _puppetLayer ?? _adjustmentLayer;
 
         /// <summary>Bakes the current Free Transform/Warp gesture's, or filter/color
         /// adjustment dialog's, live preview into a fresh bitmap for
@@ -68,6 +68,9 @@ namespace JolieCat.UI.ViewModels
 
             if (_isWarping && _warpMesh is not null && _warpOriginalBitmap is not null)
                 return _warpMesh.Bake(_warpOriginalBitmap);
+
+            if (_puppetLayer is not null)
+                return BuildPuppetPreview() ?? _puppetLayer.Bitmap.Copy();
 
             // A copy, because the renderer disposes what this returns.
             if (_adjustmentLayer is not null && _adjustmentPreviewBitmap is not null)
@@ -165,6 +168,15 @@ namespace JolieCat.UI.ViewModels
                 Layers.History.Push(new SmartObjectTransformCommand(_transformLayer, before, after, Layers.Scene));
                 smartTransform.Matrix = after;
                 _transformLayer.RenderSmartObject();
+            }
+            else if (_transformLayer is { HasSmartFilters: true, SmartFilterSource: { } source })
+            {
+                // Smart Filters: transform the untouched original, then run the filters again.
+                var before = source.Pixels;
+                using (var baked = Core.Transform.LayerTransformer.Bake(source, matrix, source.Width, source.Height))
+                    source.Pixels = baked.Pixels;
+                _transformLayer.RenderSmartFilters();
+                Layers.History.Push(new Core.History.SmartFilterSourceCommand(Layers.Scene, _transformLayer, before, source.Pixels), "Free Transform");
             }
             else
             {

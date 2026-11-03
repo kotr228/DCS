@@ -1,0 +1,23 @@
+<UserControl x:Class="JolieCat.UI.Controls.ColorField"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root">
+    <!-- A hex box plus a swatch; clicking the swatch opens the Color Picker. -->
+    <DockPanel>
+        <Button DockPanel.Dock="Right" Width="24" Height="22" Margin="6,0,0,0" Cursor="Hand"
+                ToolTip="Pick a color" Click="Swatch_Click" AutomationProperties.Name="Pick color">
+            <Button.Template>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Frame" CornerRadius="3" BorderThickness="1" BorderBrush="{StaticResource BorderBrush}"
+                            Background="{Binding Hex, ElementName=Root}" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Button.Template>
+        </Button>
+        <TextBox Text="{Binding Hex, ElementName=Root, UpdateSourceTrigger=PropertyChanged}" />
+    </DockPanel>
+</UserControl>

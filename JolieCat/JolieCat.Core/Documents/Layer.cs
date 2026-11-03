@@ -66,10 +66,18 @@ namespace JolieCat.Core.Documents
         /// <summary>Whichever buffer painting tools should currently draw into: the
         /// mask's, if <see cref="IsMaskActive"/> and <see cref="Mask"/> exists, else
         /// this layer's own <see cref="Bitmap"/>.</summary>
-        public SKBitmap PaintBitmap => IsMaskActive && Mask is not null ? Mask.Bitmap : Bitmap;
+        public SKBitmap PaintBitmap => PaintRedirect?.Bitmap ?? (IsMaskActive && Mask is not null ? Mask.Bitmap : Bitmap);
 
         /// <summary>The canvas counterpart of <see cref="PaintBitmap"/>.</summary>
-        public SKCanvas PaintCanvas => IsMaskActive && Mask is not null ? Mask.Canvas : Canvas;
+        public SKCanvas PaintCanvas => PaintRedirect?.Canvas ?? (IsMaskActive && Mask is not null ? Mask.Canvas : Canvas);
+
+        /// <summary>Quick Mask: while set, painting tools draw into this document-wide mask
+        /// instead of the layer (see <see cref="PaintBitmap"/>).</summary>
+        public LayerMask? PaintRedirect { get; set; }
+
+        /// <summary>True when painting goes to a mask (the layer's own, or Quick Mask)
+        /// rather than the layer's pixels.</summary>
+        public bool PaintsMask => PaintRedirect is not null || (IsMaskActive && Mask is not null);
 
         /// <summary>This layer's pristine source (and, if it wraps a nested
         /// composition, that embedded scene) when <see cref="Type"/> is
@@ -121,6 +129,77 @@ namespace JolieCat.Core.Documents
         public TextContent? Text { get; set; }
 
         public bool IsText => Text is not null;
+
+        /// <summary>Set for an editable shape layer: its pixels are this shape, drawn by
+        /// <see cref="RenderShape"/>. Null for every other layer.</summary>
+        public ShapeContent? Shape { get; set; }
+
+        public bool IsShape => Shape is not null;
+
+        /// <summary>Set for a fill layer (solid color / gradient / pattern): its pixels
+        /// are this, drawn by <see cref="RenderFill"/>.</summary>
+        public FillContent? Fill { get; set; }
+
+        public bool IsFill => Fill is not null;
+
+        /// <summary>Redraws a fill layer's pixels from <see cref="Fill"/>.</summary>
+        public void RenderFill()
+        {
+            if (Fill is null) return;
+            Fill.Render(Canvas, Bitmap.Width, Bitmap.Height);
+        }
+
+        /// <summary>Redraws a shape layer's pixels from <see cref="Shape"/>.</summary>
+        public void RenderShape()
+        {
+            if (Shape is null) return;
+            Canvas.Clear(SKColors.Transparent);
+            Shape.Render(Canvas);
+        }
+
+        /// <summary>Smart Filters: the layer's untouched pixels. Set once the layer is
+        /// converted for Smart Filters; <see cref="Bitmap"/> then always shows this run
+        /// through <see cref="SmartFilters"/> (see <see cref="RenderSmartFilters"/>).</summary>
+        public SKBitmap? SmartFilterSource { get; private set; }
+
+        public IReadOnlyList<Effects.SmartFilter> SmartFilters { get; private set; } = Array.Empty<Effects.SmartFilter>();
+
+        public bool HasSmartFilters => SmartFilterSource is not null;
+
+        /// <summary>Makes this a Smart Filter layer (or replaces its original and list),
+        /// then redraws it. Takes ownership of <paramref name="source"/>.</summary>
+        public void SetSmartFilters(SKBitmap source, IReadOnlyList<Effects.SmartFilter> filters)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            if (!ReferenceEquals(source, SmartFilterSource)) SmartFilterSource?.Dispose();
+            SmartFilterSource = source;
+            SmartFilters = filters ?? Array.Empty<Effects.SmartFilter>();
+            RenderSmartFilters();
+        }
+
+        /// <summary>Changes the filter list (keeping the original) and redraws.</summary>
+        public void ReplaceSmartFilters(IReadOnlyList<Effects.SmartFilter> filters)
+        {
+            if (SmartFilterSource is null) return;
+            SmartFilters = filters ?? Array.Empty<Effects.SmartFilter>();
+            RenderSmartFilters();
+        }
+
+        /// <summary>Back to an ordinary layer, keeping what it shows now ("Rasterize").</summary>
+        public void ClearSmartFilters()
+        {
+            SmartFilterSource?.Dispose();
+            SmartFilterSource = null;
+            SmartFilters = Array.Empty<Effects.SmartFilter>();
+        }
+
+        /// <summary>Redraws <see cref="Bitmap"/> from the original through the enabled filters.</summary>
+        public void RenderSmartFilters()
+        {
+            if (SmartFilterSource is null) return;
+            using var rendered = Effects.SmartFilterEngine.Render(SmartFilterSource, SmartFilters);
+            Bitmap.Pixels = rendered.Pixels;
+        }
 
         /// <summary>Redraws a text layer's pixels from <see cref="Text"/>.</summary>
         public void RenderText()
@@ -270,6 +349,7 @@ namespace JolieCat.Core.Documents
             // snapshots may still share it (see AttachSmartObject). Its bitmaps are
             // released by their finalizers once nothing references them.
             Mask?.Dispose();
+            SmartFilterSource?.Dispose();
             Canvas.Dispose();
             Bitmap.Dispose();
             _disposed = true;

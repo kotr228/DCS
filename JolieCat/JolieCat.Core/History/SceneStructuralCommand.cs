@@ -32,8 +32,11 @@ namespace JolieCat.Core.History
         public SceneStructuralCommand(
             Scene scene,
             IReadOnlyList<LayerSnapshot> before, int beforeActiveIndex,
-            IReadOnlyList<LayerSnapshot> after, int afterActiveIndex)
+            IReadOnlyList<LayerSnapshot> after, int afterActiveIndex,
+            IReadOnlyList<Guide>? guidesBefore = null, IReadOnlyList<Guide>? guidesAfter = null)
         {
+            _guidesBefore = guidesBefore;
+            _guidesAfter = guidesAfter;
             _scene = scene ?? throw new ArgumentNullException(nameof(scene));
             _before = before ?? throw new ArgumentNullException(nameof(before));
             _beforeActiveIndex = beforeActiveIndex;
@@ -41,8 +44,20 @@ namespace JolieCat.Core.History
             _afterActiveIndex = afterActiveIndex;
         }
 
-        public void Undo() => _scene.RestoreLayers(_before, _beforeActiveIndex);
+        // Guides move with canvas rotate/flip/resize/crop, so those steps restore them too.
+        private readonly IReadOnlyList<Guide>? _guidesBefore;
+        private readonly IReadOnlyList<Guide>? _guidesAfter;
 
-        public void Redo() => _scene.RestoreLayers(_after, _afterActiveIndex);
+        public void Undo()
+        {
+            _scene.RestoreLayers(_before, _beforeActiveIndex);
+            if (_guidesBefore is not null) _scene.RestoreGuides(_guidesBefore);
+        }
+
+        public void Redo()
+        {
+            _scene.RestoreLayers(_after, _afterActiveIndex);
+            if (_guidesAfter is not null) _scene.RestoreGuides(_guidesAfter);
+        }
     }
 }

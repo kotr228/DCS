@@ -160,6 +160,13 @@ namespace JolieCat.UI.ViewModels
         {
             Toolbox = new ToolboxViewModel();
 
+            // Every document remembers how it looked when opened (History Brush source).
+            Documents.CollectionChanged += (_, e) =>
+            {
+                if (e.NewItems is null) return;
+                foreach (DocumentViewModel document in e.NewItems) document.Layers.CaptureOpeningState();
+            };
+
             var firstDocument = new DocumentViewModel(Toolbox, "Untitled 1");
             RegisterDocument(firstDocument);
             Documents.Add(firstDocument);
@@ -345,7 +352,11 @@ namespace JolieCat.UI.ViewModels
         }
 
         [RelayCommand(CanExecute = nameof(CanUndo))]
-        private void Undo() => Layers.History.Undo();
+        private void Undo()
+        {
+            Canvas.FlushTextRestyle();
+            Layers.History.Undo();
+        }
 
         private bool CanUndo() => Layers.History.CanUndo && !IsSaving;
 
@@ -390,7 +401,9 @@ namespace JolieCat.UI.ViewModels
             }
 
             PixelClipboard.SetContent(copy);
+            _clipboardOrigin = new SKPointI(bounds.Left, bounds.Top);
             PasteCommand.NotifyCanExecuteChanged();
+            PasteInPlaceCommand.NotifyCanExecuteChanged();
         }
 
         private bool CanCopySelection() => !IsSaving && Layers.ActiveLayer is not null;
@@ -931,6 +944,94 @@ namespace JolieCat.UI.ViewModels
 
         private double _lastModifyAmount = 5;
 
+        /// <summary>Edit > Define Pattern: the visible image inside the selection (or the
+        /// whole image) becomes a pattern for Layer Style > Pattern Overlay.</summary>
+        [RelayCommand]
+        private void DefinePattern()
+        {
+            var name = DefinePatternFromDocument();
+            if (name is null) return;
+            MessageBox.Show($"Saved as \"{name}\".\n\nUse it in Layer Style > Pattern Overlay.", "Define Pattern",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>Edit > Manage Patterns: rename or delete the user's patterns.</summary>
+        [RelayCommand]
+        private void ManagePatterns()
+        {
+            var manager = new PatternManagerViewModel();
+            manager.Renamed += RenamePatternInStyles;
+            new PatternManagerDialog { DataContext = manager, Owner = Application.Current.MainWindow }.ShowDialog();
+            manager.Renamed -= RenamePatternInStyles;
+        }
+
+        /// <summary>Layer styles in every open document follow a renamed pattern.</summary>
+        internal void RenamePatternInStyles(string oldName, string newName)
+        {
+            foreach (var document in Documents)
+            {
+                var changed = false;
+                foreach (var layer in document.Layers.Scene.Layers)
+                    if (layer.Style is { PatternOverlay: true } style && style.PatternName == oldName)
+                    {
+                        layer.Style = style with { PatternName = newName };
+                        changed = true;
+                    }
+                if (changed) document.Layers.NotifyContentChanged();
+            }
+        }
+
+        /// <summary>Does the work of <see cref="DefinePattern"/>; returns the new pattern's
+        /// name, or null if the selection is empty.</summary>
+        internal string? DefinePatternFromDocument()
+        {
+            int width = Layers.DocumentWidth, height = Layers.DocumentHeight;
+            var area = new SKRectI(0, 0, width, height);
+            var selection = Layers.Scene.Selection;
+            if (selection.HasSelection && selection.Path is { } path)
+            {
+                var b = path.Bounds;
+                area = SKRectI.Intersect(area, new SKRectI((int)Math.Floor(b.Left), (int)Math.Floor(b.Top), (int)Math.Ceiling(b.Right), (int)Math.Ceiling(b.Bottom)));
+            }
+            if (area.Width <= 0 || area.Height <= 0) return null;
+
+            using var flat = Core.Rendering.SceneCompositor.Flatten(Layers.Scene, width, height);
+            using var piece = new SKBitmap(area.Width, area.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+            using (var canvas = new SKCanvas(piece))
+            {
+                canvas.Clear(SKColors.Transparent);
+                canvas.DrawBitmap(flat, -area.Left, -area.Top);
+            }
+
+            var name = Media.PatternLibrary.NextName();
+            Media.PatternLibrary.Define(name, piece);
+            return name;
+        }
+
+        /// <summary>View > New Guide: a guide at a typed position.</summary>
+        [RelayCommand]
+        private void NewGuide(string? orientation)
+        {
+            var vertical = orientation != "Horizontal";
+            var max = vertical ? Layers.DocumentWidth : Layers.DocumentHeight;
+            var dialog = new NumberPromptDialog(vertical ? "New Vertical Guide" : "New Horizontal Guide", "Position", max / 2.0, 0, max, "px")
+            {
+                Owner = Application.Current.MainWindow,
+            };
+            if (dialog.ShowDialog() != true) return;
+            Canvas.AddGuide(vertical, (float)dialog.Value);
+        }
+
+        /// <summary>View > Grid Size: spacing of the grid lines.</summary>
+        [RelayCommand]
+        private void GridSize()
+        {
+            var dialog = new NumberPromptDialog("Grid", "Grid line every", Canvas.GridSize, 2, 2000, "px") { Owner = Application.Current.MainWindow };
+            if (dialog.ShowDialog() != true) return;
+            Canvas.GridSize = (int)Math.Round(dialog.Value);
+            Canvas.ShowGrid = true;
+        }
+
         private double _lastColorRangeFuzziness = 40;
 
         /// <summary>Select &gt; Color Range: selects everything close to the foreground
@@ -1087,13 +1188,19 @@ namespace JolieCat.UI.ViewModels
             Canvas.BeginAdjustment(FilterOptionsViewModel.TitleOf(kind));
 
             var options = new FilterOptionsViewModel(kind);
+            if (kind == FilterKind.Clouds)
+            {
+                // Clouds are drawn from the foreground to the background color.
+                static double Pack(System.Windows.Media.Color c) => (c.R << 16) | (c.G << 8) | c.B;
+                options.Amount = Pack(Canvas.PrimaryColor);
+                options.SecondAmount = Pack(Canvas.SecondaryColor);
+            }
 
             // Filters with no settings (Invert, Desaturate, Find Edges) apply right away.
             if (!options.HasSettings)
             {
                 Canvas.UpdateAdjustmentPreview(options.Apply);
-                Canvas.CommitAdjustment();
-                RecordFilter(options);
+                CommitFilter(StepForFilter(options));
                 return;
             }
 
@@ -1108,8 +1215,34 @@ namespace JolieCat.UI.ViewModels
 
             if (applied)
             {
-                Canvas.CommitAdjustment();
-                RecordFilter(options);
+                CommitFilter(StepForFilter(options));
+            }
+            else
+            {
+                Canvas.CancelAdjustment();
+            }
+        }
+
+        /// <summary>Filter > Blur Gallery > Tilt-Shift / Iris Blur, with a live canvas preview.</summary>
+        [RelayCommand]
+        private void OpenBlurGallery(string? kind)
+        {
+            if (IsSaving || Layers.ActiveLayer is null || Layers.ActiveLayer.Model.IsGroup) return;
+
+            var options = new BlurGalleryViewModel(iris: kind == "Iris");
+            Canvas.BeginAdjustment(options.Title);
+            void UpdatePreview(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+                Canvas.UpdateAdjustmentPreview(options.Apply);
+            options.PropertyChanged += UpdatePreview;
+            UpdatePreview(null, null!);
+
+            var dialog = new BlurGalleryDialog { DataContext = options, Owner = Application.Current.MainWindow };
+            var applied = dialog.ShowDialog() == true;
+            options.PropertyChanged -= UpdatePreview;
+
+            if (applied)
+            {
+                CommitFilter(StepForBlurGallery(options.Settings, options.Title));
             }
             else
             {
@@ -1136,8 +1269,7 @@ namespace JolieCat.UI.ViewModels
 
             if (applied && !options.Settings.IsNeutral)
             {
-                Canvas.CommitAdjustment();
-                RecordCameraRaw(options.Settings);
+                CommitFilter(StepForCameraRaw(options.Settings));
             }
             else
             {
@@ -1151,6 +1283,13 @@ namespace JolieCat.UI.ViewModels
         private void OpenLiquify()
         {
             if (IsSaving || Layers.ActiveLayer is null || Layers.ActiveLayer.Model.IsGroup) return;
+
+            if (Layers.ActiveLayer.Model.HasSmartFilters)
+            {
+                MessageBox.Show("Liquify can't be a Smart Filter yet. Rasterize the layer first (Layer > Rasterize Smart Filters).",
+                    "Liquify", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
 
             Canvas.BeginAdjustment("Liquify");
             if (Canvas.AdjustmentSourceBitmap is not { } source) { Canvas.CancelAdjustment(); return; }
@@ -1198,8 +1337,7 @@ namespace JolieCat.UI.ViewModels
 
             if (applied)
             {
-                Canvas.CommitAdjustment();
-                RecordSimpleAdjustment(options, adjustmentTitle);
+                CommitFilter(StepForSimpleAdjustment(options, adjustmentTitle));
             }
             else
             {
@@ -1233,8 +1371,7 @@ namespace JolieCat.UI.ViewModels
 
             if (applied)
             {
-                Canvas.CommitAdjustment();
-                RecordLevels(options);
+                CommitFilter(StepForLevels(options));
             }
             else
             {
@@ -1264,8 +1401,7 @@ namespace JolieCat.UI.ViewModels
 
             if (applied)
             {
-                Canvas.CommitAdjustment();
-                RecordCurves(options);
+                CommitFilter(StepForCurves(options));
             }
             else
             {

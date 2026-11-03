@@ -34,6 +34,15 @@ namespace JolieCat.UI.ViewModels
 
         private void RecordAction(ActionStep step) => _actions?.Record(step);
 
+        /// <summary>Finishes a filter/adjustment dialog's OK: on a Smart Filter layer the
+        /// step is added to its filters (editable later), otherwise the previewed pixels
+        /// are kept. Either way the step is recorded into a recording action.</summary>
+        private void CommitFilter(ActionStep step)
+        {
+            if (!Canvas.CommitAsSmartFilter(step)) Canvas.CommitAdjustment();
+            RecordAction(step);
+        }
+
         /// <summary>File > Automate > Batch: plays an action on a folder of images.</summary>
         [CommunityToolkit.Mvvm.Input.RelayCommand]
         private void OpenBatch()
@@ -50,7 +59,7 @@ namespace JolieCat.UI.ViewModels
 
         private static string N(double value) => value.ToString("0.##", CultureInfo.InvariantCulture);
 
-        private void RecordFilter(FilterOptionsViewModel options)
+        internal static ActionStep StepForFilter(FilterOptionsViewModel options)
         {
             var title = FilterOptionsViewModel.TitleOf(options.Kind);
             if (options.HasSettings)
@@ -59,28 +68,40 @@ namespace JolieCat.UI.ViewModels
                     ? $" ({N(options.Amount)}, {N(options.SecondAmount)})"
                     : $" ({N(options.Amount)}{options.Suffix})";
             }
-            RecordAction(new ActionStep { Kind = "Filter", Command = options.Kind.ToString(), Title = title }
-                .With("Amount", options.Amount).With("Second", options.SecondAmount));
+            return new ActionStep { Kind = "Filter", Command = options.Kind.ToString(), Title = title }
+                .With("Amount", options.Amount).With("Second", options.SecondAmount);
         }
 
-        private void RecordCameraRaw(CameraRawSettings s) =>
-            RecordAction(new ActionStep { Kind = "CameraRaw", Command = "CameraRaw", Title = "Camera Raw Filter" }
+        internal static ActionStep StepForCameraRaw(CameraRawSettings s) =>
+            (new ActionStep { Kind = "CameraRaw", Command = "CameraRaw", Title = "Camera Raw Filter" }
                 .With("Temperature", s.Temperature).With("Tint", s.Tint).With("Exposure", s.Exposure)
                 .With("Contrast", s.Contrast).With("Highlights", s.Highlights).With("Shadows", s.Shadows)
                 .With("Whites", s.Whites).With("Blacks", s.Blacks).With("Clarity", s.Clarity)
                 .With("Vibrance", s.Vibrance).With("Saturation", s.Saturation));
 
-        private void RecordSimpleAdjustment(SimpleAdjustmentViewModel options, string title) =>
-            RecordAction(new ActionStep { Kind = "Adjustment", Command = options.Kind.ToString(), Title = title }
+        internal static ActionStep StepForSimpleAdjustment(SimpleAdjustmentViewModel options, string title) =>
+            (new ActionStep { Kind = "Adjustment", Command = options.Kind.ToString(), Title = title }
                 .With("V1", options.Slider1Value).With("V2", options.Slider2Value).With("V3", options.Slider3Value));
 
-        private void RecordLevels(LevelsViewModel o) =>
-            RecordAction(new ActionStep { Kind = "Levels", Command = "Levels", Title = $"Levels ({o.InputBlack}, {N(o.Gamma)}, {o.InputWhite})" }
+        internal static ActionStep StepForBlurGallery(BlurGallerySettings s, string title) =>
+            (new ActionStep { Kind = "BlurGallery", Command = s.Iris ? "Iris" : "TiltShift", Title = $"{title} ({N(s.Blur)} px)" }
+                .With("CenterX", s.CenterX).With("CenterY", s.CenterY).With("Size", s.Size).With("SizeY", s.SizeY)
+                .With("Transition", s.Transition).With("Angle", s.Angle).With("Blur", s.Blur).With("Saturation", s.Saturation));
+
+        /// <summary>A step for the adjustments described by <see cref="AdjustmentSettings"/>
+        /// (Exposure, Black &amp; White, Color Balance, Photo Filter, Gradient Map, Channel
+        /// Mixer, Selective Color).</summary>
+        internal static ActionStep StepForSettings(AdjustmentSettings settings) =>
+            new ActionStep { Kind = "Settings", Command = settings.Kind.ToString(), Title = settings.DisplayName }
+                .With("Settings", settings.Serialize());
+
+        internal static ActionStep StepForLevels(LevelsViewModel o) =>
+            (new ActionStep { Kind = "Levels", Command = "Levels", Title = $"Levels ({o.InputBlack}, {N(o.Gamma)}, {o.InputWhite})" }
                 .With("InBlack", o.InputBlack).With("InWhite", o.InputWhite).With("Gamma", o.Gamma)
                 .With("OutBlack", o.OutputBlack).With("OutWhite", o.OutputWhite));
 
-        private void RecordCurves(CurvesViewModel o) =>
-            RecordAction(new ActionStep { Kind = "Curves", Command = "Curves", Title = $"Curves ({o.Points.Count} points)" }
+        internal static ActionStep StepForCurves(CurvesViewModel o) =>
+            (new ActionStep { Kind = "Curves", Command = "Curves", Title = $"Curves ({o.Points.Count} points)" }
                 .With("Points", string.Join(";", o.Points.Select(p => N(p.X) + ":" + N(p.Y)))));
 
         /// <summary>"x:y;x:y" back into curve points.</summary>
@@ -110,6 +131,88 @@ namespace JolieCat.UI.ViewModels
         /// <summary>Runs one recorded step on the active document, without dialogs.</summary>
         internal bool PlayActionStep(ActionStep step) => !IsSaving && PlayActionStep(step, ActiveDocument ?? FallbackDocument);
 
+        /// <summary>The image filter a recorded step stands for (Filter, Camera Raw,
+        /// Brightness/Contrast, Hue/Saturation, Blur Gallery, Levels, Curves, the other
+        /// adjustments, Shadows/Highlights, Replace Color), or null for a step that isn't
+        /// one. Used by Actions playback and by Smart Filters.</summary>
+        internal static Func<SkiaSharp.SKBitmap, SkiaSharp.SKBitmap>? FilterFor(ActionStep step)
+        {
+            switch (step.Kind)
+            {
+                case "Filter":
+                {
+                    if (!Enum.TryParse<FilterKind>(step.Command, out var kind)) return null;
+                    var options = new FilterOptionsViewModel(kind) { Amount = step.Number("Amount"), SecondAmount = step.Number("Second") };
+                    return options.Apply;
+                }
+
+                case "CameraRaw":
+                {
+                    var settings = CameraRawSettingsOf(step);
+                    return source => CameraRawFilter.Apply(source, settings);
+                }
+
+                case "Adjustment":
+                {
+                    if (!Enum.TryParse<SimpleAdjustmentKind>(step.Command, out var kind)) return null;
+                    var options = new SimpleAdjustmentViewModel(kind)
+                    {
+                        Slider1Value = step.Number("V1"), Slider2Value = step.Number("V2"), Slider3Value = step.Number("V3"),
+                    };
+                    return options.Apply;
+                }
+
+                case "BlurGallery":
+                {
+                    var settings = BlurGallerySettingsOf(step);
+                    return source => BlurGallery.Apply(source, settings);
+                }
+
+                case "Levels":
+                {
+                    var lut = LevelsAdjustment.BuildLut((int)step.Number("InBlack"), (int)step.Number("InWhite", 255), step.Number("Gamma", 1),
+                        (int)step.Number("OutBlack"), (int)step.Number("OutWhite", 255));
+                    return lut.Apply;
+                }
+
+                case "Curves":
+                {
+                    var points = ParseCurvePoints(step.Text("Points"));
+                    if (points.Count < 2) return null;
+                    return CurvesAdjustment.BuildLut(points).Apply;
+                }
+
+                case "Settings":
+                {
+                    if (AdjustmentSettings.Deserialize(step.Text("Settings")) is not { } settings) return null;
+                    return source => ApplySettings(source, settings);
+                }
+
+                case "Tone":
+                    return ToneFilterFor(step);
+
+                default:
+                    return null;
+            }
+        }
+
+        internal static CameraRawSettings CameraRawSettingsOf(ActionStep step) => new()
+        {
+            Temperature = step.Number("Temperature"), Tint = step.Number("Tint"), Exposure = step.Number("Exposure"),
+            Contrast = step.Number("Contrast"), Highlights = step.Number("Highlights"), Shadows = step.Number("Shadows"),
+            Whites = step.Number("Whites"), Blacks = step.Number("Blacks"), Clarity = step.Number("Clarity"),
+            Vibrance = step.Number("Vibrance"), Saturation = step.Number("Saturation"),
+        };
+
+        internal static BlurGallerySettings BlurGallerySettingsOf(ActionStep step) => new()
+        {
+            Iris = step.Command == "Iris",
+            CenterX = step.Number("CenterX", 0.5), CenterY = step.Number("CenterY", 0.5),
+            Size = step.Number("Size", 0.15), SizeY = step.Number("SizeY", 0.2),
+            Transition = step.Number("Transition", 0.2), Angle = step.Number("Angle"),
+            Blur = step.Number("Blur", 15), Saturation = step.Number("Saturation"),
+        };
+
         /// <summary>Runs one recorded step on <paramref name="document"/> - which needn't
         /// be open in a tab (Batch processes files without showing them).</summary>
         internal static bool PlayActionStep(ActionStep step, DocumentViewModel document)
@@ -122,70 +225,6 @@ namespace JolieCat.UI.ViewModels
             {
                 case "Layers":
                     return layers.RunRecordableCommand(step.Command);
-
-                case "Filter":
-                {
-                    if (layer is null || layer.IsGroup || layer.IsAdjustment) return false;
-                    if (!Enum.TryParse<FilterKind>(step.Command, out var kind)) return false;
-                    var options = new FilterOptionsViewModel(kind) { Amount = step.Number("Amount"), SecondAmount = step.Number("Second") };
-                    canvas.BeginAdjustment(FilterOptionsViewModel.TitleOf(kind));
-                    canvas.UpdateAdjustmentPreview(options.Apply);
-                    canvas.CommitAdjustment();
-                    return true;
-                }
-
-                case "CameraRaw":
-                {
-                    if (layer is null || layer.IsGroup || layer.IsAdjustment) return false;
-                    var settings = new CameraRawSettings
-                    {
-                        Temperature = step.Number("Temperature"), Tint = step.Number("Tint"), Exposure = step.Number("Exposure"),
-                        Contrast = step.Number("Contrast"), Highlights = step.Number("Highlights"), Shadows = step.Number("Shadows"),
-                        Whites = step.Number("Whites"), Blacks = step.Number("Blacks"), Clarity = step.Number("Clarity"),
-                        Vibrance = step.Number("Vibrance"), Saturation = step.Number("Saturation"),
-                    };
-                    canvas.BeginAdjustment("Camera Raw Filter");
-                    canvas.UpdateAdjustmentPreview(source => CameraRawFilter.Apply(source, settings));
-                    canvas.CommitAdjustment();
-                    return true;
-                }
-
-                case "Adjustment":
-                {
-                    if (layer is null || layer.IsGroup || layer.IsAdjustment) return false;
-                    if (!Enum.TryParse<SimpleAdjustmentKind>(step.Command, out var kind)) return false;
-                    var options = new SimpleAdjustmentViewModel(kind)
-                    {
-                        Slider1Value = step.Number("V1"), Slider2Value = step.Number("V2"), Slider3Value = step.Number("V3"),
-                    };
-                    canvas.BeginAdjustment(step.Title);
-                    canvas.UpdateAdjustmentPreview(options.Apply);
-                    canvas.CommitAdjustment();
-                    return true;
-                }
-
-                case "Levels":
-                {
-                    if (layer is null || layer.IsGroup || layer.IsAdjustment) return false;
-                    var lut = LevelsAdjustment.BuildLut((int)step.Number("InBlack"), (int)step.Number("InWhite", 255), step.Number("Gamma", 1),
-                        (int)step.Number("OutBlack"), (int)step.Number("OutWhite", 255));
-                    canvas.BeginAdjustment("Levels");
-                    canvas.UpdateAdjustmentPreview(lut.Apply);
-                    canvas.CommitAdjustment();
-                    return true;
-                }
-
-                case "Curves":
-                {
-                    if (layer is null || layer.IsGroup || layer.IsAdjustment) return false;
-                    var points = ParseCurvePoints(step.Text("Points"));
-                    if (points.Count < 2) return false;
-                    var lut = CurvesAdjustment.BuildLut(points);
-                    canvas.BeginAdjustment("Curves");
-                    canvas.UpdateAdjustmentPreview(lut.Apply);
-                    canvas.CommitAdjustment();
-                    return true;
-                }
 
                 case "ImageSize":
                 {
@@ -200,7 +239,19 @@ namespace JolieCat.UI.ViewModels
                 }
 
                 default:
-                    return false;
+                {
+                    if (FilterFor(step) is not { } filter) return false;
+                    if (layer is null || layer.IsGroup || layer.IsAdjustment) return false;
+                    if (layer.HasSmartFilters)
+                    {
+                        canvas.AddSmartFilter(layer, step);
+                        return true;
+                    }
+                    canvas.BeginAdjustment(string.IsNullOrEmpty(step.Title) ? step.Command : step.Title);
+                    canvas.UpdateAdjustmentPreview(filter);
+                    canvas.CommitAdjustment();
+                    return true;
+                }
             }
         }
     }

@@ -39,6 +39,12 @@ namespace JolieCat.Core.Serialization
         public double TimelineFrameRate { get; set; }
 
         public List<TimelineTrackData> TimelineTracks { get; set; } = new();
+
+        /// <summary>Saved selections (Select > Save Selection): name -> SVG path data.</summary>
+        public Dictionary<string, string> SavedSelections { get; set; } = new();
+
+        /// <summary>Guides as "v:120" / "h:64.5" (vertical x / horizontal y, document pixels).</summary>
+        public List<string> Guides { get; set; } = new();
     }
 
     /// <summary>One layer's metadata, plus which zip entry holds its pixels.</summary>
@@ -75,6 +81,18 @@ namespace JolieCat.Core.Serialization
         /// <summary>Zip entry name (under "layers/") holding this layer's mask as a PNG -
         /// only present when <see cref="HasMask"/> is true.</summary>
         public string? MaskEntryName { get; set; }
+
+        /// <summary>Smart Filter layers only: the untouched original (a PNG entry) and
+        /// the filter list (JSON, see <c>SmartFilter.Serialize</c>).</summary>
+        public string? SmartFilterSourceEntryName { get; set; }
+
+        public string? SmartFilters { get; set; }
+
+        /// <summary>Shape layers only: the shape (see <c>ShapeContent.Serialize</c>).</summary>
+        public string? Shape { get; set; }
+
+        /// <summary>Fill layers only: the fill (see <c>FillContent.Serialize</c>).</summary>
+        public string? Fill { get; set; }
 
         /// <summary>Adjustment layers only: the adjustment's settings (see
         /// <c>AdjustmentSettings.Serialize</c>). Null for every other layer.</summary>
@@ -149,5 +167,12 @@ namespace JolieCat.Core.Serialization
         public float X { get; set; }
         public float Y { get; set; }
         public bool Vertical { get; set; }
+        public string Alignment { get; set; } = "Left";
+        public float Leading { get; set; } = 100;
+        public float Tracking { get; set; }
+        public bool Underline { get; set; }
+        public bool Strikethrough { get; set; }
+        public float Warp { get; set; }
+        public string WarpStyle { get; set; } = "Arc";
     }
 }

@@ -103,9 +103,24 @@ namespace JolieCat.UI.ViewModels
             // tools don't, so their shared Properties view hides the color picker for them.
             ToolType.Brush or ToolType.Pencil => new PaintToolOptionsViewModel(showColorPicker: true),
 
+            ToolType.MixerBrush => new PaintToolOptionsViewModel(showColorPicker: true) { ShowWet = true },
+
+            ToolType.PatternStamp => new PaintToolOptionsViewModel(showColorPicker: true) { ShowPattern = true },
+
             ToolType.Eraser or ToolType.CloneStamp or ToolType.HealingBrush or ToolType.SpotHealing or ToolType.Blur or
-                ToolType.Sharpen or ToolType.Sponge or ToolType.Dodge or ToolType.Burn =>
+                ToolType.Sharpen or ToolType.Sponge or ToolType.Dodge or ToolType.Burn or ToolType.Smudge or
+                ToolType.HistoryBrush =>
                 new PaintToolOptionsViewModel(showColorPicker: false),
+
+            ToolType.BackgroundEraser => new PaintToolOptionsViewModel(showColorPicker: false) { ShowTolerance = true, Tolerance = 50 },
+
+            ToolType.MagicEraser => new FillToolOptionsViewModel { ShowColorPicker = false },
+
+            ToolType.RedEye => new RedEyeToolOptionsViewModel(),
+
+            ToolType.ColorSampler => new EmptyToolOptionsViewModel(),
+
+            ToolType.PuppetWarp => new PuppetWarpToolOptionsViewModel(),
 
             ToolType.TextHorizontal or ToolType.TextVertical => new TextToolOptionsViewModel(),
 
@@ -123,6 +138,10 @@ namespace JolieCat.UI.ViewModels
             ToolType.PaintBucket => new FillToolOptionsViewModel(),
 
             ToolType.Gradient => new GradientToolOptionsViewModel(),
+
+            ToolType.Patch => new PatchToolOptionsViewModel(),
+
+            ToolType.ContentAwareMove => new ContentAwareMoveToolOptionsViewModel(),
 
             ToolType.Eyedropper => new EyedropperToolOptionsViewModel(),
 

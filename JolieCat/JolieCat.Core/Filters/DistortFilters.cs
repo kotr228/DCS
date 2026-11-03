@@ -185,7 +185,7 @@ namespace JolieCat.Core.Filters
 
         /// <summary>Bilinear sample (premultiplied, so transparent edges don't darken).
         /// Outside the image the nearest edge pixel is used.</summary>
-        private static SKColor Sample(SKColor[] pixels, int width, int height, float x, float y)
+        internal static SKColor Sample(SKColor[] pixels, int width, int height, float x, float y)
         {
             x = Math.Clamp(x, 0, width - 1);
             y = Math.Clamp(y, 0, height - 1);

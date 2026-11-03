@@ -97,6 +97,9 @@ namespace JolieCat.Core.History
 
         private IEditCommand? Top => _undoStack.Count > 0 ? _undoStack[^1] : null;
 
+        /// <summary>The most recent undoable step (Edit > Fade checks it's still the one it faded).</summary>
+        public IEditCommand? LastCommand => Top;
+
         /// <summary>Call after a successful save: the current state is the saved one.</summary>
         public void MarkSaved()
         {

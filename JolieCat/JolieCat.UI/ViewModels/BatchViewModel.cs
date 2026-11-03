@@ -29,7 +29,7 @@ namespace JolieCat.UI.ViewModels
     /// </summary>
     public partial class BatchViewModel : ObservableObject
     {
-        public static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif" };
+        public static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".psd", ".jolie" };
 
         private CancellationTokenSource? _cancel;
 
@@ -107,7 +107,7 @@ namespace JolieCat.UI.ViewModels
             }
 
             var files = FindFiles();
-            if (files.Count == 0) { Status = "No images (PNG, JPEG, WebP, BMP, GIF) in the source folder."; return; }
+            if (files.Count == 0) { Status = "No images (PNG, JPEG, WebP, BMP, GIF, PSD, .jolie) in the source folder."; return; }
 
             IsRunning = true;
             _cancel = new CancellationTokenSource();
@@ -153,12 +153,8 @@ namespace JolieCat.UI.ViewModels
             if (SelectedAction is null) return "No action selected.";
             try
             {
-                using var decoded = SKBitmap.Decode(path);
-                if (decoded is null) return "not an image JolieCat can read";
-
-                var document = new DocumentViewModel(new ToolboxViewModel(), Path.GetFileNameWithoutExtension(path),
-                    Shared.Enums.ProjectType.StandardImage, decoded.Width, decoded.Height, null);
-                document.Layers.Scene.Layers[0].Canvas.DrawBitmap(decoded, 0, 0);
+                var document = OpenOffscreen(path);
+                if (document is null) return "not an image JolieCat can read";
 
                 foreach (var step in SelectedAction.Steps)
                     if (!Player(step, document))
@@ -171,9 +167,42 @@ namespace JolieCat.UI.ViewModels
                 File.WriteAllBytes(OutputPathFor(path), Encode(flat));
                 return null;
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException
+                or ArgumentException or InvalidDataException or NotSupportedException or FormatException)
             {
                 return ex.Message;
+            }
+        }
+
+        /// <summary>Loads an image, PSD or .jolie project into a document that isn't shown.</summary>
+        private static DocumentViewModel? OpenOffscreen(string path)
+        {
+            var name = Path.GetFileNameWithoutExtension(path);
+            switch (Path.GetExtension(path).ToLowerInvariant())
+            {
+                case ".psd":
+                {
+                    var psd = Core.Formats.PsdCodec.Read(path);
+                    var document = new DocumentViewModel(new ToolboxViewModel(), name);
+                    document.Layers.LoadScene(psd.Scene, name);
+                    return document;
+                }
+                case ".jolie":
+                {
+                    var project = Core.Serialization.ProjectSerializer.Load(path);
+                    var document = new DocumentViewModel(new ToolboxViewModel(), name, project.ProjectType);
+                    document.Layers.LoadScene(project.Scene, name, project.ProjectType, project.SpriteSheetGrid);
+                    return document;
+                }
+                default:
+                {
+                    using var decoded = SKBitmap.Decode(path);
+                    if (decoded is null) return null;
+                    var document = new DocumentViewModel(new ToolboxViewModel(), name,
+                        Shared.Enums.ProjectType.StandardImage, decoded.Width, decoded.Height, null);
+                    document.Layers.Scene.Layers[0].Canvas.DrawBitmap(decoded, 0, 0);
+                    return document;
+                }
             }
         }
 

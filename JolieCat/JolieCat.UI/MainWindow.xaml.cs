@@ -32,11 +32,22 @@ namespace JolieCat.UI
         {
             if (_closeConfirmed || ViewModel is not { } vm) return;
 
+            var prepare = vm.PrepareToExitAsync();
+            if (prepare.IsCompleted)
+            {
+                // Nothing to ask about (or answered right away): just let this close go on.
+                // Calling Close() here, while the window is already closing, would throw.
+                e.Cancel = !prepare.Result;
+                _closeConfirmed = !e.Cancel;
+                return;
+            }
+
             e.Cancel = true;
-            if (!await vm.PrepareToExitAsync()) return;
+            if (!await prepare) return;
 
             _closeConfirmed = true;
-            Close();
+            // A fresh close, after this one has finished cancelling.
+            await Dispatcher.InvokeAsync(Close, System.Windows.Threading.DispatcherPriority.Background);
         }
 
         /// <summary>
@@ -128,6 +139,11 @@ namespace JolieCat.UI
                     vm.Canvas.ResetColors();
                     e.Handled = true;
                     return;
+
+                case Key.Q when modifiers == ModifierKeys.None:
+                    vm.Canvas.ToggleQuickMask();
+                    e.Handled = true;
+                    return;
             }
 
             // Letter: that tool group's last-used tool. Shift+letter: next tool in the group.
@@ -187,6 +203,58 @@ namespace JolieCat.UI
             e.Handled = true;
         }
 
+        /// <summary>Ctrl+click on a layer thumbnail selects that layer's pixels, like
+        /// Photoshop (Ctrl+Shift adds to the selection, Ctrl+Alt subtracts).</summary>
+        private void LayerThumbnail_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (ViewModel is null || sender is not FrameworkElement { DataContext: LayerViewModel row }) return;
+
+            // Double-click a fill layer's thumbnail: its settings.
+            if (e.ClickCount == 2 && row.Model.IsFill && (Keyboard.Modifiers & ModifierKeys.Control) == 0)
+            {
+                ViewModel.Layers.ActiveLayer = row;
+                ViewModel.EditLayerContentCommand.Execute(null);
+                e.Handled = true;
+                return;
+            }
+
+            if ((Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
+            var mode = (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? Core.Documents.SelectionCombine.Add
+                : (Keyboard.Modifiers & ModifierKeys.Alt) != 0 ? Core.Documents.SelectionCombine.Subtract
+                : Core.Documents.SelectionCombine.New;
+            ViewModel.Canvas.SelectLayerTransparency(row.Model, mode);
+            e.Handled = true;
+        }
+
+        // ----- Navigator panel: click or drag to move the view -----
+
+        private void Navigator_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (ViewModel is null) return;
+            NavigatorSurface.CaptureMouse();
+            var p = e.GetPosition(NavigatorSurface);
+            ViewModel.Panels.NavigateTo(p.X, p.Y);
+            e.Handled = true;
+        }
+
+        private void Navigator_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (ViewModel is null || !NavigatorSurface.IsMouseCaptured) return;
+            var p = e.GetPosition(NavigatorSurface);
+            ViewModel.Panels.NavigateTo(p.X, p.Y);
+        }
+
+        private void Navigator_MouseUp(object sender, MouseButtonEventArgs e) => NavigatorSurface.ReleaseMouseCapture();
+
+        /// <summary>Double-clicking a layer's "SF" badge opens its Smart Filters.</summary>
+        private void SmartFilterBadge_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ClickCount != 2 || ViewModel is null) return;
+            if (sender is FrameworkElement { DataContext: LayerViewModel row }) ViewModel.Layers.ActiveLayer = row;
+            ViewModel.OpenSmartFiltersCommand.Execute(null);
+            e.Handled = true;
+        }
+
         /// <summary>Saves the actions after an action is renamed.</summary>
         private void ActionName_LostFocus(object sender, RoutedEventArgs e) => ViewModel?.ActionsPanel.Save();
 
@@ -205,12 +273,12 @@ namespace JolieCat.UI
             "TOOLS\n" +
             "V Move · M Marquee · L Lasso · W Magic Wand · C Crop · I Eyedropper\n" +
             "B Brush · N Pencil · E Eraser · G Gradient / Paint Bucket\n" +
-            "S Clone Stamp (Alt+click = source) · J Spot Healing / Healing Brush · O Dodge / Burn / Sponge · R Blur / Sharpen\n" +
+            "S Clone Stamp (Alt+click = source) · J Spot Healing / Healing Brush / Patch / Content-Aware Move · O Dodge / Burn / Sponge · R Blur / Sharpen\n" +
             "P Pen · A Path Selection · T Text (click existing text to edit it) · U Shape · H Hand · Z Zoom (Alt+click = out)\n" +
             "Shift+letter cycles through tools that share a letter.\n\n" +
             "PAINTING\n" +
             "[ / ]  smaller / bigger brush · pen pressure: see brush options\n" +
-            "X swap foreground / background · D default colors (black / white)\n" +
+            "X swap foreground / background · D default colors (black / white) · Q Quick Mask\n" +
             "Gradient: drag from start to end, Shift = 45° steps\n\n" +
             "VIEW\n" +
             "Space+drag or middle mouse  pan · wheel  zoom\n" +
@@ -218,7 +286,8 @@ namespace JolieCat.UI
             "SELECT\n" +
             "Ctrl+A all · Ctrl+D deselect · Ctrl+Shift+D reselect · Ctrl+Shift+I inverse · Shift+F6 feather\n" +
             "Hold Shift = add, Alt = subtract, Shift+Alt = intersect when starting a selection\n" +
-            "Delete clear · Alt+Backspace fill foreground · Ctrl+Backspace fill background · Shift+F5 Content-Aware Fill\n\n" +
+            "Delete clear · Alt+Backspace fill foreground · Ctrl+Backspace fill background · Shift+F5 Content-Aware Fill\n" +
+            "Ctrl+X cut · Shift+Ctrl+C copy merged · Shift+Ctrl+V paste in place · Shift+Ctrl+F fade · Ctrl+click thumbnail = select layer pixels\n\n" +
             "LAYERS\n" +
             "Ctrl+Shift+N new · Ctrl+J duplicate · Ctrl+E merge down · Ctrl+[ / Ctrl+] order · fx layer style\n" +
             "Ctrl+G group · Ctrl+Shift+G ungroup · Ctrl/Shift+click selects several · drag rows to reorder\n" +

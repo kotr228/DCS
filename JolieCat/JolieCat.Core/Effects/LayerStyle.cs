@@ -62,6 +62,15 @@ namespace JolieCat.Core.Effects
         /// <summary>Direction of the gradient, degrees (90 = from the bottom up, like Photoshop).</summary>
         public double GradientAngle { get; init; } = 90;
 
+        // ----- Pattern Overlay -----
+        public bool PatternOverlay { get; init; }
+        /// <summary>One of <see cref="PatternTiles.Names"/>.</summary>
+        public string PatternName { get; init; } = "Checker";
+        public SKColor PatternColor { get; init; } = SKColors.Black;
+        /// <summary>Scale, % (100 = 16-pixel tiles).</summary>
+        public double PatternScale { get; init; } = 100;
+        public double PatternOpacity { get; init; } = 50;
+
         // ----- Bevel & Emboss (inner bevel) -----
         public bool Bevel { get; init; }
         public double BevelSize { get; init; } = 5;
@@ -74,10 +83,10 @@ namespace JolieCat.Core.Effects
         public SKColor BevelShadow { get; init; } = SKColors.Black;
         public double BevelShadowOpacity { get; init; } = 75;
 
-        public bool HasAnyEffect => DropShadow || OuterGlow || Stroke || ColorOverlay || InnerShadow || InnerGlow || GradientOverlay || Bevel;
+        public bool HasAnyEffect => DropShadow || OuterGlow || Stroke || ColorOverlay || InnerShadow || InnerGlow || GradientOverlay || PatternOverlay || Bevel;
 
         /// <summary>True when some effect is painted inside the layer's own pixels.</summary>
-        public bool HasInnerEffect => ColorOverlay || InnerShadow || InnerGlow || GradientOverlay || Bevel;
+        public bool HasInnerEffect => ColorOverlay || InnerShadow || InnerGlow || GradientOverlay || PatternOverlay || Bevel;
 
         /// <summary>Inner shadow offset: it falls away from the light, like the drop shadow.</summary>
         public SKPoint InnerShadowOffset => Offset(InnerShadowAngle, InnerShadowDistance);
@@ -132,6 +141,7 @@ namespace JolieCat.Core.Effects
             if (InnerShadow) parts.Add(string.Create(c, $"ishadow={Hex(InnerShadowColor)},{InnerShadowOpacity},{InnerShadowAngle},{InnerShadowDistance},{InnerShadowSize}"));
             if (InnerGlow) parts.Add(string.Create(c, $"iglow={Hex(InnerGlowColor)},{InnerGlowOpacity},{InnerGlowSize}"));
             if (GradientOverlay) parts.Add(string.Create(c, $"gradient={Hex(GradientStart)},{Hex(GradientEnd)},{GradientOpacity},{GradientAngle}"));
+            if (PatternOverlay) parts.Add(string.Create(c, $"pattern={PatternName},{Hex(PatternColor)},{PatternScale},{PatternOpacity}"));
             if (Bevel) parts.Add(string.Create(c, $"bevel={BevelSize},{BevelDepth},{BevelAngle},{Hex(BevelHighlight)},{BevelHighlightOpacity},{Hex(BevelShadow)},{BevelShadowOpacity}"));
             return string.Join(";", parts);
         }
@@ -169,6 +179,11 @@ namespace JolieCat.Core.Effects
                         {
                             GradientOverlay = true, GradientStart = SKColor.Parse(v[0]), GradientEnd = SKColor.Parse(v[1]),
                             GradientOpacity = D(v[2]), GradientAngle = D(v[3]),
+                        },
+                        "pattern" when v.Length >= 4 => style with
+                        {
+                            PatternOverlay = true, PatternName = v[0], PatternColor = SKColor.Parse(v[1]),
+                            PatternScale = D(v[2]), PatternOpacity = D(v[3]),
                         },
                         "bevel" when v.Length >= 7 => style with
                         {

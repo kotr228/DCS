@@ -160,7 +160,11 @@ namespace JolieCat.UI.Tests
         {
             var h = new Harness();
             h.Use(ToolType.Shape);
-            h.Canvas.PrimaryColor = System.Windows.Media.Colors.Blue;
+            // Pixels mode paints onto the active layer (the default makes a shape layer).
+            var options = (JolieCat.UI.ViewModels.ToolOptions.ShapeToolOptionsViewModel)h.Toolbox.CurrentToolOptions;
+            options.Mode = JolieCat.UI.ViewModels.ToolOptions.ShapeMode.Pixels;
+            options.FillColor = "#0000FF";
+            options.StrokeWidth = 0;
 
             h.Drag((50, 50), (150, 120));
 

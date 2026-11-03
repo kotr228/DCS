@@ -272,6 +272,70 @@ namespace JolieCat.UI.ViewModels.Layers
         }
 
         /// <summary>Turns a text layer into a plain pixel layer (same pixels). Undoable.</summary>
+        /// <summary>A new editable shape layer above the active layer (in its group).</summary>
+        public void AddShapeLayer(ShapeContent shape)
+        {
+            ExecuteStructuralChange(() =>
+            {
+                var layer = new Layer($"{System.Text.RegularExpressions.Regex.Replace(shape.Kind.ToString(), "(?<=[a-z])(?=[A-Z])", " ")} {Scene.Layers.Count(l => l.IsShape) + 1}",
+                    DocumentWidth, DocumentHeight) { Shape = shape };
+                layer.RenderShape();
+                if (Scene.ActiveLayer is { } active && Scene.IndexOf(active) >= 0)
+                {
+                    layer.ParentId = active.ParentId;
+                    Scene.InsertLayer(Scene.BlockOf(active).End + 1, layer);
+                }
+                else
+                {
+                    Scene.AddLayer(layer);
+                }
+                Scene.ActiveLayer = layer;
+            });
+        }
+
+        /// <summary>A new fill layer above the active layer; with a selection, its mask
+        /// shows the fill only there (like Photoshop).</summary>
+        public void AddFillLayer(FillContent fill)
+        {
+            ExecuteStructuralChange(() =>
+            {
+                var layer = new Layer($"{fill.Title} {Scene.Layers.Count(l => l.IsFill) + 1}", DocumentWidth, DocumentHeight) { Fill = fill };
+                layer.RenderFill();
+                if (Scene.Selection is { HasSelection: true, Path: { } path })
+                {
+                    var mask = layer.AddMask();
+                    mask.Canvas.Clear(SKColors.Black);
+                    using var paint = new SKPaint { Color = SKColors.White, IsAntialias = true };
+                    mask.Canvas.DrawPath(path, paint);
+                }
+                if (Scene.ActiveLayer is { } active && Scene.IndexOf(active) >= 0)
+                {
+                    layer.ParentId = active.ParentId;
+                    Scene.InsertLayer(Scene.BlockOf(active).End + 1, layer);
+                }
+                else
+                {
+                    Scene.AddLayer(layer);
+                }
+                Scene.ActiveLayer = layer;
+            });
+            ActiveLayer?.RefreshMaskThumbnail();
+        }
+
+        /// <summary>Turns a fill layer into ordinary pixels (before painting on it).</summary>
+        public void RasterizeFill(Layer layer)
+        {
+            if (!layer.IsFill) return;
+            ExecuteStructuralChange(() => layer.Fill = null);
+        }
+
+        /// <summary>Turns a shape layer into ordinary pixels (before painting on it).</summary>
+        public void RasterizeShape(Layer layer)
+        {
+            if (!layer.IsShape) return;
+            ExecuteStructuralChange(() => layer.Shape = null);
+        }
+
         public void RasterizeType(Layer layer)
         {
             if (!layer.IsText) return;
@@ -462,6 +526,51 @@ namespace JolieCat.UI.ViewModels.Layers
             ActiveLayer?.RefreshMaskThumbnail();
         }
 
+        /// <summary>Layer > Layer Mask > Reveal Selection / Hide Selection: a new mask that
+        /// shows (or hides) only the selected area.</summary>
+        [RelayCommand(CanExecute = nameof(HasActiveLayer))]
+        private void AddMaskFromSelection(string? mode)
+        {
+            if (ActiveLayer is null || Scene.Selection is not { HasSelection: true, Path: { } path }) return;
+            var reveal = mode != "Hide";
+            var layer = ActiveLayer.Model;
+            ExecuteStructuralChange(() =>
+            {
+                var mask = layer.Mask ?? layer.AddMask();
+                mask.Canvas.Clear(reveal ? SKColors.Black : SKColors.White);
+                using var paint = new SKPaint { Color = reveal ? SKColors.White : SKColors.Black, IsAntialias = true };
+                mask.Canvas.DrawPath(path, paint);
+                mask.IsEnabled = true;
+            });
+            if (layer.IsGroup) layer.IsMaskActive = true;
+            ActiveLayer?.RefreshMaskThumbnail();
+        }
+
+        /// <summary>Image > Crop: crops the document to the selection's bounds.</summary>
+        [RelayCommand]
+        private void CropToSelection()
+        {
+            if (Scene.Selection is not { HasSelection: true, Path: { } path }) return;
+            var b = path.Bounds;
+            var rect = SKRectI.Intersect(new SKRectI(0, 0, DocumentWidth, DocumentHeight),
+                new SKRectI((int)Math.Floor(b.Left), (int)Math.Floor(b.Top), (int)Math.Ceiling(b.Right), (int)Math.Ceiling(b.Bottom)));
+            if (rect.Width <= 0 || rect.Height <= 0) return;
+            CropDocument(rect, 0);
+            Scene.Selection.Clear();
+        }
+
+        /// <summary>Image > Trim: crops away transparent edges (<paramref name="mode"/>
+        /// "Transparent") or edges the color of the top-left pixel ("TopLeft").</summary>
+        [RelayCommand]
+        private void Trim(string? mode)
+        {
+            using var flat = Core.Rendering.SceneCompositor.Flatten(Scene, DocumentWidth, DocumentHeight);
+            SKColor? border = mode == "TopLeft" ? flat.GetPixel(0, 0) : null;
+            var rect = Core.Documents.SelectionOps.TrimBounds(flat, border);
+            if (rect.IsEmpty || (rect.Width == DocumentWidth && rect.Height == DocumentHeight)) return;
+            CropDocument(rect, 0);
+        }
+
         /// <summary>Removes the active layer's mask - a no-op if it has none (see
         /// <see cref="Layer.RemoveMask"/>). Recorded as one undo/redo entry like any
         /// other layer-list operation.</summary>
@@ -613,6 +722,47 @@ namespace JolieCat.UI.ViewModels.Layers
         /// <summary>Crops the whole document to <paramref name="cropRect"/> (see
         /// <see cref="Scene.CropLayers"/>) - the Crop tool's commit step. One undo/redo
         /// entry, like every other structural change.</summary>
+        /// <summary>Filter > Convert for Smart Filters: filters applied to the layer from
+        /// now on stay editable (see <c>CanvasViewModel.CommitAsSmartFilter</c>).</summary>
+        [RelayCommand]
+        private void ConvertForSmartFilters()
+        {
+            var layer = ActiveLayer?.Model;
+            if (layer is null || layer.IsGroup || layer.IsAdjustment || layer.HasSmartFilters) return;
+            ExecuteStructuralChange(() =>
+            {
+                if (layer.IsText) { layer.Text = null; }
+                layer.SetSmartFilters(layer.Bitmap.Copy(), System.Array.Empty<Core.Effects.SmartFilter>());
+            });
+            RefreshActiveLayerBadges();
+        }
+
+        /// <summary>Layer > Smart Filters > Rasterize: keeps what the layer shows now as
+        /// ordinary pixels and drops the filter list.</summary>
+        [RelayCommand]
+        private void RasterizeSmartFilters()
+        {
+            var layer = ActiveLayer?.Model;
+            if (layer is not { HasSmartFilters: true }) return;
+            ExecuteStructuralChange(layer.ClearSmartFilters);
+            RefreshActiveLayerBadges();
+        }
+
+        private void RefreshActiveLayerBadges()
+        {
+            foreach (var item in Items) item.RefreshStyleState();
+        }
+
+        public void ContentAwareScaleDocument(Core.Filters.SeamCarvingPlan plan) =>
+            ExecuteStructuralChange(() =>
+            {
+                Scene.ContentAwareScaleLayers(plan);
+                Scene.Selection.Clear();
+            });
+
+        public void PerspectiveCropDocument(SKPoint[] quad, int width, int height) =>
+            ExecuteStructuralChange(() => Scene.PerspectiveCropLayers(quad, width, height));
+
         public void CropDocument(SKRectI cropRect, float rotationDegrees) =>
             ExecuteStructuralChange(() => Scene.CropLayers(cropRect, rotationDegrees));
 
@@ -862,13 +1012,17 @@ namespace JolieCat.UI.ViewModels.Layers
         {
             var before = Scene.CaptureLayers();
             var beforeActiveIndex = IndexOfLayer(ActiveLayer?.Model);
+            var guidesBefore = Scene.Guides.ToList();
 
             operation();
 
             var after = Scene.CaptureLayers();
             var afterActiveIndex = IndexOfLayer(Scene.ActiveLayer);
+            var guidesAfter = Scene.Guides.ToList();
+            var guidesChanged = !guidesBefore.SequenceEqual(guidesAfter);
 
-            History.PushStructural(new SceneStructuralCommand(Scene, before, beforeActiveIndex, after, afterActiveIndex), StepName(caller));
+            History.PushStructural(new SceneStructuralCommand(Scene, before, beforeActiveIndex, after, afterActiveIndex,
+                guidesChanged ? guidesBefore : null, guidesChanged ? guidesAfter : null), StepName(caller));
         }
 
         /// <summary>History panel name for a structural change, from the method that made it.</summary>
@@ -912,6 +1066,8 @@ namespace JolieCat.UI.ViewModels.Layers
         private static string StepNameOf(string caller) => caller switch
         {
             nameof(AddLayer) => "New Layer",
+            nameof(AutoAlignLayers) => "Auto-Align Layers",
+            nameof(MergeToHdrPro) => "Merge to HDR Pro",
             nameof(ResizeDocument) => "Canvas Size",
             nameof(ResampleDocument) => "Image Size",
             nameof(RotateDocument) => "Rotate Canvas",
@@ -923,7 +1079,16 @@ namespace JolieCat.UI.ViewModels.Layers
             nameof(ToggleClippingMask) => "Clipping Mask",
             nameof(AddTextLayer) => "Type Layer",
             nameof(RasterizeType) => "Rasterize Type",
+            nameof(AddShapeLayer) => "Shape Layer",
+            nameof(AddFillLayer) => "Fill Layer",
+            nameof(RasterizeFill) => "Rasterize Fill",
+            nameof(RasterizeShape) => "Rasterize Shape",
             nameof(RemoveMask) => "Delete Layer Mask",
+            nameof(ConvertForSmartFilters) => "Convert for Smart Filters",
+            nameof(AddMaskFromSelection) => "Add Layer Mask",
+            nameof(RestoreSnapshot) => "Snapshot",
+            nameof(ContentAwareScaleDocument) => "Content-Aware Scale",
+            nameof(RasterizeSmartFilters) => "Rasterize Smart Filters",
             _ => System.Text.RegularExpressions.Regex.Replace(caller, "(?<=[a-z])(?=[A-Z])", " "),
         };
 

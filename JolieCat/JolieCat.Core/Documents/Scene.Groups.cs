@@ -267,8 +267,12 @@ namespace JolieCat.Core.Documents
                 IsExpanded = layer.IsExpanded,
                 IsClipped = layer.IsClipped,
                 Text = layer.Text,
+                Shape = layer.Shape,
+                Fill = layer.Fill,
             };
             copy.Canvas.DrawBitmap(layer.Bitmap, 0, 0);
+            if (layer.SmartFilterSource is { } smartSource)
+                copy.SetSmartFilters(smartSource.Copy(), layer.SmartFilters);
 
             if (layer.Mask is { } mask)
             {

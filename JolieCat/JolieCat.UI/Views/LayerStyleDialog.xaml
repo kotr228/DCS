@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
         xmlns:controls="clr-namespace:JolieCat.UI.Controls"
         mc:Ignorable="d"
-        Title="Layer Style" Width="720" Height="470"
+        Title="Layer Style" Width="720" Height="500"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
         d:DataContext="{d:DesignInstance Type=vm:LayerStyleViewModel, IsDesignTimeCreatable=False}">
     <Window.Resources>
@@ -106,6 +106,9 @@
                 <RadioButton x:Name="PageGradient" AutomationProperties.Name="Gradient Overlay settings" Style="{StaticResource EffectTab}">
                     <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Gradient Overlay" IsChecked="{Binding GradientOverlay}" /><TextBlock Text="Gradient Overlay" /></StackPanel>
                 </RadioButton>
+                <RadioButton x:Name="PagePattern" AutomationProperties.Name="Pattern Overlay settings" Style="{StaticResource EffectTab}">
+                    <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Pattern Overlay" IsChecked="{Binding PatternOverlay}" /><TextBlock Text="Pattern Overlay" /></StackPanel>
+                </RadioButton>
                 <RadioButton x:Name="PageGlow" AutomationProperties.Name="Outer Glow settings" Style="{StaticResource EffectTab}">
                     <StackPanel Orientation="Horizontal"><CheckBox Style="{StaticResource EffectToggle}" AutomationProperties.Name="Outer Glow" IsChecked="{Binding OuterGlow}" /><TextBlock Text="Outer Glow" /></StackPanel>
                 </RadioButton>
@@ -125,8 +128,7 @@
                 <DockPanel Style="{StaticResource ColorRow}">
                     <TextBlock Style="{StaticResource FieldLabel}" />
                     <Button Style="{StaticResource FgButton}" CommandParameter="Shadow" />
-                    <Border Style="{StaticResource Swatch}" Background="{Binding ShadowColor}" />
-                    <TextBox Text="{Binding ShadowColor, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:ColorField Hex="{Binding ShadowColor, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="ShadowColor" />
                 </DockPanel>
                 <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding ShadowOpacity, Mode=TwoWay}" />
                 <controls:LabeledSlider Label="Angle" Suffix="°" Minimum="-180" Maximum="180" Value="{Binding ShadowAngle, Mode=TwoWay}" />
@@ -139,8 +141,7 @@
                 <DockPanel Style="{StaticResource ColorRow}">
                     <TextBlock Style="{StaticResource FieldLabel}" />
                     <Button Style="{StaticResource FgButton}" CommandParameter="Glow" />
-                    <Border Style="{StaticResource Swatch}" Background="{Binding GlowColor}" />
-                    <TextBox Text="{Binding GlowColor, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:ColorField Hex="{Binding GlowColor, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="GlowColor" />
                 </DockPanel>
                 <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding GlowOpacity, Mode=TwoWay}" />
                 <controls:LabeledSlider Label="Size" Suffix="px" Minimum="0" Maximum="100" Value="{Binding GlowSize, Mode=TwoWay}" />
@@ -151,8 +152,7 @@
                 <DockPanel Style="{StaticResource ColorRow}">
                     <TextBlock Style="{StaticResource FieldLabel}" />
                     <Button Style="{StaticResource FgButton}" CommandParameter="Stroke" />
-                    <Border Style="{StaticResource Swatch}" Background="{Binding StrokeColor}" />
-                    <TextBox Text="{Binding StrokeColor, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:ColorField Hex="{Binding StrokeColor, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="StrokeColor" />
                 </DockPanel>
                 <controls:LabeledSlider Label="Size" Suffix="px" Minimum="1" Maximum="50" Value="{Binding StrokeSize, Mode=TwoWay}" />
                 <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding StrokeOpacity, Mode=TwoWay}" />
@@ -163,8 +163,7 @@
                 <DockPanel Style="{StaticResource ColorRow}">
                     <TextBlock Style="{StaticResource FieldLabel}" />
                     <Button Style="{StaticResource FgButton}" CommandParameter="Overlay" />
-                    <Border Style="{StaticResource Swatch}" Background="{Binding OverlayColor}" />
-                    <TextBox Text="{Binding OverlayColor, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:ColorField Hex="{Binding OverlayColor, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="OverlayColor" />
                 </DockPanel>
                 <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding OverlayOpacity, Mode=TwoWay}" />
             </StackPanel>
@@ -174,8 +173,7 @@
                 <DockPanel Style="{StaticResource ColorRow}">
                     <TextBlock Style="{StaticResource FieldLabel}" />
                     <Button Style="{StaticResource FgButton}" CommandParameter="InnerShadow" />
-                    <Border Style="{StaticResource Swatch}" Background="{Binding InnerShadowColor}" />
-                    <TextBox Text="{Binding InnerShadowColor, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:ColorField Hex="{Binding InnerShadowColor, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="InnerShadowColor" />
                 </DockPanel>
                 <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding InnerShadowOpacity, Mode=TwoWay}" />
                 <controls:LabeledSlider Label="Angle" Suffix="°" Minimum="-180" Maximum="180" Value="{Binding InnerShadowAngle, Mode=TwoWay}" />
@@ -188,8 +186,7 @@
                 <DockPanel Style="{StaticResource ColorRow}">
                     <TextBlock Style="{StaticResource FieldLabel}" />
                     <Button Style="{StaticResource FgButton}" CommandParameter="InnerGlow" />
-                    <Border Style="{StaticResource Swatch}" Background="{Binding InnerGlowColor}" />
-                    <TextBox Text="{Binding InnerGlowColor, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:ColorField Hex="{Binding InnerGlowColor, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="InnerGlowColor" />
                 </DockPanel>
                 <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding InnerGlowOpacity, Mode=TwoWay}" />
                 <controls:LabeledSlider Label="Size" Suffix="px" Minimum="0" Maximum="100" Value="{Binding InnerGlowSize, Mode=TwoWay}" />
@@ -200,17 +197,30 @@
                 <DockPanel Style="{StaticResource ColorRow}">
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Start color" />
                     <Button Style="{StaticResource FgButton}" CommandParameter="GradientStart" />
-                    <Border Style="{StaticResource Swatch}" Background="{Binding GradientStart}" />
-                    <TextBox Text="{Binding GradientStart, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:ColorField Hex="{Binding GradientStart, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="GradientStart" />
                 </DockPanel>
                 <DockPanel Style="{StaticResource ColorRow}">
                     <TextBlock Style="{StaticResource FieldLabel}" Text="End color" />
                     <Button Style="{StaticResource FgButton}" CommandParameter="GradientEnd" />
-                    <Border Style="{StaticResource Swatch}" Background="{Binding GradientEnd}" />
-                    <TextBox Text="{Binding GradientEnd, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:ColorField Hex="{Binding GradientEnd, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="GradientEnd" />
                 </DockPanel>
                 <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding GradientOpacity, Mode=TwoWay}" />
                 <controls:LabeledSlider Label="Angle" Suffix="°" Minimum="-180" Maximum="180" Value="{Binding GradientAngle, Mode=TwoWay}" />
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding IsChecked, ElementName=PagePattern, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Pattern Overlay" Style="{StaticResource PageTitle}" />
+                <DockPanel Style="{StaticResource ColorRow}">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Pattern" />
+                    <ComboBox ItemsSource="{Binding PatternNames}" SelectedItem="{Binding PatternName}" />
+                </DockPanel>
+                <DockPanel Style="{StaticResource ColorRow}">
+                    <TextBlock Style="{StaticResource FieldLabel}" />
+                    <Button Style="{StaticResource FgButton}" CommandParameter="Pattern" />
+                    <controls:ColorField Hex="{Binding PatternColor, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="PatternColor" />
+                </DockPanel>
+                <controls:LabeledSlider Label="Scale" Suffix="%" Minimum="10" Maximum="1000" Value="{Binding PatternScale, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding PatternOpacity, Mode=TwoWay}" />
             </StackPanel>
 
             <StackPanel Visibility="{Binding IsChecked, ElementName=PageBevel, Converter={StaticResource BoolToVisibility}}">
@@ -221,15 +231,13 @@
                 <DockPanel Style="{StaticResource ColorRow}" Margin="0,4,0,8">
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Highlight" />
                     <Button Style="{StaticResource FgButton}" CommandParameter="BevelHighlight" />
-                    <Border Style="{StaticResource Swatch}" Background="{Binding BevelHighlight}" />
-                    <TextBox Text="{Binding BevelHighlight, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:ColorField Hex="{Binding BevelHighlight, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="BevelHighlight" />
                 </DockPanel>
                 <controls:LabeledSlider Label="Highlight opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding BevelHighlightOpacity, Mode=TwoWay}" />
                 <DockPanel Style="{StaticResource ColorRow}" Margin="0,4,0,8">
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Shadow" />
                     <Button Style="{StaticResource FgButton}" CommandParameter="BevelShadow" />
-                    <Border Style="{StaticResource Swatch}" Background="{Binding BevelShadow}" />
-                    <TextBox Text="{Binding BevelShadow, UpdateSourceTrigger=PropertyChanged}" />
+                    <controls:ColorField Hex="{Binding BevelShadow, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="BevelShadow" />
                 </DockPanel>
                 <controls:LabeledSlider Label="Shadow opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding BevelShadowOpacity, Mode=TwoWay}" />
             </StackPanel>

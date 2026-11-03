@@ -20,6 +20,9 @@ namespace JolieCat.Core.Adjustments
         ColorBalance,
         PhotoFilter,
         GradientMap,
+        ChannelMixer,
+        SelectiveColor,
+        ColorLookup,
     }
 
     /// <summary>
@@ -33,7 +36,10 @@ namespace JolieCat.Core.Adjustments
     /// Levels: [input black, input white, gamma, output black, output white];
     /// Curves: control points flattened as x0, y0, x1, y1, ... (0-255);
     /// Hue/Saturation: [hue -180..180, saturation -100..100, lightness -100..100];
-    /// Posterize: [levels 2..64]; Threshold: [level 0..255]; Invert: none.
+    /// Posterize: [levels 2..64]; Threshold: [level 0..255]; Invert: none;
+    /// Channel Mixer: [red from R, G, B %, constant %, green ..., blue ..., monochrome 0/1];
+    /// Selective Color: [cyan, magenta, yellow, black %] for each of
+    /// <see cref="SelectiveColorRanges"/>, then the method (0 relative, 1 absolute).
     /// </remarks>
     public sealed class AdjustmentSettings
     {
@@ -60,6 +66,9 @@ namespace JolieCat.Core.Adjustments
             AdjustmentKind.ColorBalance => new(kind, new double[9]),
             AdjustmentKind.PhotoFilter => new(kind, new[] { 25.0, 1.0, PackColor(new SKColor(236, 138, 0)) }),
             AdjustmentKind.GradientMap => new(kind, new[] { PackColor(SKColors.Black), PackColor(SKColors.White) }),
+            AdjustmentKind.ChannelMixer => new(kind, new[] { 100.0, 0, 0, 0, 0, 100, 0, 0, 0, 0, 100, 0, 0 }),
+            AdjustmentKind.SelectiveColor => new(kind, new double[SelectiveColorRanges.Length * 4 + 1]),
+            AdjustmentKind.ColorLookup => new(kind, new[] { 0.0, 100.0 }),
             _ => new(kind, Array.Empty<double>()),
         };
 
@@ -71,6 +80,9 @@ namespace JolieCat.Core.Adjustments
             AdjustmentKind.ColorBalance => "Color Balance",
             AdjustmentKind.PhotoFilter => "Photo Filter",
             AdjustmentKind.GradientMap => "Gradient Map",
+            AdjustmentKind.ChannelMixer => "Channel Mixer",
+            AdjustmentKind.SelectiveColor => "Selective Color",
+            AdjustmentKind.ColorLookup => "Color Lookup",
             _ => Kind.ToString(),
         };
 
@@ -197,10 +209,91 @@ namespace JolieCat.Core.Adjustments
                     return SKColorFilter.CreateCompose(map, luma);
                 }
 
+                case AdjustmentKind.ChannelMixer:
+                {
+                    // Each output channel is a mix of the input channels plus a constant.
+                    float P(int i, double fallback) => (float)(At(i, fallback) / 100);
+                    var rows = new float[3][];
+                    for (var c = 0; c < 3; c++)
+                        rows[c] = new[] { P(c * 4, c == 0 ? 100 : 0), P(c * 4 + 1, c == 1 ? 100 : 0), P(c * 4 + 2, c == 2 ? 100 : 0), P(c * 4 + 3, 0) };
+                    if (At(12, 0) >= 0.5) rows[1] = rows[2] = rows[0]; // monochrome: the red mix for all three
+                    return SKColorFilter.CreateColorMatrix(new[]
+                    {
+                        rows[0][0], rows[0][1], rows[0][2], 0, rows[0][3],
+                        rows[1][0], rows[1][1], rows[1][2], 0, rows[1][3],
+                        rows[2][0], rows[2][1], rows[2][2], 0, rows[2][3],
+                        0, 0, 0, 1, 0,
+                    });
+                }
+
+                case AdjustmentKind.SelectiveColor:
+                {
+                    var amounts = new float[SelectiveColorRanges.Length * 4];
+                    for (var i = 0; i < amounts.Length; i++) amounts[i] = (float)(Math.Clamp(At(i, 0), -100, 100) / 100);
+                    return SelectiveColorFilter.Create(amounts, At(amounts.Length, 0) >= 0.5);
+                }
+
+                case AdjustmentKind.ColorLookup:
+                    return ColorLookup((int)Math.Round(At(0, 0)), Math.Clamp(At(1, 100), 0, 100) / 100);
+
                 default:
                     return Rgb(Identity());
             }
         }
+
+        /// <summary>The built-in looks of Color Lookup, in the order their index is stored.</summary>
+        public static readonly string[] ColorLookupLooks =
+            { "Warm", "Cool", "Teal & Orange", "Vintage Fade", "Bleach Bypass", "Film Noir" };
+
+        /// <summary>A film-style look: a tone curve per channel plus a saturation change,
+        /// mixed with the original by <paramref name="intensity"/> (0..1).</summary>
+        private static SKColorFilter ColorLookup(int look, double intensity)
+        {
+            Func<double, double> r = x => x, g = x => x, b = x => x;
+            double saturation = 1;
+            static double S(double x, double k) => x + k * Math.Sin((x - 0.5) * Math.PI) * 0.5 * (1 - Math.Abs(2 * x - 1)) * 2; // contrast
+            switch (look)
+            {
+                case 0: r = x => x * 1.06 + 0.02; b = x => x * 0.9; saturation = 1.05; break;
+                case 1: r = x => x * 0.92; g = x => x * 0.98 + 0.01; b = x => x * 1.04 + 0.03; break;
+                case 2:
+                    r = x => x + 0.09 * (x - 0.5) * 2 * (x > 0.5 ? 1 : 0.8);
+                    g = x => x + 0.02 * (x - 0.5);
+                    b = x => x - 0.10 * (x - 0.5) * 2;
+                    saturation = 1.1;
+                    break;
+                case 3: r = x => 0.09 + 0.86 * x + 0.03 * x; g = x => 0.08 + 0.84 * x; b = x => 0.12 + 0.74 * x; saturation = 0.8; break;
+                case 4: r = g = b = x => S(x, 0.35); saturation = 0.45; break;
+                case 5: r = g = b = x => S(x, 0.5); saturation = 0; break;
+            }
+
+            byte[] Table(Func<double, double> f)
+            {
+                var table = new byte[256];
+                for (var i = 0; i < 256; i++)
+                {
+                    var x = i / 255.0;
+                    table[i] = (byte)Math.Clamp(Math.Round((x + (f(x) - x) * intensity) * 255), 0, 255);
+                }
+                return table;
+            }
+
+            var s = (float)(1 + (saturation - 1) * intensity);
+            var matrix = new[]
+            {
+                0.213f + 0.787f * s, 0.715f - 0.715f * s, 0.072f - 0.072f * s, 0, 0,
+                0.213f - 0.213f * s, 0.715f + 0.285f * s, 0.072f - 0.072f * s, 0, 0,
+                0.213f - 0.213f * s, 0.715f - 0.715f * s, 0.072f + 0.928f * s, 0, 0,
+                0, 0, 0, 1, 0,
+            };
+            using var curves = SKColorFilter.CreateTable(Identity(), Table(r), Table(g), Table(b));
+            using var sat = SKColorFilter.CreateColorMatrix(matrix);
+            return SKColorFilter.CreateCompose(sat, curves);
+        }
+
+        /// <summary>The color ranges Selective Color adjusts, in the order its values are stored.</summary>
+        public static readonly string[] SelectiveColorRanges =
+            { "Reds", "Yellows", "Greens", "Cyans", "Blues", "Magentas", "Whites", "Neutrals", "Blacks" };
 
         /// <summary>Color Balance: values are [shadows cyan-red, magenta-green,
         /// yellow-blue, midtones ..., highlights ...], each -100..100. Each tone range

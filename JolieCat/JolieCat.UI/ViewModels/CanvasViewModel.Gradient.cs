@@ -80,11 +80,22 @@ namespace JolieCat.UI.ViewModels
         {
             var options = _toolbox.CurrentToolOptions as GradientToolOptionsViewModel ?? new GradientToolOptionsViewModel();
 
-            var first = BrushColor;
-            var second = options.Colors == GradientColors.ForegroundToTransparent ? first.WithAlpha(0) : SecondaryBrushColor;
-            if (options.Reverse) (first, second) = (second, first);
+            SKColor[] colors;
+            float[] positions;
+            if (options.Colors == GradientColors.Custom)
+            {
+                (colors, positions) = options.StopArrays();
+            }
+            else
+            {
+                var first = BrushColor;
+                var second = options.Colors == GradientColors.ForegroundToTransparent ? first.WithAlpha(0) : SecondaryBrushColor;
+                colors = new[] { first, second };
+                positions = new[] { 0f, 1f };
+            }
+            if (options.Reverse) (colors, positions) = GradientToolOptionsViewModel.Reversed(colors, positions);
 
-            using var shader = CreateGradientShader(options.Kind, start, end, first, second);
+            using var shader = CreateGradientShader(options.Kind, start, end, colors, positions);
             using var paint = new SKPaint
             {
                 Shader = shader,
@@ -94,7 +105,12 @@ namespace JolieCat.UI.ViewModels
             canvas.DrawRect(new SKRect(0, 0, Layers.DocumentWidth, Layers.DocumentHeight), paint);
         }
 
-        internal static SKShader CreateGradientShader(GradientKind kind, SKPoint start, SKPoint end, SKColor first, SKColor second)
+        internal static SKShader CreateGradientShader(GradientKind kind, SKPoint start, SKPoint end, SKColor first, SKColor second) =>
+            CreateGradientShader(kind, start, end, new[] { first, second }, new[] { 0f, 1f });
+
+        /// <summary>A gradient through <paramref name="colors"/> at <paramref name="positions"/>
+        /// (0..1, ascending) from <paramref name="start"/> to <paramref name="end"/>.</summary>
+        internal static SKShader CreateGradientShader(GradientKind kind, SKPoint start, SKPoint end, SKColor[] colors, float[] positions)
         {
             var dx = end.X - start.X;
             var dy = end.Y - start.Y;
@@ -103,24 +119,35 @@ namespace JolieCat.UI.ViewModels
             switch (kind)
             {
                 case GradientKind.Radial:
-                    return SKShader.CreateRadialGradient(start, length, new[] { first, second }, null, SKShaderTileMode.Clamp);
+                    return SKShader.CreateRadialGradient(start, length, colors, positions, SKShaderTileMode.Clamp);
 
                 case GradientKind.Angle:
                 {
                     // Sweep starts along the drag direction and turns clockwise.
                     var degrees = MathF.Atan2(dy, dx) * 180f / MathF.PI;
                     var rotation = SKMatrix.CreateRotationDegrees(degrees, start.X, start.Y);
-                    return SKShader.CreateSweepGradient(start, new[] { first, second }, null, rotation);
+                    return SKShader.CreateSweepGradient(start, colors, positions, rotation);
                 }
 
                 case GradientKind.Reflected:
                 {
+                    // The stops mirrored around the start point: last..first..last.
                     var mirrored = new SKPoint(start.X - dx, start.Y - dy);
-                    return SKShader.CreateLinearGradient(mirrored, end, new[] { second, first, second }, new[] { 0f, 0.5f, 1f }, SKShaderTileMode.Clamp);
+                    var n = colors.Length;
+                    var c = new SKColor[n * 2];
+                    var p = new float[n * 2];
+                    for (var i = 0; i < n; i++)
+                    {
+                        c[i] = colors[n - 1 - i];
+                        p[i] = 0.5f - positions[n - 1 - i] / 2;
+                        c[n + i] = colors[i];
+                        p[n + i] = 0.5f + positions[i] / 2;
+                    }
+                    return SKShader.CreateLinearGradient(mirrored, end, c, p, SKShaderTileMode.Clamp);
                 }
 
                 default:
-                    return SKShader.CreateLinearGradient(start, end, new[] { first, second }, null, SKShaderTileMode.Clamp);
+                    return SKShader.CreateLinearGradient(start, end, colors, positions, SKShaderTileMode.Clamp);
             }
         }
     }

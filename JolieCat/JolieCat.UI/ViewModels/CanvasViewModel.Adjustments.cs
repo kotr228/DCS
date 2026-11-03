@@ -69,14 +69,39 @@ namespace JolieCat.UI.ViewModels
         public void UpdateAdjustmentPreview(Func<SKBitmap, SKBitmap> preview)
         {
             _adjustmentPreview = preview ?? throw new ArgumentNullException(nameof(preview));
+            _previewPending = true;
 
-            // Computed once per change and cached: the canvas may repaint many times
-            // while a dialog is open, and a large blur is far too slow to redo per frame.
+            // Dragging a slider sends many changes; a slow filter on a big photo can't
+            // keep up with each one. So the preview is computed once the UI is idle,
+            // for the latest settings only (OK computes it right away if still pending).
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher is null || dispatcher.Thread != System.Threading.Thread.CurrentThread)
+            {
+                FlushAdjustmentPreview();
+                return;
+            }
+            if (_previewScheduled) return;
+            _previewScheduled = true;
+            dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
+            {
+                _previewScheduled = false;
+                FlushAdjustmentPreview();
+            }));
+        }
+
+        private bool _previewPending;
+        private bool _previewScheduled;
+
+        /// <summary>Computes the pending preview now (cached: the canvas repaints many
+        /// times while a dialog is open, and a large blur is too slow to redo per frame).</summary>
+        private void FlushAdjustmentPreview()
+        {
+            if (!_previewPending || _adjustmentPreview is null) return;
+            _previewPending = false;
             _adjustmentPreviewBitmap?.Dispose();
             _adjustmentPreviewBitmap = _adjustmentOriginalBitmap is null
                 ? null
-                : LimitToSelection(_adjustmentOriginalBitmap, preview(_adjustmentOriginalBitmap));
-
+                : LimitToSelection(_adjustmentOriginalBitmap, _adjustmentPreview(_adjustmentOriginalBitmap));
             RaiseInvalidate();
         }
 
@@ -105,6 +130,7 @@ namespace JolieCat.UI.ViewModels
         /// with Apply/OK never pushes a do-nothing history entry.</summary>
         public void CommitAdjustment()
         {
+            FlushAdjustmentPreview();
             if (_adjustmentLayer is null || _adjustmentOriginalBitmap is null || _adjustmentPreviewBitmap is null)
             {
                 EndAdjustment();
@@ -137,6 +163,7 @@ namespace JolieCat.UI.ViewModels
             _adjustmentOriginalBitmap?.Dispose();
             _adjustmentOriginalBitmap = null;
             _adjustmentPreview = null;
+            _previewPending = false;
             _adjustmentPreviewBitmap?.Dispose();
             _adjustmentPreviewBitmap = null;
         }

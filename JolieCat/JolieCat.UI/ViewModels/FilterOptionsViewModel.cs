@@ -26,6 +26,10 @@ namespace JolieCat.UI.ViewModels
         RadialBlur,
         SurfaceBlur,
         HighPass,
+        Spherize,
+        Ripple,
+        OilPaint,
+        SmartSharpen,
 
         // No settings: applied immediately, without a dialog.
         Invert,
@@ -33,6 +37,10 @@ namespace JolieCat.UI.ViewModels
         FindEdges,
         AutoContrast,
         AutoColor,
+        Equalize,
+
+        /// <summary>Uses the foreground/background colors (packed into Amount/SecondAmount).</summary>
+        Clouds,
     }
 
     /// <summary>
@@ -296,6 +304,71 @@ namespace JolieCat.UI.ViewModels
                     HasSettings = false;
                     break;
 
+                case FilterKind.Equalize:
+                    Title = "Equalize";
+                    HasSettings = false;
+                    break;
+
+                case FilterKind.Clouds:
+                    Title = "Clouds";
+                    HasSettings = false;
+                    amount = 0x000000;
+                    secondAmount = 0xFFFFFF;
+                    break;
+
+                case FilterKind.Spherize:
+                    Title = "Spherize";
+                    AmountLabel = "Amount";
+                    AmountMin = -100;
+                    AmountMax = 100;
+                    Suffix = "%";
+                    amount = 100;
+                    break;
+
+                case FilterKind.Ripple:
+                    Title = "Ripple";
+                    AmountLabel = "Amount";
+                    AmountMin = -999;
+                    AmountMax = 999;
+                    Suffix = "%";
+                    amount = 100;
+                    HasSecondAmount = true;
+                    SecondAmountLabel = "Size";
+                    SecondAmountMin = 4;
+                    SecondAmountMax = 200;
+                    SecondSuffix = "px";
+                    secondAmount = 24;
+                    break;
+
+                case FilterKind.OilPaint:
+                    Title = "Oil Paint";
+                    AmountLabel = "Stylization";
+                    AmountMin = 1;
+                    AmountMax = 12;
+                    Suffix = "px";
+                    amount = 4;
+                    HasSecondAmount = true;
+                    SecondAmountLabel = "Detail";
+                    SecondAmountMin = 4;
+                    SecondAmountMax = 64;
+                    secondAmount = 20;
+                    break;
+
+                case FilterKind.SmartSharpen:
+                    Title = "Smart Sharpen";
+                    AmountLabel = "Amount";
+                    AmountMin = 0;
+                    AmountMax = 500;
+                    Suffix = "%";
+                    amount = 150;
+                    HasSecondAmount = true;
+                    SecondAmountLabel = "Radius";
+                    SecondAmountMin = 0.1;
+                    SecondAmountMax = 64;
+                    SecondSuffix = "px";
+                    secondAmount = 1.5;
+                    break;
+
                 default:
                     throw new ArgumentOutOfRangeException(nameof(kind));
             }
@@ -331,6 +404,14 @@ namespace JolieCat.UI.ViewModels
             FilterKind.Invert => StylizeFilters.Invert(source),
             FilterKind.Desaturate => StylizeFilters.Desaturate(source),
             FilterKind.FindEdges => StylizeFilters.FindEdges(source),
+            FilterKind.Equalize => ToneFilters.Equalize(source),
+            FilterKind.Spherize => ArtFilters.Spherize(source, (float)Amount),
+            FilterKind.Ripple => ArtFilters.Ripple(source, (float)Amount, (float)SecondAmount),
+            FilterKind.OilPaint => ArtFilters.OilPaint(source, (int)Math.Round(Amount), (int)Math.Round(SecondAmount)),
+            FilterKind.SmartSharpen => ArtFilters.SmartSharpen(source, (float)Amount, (float)SecondAmount),
+            FilterKind.Clouds => ArtFilters.Clouds(source,
+                Core.Adjustments.AdjustmentSettings.UnpackColor(Amount), Core.Adjustments.AdjustmentSettings.UnpackColor(SecondAmount),
+                HashCode.Combine((int)Amount, (int)SecondAmount, source.Width, source.Height)),
             _ => throw new ArgumentOutOfRangeException(),
         };
     }

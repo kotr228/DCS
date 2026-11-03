@@ -209,16 +209,20 @@ namespace JolieCat.UI.Views
             if (e.Key == Key.Enter)
             {
                 viewModel.CommitCrop();
+                viewModel.CommitPerspectiveCrop();
                 viewModel.CommitTransform();
                 viewModel.CommitWarp();
+                viewModel.CommitPuppetWarp();
                 viewModel.CommitPenPath();
                 e.Handled = true;
             }
             else if (e.Key == Key.Escape)
             {
                 viewModel.CancelCrop();
+                viewModel.CancelPerspectiveCrop();
                 viewModel.CancelTransform();
                 viewModel.CancelWarp();
+                viewModel.CancelPuppetWarp();
                 viewModel.CancelPenPath();
                 e.Handled = true;
             }

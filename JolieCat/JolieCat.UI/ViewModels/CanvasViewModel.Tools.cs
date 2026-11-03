@@ -36,7 +36,9 @@ namespace JolieCat.UI.ViewModels
 
         internal static bool IsRetouchTool(ToolType type) => type is
             ToolType.CloneStamp or ToolType.HealingBrush or ToolType.Blur or
-            ToolType.Sharpen or ToolType.Sponge or ToolType.Dodge or ToolType.Burn;
+            ToolType.Sharpen or ToolType.Sponge or ToolType.Dodge or ToolType.Burn or
+            ToolType.Smudge or ToolType.HistoryBrush or ToolType.BackgroundEraser or
+            ToolType.PatternStamp or ToolType.MixerBrush;
 
         internal static bool IsBrushLikeTool(ToolType type) =>
             type is ToolType.Brush or ToolType.Pencil or ToolType.Eraser or ToolType.SpotHealing || IsRetouchTool(type);
@@ -49,6 +51,13 @@ namespace JolieCat.UI.ViewModels
                     ? (float)Math.Max(1, selectionOptions.BrushSize)
                     : null;
 
+        /// <summary>The brush tip's shape for the outline cursor: angle (degrees) and
+        /// roundness (0..1); a plain circle for tools without tip settings.</summary>
+        public (float Angle, float Roundness) BrushOutlineShape =>
+            _toolbox.CurrentToolOptions is PaintToolOptionsViewModel options && !IsRetouchTool(_toolbox.ActiveTool.Type)
+                ? ((float)options.Angle, (float)Math.Clamp(options.Roundness / 100, 0.02, 1))
+                : (0f, 1f);
+
         /// <summary>Handles presses for the tools in this file. Returns true if the
         /// press was consumed (the caller's main tool switch is then skipped).</summary>
         private bool TryHandleExtendedToolPress(SKPoint devicePoint, SKPoint doc, Core.Documents.Layer? activeLayer)
@@ -58,6 +67,28 @@ namespace JolieCat.UI.ViewModels
 
             switch (type)
             {
+                case ToolType.Patch:
+                case ToolType.ContentAwareMove:
+                    return BeginPatch(doc, activeLayer);
+
+                case ToolType.MagicEraser:
+                    MagicErase(activeLayer, doc);
+                    return true;
+
+                case ToolType.RedEye:
+                    FixRedEye(activeLayer, doc);
+                    return true;
+
+                case ToolType.ColorSampler:
+                    PressColorSampler(doc);
+                    return true;
+
+                case ToolType.PuppetWarp:
+                    return PressPuppetWarp(doc);
+
+                case ToolType.PerspectiveCrop:
+                    return BeginPerspectiveDrag(doc);
+
                 case ToolType.Zoom:
                 {
                     var target = alt ? NextZoomStep(-1) : NextZoomStep(+1);
@@ -71,7 +102,8 @@ namespace JolieCat.UI.ViewModels
                     {
                         if (many.Count > 0) BeginMoveMany(many, doc);
                     }
-                    else if (!activeLayer.IsLocked)
+                    else if (!activeLayer.IsLocked
+                             && !(Layers.Scene.Selection.HasSelection && BlockedBySmartFilters(activeLayer)))
                     {
                         BeginMove(activeLayer, doc);
                     }
@@ -139,6 +171,11 @@ namespace JolieCat.UI.ViewModels
         /// <summary>Pointer moves for this file's tools. Returns true if consumed.</summary>
         private bool TryHandleExtendedToolMove(SKPoint doc)
         {
+            if (MoveColorSampler(doc)) return true;
+            if (MovePuppetPin(doc)) return true;
+            if (UpdatePatch(doc)) return true;
+            if (UpdatePerspectiveDrag(doc)) return true;
+
             if (_isDraggingGradient)
             {
                 UpdateGradient(doc);
@@ -181,6 +218,8 @@ namespace JolieCat.UI.ViewModels
 
         private void HandleExtendedToolRelease()
         {
+            ReleaseColorSampler();
+            ReleasePuppetPin();
             if (_isDraggingGradient)
                 CommitGradient();
 
@@ -255,6 +294,7 @@ namespace JolieCat.UI.ViewModels
         private SKPath? _moveSelectionPath;
         private SKPoint _moveStart;
         private SKPointI _moveDelta;
+        private SKRect _moveContentBounds;
 
         /// <summary>Starts dragging the active layer's content - or only the selected
         /// pixels, if there is a selection (the hole they leave becomes transparent).</summary>
@@ -292,6 +332,11 @@ namespace JolieCat.UI.ViewModels
                 _moveBase = null;
                 _moveFloating = _moveSnapshot.Copy();
             }
+
+            // What's being moved, for snapping its edges to guides.
+            _moveContentBounds = _moveSelectionPath is { } moving
+                ? moving.Bounds
+                : Core.Rendering.SceneCompositor.ContentBounds(_moveFloating);
         }
 
         private void UpdateMove(SKPoint doc)
@@ -300,6 +345,7 @@ namespace JolieCat.UI.ViewModels
 
             // Whole-pixel steps keep pixel art crisp (no resampling blur).
             var delta = new SKPointI((int)MathF.Round(doc.X - _moveStart.X), (int)MathF.Round(doc.Y - _moveStart.Y));
+            delta = SnapMoveDelta(_moveContentBounds, delta);
             if (delta == _moveDelta) return;
             _moveDelta = delta;
 
@@ -322,12 +368,24 @@ namespace JolieCat.UI.ViewModels
         {
             _isMoving = false;
 
-            if (_moveLayer is { Text: { } text } textLayer && _moveDelta != default)
+            if (_moveLayer is { Shape: { } shape } shapeLayer && _moveDelta != default)
+            {
+                var movedShape = shape.MovedBy(_moveDelta.X, _moveDelta.Y);
+                shapeLayer.Shape = movedShape;
+                shapeLayer.RenderShape();
+                Layers.History.Push(new Core.History.ShapeChangeCommand(Layers.Scene, shapeLayer, shape, movedShape), "Move");
+            }
+            else if (_moveLayer is { Text: { } text } textLayer && _moveDelta != default)
             {
                 var moved = text.MovedBy(_moveDelta.X, _moveDelta.Y);
                 textLayer.Text = moved;
                 textLayer.RenderText();
                 Layers.History.Push(new Core.History.TextChangeCommand(Layers.Scene, textLayer, text, moved), "Move");
+            }
+            else if (_moveLayer is { HasSmartFilters: true, IsMaskActive: false } smartLayer && _moveDelta != default)
+            {
+                // The original moves and the filters run again (so blur edges etc. follow).
+                Layers.History.Push(ShiftSmartFilterSource(smartLayer, _moveDelta), "Move");
             }
             else if (_moveLayer is not null && _moveSnapshot is not null && _moveDelta != default)
             {
@@ -390,59 +448,27 @@ namespace JolieCat.UI.ViewModels
         private void DrawShape(SKCanvas canvas, SKPoint start, SKPoint end)
         {
             var options = _toolbox.CurrentToolOptions as ShapeToolOptionsViewModel ?? new ShapeToolOptionsViewModel();
-            var rect = new SKRect(Math.Min(start.X, end.X), Math.Min(start.Y, end.Y), Math.Max(start.X, end.X), Math.Max(start.Y, end.Y));
-            var strokeWidth = (float)options.StrokeWidth;
-
-            using var paint = new SKPaint { Color = BrushColor, IsAntialias = options.AntiAlias };
-
-            if (options.Kind == ShapeKind.Line)
-            {
-                paint.Style = SKPaintStyle.Stroke;
-                paint.StrokeWidth = Math.Max(1f, strokeWidth);
-                paint.StrokeCap = SKStrokeCap.Round;
-                canvas.DrawLine(start, end, paint);
-                return;
-            }
-
-            using var path = new SKPath();
-            switch (options.Kind)
-            {
-                case ShapeKind.Ellipse:
-                    path.AddOval(rect);
-                    break;
-                case ShapeKind.RoundedRectangle:
-                    var radius = (float)Math.Min(options.CornerRadius, Math.Min(rect.Width, rect.Height) / 2);
-                    path.AddRoundRect(rect, radius, radius);
-                    break;
-                default:
-                    path.AddRect(rect);
-                    break;
-            }
-
-            if (options.FillEnabled)
-            {
-                paint.Style = SKPaintStyle.Fill;
-                canvas.DrawPath(path, paint);
-            }
-
-            if (strokeWidth > 0 || !options.FillEnabled)
-            {
-                paint.Style = SKPaintStyle.Stroke;
-                paint.StrokeWidth = Math.Max(1f, strokeWidth);
-                paint.StrokeJoin = SKStrokeJoin.Miter;
-                canvas.DrawPath(path, paint);
-            }
+            options.ToShape(start, end).Render(canvas);
         }
 
         private void CommitShape()
         {
-            var layer = Layers.ActiveLayer?.Model;
-            if (layer is null || layer.IsLocked) return;
-
             var dx = _shapeEnd.X - _shapeStart.X;
             var dy = _shapeEnd.Y - _shapeStart.Y;
             if (Math.Abs(dx) < 1 && Math.Abs(dy) < 1) { RaiseInvalidate(); return; }
 
+            var options = _toolbox.CurrentToolOptions as ShapeToolOptionsViewModel ?? new ShapeToolOptionsViewModel();
+            if (options.Mode == ShapeMode.Shape && !IsQuickMask)
+            {
+                // An editable shape layer above the active layer.
+                Layers.AddShapeLayer(options.ToShape(_shapeStart, _shapeEnd));
+                RaiseInvalidate();
+                return;
+            }
+
+            var layer = Layers.ActiveLayer?.Model;
+            if (layer is null || layer.IsLocked && layer.PaintRedirect is null) return;
+            if (!layer.PaintsMask) RasterizeIfText(layer);
             var before = layer.PaintBitmap.Pixels;
             WithSelectionClip(layer.PaintCanvas, canvas => DrawShape(canvas, _shapeStart, _shapeEnd));
             Layers.History.Push(PixelEdit(layer, before));
@@ -485,11 +511,35 @@ namespace JolieCat.UI.ViewModels
             area.Intersect(new SKRectI(0, 0, bitmap.Width, bitmap.Height));
             if (area.Width <= 0 || area.Height <= 0) return;
 
-            using var patch = BuildRetouchPatch(_toolbox.ActiveTool.Type, bitmap, area, r);
+            var type = _toolbox.ActiveTool.Type;
+            using var patch = BuildRetouchPatch(type, bitmap, area, r, center);
+            _lastDabCenter = center;
             if (patch is null) return;
 
             var dabBounds = new SKRect(center.X - r - 1, center.Y - r - 1, center.X + r + 1, center.Y + r + 1);
-            canvas.SaveLayer(dabBounds, null);
+
+            // History Brush and Smudge replace what's there (so they can bring back
+            // transparency too): first take the brush's share of the old pixels away...
+            var replaces = type is ToolType.HistoryBrush or ToolType.Smudge;
+            if (replaces)
+            {
+                var mode = maskPaint.BlendMode;
+                maskPaint.BlendMode = SKBlendMode.DstOut;
+                canvas.Save();
+                canvas.Translate(center.X, center.Y);
+                canvas.Scale(scale);
+                canvas.DrawCircle(0, 0, radius, maskPaint);
+                canvas.Restore();
+                maskPaint.BlendMode = mode;
+            }
+
+            // ...then add the new ones in (Plus); the Background Eraser's patch is an
+            // erase mask instead, applied with DstOut.
+            using var layerPaint = new SKPaint
+            {
+                BlendMode = replaces ? SKBlendMode.Plus : type == ToolType.BackgroundEraser ? SKBlendMode.DstOut : SKBlendMode.SrcOver,
+            };
+            canvas.SaveLayer(dabBounds, layerPaint);
 
             using (var circle = new SKPath())
             {
@@ -512,10 +562,53 @@ namespace JolieCat.UI.ViewModels
             canvas.Restore();
         }
 
-        private SKBitmap? BuildRetouchPatch(ToolType type, SKBitmap layerBitmap, SKRectI area, float radius)
+        private SKBitmap? BuildRetouchPatch(ToolType type, SKBitmap layerBitmap, SKRectI area, float radius, SKPoint center)
         {
             switch (type)
             {
+                case ToolType.Smudge:
+                {
+                    // Pixels from where the previous dab was, dragged to here.
+                    if (_lastDabCenter is not { } previous) return null;
+                    var copy = new SKBitmap(area.Width, area.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+                    using var c = new SKCanvas(copy);
+                    c.Clear(SKColors.Transparent);
+                    c.DrawBitmap(layerBitmap, -area.Left + (center.X - previous.X), -area.Top + (center.Y - previous.Y));
+                    return copy;
+                }
+
+                case ToolType.HistoryBrush:
+                    return _historySource is null ? null : CopyArea(_historySource, area);
+
+                case ToolType.PatternStamp:
+                {
+                    // Anchored to the document, so neighboring strokes line up.
+                    var name = (_toolbox.CurrentToolOptions as PaintToolOptionsViewModel)?.PatternName;
+                    using var tile = Core.Effects.PatternTiles.Create(name, BrushColor);
+                    var patch = new SKBitmap(area.Width, area.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
+                    using var c = new SKCanvas(patch);
+                    using var shader = SKShader.CreateBitmap(tile, SKShaderTileMode.Repeat, SKShaderTileMode.Repeat,
+                        SKMatrix.CreateTranslation(-area.Left, -area.Top));
+                    using var paint = new SKPaint { Shader = shader };
+                    c.Clear(SKColors.Transparent);
+                    c.DrawRect(0, 0, area.Width, area.Height, paint);
+                    return patch;
+                }
+
+                case ToolType.MixerBrush:
+                    return MixerPatch(layerBitmap, area, center, radius);
+
+                case ToolType.BackgroundEraser:
+                {
+                    var x = Math.Clamp((int)center.X, 0, layerBitmap.Width - 1);
+                    var y = Math.Clamp((int)center.Y, 0, layerBitmap.Height - 1);
+                    var sample = layerBitmap.GetPixel(x, y);
+                    if (sample.Alpha == 0) return null;
+                    var tolerance = (float)((_toolbox.CurrentToolOptions as PaintToolOptionsViewModel)?.Tolerance ?? 50);
+                    using var source = CopyArea(layerBitmap, area);
+                    return RetouchOps.EraseMask(source, sample, tolerance);
+                }
+
                 case ToolType.CloneStamp:
                 case ToolType.HealingBrush:
                 {

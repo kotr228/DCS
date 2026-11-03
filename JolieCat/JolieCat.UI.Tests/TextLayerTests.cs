@@ -12,6 +12,43 @@ namespace JolieCat.UI.Tests
     /// the text, moved without losing editability, rasterized before painting.</summary>
     public class TextLayerTests
     {
+        [Fact]
+        public void ChangingTextSettings_RestylesTheSelectedTextLayer_AsOneUndoStep()
+        {
+            Exception? error = null;
+            var thread = new Thread(() =>
+            {
+                try
+                {
+                    var toolbox = new ToolboxViewModel();
+                    var doc = new DocumentViewModel(toolbox, "T");
+                    toolbox.SelectTool(JolieCat.Shared.Enums.ToolType.TextHorizontal);
+                    var options = (JolieCat.UI.ViewModels.ToolOptions.TextToolOptionsViewModel)toolbox.CurrentToolOptions;
+                    doc.Layers.AddTextLayer(new JolieCat.Core.Documents.TextContent("Hi", "Arial", 30, false, false,
+                        SkiaSharp.SKColors.Black, new SkiaSharp.SKPoint(10, 10), false));
+                    var layer = doc.Layers.ActiveLayer!.Model;
+                    var steps = doc.Layers.History.UndoCount;
+
+                    options.Warp = 40;            // a quick run of changes...
+                    options.Warp = 60;
+                    options.IsUnderline = true;
+                    Assert.Equal(60, layer.Text!.Warp);
+                    Assert.True(layer.Text.Underline);
+
+                    doc.Canvas.FlushTextRestyle(); // ...settles into one step
+                    Assert.Equal(steps + 1, doc.Layers.History.UndoCount);
+                    doc.Layers.History.Undo();
+                    Assert.Equal(0, layer.Text!.Warp);
+                    Assert.False(layer.Text.Underline);
+                }
+                catch (Exception ex) { error = ex; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+            thread.Join();
+            if (error is not null) throw new Exception(error.Message, error);
+        }
+
         private static void Sta(Action test)
         {
             Exception? error = null;

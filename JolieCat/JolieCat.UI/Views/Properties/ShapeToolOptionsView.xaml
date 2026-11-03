@@ -8,21 +8,31 @@
              xmlns:opts="clr-namespace:JolieCat.UI.ViewModels.ToolOptions"
              mc:Ignorable="d">
     <StackPanel Margin="10">
+        <TextBlock Text="Draw as" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+        <ComboBox ItemsSource="{x:Static opts:ShapeToolOptionsViewModel.AllModes}"
+                  SelectedItem="{Binding Mode, Mode=TwoWay}" Margin="0,0,0,8" AutomationProperties.Name="Draw as" />
+
         <TextBlock Text="Shape" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
         <ComboBox ItemsSource="{x:Static opts:ShapeToolOptionsViewModel.AllKinds}"
-                  SelectedItem="{Binding Kind, Mode=TwoWay}" Margin="0,0,0,8" />
+                  SelectedItem="{Binding Kind, Mode=TwoWay}" Margin="0,0,0,8" AutomationProperties.Name="Shape kind" />
+
+        <DockPanel Margin="0,0,0,8">
+            <CheckBox DockPanel.Dock="Left" Content="Fill" Width="70" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"
+                      IsChecked="{Binding FillEnabled, Mode=TwoWay}" />
+            <controls:ColorField Hex="{Binding FillColor, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Fill color" />
+        </DockPanel>
+        <DockPanel Margin="0,0,0,8">
+            <TextBlock DockPanel.Dock="Left" Text="Stroke" Width="70" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+            <controls:ColorField Hex="{Binding StrokeColor, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Stroke color" />
+        </DockPanel>
 
         <controls:LabeledSlider Label="Stroke Width" Minimum="0" Maximum="40" Suffix="px" Value="{Binding StrokeWidth, Mode=TwoWay}" />
         <controls:LabeledSlider Label="Corner Radius" Minimum="0" Maximum="200" Suffix="px" Value="{Binding CornerRadius, Mode=TwoWay}" />
-
-        <CheckBox Content="Fill shape" Foreground="{StaticResource TextPrimaryBrush}"
-                  IsChecked="{Binding FillEnabled, Mode=TwoWay}" Margin="0,4,0,0" />
+        <controls:LabeledSlider Label="Sides / points (polygon, star)" Minimum="3" Maximum="24" Suffix="" Value="{Binding Sides, Mode=TwoWay}" />
         <CheckBox Content="Anti-alias" Foreground="{StaticResource TextPrimaryBrush}"
                   IsChecked="{Binding AntiAlias, Mode=TwoWay}" Margin="0,4,0,0" />
 
-        <TextBlock Text="Drag on the canvas. Hold Shift for a square, circle or 45° line."
+        <TextBlock Text="Drag on the canvas. Hold Shift for a square, circle or 45° line. Shape layers stay editable: select one and change these settings."
                    Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,8,0,8" />
-
-        <views:ColorPickerPanel DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Canvas}" />
     </StackPanel>
 </UserControl>

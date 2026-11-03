@@ -112,5 +112,32 @@
                         Command="{Binding SetColorFromHexCommand}" CommandParameter="#FF5722" />
             </UniformGrid>
         </StackPanel>
+
+        <!-- The user's own swatches, shared by all documents and kept between runs.
+             + adds the foreground color; right-click a swatch to delete it. -->
+        <DockPanel Margin="0,2,0,2">
+            <Button DockPanel.Dock="Right" Content="&#xE710;" Width="18" Height="18" Padding="0" FontSize="10"
+                    Style="{StaticResource IconButtonStyle}" ToolTip="Add the foreground color to your swatches"
+                    Click="AddSwatch_Click" AutomationProperties.Name="Add swatch" />
+            <TextBlock Text="SWATCHES" FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                       Foreground="{StaticResource TextSecondaryBrush}" />
+        </DockPanel>
+        <ItemsControl x:Name="UserSwatches" Width="180" HorizontalAlignment="Left">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Button Style="{StaticResource SwatchButtonStyle}" Background="{Binding}" ToolTip="{Binding}"
+                            Click="UserSwatch_Click" Tag="{Binding}">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Delete swatch" Click="DeleteSwatch_Click" Tag="{Binding}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
     </StackPanel>
 </UserControl>

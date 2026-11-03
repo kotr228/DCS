@@ -32,9 +32,13 @@ namespace JolieCat.Core.History
         Guid? ParentId = null,
         bool IsExpanded = true,
         bool IsClipped = false,
-        Documents.TextContent? Text = null)
+        Documents.TextContent? Text = null,
+        SKColor[]? SmartFilterSource = null,
+        IReadOnlyList<Effects.SmartFilter>? SmartFilters = null,
+        Documents.ShapeContent? Shape = null,
+        Documents.FillContent? Fill = null)
     {
         /// <summary>Approximate memory held by this snapshot.</summary>
-        public long ByteSize => (Pixels.LongLength + (MaskPixels?.LongLength ?? 0)) * 4;
+        public long ByteSize => (Pixels.LongLength + (MaskPixels?.LongLength ?? 0) + (SmartFilterSource?.LongLength ?? 0)) * 4;
     }
 }

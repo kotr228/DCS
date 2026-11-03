@@ -42,6 +42,22 @@ namespace JolieCat.UI.ViewModels
         [ObservableProperty] private bool isChecked;
     }
 
+    /// <summary>A drop-down row (which output channel / color range the sliders edit).</summary>
+    public sealed partial class AdjustmentChoiceField : ObservableObject
+    {
+        public AdjustmentChoiceField(string label, IReadOnlyList<string> options)
+        {
+            Label = label;
+            Options = options;
+        }
+
+        public string Label { get; }
+
+        public IReadOnlyList<string> Options { get; }
+
+        [ObservableProperty] private int selectedIndex;
+    }
+
     /// <summary>A color row, edited as #RRGGBB.</summary>
     public sealed partial class AdjustmentColorField : ObservableObject
     {
@@ -109,16 +125,72 @@ namespace JolieCat.UI.ViewModels
                     new AdjustmentColorField("Shadows", AdjustmentSettings.UnpackColor(V(0, 0x000000))),
                     new AdjustmentColorField("Highlights", AdjustmentSettings.UnpackColor(V(1, 0xFFFFFF))),
                 },
+                AdjustmentKind.ChannelMixer => Paged(initial, "Output Channel", new[] { "Red", "Green", "Blue" },
+                    new[] { ("Red", -200.0, 200.0), ("Green", -200, 200), ("Blue", -200, 200), ("Constant", -200, 200) }, "Monochrome"),
+                AdjustmentKind.SelectiveColor => Paged(initial, "Colors", AdjustmentSettings.SelectiveColorRanges,
+                    new[] { ("Cyan", -100.0, 100.0), ("Magenta", -100, 100), ("Yellow", -100, 100), ("Black", -100, 100) }, "Absolute"),
+                AdjustmentKind.ColorLookup => new List<object>
+                {
+                    new AdjustmentChoiceField("Look", AdjustmentSettings.ColorLookupLooks) { SelectedIndex = (int)Math.Clamp(V(0, 0), 0, AdjustmentSettings.ColorLookupLooks.Length - 1) },
+                    new AdjustmentSliderField("Intensity", 0, 100, V(1, 100), "%"),
+                },
                 _ => throw new ArgumentException($"{initial.Kind} has its own dialog.", nameof(initial)),
             };
 
             foreach (var field in Fields.OfType<INotifyPropertyChanged>())
-                field.PropertyChanged += (_, _) => OnPropertyChanged(nameof(Fields));
+                field.PropertyChanged += (_, _) => { if (!_loadingPage) OnPropertyChanged(nameof(Fields)); };
+        }
+
+        // ----- Paged settings: a drop-down picks which group of values the sliders show -----
+
+        private double[]? _pages;
+        private AdjustmentChoiceField? _page;
+        private AdjustmentSliderField[] _pageSliders = Array.Empty<AdjustmentSliderField>();
+        private AdjustmentCheckField? _pageCheck;
+        private bool _loadingPage;
+
+        private List<object> Paged(AdjustmentSettings initial, string choiceLabel, IReadOnlyList<string> pages,
+            (string Label, double Min, double Max)[] sliders, string checkLabel)
+        {
+            var count = pages.Count * sliders.Length;
+            _pages = Enumerable.Range(0, count).Select(i => i < initial.Values.Count ? initial.Values[i] : 0).ToArray();
+            _page = new AdjustmentChoiceField(choiceLabel, pages);
+            _pageSliders = sliders.Select((s, i) => new AdjustmentSliderField(s.Label, s.Min, s.Max, _pages[i], "%")).ToArray();
+            _pageCheck = new AdjustmentCheckField(checkLabel, count < initial.Values.Count && initial.Values[count] >= 0.5);
+
+            _page.PropertyChanged += (_, _) =>
+            {
+                _loadingPage = true;
+                for (var i = 0; i < _pageSliders.Length; i++) _pageSliders[i].Value = _pages[_page.SelectedIndex * _pageSliders.Length + i];
+                _loadingPage = false;
+            };
+            for (var i = 0; i < _pageSliders.Length; i++)
+            {
+                var index = i;
+                _pageSliders[i].PropertyChanged += (_, _) =>
+                {
+                    if (!_loadingPage) _pages[_page.SelectedIndex * _pageSliders.Length + index] = _pageSliders[index].Value;
+                };
+            }
+
+            var fields = new List<object> { _page };
+            fields.AddRange(_pageSliders);
+            fields.Add(_pageCheck);
+            return fields;
         }
 
         public static bool Handles(AdjustmentKind kind) => kind is
             AdjustmentKind.Exposure or AdjustmentKind.BlackWhite or AdjustmentKind.ColorBalance or
-            AdjustmentKind.PhotoFilter or AdjustmentKind.GradientMap;
+            AdjustmentKind.PhotoFilter or AdjustmentKind.GradientMap or AdjustmentKind.ChannelMixer or
+            AdjustmentKind.SelectiveColor or AdjustmentKind.ColorLookup;
+
+        /// <summary>Switches the drop-down of Channel Mixer / Selective Color (tests use it).</summary>
+        public void ShowPage(int index)
+        {
+            if (_page is not null) _page.SelectedIndex = index;
+        }
+
+        public IReadOnlyList<AdjustmentSliderField> Sliders => Fields.OfType<AdjustmentSliderField>().ToList();
 
         public AdjustmentKind Kind { get; }
 
@@ -126,10 +198,13 @@ namespace JolieCat.UI.ViewModels
 
         public IReadOnlyList<object> Fields { get; }
 
-        public AdjustmentSettings ToSettings() => new(Kind, Fields.Select(field => field switch
+        public AdjustmentSettings ToSettings() => _pages is not null
+            ? new(Kind, _pages.Append(_pageCheck!.IsChecked ? 1.0 : 0.0))
+            : new(Kind, Fields.Select(field => field switch
         {
             AdjustmentSliderField slider => slider.Value,
             AdjustmentCheckField check => check.IsChecked ? 1.0 : 0.0,
+            AdjustmentChoiceField choice => choice.SelectedIndex,
             AdjustmentColorField color => AdjustmentSettings.PackColor(color.Color),
             _ => 0.0,
         }));

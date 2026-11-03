@@ -277,7 +277,9 @@ namespace JolieCat.UI.ViewModels
             ToolType.Brush or ToolType.Pencil or ToolType.Eraser or ToolType.PaintBucket or ToolType.Gradient or
             ToolType.CloneStamp or ToolType.HealingBrush or ToolType.SpotHealing or ToolType.Blur or ToolType.Sharpen or
             ToolType.Sponge or ToolType.Dodge or ToolType.Burn or ToolType.Shape or
-            ToolType.Pen or ToolType.FreeTransform or ToolType.Warp;
+            ToolType.Pen or ToolType.FreeTransform or ToolType.Warp or ToolType.Smudge or ToolType.HistoryBrush or
+            ToolType.BackgroundEraser or ToolType.MagicEraser or ToolType.RedEye or ToolType.PuppetWarp or
+            ToolType.PatternStamp or ToolType.MixerBrush;
 
         /// <summary>Raised after any change the view should repaint for - layer pixel
         /// content and selection state included, neither of which is an observable
@@ -297,12 +299,23 @@ namespace JolieCat.UI.ViewModels
             // Rotating the canvas, Image/Canvas Size, cropping (and undoing them) change
             // the document's size: fit the new shape into the view, like Photoshop.
             _lastDocumentSize = (Layers.DocumentWidth, Layers.DocumentHeight);
+
+            // Selecting a text layer shows its settings in the Text tool's options.
+            Layers.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(LayersViewModel.ActiveLayer)) return;
+                FlushTextRestyle();
+                if (Layers.ActiveLayer?.Model.Text is { } text && !IsTextEditing) LoadTextOptions(text);
+                if (Layers.ActiveLayer?.Model.Shape is { } shape) LoadShapeOptions(shape);
+            };
+            WatchTextOptions();
             Layers.PropertyChanged += (_, e) =>
             {
                 if (e.PropertyName is not (nameof(LayersViewModel.DocumentWidth) or nameof(LayersViewModel.DocumentHeight))) return;
                 var size = (Layers.DocumentWidth, Layers.DocumentHeight);
                 if (size == _lastDocumentSize) return;
                 _lastDocumentSize = size;
+                DropSamplersOutsideDocument();
                 if (_viewportWidth > 0 && _viewportHeight > 0) ZoomToFit();
             };
 
@@ -352,8 +365,10 @@ namespace JolieCat.UI.ViewModels
             // otherwise silently vanish just from clicking a different tool - so
             // switching away from one commits it, exactly like the text edit above.
             CommitCrop();
+            CommitPerspectiveCrop();
             CommitTransform();
             CommitWarp();
+            CommitPuppetWarp();
 
             // Switching tools mid-gesture (e.g. clicking Brush while a polygon is only
             // half-drawn) abandons that gesture rather than leaving it to silently
@@ -377,15 +392,22 @@ namespace JolieCat.UI.ViewModels
             // Switching *to* Crop/Free Transform/Warp starts each fresh against
             // whatever's active now - the whole document for Crop, the active layer's
             // current content for Free Transform/Warp.
+            FlushTextRestyle();
+            WatchTextOptions();
             if (_toolbox.ActiveTool.Type == ToolType.Crop) StartCrop();
+            else if (_toolbox.ActiveTool.Type == ToolType.PerspectiveCrop) StartPerspectiveCrop();
             else if (_toolbox.ActiveTool.Type == ToolType.FreeTransform) StartTransform();
             else if (_toolbox.ActiveTool.Type == ToolType.Warp) StartWarp();
+            else if (_toolbox.ActiveTool.Type == ToolType.PuppetWarp) StartPuppetWarp();
 
             ToolHintText = _toolbox.ActiveTool.Type switch
             {
                 ToolType.CloneStamp or ToolType.HealingBrush when _cloneSource is null => "Alt+click to set the clone source",
                 ToolType.Zoom => "Click to zoom in, Alt+click to zoom out",
                 ToolType.Move => "Drag to move the layer (or the selected pixels)",
+                ToolType.Patch => "Draw around what to fix, then drag the selection onto clean texture",
+                ToolType.ContentAwareMove => "Draw around an object, then drag it to its new place",
+                ToolType.PerspectiveCrop => "Drag the corners onto the corners of what to straighten, then press Enter",
                 _ => string.Empty,
             };
 
@@ -414,19 +436,35 @@ namespace JolieCat.UI.ViewModels
                 return;
             }
 
-            var doc = ToDocumentSpace(devicePoint);
+            FlushTextRestyle();
+            if (TryBeginGuideDrag(devicePoint)) return;
+
+            var doc = SnapForActiveTool(ToDocumentSpace(devicePoint));
             var activeLayer = Layers.ActiveLayer?.Model;
             _lastPressure = pressure;
 
             // A group has no pixels: tools that edit pixels need a layer inside it.
-            if (activeLayer is { IsGroup: true, IsMaskActive: false } && EditsPixels(_toolbox.ActiveTool.Type))
+            // Quick Mask: whatever layer is active, painting goes to the Quick Mask.
+            if (IsQuickMask && activeLayer is not null) activeLayer.PaintRedirect = _quickMask;
+
+            if (activeLayer is { IsGroup: true, PaintsMask: false } && EditsPixels(_toolbox.ActiveTool.Type))
             {
                 ToolHintText = "A group is selected - pick a layer inside it to edit pixels";
                 return;
             }
 
+            // A Smart Filter layer shows its filters' result; its pixels can't be painted
+            // (the next filter change would redraw them away), like a Smart Object.
+            if (activeLayer is { HasSmartFilters: true, PaintsMask: false } && EditsPixels(_toolbox.ActiveTool.Type)
+                && _toolbox.ActiveTool.Type is not (ToolType.FreeTransform or ToolType.Warp))
+            {
+                ToolHintText = "This layer has Smart Filters - use Layer > Smart Filters > Rasterize to paint on it";
+                return;
+            }
+
             // Painting on live text rasterizes it first (one undoable step), like Photoshop.
-            if (activeLayer is { IsText: true } && EditsPixels(_toolbox.ActiveTool.Type))
+            if (activeLayer is { PaintsMask: false } && (activeLayer.IsText || activeLayer.IsShape || activeLayer.IsFill) && EditsPixels(_toolbox.ActiveTool.Type)
+                && _toolbox.ActiveTool.Type != ToolType.Shape)
                 RasterizeIfText(activeLayer);
 
             if (TryHandleExtendedToolPress(devicePoint, doc, activeLayer))
@@ -444,7 +482,13 @@ namespace JolieCat.UI.ViewModels
                 case ToolType.Sponge:
                 case ToolType.Dodge:
                 case ToolType.Burn:
+                case ToolType.Smudge:
+                case ToolType.HistoryBrush:
+                case ToolType.BackgroundEraser:
+                case ToolType.PatternStamp:
+                case ToolType.MixerBrush:
                     if (activeLayer is null || activeLayer.IsLocked) break;
+                    if (!BeginRetouchStroke(activeLayer)) break;
 
                     _isPainting = true;
                     _lastPaintPoint = doc;
@@ -572,6 +616,10 @@ namespace JolieCat.UI.ViewModels
 
             HoverDocumentPoint = doc;
 
+            if (UpdateGuideDrag(devicePoint)) return;
+            if (ShowRulers) RaiseInvalidate(); // the pointer marks on the rulers
+            doc = SnapForActiveTool(doc);
+
             if (_isRotatingView)
             {
                 UpdateRotateView(devicePoint);
@@ -665,6 +713,14 @@ namespace JolieCat.UI.ViewModels
 
         public void OnPointerReleased(SKPoint devicePoint)
         {
+            if (EndGuideDrag(devicePoint)) return;
+            if (_isPatching)
+            {
+                EndPatch(ToDocumentSpace(devicePoint));
+                return;
+            }
+            EndPerspectiveDrag();
+
             if (_isPainting)
             {
                 OnPointerMoved(devicePoint, _lastPressure);
@@ -724,6 +780,7 @@ namespace JolieCat.UI.ViewModels
 
             _strokeLayer = null;
             _strokeBeforePixels = null;
+            EndRetouchStroke();
         }
 
         /// <summary>

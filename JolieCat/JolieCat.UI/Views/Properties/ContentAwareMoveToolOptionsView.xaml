@@ -1,0 +1,12 @@
+<UserControl x:Class="JolieCat.UI.Views.Properties.ContentAwareMoveToolOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:opts="clr-namespace:JolieCat.UI.ViewModels.ToolOptions">
+    <StackPanel Margin="10">
+        <TextBlock Text="Mode" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+        <ComboBox ItemsSource="{x:Static opts:ContentAwareMoveToolOptionsViewModel.AllModes}" SelectedItem="{Binding Mode, Mode=TwoWay}"
+                  AutomationProperties.Name="Content-Aware Move mode" Margin="0,0,0,8" />
+        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap"
+                   Text="Draw around an object (or use any selection), then drag it somewhere else. Move: the object moves and the place it left is filled in from its surroundings. Extend: the object is copied and the original stays." />
+    </StackPanel>
+</UserControl>

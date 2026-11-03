@@ -90,10 +90,43 @@ namespace JolieCat.Tests
                 InnerShadow = true, InnerShadowColor = new SKColor(10, 20, 30), InnerShadowOpacity = 40, InnerShadowAngle = 45, InnerShadowDistance = 3, InnerShadowSize = 7,
                 InnerGlow = true, InnerGlowColor = SKColors.Yellow, InnerGlowOpacity = 55, InnerGlowSize = 12,
                 GradientOverlay = true, GradientStart = SKColors.Red, GradientEnd = SKColors.Blue, GradientOpacity = 80, GradientAngle = 30,
+                PatternOverlay = true, PatternName = "Dots", PatternColor = SKColors.Teal, PatternScale = 150, PatternOpacity = 40,
                 Bevel = true, BevelSize = 6, BevelDepth = 150, BevelAngle = 100, BevelHighlight = SKColors.White, BevelHighlightOpacity = 60, BevelShadow = SKColors.Navy, BevelShadowOpacity = 70,
             };
 
             Assert.Equal(style, LayerStyle.Deserialize(style.Serialize()));
+        }
+
+        [Fact]
+        public void PatternOverlay_RepeatsInsideTheContent_Only()
+        {
+            // Checker at 100%: 8-px black squares at (0..8, 0..8), (8..16, 8..16), ...
+            using var flat = Render(new LayerStyle { PatternOverlay = true, PatternName = "Checker", PatternColor = SKColors.Black, PatternOpacity = 100 });
+
+            Assert.Equal(SKColors.Black, flat.GetPixel(17, 17));   // inside, on a black square (16..24)
+            Assert.Equal(SKColors.Red, flat.GetPixel(25, 17));     // inside, between squares: the layer's red
+            Assert.Equal(SKColors.Black, flat.GetPixel(33, 33));   // the pattern repeats
+            Assert.Equal(SKColors.White, flat.GetPixel(4, 4));     // never outside the shape
+        }
+
+        [Fact]
+        public void PatternScale_MakesTheTilesBigger()
+        {
+            using var flat = Render(new LayerStyle { PatternOverlay = true, PatternName = "Checker", PatternColor = SKColors.Black, PatternOpacity = 100, PatternScale = 200 });
+            // 16-px squares now: (16..32, 16..32) is black.
+            Assert.Equal(SKColors.Black, flat.GetPixel(30, 30));
+            Assert.Equal(SKColors.Red, flat.GetPixel(34, 30));
+        }
+
+        [Fact]
+        public void EveryBuiltInPattern_DrawsSomething()
+        {
+            foreach (var name in PatternTiles.Names)
+            {
+                using var tile = PatternTiles.Create(name, SKColors.Black);
+                Assert.Contains(tile.Pixels, p => p.Alpha > 0);
+                Assert.Contains(tile.Pixels, p => p.Alpha < 255);
+            }
         }
 
         [Fact]

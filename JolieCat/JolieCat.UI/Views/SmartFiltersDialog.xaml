@@ -1,0 +1,49 @@
+<Window x:Class="JolieCat.UI.Views.SmartFiltersDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
+        mc:Ignorable="d"
+        Title="Smart Filters" Width="430" Height="400"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
+        d:DataContext="{d:DesignInstance Type=vm:SmartFiltersViewModel, IsDesignTimeCreatable=False}">
+    <DockPanel Margin="16">
+        <TextBlock DockPanel.Dock="Top" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8" Foreground="{StaticResource TextSecondaryBrush}">
+            <Run Text="Filters on" /> <Run Text="{Binding LayerName, Mode=OneWay}" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" /><Run Text=", applied top to bottom. Untick to hide one; changes show at once and can be undone." />
+        </TextBlock>
+
+        <DockPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
+            <Button DockPanel.Dock="Left" Content="Rasterize Layer" Width="110" Command="{Binding RasterizeCommand}"
+                    ToolTip="Keep what the layer shows now as ordinary pixels and drop the filters" />
+            <Button DockPanel.Dock="Right" Content="Close" Width="80" IsCancel="True" IsDefault="True" Click="Close_Click" />
+            <Border />
+        </DockPanel>
+
+        <StackPanel DockPanel.Dock="Right" Margin="10,0,0,0" Width="96">
+            <Button Content="Edit..." Margin="0,0,0,6" Command="{Binding EditCommand}" ToolTip="Change this filter's settings" />
+            <Button Content="Move Up" Margin="0,0,0,6" Command="{Binding MoveUpCommand}" />
+            <Button Content="Move Down" Margin="0,0,0,6" Command="{Binding MoveDownCommand}" />
+            <Button Content="Delete" Command="{Binding DeleteCommand}" />
+        </StackPanel>
+
+        <Grid>
+            <ListBox ItemsSource="{Binding Filters}" SelectedItem="{Binding Selected}" MouseDoubleClick="List_MouseDoubleClick"
+                     Background="{StaticResource PanelBackgroundBrush}" BorderBrush="{StaticResource BorderBrush}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="2,3">
+                            <CheckBox IsChecked="{Binding Enabled}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                      AutomationProperties.Name="{Binding Title}" ToolTip="Show / hide this filter" />
+                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock Text="No filters yet. With this layer active, use any Filter or Image &gt; Adjustments command - it's added here."
+                       TextWrapping="Wrap" TextAlignment="Center" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{StaticResource TextSecondaryBrush}" IsHitTestVisible="False"
+                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+        </Grid>
+    </DockPanel>
+</Window>

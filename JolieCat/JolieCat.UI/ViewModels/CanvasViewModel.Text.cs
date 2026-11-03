@@ -77,13 +77,8 @@ namespace JolieCat.UI.ViewModels
             if (Layers.Items.FirstOrDefault(item => item.Model == layer) is { } row)
                 Layers.ActiveLayer = row;
 
-            if (_toolbox.CurrentToolOptions is TextToolOptionsViewModel options)
-            {
-                options.FontFamily = text.FontFamily;
-                options.FontSize = text.FontSize;
-                options.IsBold = text.Bold;
-                options.IsItalic = text.Italic;
-            }
+            FlushTextRestyle();
+            LoadTextOptions(text);
             PrimaryColor = System.Windows.Media.Color.FromArgb(text.Color.Alpha, text.Color.Red, text.Color.Green, text.Color.Blue);
 
             _editingTextLayer = layer;
@@ -105,15 +100,9 @@ namespace JolieCat.UI.ViewModels
         private TextContent CurrentTextContent(string text)
         {
             var options = _toolbox.CurrentToolOptions as TextToolOptionsViewModel;
-            return new TextContent(
-                text,
-                options?.FontFamily ?? _editingTextBefore?.FontFamily ?? "Segoe UI",
-                (float)(options?.FontSize ?? _editingTextBefore?.FontSize ?? 24),
-                options?.IsBold ?? _editingTextBefore?.Bold ?? false,
-                options?.IsItalic ?? _editingTextBefore?.Italic ?? false,
-                BrushColor,
-                _textEditOrigin,
-                _isVerticalTextEdit);
+            var content = (_editingTextBefore ?? new TextContent(text, "Segoe UI", 24, false, false, BrushColor, _textEditOrigin, _isVerticalTextEdit))
+                with { Text = text, Color = BrushColor, Origin = _textEditOrigin, Vertical = _isVerticalTextEdit };
+            return options is null ? content : options.ApplyTo(content);
         }
 
         /// <summary>Ends the edit, keeping what was typed: a new text becomes a new text
@@ -171,6 +160,8 @@ namespace JolieCat.UI.ViewModels
         private void RasterizeIfText(Layer? layer)
         {
             if (layer is { IsText: true }) Layers.RasterizeType(layer);
+            if (layer is { IsShape: true }) Layers.RasterizeShape(layer);
+            if (layer is { IsFill: true }) Layers.RasterizeFill(layer);
         }
     }
 }

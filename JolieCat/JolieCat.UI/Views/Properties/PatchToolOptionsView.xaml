@@ -1,0 +1,12 @@
+<UserControl x:Class="JolieCat.UI.Views.Properties.PatchToolOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:opts="clr-namespace:JolieCat.UI.ViewModels.ToolOptions">
+    <StackPanel Margin="10">
+        <TextBlock Text="Patch" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2" />
+        <ComboBox ItemsSource="{x:Static opts:PatchToolOptionsViewModel.AllModes}" SelectedItem="{Binding Mode, Mode=TwoWay}"
+                  AutomationProperties.Name="Patch mode" Margin="0,0,0,8" />
+        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap"
+                   Text="Draw around an area (or use any selection), then drag it. Source: the area is rebuilt from where you drop it - use it to remove blemishes. Destination: the area's content is copied to where you drop it. Either way the result is blended into its surroundings." />
+    </StackPanel>
+</UserControl>

@@ -2,6 +2,7 @@ using System;
 using JolieCat.Core.Documents;
 using SkiaSharp;
 using LayerStyleRef = JolieCat.Core.Effects.LayerStyle;
+using PatternTilesRef = JolieCat.Core.Effects.PatternTiles;
 
 namespace JolieCat.Core.Rendering
 {
@@ -410,6 +411,18 @@ namespace JolieCat.Core.Rendering
                 });
             }
 
+            if (style.PatternOverlay && style.PatternOpacity > 0)
+            {
+                Inside(() =>
+                {
+                    using var tile = PatternTilesRef.Create(style.PatternName, style.PatternColor);
+                    var scale = (float)Math.Max(0.05, style.PatternScale / 100);
+                    using var shader = SKShader.CreateBitmap(tile, SKShaderTileMode.Repeat, SKShaderTileMode.Repeat, SKMatrix.CreateScale(scale, scale));
+                    using var paint = new SKPaint { Shader = shader, Color = SKColors.White.WithAlpha(LayerStyleRef.Alpha(style.PatternOpacity)) };
+                    canvas.DrawRect(bounds, paint);
+                });
+            }
+
             if (style.InnerGlow && style.InnerGlowOpacity > 0 && style.InnerGlowSize > 0)
             {
                 var shrink = (float)(style.InnerGlowSize / 4);
@@ -453,7 +466,7 @@ namespace JolieCat.Core.Rendering
 
         /// <summary>The smallest rectangle holding every non-transparent pixel of
         /// <paramref name="bitmap"/> (empty when there are none).</summary>
-        internal static SKRect ContentBounds(SKBitmap bitmap)
+        public static SKRect ContentBounds(SKBitmap bitmap)
         {
             if (bitmap.BytesPerPixel != 4) return new SKRect(0, 0, bitmap.Width, bitmap.Height);
             var bytes = bitmap.GetPixelSpan();

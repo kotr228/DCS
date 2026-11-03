@@ -7,10 +7,52 @@
              xmlns:views="clr-namespace:JolieCat.UI.Views"
              mc:Ignorable="d">
     <StackPanel Margin="10">
+        <!-- Brush presets (built in + saved). Right-click your own to delete it. -->
+        <ItemsControl ItemsSource="{Binding Presets}" Margin="0,0,0,8">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Button Content="{Binding}" Padding="6,2" Margin="0,0,4,4" FontSize="11"
+                            Command="{Binding DataContext.LoadPresetCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding}">
+                        <Button.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="Delete preset"
+                                          Command="{Binding PlacementTarget.DataContext.DeletePresetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                          CommandParameter="{Binding}" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
         <controls:LabeledSlider Label="Size" Minimum="1" Maximum="500" Suffix="px" Value="{Binding Size, Mode=TwoWay}" />
         <controls:LabeledSlider Label="Hardness" Minimum="0" Maximum="100" Suffix="%" Value="{Binding Hardness, Mode=TwoWay}" />
+        <!-- Background Eraser: how far from the color under the brush's center still erases. -->
+        <controls:LabeledSlider Label="Tolerance" Minimum="0" Maximum="255" Value="{Binding Tolerance, Mode=TwoWay}"
+                                Visibility="{Binding ShowTolerance, Converter={StaticResource BoolToVisibility}}" />
+        <controls:LabeledSlider Label="Wet" Minimum="0" Maximum="100" Suffix="%" Value="{Binding Wet, Mode=TwoWay}"
+                                Visibility="{Binding ShowWet, Converter={StaticResource BoolToVisibility}}" />
+        <DockPanel Margin="0,4,0,8" Visibility="{Binding ShowPattern, Converter={StaticResource BoolToVisibility}}">
+            <TextBlock DockPanel.Dock="Left" Text="Pattern" Width="70" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" />
+            <ComboBox ItemsSource="{Binding PatternNames}" SelectedItem="{Binding PatternName}" AutomationProperties.Name="Pattern" />
+        </DockPanel>
         <controls:LabeledSlider Label="Spacing" Minimum="1" Maximum="200" Suffix="%" Value="{Binding Spacing, Mode=TwoWay}" />
         <controls:LabeledSlider Label="Opacity" Minimum="0" Maximum="100" Suffix="%" Value="{Binding Opacity, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Flow" Minimum="1" Maximum="100" Suffix="%" Value="{Binding Flow, Mode=TwoWay}" />
+
+        <Expander Header="Brush tip &amp; dynamics" IsExpanded="{Binding ShowTipSettings}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,2,0,4">
+            <StackPanel Margin="0,6,0,0">
+                <controls:LabeledSlider Label="Angle" Minimum="-180" Maximum="180" Suffix="°" Value="{Binding Angle, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Roundness" Minimum="2" Maximum="100" Suffix="%" Value="{Binding Roundness, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Size jitter" Minimum="0" Maximum="100" Suffix="%" Value="{Binding SizeJitter, Mode=TwoWay}" />
+                <controls:LabeledSlider Label="Scatter" Minimum="0" Maximum="500" Suffix="%" Value="{Binding Scatter, Mode=TwoWay}" />
+                <Button Content="Save as preset" HorizontalAlignment="Left" Padding="8,2" FontSize="11" Command="{Binding SavePresetCommand}" />
+            </StackPanel>
+        </Expander>
 
         <TextBlock Text="Pen pressure" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,2" />
         <CheckBox Content="Controls size" Foreground="{StaticResource TextPrimaryBrush}"

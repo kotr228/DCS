@@ -60,6 +60,19 @@ namespace JolieCat.UI.ViewModels
                 return;
             }
 
+            if (_warpLayer is { HasSmartFilters: true, SmartFilterSource: { } source })
+            {
+                // Smart Filters: warp the untouched original, then run the filters again.
+                var beforeSource = source.Pixels;
+                using (var bakedSource = _warpMesh.Bake(source))
+                    source.Pixels = bakedSource.Pixels;
+                _warpLayer.RenderSmartFilters();
+                Layers.History.Push(new Core.History.SmartFilterSourceCommand(Layers.Scene, _warpLayer, beforeSource, source.Pixels), "Warp");
+                EndWarp();
+                RaiseInvalidate();
+                return;
+            }
+
             var before = _warpLayer.Bitmap.Pixels;
             using (var baked = _warpMesh.Bake(_warpOriginalBitmap))
                 _warpLayer.Bitmap.Pixels = baked.Pixels;

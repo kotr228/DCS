@@ -36,6 +36,7 @@ namespace JolieCat.UI
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+            CrashGuard.Install(this);
 
             // WPF never applies the implicit Window style in App.xaml to a *derived*
             // window class, so every dialog (Filters, Levels, Export, ...) used to open
@@ -43,6 +44,9 @@ namespace JolieCat.UI
             // TextBlock style on top of it. This handler gives every window the dark
             // theme background and a dark OS title bar instead.
             EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler(OnAnyWindowLoaded));
+
+            // The user's own patterns, so layer styles that use them draw right away.
+            Media.PatternLibrary.EnsureLoaded();
 
             var splash = new Views.SplashScreenWindow();
             splash.Show();

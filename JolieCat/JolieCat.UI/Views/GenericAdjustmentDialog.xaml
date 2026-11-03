@@ -18,6 +18,13 @@
                                             Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
                                             Value="{Binding Value, Mode=TwoWay}" />
                 </DataTemplate>
+                <DataTemplate DataType="{x:Type vm:AdjustmentChoiceField}">
+                    <DockPanel Margin="0,0,0,10">
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding Label}" Width="110" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                        <ComboBox ItemsSource="{Binding Options}" SelectedIndex="{Binding SelectedIndex}" AutomationProperties.Name="{Binding Label}" />
+                    </DockPanel>
+                </DataTemplate>
                 <DataTemplate DataType="{x:Type vm:AdjustmentCheckField}">
                     <CheckBox Content="{Binding Label}" IsChecked="{Binding IsChecked}" Margin="0,2,0,8"
                               Foreground="{StaticResource TextPrimaryBrush}" />
@@ -26,15 +33,13 @@
                     <DockPanel Margin="0,0,0,8">
                         <TextBlock DockPanel.Dock="Left" Text="{Binding Label}" Width="110" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextSecondaryBrush}" />
-                        <Border DockPanel.Dock="Right" Width="22" Height="22" Margin="6,0,0,0" CornerRadius="3"
-                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{Binding Hex}" />
-                        <TextBox Text="{Binding Hex, UpdateSourceTrigger=PropertyChanged}" />
+                        <controls:ColorField Hex="{Binding Hex, UpdateSourceTrigger=PropertyChanged}" />
                     </DockPanel>
                 </DataTemplate>
             </ItemsControl.Resources>
         </ItemsControl>
 
-        <TextBlock Text="Preview updates live on the canvas. Colors are #RRGGBB."
+        <TextBlock Text="Preview updates live on the canvas. Click a color swatch to pick a color."
                    Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
