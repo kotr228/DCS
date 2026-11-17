@@ -50,6 +50,12 @@
                 <controls:LabeledSlider Label="Roundness" Minimum="2" Maximum="100" Suffix="%" Value="{Binding Roundness, Mode=TwoWay}" />
                 <controls:LabeledSlider Label="Size jitter" Minimum="0" Maximum="100" Suffix="%" Value="{Binding SizeJitter, Mode=TwoWay}" />
                 <controls:LabeledSlider Label="Scatter" Minimum="0" Maximum="500" Suffix="%" Value="{Binding Scatter, Mode=TwoWay}" />
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
+                    <TextBlock Text="Tip: " FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding TipName, TargetNullValue=Round}" FontSize="11" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                    <Button Content="Round tip" Padding="6,1" FontSize="11" Margin="8,0,0,0" Command="{Binding UseRoundTipCommand}"
+                            ToolTip="Back to the ordinary round tip (a picture tip comes from Edit &gt; Define Brush Preset)" />
+                </StackPanel>
                 <Button Content="Save as preset" HorizontalAlignment="Left" Padding="8,2" FontSize="11" Command="{Binding SavePresetCommand}" />
             </StackPanel>
         </Expander>

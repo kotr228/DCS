@@ -23,6 +23,11 @@ namespace JolieCat.UI.Views.Timeline
 
         private void BodyThumb_DragDelta(object sender, DragDeltaEventArgs e) => ClipViewModel?.DragBy(e.HorizontalChange);
 
+        private void Thumb_DragStarted(object sender, DragStartedEventArgs e) => ClipViewModel?.BeginGesture();
+
+        private void Thumb_DragCompleted(object sender, DragCompletedEventArgs e) =>
+            ClipViewModel?.EndGesture(sender is Thumb { Name: "BodyThumb" } ? "Move Clip" : "Trim Clip");
+
         private void LeftEdgeThumb_DragDelta(object sender, DragDeltaEventArgs e) => ClipViewModel?.ResizeStartBy(e.HorizontalChange);
 
         private void RightEdgeThumb_DragDelta(object sender, DragDeltaEventArgs e) => ClipViewModel?.ResizeEndBy(e.HorizontalChange);

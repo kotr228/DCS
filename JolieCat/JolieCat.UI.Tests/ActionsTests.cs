@@ -20,7 +20,7 @@ namespace JolieCat.UI.Tests
             if (error is not null) throw new Exception(error.Message, error);
         }
 
-        private static MainViewModel Main(out ActionsViewModel actions)
+        private static MainViewModel NewMain(out ActionsViewModel actions)
         {
             var main = new MainViewModel();
             actions = new ActionsViewModel(storePath: null);
@@ -31,7 +31,7 @@ namespace JolieCat.UI.Tests
         [Fact]
         public void LayerCommands_AreRecorded_OnlyWhileRecording() => Sta(() =>
         {
-            var main = Main(out var actions);
+            var main = NewMain(out var actions);
             main.Layers.Rotate180Command.Execute(null);   // not recording yet
 
             actions.NewActionCommand.Execute(null);
@@ -48,7 +48,7 @@ namespace JolieCat.UI.Tests
         [Fact]
         public void Playing_RunsEveryStep_OnTheActiveDocument() => Sta(() =>
         {
-            var main = Main(out var actions);
+            var main = NewMain(out var actions);
             var action = new RecordedAction
             {
                 Name = "Test",
@@ -76,7 +76,7 @@ namespace JolieCat.UI.Tests
         [Fact]
         public void FilterAndCameraRawSteps_ChangeThePixels() => Sta(() =>
         {
-            var main = Main(out _);
+            var main = NewMain(out _);
             var layer = main.Layers.ActiveLayer!.Model;
             layer.Canvas.Clear(new SKColor(100, 100, 100));
 
@@ -95,7 +95,7 @@ namespace JolieCat.UI.Tests
         [Fact]
         public void ImageSizeStep_KeepsTheAspectRatio_OnOtherImages() => Sta(() =>
         {
-            var main = Main(out _);
+            var main = NewMain(out _);
             var w = main.Layers.DocumentWidth;
             var h = main.Layers.DocumentHeight;
 
@@ -107,7 +107,7 @@ namespace JolieCat.UI.Tests
         [Fact]
         public void UnknownSteps_StopPlayback_WithAMessage() => Sta(() =>
         {
-            var main = Main(out var actions);
+            var main = NewMain(out var actions);
             actions.Actions.Add(new ActionItemViewModel(new RecordedAction
             {
                 Steps = { new ActionStep { Kind = "Teleport", Title = "Teleport" }, new ActionStep { Kind = "Layers", Command = "AddLayer" } },

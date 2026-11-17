@@ -54,7 +54,7 @@
                                 Value="{Binding Quality, Mode=TwoWay}" IsEnabled="{Binding UsesQuality}" />
 
         <ProgressBar Height="6" Minimum="0" Maximum="1" Value="{Binding Progress}" Margin="0,4,0,8" />
-        <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextPrimaryBrush}" MinHeight="30" />
+        <TextBlock Text="{Binding Status, Converter={StaticResource Tr}}" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextPrimaryBrush}" MinHeight="30" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="Stop" Width="80" Margin="0,0,8,0" Command="{Binding CancelRunCommand}" />

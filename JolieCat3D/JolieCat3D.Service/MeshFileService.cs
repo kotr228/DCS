@@ -76,6 +76,11 @@ namespace JolieCat3D.Service
             }
         }
 
+        /// <summary>Like <see cref="ImportScene"/>, plus the file's animations as actions
+        /// (glTF only; other formats carry none, so the timeline is null).</summary>
+        public static (Scene3D Scene, Animation.AnimationTimeline? Timeline) ImportSceneWithAnimation(string filePath) =>
+            DetectFormat(filePath) == MeshFileFormat.Gltf ? GltfImporter.ImportWithAnimation(filePath) : (ImportScene(filePath), null);
+
         /// <summary>Writes the whole <paramref name="scene"/> to <paramref name="filePath"/>,
         /// in whichever format its extension names.</summary>
         public static void ExportScene(Scene3D scene, string filePath)

@@ -75,7 +75,7 @@
 
             <RadioButton x:Name="ClipbarAnimationOption" Content="Clipbar Animation" GroupName="ProjectType"
                          Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,2" />
-            <TextBlock Text="Opens into a full-workspace Timeline with playback controls."
+            <TextBlock Text="Opens with the Timeline under the canvas: frames, keyframes, sound, GIF/MP4 export."
                        FontSize="10" Margin="20,0,0,0" TextWrapping="Wrap"
                        Foreground="{StaticResource TextSecondaryBrush}" />
         </StackPanel>

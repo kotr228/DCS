@@ -19,5 +19,8 @@ namespace JolieCat3D.Service.Animation
         /// shape CSS's own default <c>ease</c> timing function produces), starting and
         /// ending each segment gently rather than at a constant speed.</summary>
         Bezier,
+
+        /// <summary>Hold the value until the next key (Blender's "Constant").</summary>
+        Constant,
     }
 }

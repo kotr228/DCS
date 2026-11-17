@@ -48,6 +48,15 @@ public static class DatabaseSchema
             AttachmentsJson TEXT
         );",
 
+        // Assistant memory: full-text indexed (FTS5) so relevant entries are found cheaply
+        @"CREATE VIRTUAL TABLE IF NOT EXISTS Memories USING fts5(
+            Text,
+            Kind      UNINDEXED,
+            Source    UNINDEXED,
+            CreatedAt UNINDEXED,
+            tokenize = 'unicode61 remove_diacritics 2'
+        );",
+
         @"CREATE TABLE IF NOT EXISTS KnownModels (
             Id              TEXT PRIMARY KEY,
             Name            TEXT NOT NULL UNIQUE,

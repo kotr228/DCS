@@ -1,33 +1,32 @@
 using GrayCat.Core.Constants;
-using GrayCat.Core.Interfaces;
 
 namespace GrayCat.Service;
 
+/// <summary>Prepares the app data folders and keeps the service alive.</summary>
 public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
-    private readonly IGenerationService _generationService;
 
-    public Worker(ILogger<Worker> logger, IGenerationService generationService)
+    public Worker(ILogger<Worker> logger)
     {
         _logger = logger;
-        _generationService = generationService;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("GrayCat Worker Service is running");
 
-        // Ensure required directories exist
         Directory.CreateDirectory(AppConstants.Paths.AppData);
         Directory.CreateDirectory(AppConstants.Paths.Logs);
         Directory.CreateDirectory(AppConstants.Paths.Projects);
-        Directory.CreateDirectory(AppConstants.Paths.Templates);
 
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            // Background maintenance tasks can go here
-            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown.
         }
     }
 }

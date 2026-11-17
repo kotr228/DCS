@@ -65,6 +65,8 @@ namespace JolieCat.Shared.Enums
         ColorSampler,
         PuppetWarp,
         PatternStamp,
-        MixerBrush
+        MixerBrush,
+        Ruler,
+        ObjectSelection
     }
 }

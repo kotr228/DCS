@@ -6,9 +6,10 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <materialDesign:BundledTheme BaseTheme="Light"
-                                             PrimaryColor="Brown"
-                                             SecondaryColor="Amber" />
+                <!-- Buttons, switches, sliders and focus lines all use the amber accent -->
+                <materialDesign:CustomColorTheme BaseTheme="Light"
+                                                 PrimaryColor="#AE8530"
+                                                 SecondaryColor="#7D6020" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign2.Defaults.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
@@ -18,41 +19,139 @@
             <conv:BoolToVisibilityConverter    x:Key="BoolToVisConverter"/>
             <conv:ChatRoleToAlignmentConverter x:Key="RoleToAlignmentConverter"/>
             <conv:FileNameConverter            x:Key="FileNameConverter"/>
+            <conv:UkLabelConverter             x:Key="UkLabel"/>
 
-            <!-- ── Кольорова палітра ────────────────────────────────────────── -->
-            <SolidColorBrush x:Key="BrushBackground" Color="#EDCA80"/>
-            <SolidColorBrush x:Key="BrushSurface"    Color="#E4D3BD"/>
-            <SolidColorBrush x:Key="BrushNav"        Color="#79644D"/>
-            <SolidColorBrush x:Key="BrushSuccess"    Color="#5E9D55"/>
-            <SolidColorBrush x:Key="BrushWarning"    Color="#BC907E"/>
-            <SolidColorBrush x:Key="BrushAccent"     Color="#BC8F3C"/>
-            <SolidColorBrush x:Key="BrushDark"       Color="#1F1A17"/>
-            <SolidColorBrush x:Key="BrushLight"      Color="#F9F6F0"/>
+            <!-- ── Palette: the steppe — dry grass, straw, sand ─────────────────
+                 Light sand page, white cards with a thin border, dark dry-grass sidebar,
+                 straw gold only for the main actions. -->
+            <Color x:Key="ColorAccent">#AE8530</Color>
+            <SolidColorBrush x:Key="BrushBackground"   Color="#F6F1E4"/>   <!-- page -->
+            <SolidColorBrush x:Key="BrushSurface"      Color="#FFFFFF"/>   <!-- cards -->
+            <SolidColorBrush x:Key="BrushSurfaceAlt"   Color="#F2EBD8"/>   <!-- inputs, rows, chips -->
+            <SolidColorBrush x:Key="BrushBorder"       Color="#E6DCC2"/>
+            <SolidColorBrush x:Key="BrushNav"          Color="#6E654C"/>   <!-- secondary text, icons -->
+            <SolidColorBrush x:Key="BrushMuted"        Color="#9B9276"/>   <!-- captions -->
+            <SolidColorBrush x:Key="BrushAccent"       Color="#AE8530"/>
+            <SolidColorBrush x:Key="BrushAccentSoft"   Color="#F3E9CC"/>
+            <SolidColorBrush x:Key="BrushDark"         Color="#2B2718"/>   <!-- main text -->
+            <SolidColorBrush x:Key="BrushLight"        Color="#FFFFFF"/>
+            <SolidColorBrush x:Key="BrushSuccess"      Color="#4F8A4A"/>
+            <SolidColorBrush x:Key="BrushWarning"      Color="#B5654A"/>
+            <SolidColorBrush x:Key="BrushDanger"       Color="#B3362B"/>
+            <SolidColorBrush x:Key="BrushSidebar"      Color="#38331F"/>
+            <SolidColorBrush x:Key="BrushSidebarText"  Color="#E3D9B8"/>
+            <SolidColorBrush x:Key="BrushSidebarMuted" Color="#9C9270"/>
+            <SolidColorBrush x:Key="BrushSidebarHover" Color="#454029"/>
+            <SolidColorBrush x:Key="BrushSidebarActive" Color="#524B30"/>
+            <SolidColorBrush x:Key="BrushTerminal"     Color="#29261A"/>
 
-            <!-- ── Chrome-кнопки заголовка вікна ────────────────────────────── -->
+            <!-- ── Text ─────────────────────────────────────────────────────── -->
+            <Style x:Key="PageTitle" TargetType="TextBlock">
+                <Setter Property="FontSize"   Value="22"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+            </Style>
+            <Style x:Key="PageSubtitle" TargetType="TextBlock">
+                <Setter Property="FontSize"     Value="12.5"/>
+                <Setter Property="Foreground"   Value="{StaticResource BrushMuted}"/>
+                <Setter Property="Margin"       Value="0,3,0,0"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+            </Style>
+            <Style x:Key="SectionTitle" TargetType="TextBlock">
+                <Setter Property="FontSize"   Value="14"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+                <Setter Property="Margin"     Value="0,0,0,4"/>
+            </Style>
+            <Style x:Key="Caption" TargetType="TextBlock">
+                <Setter Property="FontSize"     Value="11.5"/>
+                <Setter Property="Foreground"   Value="{StaticResource BrushMuted}"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+            </Style>
+            <Style x:Key="Label" TargetType="TextBlock">
+                <Setter Property="FontSize"   Value="13"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+            </Style>
+            <Style x:Key="MetricLabel" TargetType="TextBlock">
+                <Setter Property="FontSize"   Value="11.5"/>
+                <Setter Property="FontWeight" Value="Medium"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushMuted}"/>
+            </Style>
+            <Style x:Key="MetricValue" TargetType="TextBlock">
+                <Setter Property="FontSize"   Value="26"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+                <Setter Property="Margin"     Value="0,6,0,0"/>
+            </Style>
+
+            <!-- Empty state under lists: big muted icon + text -->
+            <Style x:Key="EmptyIcon" TargetType="materialDesign:PackIcon">
+                <Setter Property="Width"      Value="40"/>
+                <Setter Property="Height"     Value="40"/>
+                <Setter Property="Foreground" Value="#D4CBAE"/>
+                <Setter Property="HorizontalAlignment" Value="Center"/>
+            </Style>
+
+            <!-- ── Cards: white, rounded, thin border, soft shadow ───────────── -->
+            <Style TargetType="materialDesign:Card">
+                <Setter Property="Background" Value="{StaticResource BrushSurface}"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+                <Setter Property="UniformCornerRadius" Value="10"/>
+                <Setter Property="Padding" Value="20"/>
+                <Setter Property="materialDesign:ElevationAssist.Elevation" Value="Dp1"/>
+            </Style>
+
+            <!-- Secondary buttons: outlined, dark text, quiet border -->
+            <Style x:Key="QuietButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignOutlinedButton}">
+                <Setter Property="Foreground"  Value="{StaticResource BrushDark}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}"/>
+                <Setter Property="Background"  Value="{StaticResource BrushSurface}"/>
+                <Setter Property="Height"      Value="34"/>
+                <Setter Property="Padding"     Value="14,0"/>
+                <Setter Property="FontWeight"  Value="Medium"/>
+                <Setter Property="materialDesign:ButtonAssist.CornerRadius" Value="6"/>
+            </Style>
+            <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignRaisedButton}">
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="Height"     Value="34"/>
+                <Setter Property="Padding"    Value="16,0"/>
+                <Setter Property="FontWeight" Value="Medium"/>
+                <Setter Property="materialDesign:ButtonAssist.CornerRadius" Value="6"/>
+                <Setter Property="materialDesign:ElevationAssist.Elevation" Value="Dp0"/>
+            </Style>
+            <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource AccentButton}">
+                <Setter Property="Background"  Value="{StaticResource BrushDanger}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BrushDanger}"/>
+                <Setter Property="Foreground"  Value="White"/>
+            </Style>
+            <Style x:Key="SmallIconButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignIconButton}">
+                <Setter Property="Width"      Value="30"/>
+                <Setter Property="Height"     Value="30"/>
+                <Setter Property="Padding"    Value="0"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushNav}"/>
+            </Style>
+
+            <!-- ── Window chrome buttons ─────────────────────────────────────── -->
             <Style x:Key="ChromeButton" TargetType="Button">
-                <Setter Property="Background"    Value="Transparent"/>
-                <Setter Property="Foreground"    Value="{StaticResource BrushLight}"/>
+                <Setter Property="Background"      Value="Transparent"/>
+                <Setter Property="Foreground"      Value="{StaticResource BrushNav}"/>
                 <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="Width"         Value="44"/>
-                <Setter Property="Height"        Value="44"/>
-                <Setter Property="FontSize"      Value="14"/>
-                <Setter Property="Cursor"        Value="Hand"/>
-                <Setter Property="Margin"        Value="0"/>
+                <Setter Property="Width"           Value="46"/>
+                <Setter Property="Height"          Value="38"/>
+                <Setter Property="FontSize"        Value="13"/>
+                <Setter Property="Cursor"          Value="Hand"/>
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                    Width="44" Height="44">
-                                <ContentPresenter HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"/>
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#8C7560"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="#ECE5D2"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#6B5B45"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="#E0D6BC"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
@@ -60,33 +159,26 @@
                 </Setter>
             </Style>
 
-            <Style x:Key="ChromeCloseButton" TargetType="Button"
-                   BasedOn="{StaticResource ChromeButton}">
+            <Style x:Key="ChromeCloseButton" TargetType="Button" BasedOn="{StaticResource ChromeButton}">
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                    Width="44" Height="44">
-                                <ContentPresenter HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"/>
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
                                     <Setter TargetName="Bd" Property="Background" Value="#C42B1C"/>
+                                    <Setter Property="Foreground" Value="White"/>
                                 </Trigger>
                                 <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="#8B0000"/>
+                                    <Setter TargetName="Bd" Property="Background" Value="#9B2216"/>
+                                    <Setter Property="Foreground" Value="White"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>
-            </Style>
-
-            <!-- ── Картки (MaterialDesign) ───────────────────────────────────── -->
-            <Style TargetType="materialDesign:Card">
-                <Setter Property="Background" Value="{StaticResource BrushSurface}"/>
-                <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
             </Style>
 
         </ResourceDictionary>

@@ -1,7 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
-using HelixToolkit.Wpf;
+using JolieCat3D.Engine.Viewport;
 using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Materials;
 using JolieCat3D.Core.Modifiers;
@@ -49,6 +49,14 @@ namespace JolieCat3D.Engine.Editing
         public float BrushRadius { get; set; } = 20f;
 
         public float Strength { get; set; } = 0.5f;
+
+        /// <summary>Draw, Soften, Smear or Fill.</summary>
+        public TexturePaintMode Mode { get; set; } = TexturePaintMode.Draw;
+
+        // A pause between ticks starts a new stroke (no begin/end events reach the session).
+        private Vector2? _lastUv;
+        private long _lastTick;
+        private bool _filledThisStroke;
 
         public void Attach(CoreNode? node) => Target = node;
 
@@ -133,15 +141,12 @@ namespace JolieCat3D.Engine.Editing
         /// own barycentric U/V, applied to that triangle's own 3 vertex UVs) rather than
         /// a world-space point - there is no "world position to paint at" for a texture
         /// brush, only a 2D coordinate into the material's own image.</summary>
-        public Vector2? RaycastUVHitPoint(HelixViewport3D viewport, Point position)
+        public Vector2? RaycastUVHitPoint(IViewportProjector viewport, Point position)
         {
             ArgumentNullException.ThrowIfNull(viewport);
             if (Target?.Mesh is not { } mesh) return null;
 
-            var ray3D = Viewport3DHelper.Point2DtoRay3D(viewport.Viewport, position);
-            var ray = new CoreRay(
-                new Vector3((float)ray3D.Origin.X, (float)ray3D.Origin.Y, (float)ray3D.Origin.Z),
-                new Vector3((float)ray3D.Direction.X, (float)ray3D.Direction.Y, (float)ray3D.Direction.Z));
+            var ray = viewport.ScreenToRay(position);
 
             var worldTransform = Target.GetWorldTransform();
             var evaluatedMesh = ModifierStack.Evaluate(mesh, Target.Modifiers, Target);
@@ -181,7 +186,27 @@ namespace JolieCat3D.Engine.Editing
         public void PaintAt(Vector2 uv)
         {
             if (Target?.Mesh?.Material?.PaintedTextureBuffer is not { } buffer) return;
-            TexturePaintBrush.Apply(buffer, uv, BrushRadius, Color, Strength);
+            var now = Environment.TickCount64;
+            var newStroke = now - _lastTick > 250;
+            _lastTick = now;
+            if (newStroke) { _lastUv = null; _filledThisStroke = false; }
+            switch (Mode)
+            {
+                case TexturePaintMode.Soften:
+                    TexturePaintBrushExtras.Soften(buffer, uv, BrushRadius, Strength);
+                    break;
+                case TexturePaintMode.Smear:
+                    if (_lastUv is { } previous) TexturePaintBrushExtras.Smear(buffer, uv, previous, BrushRadius, Strength);
+                    break;
+                case TexturePaintMode.Fill:
+                    if (!_filledThisStroke) TexturePaintBrushExtras.Fill(buffer, Color, Strength);
+                    _filledThisStroke = true;
+                    break;
+                default:
+                    TexturePaintBrush.Apply(buffer, uv, BrushRadius, Color, Strength);
+                    break;
+            }
+            _lastUv = uv;
         }
     }
 }

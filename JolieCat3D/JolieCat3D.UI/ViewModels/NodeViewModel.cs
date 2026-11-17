@@ -48,6 +48,20 @@ namespace JolieCat3D.UI.ViewModels
         /// view model.</summary>
         public Node UnderlyingNode => _node;
 
+        private bool _isInSelection;
+
+        /// <summary>True while this object is part of the viewport's multi-selection.</summary>
+        public bool IsInSelection
+        {
+            get => _isInSelection;
+            set => SetProperty(ref _isInSelection, value);
+        }
+
+        /// <summary>Hidden in the viewport - the outliner dims it.</summary>
+        public bool IsHidden => _node.IsHidden;
+
+        public void RefreshHidden() => OnPropertyChanged(nameof(IsHidden));
+
         public ObservableCollection<NodeViewModel> Children { get; } = new();
 
         [ObservableProperty]
@@ -59,6 +73,7 @@ namespace JolieCat3D.UI.ViewModels
             _onChanged = onChanged ?? throw new ArgumentNullException(nameof(onChanged));
             _allNodesProvider = allNodesProvider ?? throw new ArgumentNullException(nameof(allNodesProvider));
             SyncFromCore();
+            RefreshShapeKeys();
             RefreshModifiers();
             RefreshMaterialSlots();
             RefreshCurvePoints();
@@ -174,6 +189,108 @@ namespace JolieCat3D.UI.ViewModels
                 OnPropertyChanged();
                 _onChanged();
             }
+        }
+
+        /// <summary>0 = Opaque, 1 = Blend, 2 = Clip (<see cref="Core.Materials.MaterialAlphaMode"/>).</summary>
+        public int AlphaModeIndex
+        {
+            get => (int)(_node.Mesh?.Material?.AlphaMode ?? Core.Materials.MaterialAlphaMode.Opaque);
+            set
+            {
+                if (_node.Mesh?.Material is not { } material) return;
+                var mode = (Core.Materials.MaterialAlphaMode)System.Math.Clamp(value, 0, 2);
+                if (material.AlphaMode == mode) return;
+                material.AlphaMode = mode;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsAlphaClip));
+                _onChanged();
+            }
+        }
+
+        public bool IsAlphaClip => _node.Mesh?.Material?.AlphaMode == Core.Materials.MaterialAlphaMode.Clip;
+
+        public double AlphaCutoff
+        {
+            get => _node.Mesh?.Material?.AlphaCutoff ?? 0.5;
+            set
+            {
+                if (_node.Mesh?.Material is not { } material) return;
+                material.AlphaCutoff = (float)System.Math.Clamp(value, 0.0, 1.0);
+                OnPropertyChanged();
+                _onChanged();
+            }
+        }
+
+        public bool DoubleSided
+        {
+            get => _node.Mesh?.Material?.DoubleSided ?? false;
+            set
+            {
+                if (_node.Mesh?.Material is not { } material || material.DoubleSided == value) return;
+                material.DoubleSided = value;
+                OnPropertyChanged();
+                _onChanged();
+            }
+        }
+
+        /// <summary>Emission colour (black = off) - see <see cref="Core.Materials.Material.EmissiveColor"/>.</summary>
+        public Color EmissiveColor
+        {
+            get
+            {
+                var color = _node.Mesh?.Material?.EmissiveColor ?? new Color4(0f, 0f, 0f);
+                return Color.FromScRgb(1f, Clamp01(color.R), Clamp01(color.G), Clamp01(color.B));
+            }
+        }
+
+        public string EmissiveColorHex
+        {
+            get => $"#{EmissiveColor.R:X2}{EmissiveColor.G:X2}{EmissiveColor.B:X2}";
+            set
+            {
+                if (_node.Mesh?.Material is not { } material) return;
+                if (ColorConverter.ConvertFromString(value) is not Color parsed) return;
+                material.EmissiveColor = new Color4(parsed.ScR, parsed.ScG, parsed.ScB);
+                OnPropertyChanged(nameof(EmissiveColor));
+                OnPropertyChanged();
+                _onChanged();
+            }
+        }
+
+        /// <summary>Emission strength, 0..10 on the slider (the core allows up to 100).</summary>
+        public double EmissiveStrength
+        {
+            get => _node.Mesh?.Material?.EmissiveStrength ?? 1.0;
+            set
+            {
+                if (_node.Mesh?.Material is not { } material) return;
+                material.EmissiveStrength = (float)System.Math.Clamp(value, 0.0, 100.0);
+                OnPropertyChanged();
+                _onChanged();
+            }
+        }
+
+        public bool HasEmissiveTexture => !string.IsNullOrEmpty(_node.Mesh?.Material?.EmissiveTexturePath);
+
+        public string EmissiveTextureFileName =>
+            _node.Mesh?.Material?.EmissiveTexturePath is { } path ? System.IO.Path.GetFileName(path) : string.Empty;
+
+        public void SetEmissiveTexture(string? imagePath)
+        {
+            if (_node.Mesh?.Material is not { } material) return;
+            material.EmissiveTexturePath = imagePath;
+            // A map with black emission would show nothing - default to white.
+            if (imagePath is not null && !material.IsEmissive)
+            {
+                material.EmissiveColor = new Color4(1f, 1f, 1f);
+                if (material.EmissiveStrength <= 0f) material.EmissiveStrength = 1f;
+                OnPropertyChanged(nameof(EmissiveColor));
+                OnPropertyChanged(nameof(EmissiveColorHex));
+                OnPropertyChanged(nameof(EmissiveStrength));
+            }
+            OnPropertyChanged(nameof(HasEmissiveTexture));
+            OnPropertyChanged(nameof(EmissiveTextureFileName));
+            _onChanged();
         }
 
         /// <summary>0 (mirror-smooth) to 1 (fully matte) - see <see cref="Core.Materials.Material.Roughness"/>'s
@@ -339,6 +456,24 @@ namespace JolieCat3D.UI.ViewModels
         /// <summary>Gates the Orthographic Width field's own Visibility.</summary>
         public bool IsOrthographicCamera => _node.Camera?.ProjectionMode == Core.Scene.CameraProjectionMode.Orthographic;
 
+        public bool CameraDepthOfField
+        {
+            get => _node.Camera?.DepthOfField ?? false;
+            set { if (_node.Camera is not { } camera) return; camera.DepthOfField = value; OnPropertyChanged(); _onChanged(); }
+        }
+
+        public double CameraFocusDistance
+        {
+            get => _node.Camera?.FocusDistance ?? 5.0;
+            set { if (_node.Camera is not { } camera) return; camera.FocusDistance = (float)value; OnPropertyChanged(); _onChanged(); }
+        }
+
+        public double CameraFStop
+        {
+            get => _node.Camera?.FStop ?? 2.8;
+            set { if (_node.Camera is not { } camera) return; camera.FStop = (float)value; OnPropertyChanged(); _onChanged(); }
+        }
+
         public double CameraFieldOfView
         {
             get => _node.Camera?.FieldOfView ?? 45.0;
@@ -381,13 +516,28 @@ namespace JolieCat3D.UI.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(IsPointOrSpotLight));
                 OnPropertyChanged(nameof(IsSpotLight));
+                OnPropertyChanged(nameof(IsAreaLight));
                 _onChanged();
             }
         }
 
         /// <summary>Gates the Range field's own Visibility - meaningless for a
         /// <see cref="Core.Scene.LightType.Directional"/> light.</summary>
-        public bool IsPointOrSpotLight => _node.Light?.Type is Core.Scene.LightType.Point or Core.Scene.LightType.Spot;
+        public bool IsPointOrSpotLight => _node.Light?.Type is Core.Scene.LightType.Point or Core.Scene.LightType.Spot or Core.Scene.LightType.Area;
+
+        public bool IsAreaLight => _node.Light?.Type == Core.Scene.LightType.Area;
+
+        public double LightWidth
+        {
+            get => _node.Light?.Width ?? 1.0;
+            set { if (_node.Light is not { } light) return; light.Width = (float)value; OnPropertyChanged(); _onChanged(); }
+        }
+
+        public double LightHeight
+        {
+            get => _node.Light?.Height ?? 1.0;
+            set { if (_node.Light is not { } light) return; light.Height = (float)value; OnPropertyChanged(); _onChanged(); }
+        }
 
         /// <summary>Gates the Spot Angle field's own Visibility.</summary>
         public bool IsSpotLight => _node.Light?.Type == Core.Scene.LightType.Spot;
@@ -693,7 +843,13 @@ namespace JolieCat3D.UI.ViewModels
                     BooleanModifier boolean => new BooleanModifierViewModel(boolean, _onChanged, this, _allNodesProvider),
                     ArrayModifier array => new ArrayModifierViewModel(array, _onChanged),
                     SolidifyModifier solidify => new SolidifyModifierViewModel(solidify, _onChanged),
+                    DecimateModifier decimate => new DecimateModifierViewModel(decimate, _onChanged),
+                    BevelModifier bevel => new BevelModifierViewModel(bevel, _onChanged),
+                    WeightedNormalModifier weighted => new WeightedNormalModifierViewModel(weighted, _onChanged),
+                    CurveDeformModifier curveDeform => new CurveDeformModifierViewModel(curveDeform, _onChanged, this, _allNodesProvider),
+                    ShrinkwrapModifier shrinkwrap => new ShrinkwrapModifierViewModel(shrinkwrap, _onChanged, this, _allNodesProvider),
                     EdgeSplitModifier edgeSplit => new EdgeSplitModifierViewModel(edgeSplit, _onChanged),
+                    IParameterizedModifier => new ParameterizedModifierViewModel(modifier, _onChanged),
                     _ => null,
                 };
                 if (viewModel is not null) Modifiers.Add(viewModel);
@@ -743,6 +899,49 @@ namespace JolieCat3D.UI.ViewModels
 
         /// <summary>Appends a new, default-settings <see cref="SolidifyModifier"/> to
         /// this node's own stack - the Modifiers panel's "Add Solidify" button.</summary>
+        public void AddShrinkwrapModifier()
+        {
+            _node.Modifiers.Add(new ShrinkwrapModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
+        public void AddCurveDeformModifier()
+        {
+            _node.Modifiers.Add(new CurveDeformModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
+        public void AddWeightedNormalModifier()
+        {
+            _node.Modifiers.Add(new WeightedNormalModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
+        public void AddBevelModifier()
+        {
+            _node.Modifiers.Add(new BevelModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
+        /// <summary>Adds any modifier instance (used for the parameterized ones).</summary>
+        public void AddModifier(Modifier modifier)
+        {
+            _node.Modifiers.Add(modifier);
+            RefreshModifiers();
+            _onChanged();
+        }
+
+        public void AddDecimateModifier()
+        {
+            _node.Modifiers.Add(new DecimateModifier());
+            RefreshModifiers();
+            _onChanged();
+        }
+
         public void AddSolidifyModifier()
         {
             _node.Modifiers.Add(new SolidifyModifier());
@@ -804,6 +1003,8 @@ namespace JolieCat3D.UI.ViewModels
                 ConstraintViewModelBase? viewModel = constraint switch
                 {
                     TrackToConstraint trackTo => new TrackToConstraintViewModel(trackTo, _onChanged, this, _allNodesProvider),
+                    InverseKinematicsConstraint ik => new InverseKinematicsConstraintViewModel(ik, _onChanged, this, _allNodesProvider),
+                    IParameterizedConstraint => new ParameterizedConstraintViewModel(constraint, _onChanged, this, _allNodesProvider),
                     _ => null,
                 };
                 if (viewModel is not null) Constraints.Add(viewModel);
@@ -817,6 +1018,21 @@ namespace JolieCat3D.UI.ViewModels
         /// <see cref="TrackToConstraintViewModel"/>'s own remarks) - <see cref="TrackToConstraint.Apply"/>
         /// already tolerates that (leaves rotation untouched), so adding one never
         /// disturbs the node's current rotation before it's actually configured.</summary>
+        public void AddInverseKinematicsConstraint()
+        {
+            _node.Constraints.Add(new InverseKinematicsConstraint());
+            RefreshConstraints();
+            _onChanged();
+        }
+
+        /// <summary>Adds any constraint instance (used for the parameterized ones).</summary>
+        public void AddConstraint(Constraint constraint)
+        {
+            _node.Constraints.Add(constraint);
+            RefreshConstraints();
+            _onChanged();
+        }
+
         public void AddTrackToConstraint()
         {
             _node.Constraints.Add(new TrackToConstraint());
@@ -843,6 +1059,47 @@ namespace JolieCat3D.UI.ViewModels
         /// "rebuilt, not incrementally patched" convention <see cref="Modifiers"/>
         /// already uses.</summary>
         public ObservableCollection<MaterialSlotViewModel> MaterialSlots { get; } = new();
+
+        // ---------------- Shape keys ----------------
+
+        public ObservableCollection<ShapeKeyViewModel> ShapeKeyRows { get; } = new();
+
+        public bool HasShapeBasis => _node.Mesh?.ShapeBasis is not null;
+
+        private void RefreshShapeKeys()
+        {
+            ShapeKeyRows.Clear();
+            if (_node.Mesh is not { } mesh) return;
+            foreach (var key in mesh.ShapeKeys) ShapeKeyRows.Add(new ShapeKeyViewModel(_node, key, _onChanged));
+            OnPropertyChanged(nameof(HasShapeBasis));
+        }
+
+        /// <summary>"Add Basis": the current shape becomes the rest shape for all keys.</summary>
+        public void AddShapeBasis()
+        {
+            if (_node.Mesh is not { } mesh) return;
+            ShapeKeys.AddBasis(mesh);
+            RefreshShapeKeys();
+            _onChanged();
+        }
+
+        /// <summary>Saves the current (edited) shape as a new key and returns the mesh to the basis.</summary>
+        public bool SaveShapeKey()
+        {
+            if (_node.Mesh is not { } mesh) return false;
+            if (ShapeKeys.SaveCurrentAsShapeKey(mesh, ShapeKeys.UniqueName(mesh, "Key")) is null) return false;
+            RefreshShapeKeys();
+            _onChanged();
+            return true;
+        }
+
+        public void RemoveShapeKey(ShapeKeyViewModel row)
+        {
+            if (_node.Mesh is not { } mesh) return;
+            mesh.ShapeKeys.Remove(row.Key);
+            RefreshShapeKeys();
+            _onChanged();
+        }
 
         private void RefreshMaterialSlots()
         {
@@ -893,11 +1150,24 @@ namespace JolieCat3D.UI.ViewModels
         public void SyncFromCore()
         {
             var euler = EulerAngles.ToDegrees(_node.LocalRotation);
-            _rotationX = euler.X;
-            _rotationY = euler.Y;
-            _rotationZ = euler.Z;
+            // Adding 0.0 turns IEEE negative zero into 0, so the Inspector never shows "-0".
+            _rotationX = euler.X + 0.0;
+            _rotationY = euler.Y + 0.0;
+            _rotationZ = euler.Z + 0.0;
 
             OnPropertyChanged(string.Empty);
+        }
+
+        /// <summary>Full resync after the underlying node was restored wholesale (undo/redo):
+        /// rebuilds the modifier/constraint/curve/material-slot lists too.</summary>
+        public void ReloadFromCore()
+        {
+            RefreshCurvePoints();
+            RefreshModifiers();
+            RefreshConstraints();
+            RefreshMaterialSlots();
+            RefreshShapeKeys();
+            SyncFromCore();
         }
     }
 }

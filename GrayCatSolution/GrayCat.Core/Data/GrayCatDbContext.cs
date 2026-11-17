@@ -6,8 +6,8 @@ using System.Text.Json;
 
 public class GrayCatDbContext : DbContext
 {
-    public DbSet<ProjectModel> Projects { get; set; }
-    public DbSet<BlockModel> Blocks { get; set; }
+    public DbSet<ProjectModel> Projects { get; set; } = null!;
+    public DbSet<BlockModel> Blocks { get; set; } = null!;
 
     public GrayCatDbContext(DbContextOptions<GrayCatDbContext> options)
         : base(options)

@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:JolieCat3D.UI"
-        xmlns:h="clr-namespace:HelixToolkit.Wpf;assembly=HelixToolkit.Wpf"
+        xmlns:v="clr-namespace:JolieCat3D.Engine.Viewport;assembly=JolieCat3D.Engine"
         xmlns:vm="clr-namespace:JolieCat3D.UI.ViewModels"
         xmlns:converters="clr-namespace:JolieCat3D.UI.Converters"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
@@ -46,6 +46,7 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <converters:NullToVisibilityConverter x:Key="NullToVisibility" />
+        <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility" />
         <converters:ColorToBrushConverter x:Key="ColorToBrush" />
 
 
@@ -442,6 +443,7 @@
                 <MenuItem Header="_File" Style="{StaticResource TitleBarMenuItemStyle}">
                     <MenuItem Header="_New Scene" Command="ApplicationCommands.New" />
                     <MenuItem Header="_Open..." Command="ApplicationCommands.Open" />
+                    <MenuItem x:Name="RecentFilesMenuItem" Header="Open _Recent" />
                     <Separator />
                     <MenuItem Header="_Save" Command="ApplicationCommands.Save" />
                     <MenuItem Header="Save _As..." Command="ApplicationCommands.SaveAs" />
@@ -462,9 +464,14 @@
                          TIMES only - see JolieAnimationExporter's own remarks). -->
                     <MenuItem Header="Export _Animation..." Click="ExportAnimationMenuItem_Click" />
                     <!-- Bakes the current AnimationTimeline out to a numbered PNG sequence -
-                         one High-res HelixToolkit.Wpf.Viewport3DHelper.SaveBitmap capture per
+                         one offscreen DirectX render per
                          frame (see ViewportCaptureService's own remarks). -->
+                    <MenuItem Header="Render _Image (Path Traced)" Click="RenderImageMenuItem_Click" InputGestureText="F12"
+                              ToolTip="Final render with global illumination, soft shadows and reflections (scene camera if set)" />
+                    <MenuItem Header="Render Image with _Settings..." Click="RenderSettingsMenuItem_Click" />
                     <MenuItem Header="_Render Animation Frames..." Click="RenderAnimationFramesMenuItem_Click" />
+                    <MenuItem Header="Render Animation (_Path Traced)..." Click="RenderAnimationPathTracedMenuItem_Click"
+                              ToolTip="Final-quality PNG sequence with the path tracer + denoiser (uses Render Settings; Esc cancels)" />
                     <Separator />
                     <!-- Starts JolieCat3D.Service.Interop.JolieWorkspaceWatcher on a chosen
                          folder - any .jolie project or exported image later created/changed
@@ -485,6 +492,10 @@
                 </MenuItem>
                 <MenuItem Header="_Window" Style="{StaticResource TitleBarMenuItemStyle}">
                     <MenuItem Header="Toggle _Full Screen" Click="ToggleFullScreenMenuItem_Click" />
+                    <MenuItem Header="_Graph Editor" Click="GraphEditorMenuItem_Click" InputGestureText="Shift+F6" />
+                    <MenuItem Header="_NLA Editor" Click="NlaEditorMenuItem_Click" />
+                    <MenuItem Header="_Shader Editor" Click="ShaderEditorMenuItem_Click" InputGestureText="Shift+F3" />
+                    <MenuItem Header="_UV Editor" Click="UvEditorMenuItem_Click" />
                 </MenuItem>
                 <MenuItem Header="_Help" Style="{StaticResource TitleBarMenuItemStyle}">
                     <MenuItem Header="_About JolieCat3D" Click="AboutMenuItem_Click" />
@@ -627,6 +638,7 @@
                         <MenuItem Header="Add _Sphere" Click="AddSphereMenuItem_Click" />
                         <MenuItem Header="Add _Plane" Click="AddPlaneMenuItem_Click" />
                         <MenuItem Header="Add C_ylinder" Click="AddCylinderMenuItem_Click" />
+                        <MenuItem Header="Add _Text..." Click="AddTextMenuItem_Click" ToolTip="3D text from an installed font" />
                         <Separator />
                         <MenuItem Header="Add Ca_mera" Click="AddCameraMenuItem_Click" />
                         <MenuItem Header="Add _Light" Click="AddLightMenuItem_Click" />
@@ -640,6 +652,8 @@
                              has. See Engine.Rendering.EnvironmentVisualFactory's own remarks on
                              what picking one actually does. -->
                         <MenuItem Header="Set _Skybox..." Click="SetSkyboxMenuItem_Click" />
+                        <MenuItem Header="Skybox _Rotation..." Click="SkyboxRotationMenuItem_Click" />
+                        <MenuItem Header="Skybox _Strength..." Click="SkyboxStrengthMenuItem_Click" />
                         <MenuItem Header="Clear Skybox" Click="ClearSkyboxMenuItem_Click" />
                     </MenuItem>
                 </Menu>
@@ -655,7 +669,64 @@
                 <Menu Padding="0">
                     <MenuItem Header="_Object / Mesh">
                         <MenuItem Header="_Duplicate" Click="DuplicateButton_Click" InputGestureText="Ctrl+D" />
-                        <MenuItem Header="_Delete" Click="DeleteButton_Click" InputGestureText="Delete" />
+                        <MenuItem Header="Duplicate _Linked" Click="DuplicateLinkedMenuItem_Click" InputGestureText="Alt+D"
+                                  ToolTip="Copies that share this object's mesh: editing one edits all" />
+                        <MenuItem Header="_Delete" Click="DeleteButton_Click" InputGestureText="X / Delete" />
+                        <Separator />
+                        <MenuItem Header="_Apply All Transforms" Click="ApplyTransformsMenuItem_Click" InputGestureText="Ctrl+A" />
+                        <MenuItem Header="_Origin to Geometry" Click="OriginToGeometryMenuItem_Click" />
+                        <MenuItem Header="_Join Selected Objects" Click="JoinMenuItem_Click" InputGestureText="Ctrl+J" />
+                        <Separator />
+                        <MenuItem Header="_Hide Selected" Click="HideSelectedMenuItem_Click" InputGestureText="H" />
+                        <MenuItem Header="Hide _Unselected" Click="HideUnselectedMenuItem_Click" InputGestureText="Shift+H" />
+                        <MenuItem Header="_Reveal Hidden" Click="RevealHiddenMenuItem_Click" InputGestureText="Alt+H" />
+                        <Separator />
+                        <MenuItem Header="Animation: _Bake Constraints to Keyframes" Click="BakeConstraintsMenuItem_Click"
+                                  ToolTip="Records IK / Track To results as keyframes for the whole timeline and removes the constraints (needed for glTF / game export)" />
+                        <MenuItem Header="_Voxel Remesh..." Click="VoxelRemeshMenuItem_Click"
+                                  ToolTip="Rebuild the mesh as an even quad surface (sculpting); merges overlapping parts" />
+                        <MenuItem Header="Symmetri_ze +X to -X" Click="SymmetrizePositiveMenuItem_Click"
+                                  ToolTip="Cut at X = 0 and mirror the +X half onto -X" />
+                        <MenuItem Header="Symmetrize -X to +X" Click="SymmetrizeNegativeMenuItem_Click" />
+                        <MenuItem Header="_Scatter Selected on Active..." Click="ScatterMenuItem_Click"
+                                  ToolTip="Distribute copies of the selected objects over the active object's surface" />
+                        <MenuItem Header="Game: Generate _LODs" Click="GenerateLodsMenuItem_Click"
+                                  ToolTip="Adds hidden _LOD1.._LOD3 copies with Decimate 50/25/12.5% (Unity/Unreal LOD naming)" />
+                        <MenuItem Header="Game: Generate _Convex Collider" Click="GenerateColliderMenuItem_Click"
+                                  ToolTip="Adds a hidden UCX_ convex hull (max 32 vertices) for physics" />
+                        <Separator />
+                        <MenuItem Header="Bake Ambient _Occlusion..." Click="BakeAoMenuItem_Click" />
+                        <MenuItem Header="Bake _Lightmap (Path Traced)..." Click="BakeLightmapMenuItem_Click"
+                                  ToolTip="Direct + indirect lighting into a texture over the object's UVs, for static game levels" />
+                        <MenuItem Header="Bake _Normal Map (Modifiers to Base)..." Click="BakeNormalMenuItem_Click" />
+                        <MenuItem Header="Bake _Curvature..." Click="BakeCurvatureMenuItem_Click"
+                                  ToolTip="Convex edges light, cavities dark - a mask for edge wear and dirt" />
+                        <MenuItem Header="Bake _ID Map..." Click="BakeIdMenuItem_Click"
+                                  ToolTip="A flat colour per material slot (or per separate part) - selection masks for painting" />
+                        <MenuItem Header="Select All _Objects" Click="SelectAllObjectsMenuItem_Click" InputGestureText="A" />
+                        <Separator />
+                        <MenuItem Header="Edit Mode: Select _All" Click="SelectAllMenuItem_Click" InputGestureText="A" />
+                        <MenuItem Header="Edit Mode: _Invert Selection" Click="InvertSelectionMenuItem_Click" InputGestureText="Ctrl+I" />
+                        <MenuItem Header="Edit Mode: Select _Linked" Click="SelectLinkedMenuItem_Click" InputGestureText="L  ·  Alt+click: loop" />
+                        <Separator />
+                        <MenuItem Header="Edit Mode: _Extrude Region" Click="ExtrudeRegionMenuItem_Click" InputGestureText="E" />
+                        <MenuItem Header="Edit Mode: In_set Faces" Click="InsetMenuItem_Click" InputGestureText="I" />
+                        <MenuItem Header="Edit Mode: _Merge at Center" Click="MergeMenuItem_Click" InputGestureText="M" />
+                        <MenuItem Header="Edit Mode: _Fill" Click="FillMenuItem_Click" InputGestureText="F" />
+                        <MenuItem Header="Edit Mode: _Separate Selection" Click="SeparateMenuItem_Click" InputGestureText="P" />
+                        <MenuItem Header="Edit Mode: _Poke Faces" Click="PokeMenuItem_Click" />
+                        <MenuItem Header="Edit Mode: _Triangulate Faces" Click="TriangulateFacesMenuItem_Click" InputGestureText="Ctrl+T" />
+                        <MenuItem Header="Edit Mode: Tris to _Quads" Click="TrisToQuadsMenuItem_Click" InputGestureText="Alt+J" />
+                        <MenuItem Header="Edit Mode: _Dissolve Faces" Click="DissolveFacesMenuItem_Click" InputGestureText="Ctrl+X" />
+                        <MenuItem Header="Edit Mode: _Bridge Edge Loops" Click="BridgeMenuItem_Click" />
+                        <MenuItem Header="Edit Mode: _Knife" Click="KnifeMenuItem_Click" InputGestureText="K" />
+                        <MenuItem Header="Edit Mode: Bevel Ed_ges" Click="BevelMenuItem_Click" InputGestureText="Ctrl+B" />
+                        <MenuItem Header="Edit Mode: Extrude Along _Normals" Click="ExtrudeNormalsMenuItem_Click" InputGestureText="Alt+E" />
+                        <MenuItem Header="Edit Mode: S_pin (around 3D cursor)" Click="SpinMenuItem_Click" />
+                        <MenuItem Header="Edit Mode: Sc_rew (around 3D cursor)" Click="ScrewMenuItem_Click" />
+                        <Separator />
+                        <MenuItem Header="3D Cursor to _Selected" Click="CursorToSelectedMenuItem_Click" />
+                        <MenuItem Header="3D Cursor to World Origin" Click="CursorToOriginMenuItem_Click" InputGestureText="Shift+C" />
                     </MenuItem>
                 </Menu>
             </StackPanel>
@@ -698,6 +769,9 @@
                                  blurred re-paint of the viewport layered on top at low opacity -
                                  see each CheckBox's own changed handler for the full remarks
                                  already established for these. -->
+                            <CheckBox x:Name="WireframeOverlayCheckBox" Content="Wireframe Overlay" VerticalAlignment="Center"
+                                      Margin="0,0,0,4" Checked="WireframeOverlayCheckBox_Changed" Unchecked="WireframeOverlayCheckBox_Changed"
+                                      ToolTip="Draw every object's edges over the shaded view" />
                             <CheckBox x:Name="ShowShadowsCheckBox" Content="Shadows" IsChecked="True" VerticalAlignment="Center"
                                       Margin="0,0,0,4" Checked="ShowShadowsCheckBox_Changed" Unchecked="ShowShadowsCheckBox_Changed" />
                             <CheckBox x:Name="AntiAliasingCheckBox" Content="Anti-Aliasing" IsChecked="True" VerticalAlignment="Center"
@@ -715,6 +789,9 @@
                      distance (see Editing.MeshEditSession.ProportionalEditingEnabled/
                      ProportionalRadius) - Edit-Mode-only (see ModeComboBox_SelectionChanged's
                      own IsEnabled toggle). -->
+                <CheckBox x:Name="MirrorXCheckBox" Content="X-Mirror" IsEnabled="False" VerticalAlignment="Center" Margin="16,0,0,0"
+                          Checked="MirrorXCheckBox_Changed" Unchecked="MirrorXCheckBox_Changed"
+                          ToolTip="Edit Mode: moving vertices also moves their mirror at -X (symmetric modelling)" />
                 <CheckBox x:Name="ProportionalEditingCheckBox" Content="Proportional" IsEnabled="False" VerticalAlignment="Center"
                           Margin="16,0,4,0" Checked="ProportionalEditingCheckBox_Changed" Unchecked="ProportionalEditingCheckBox_Changed"
                           ToolTip="Soft Selection - nearby unselected vertices also move, smoothly falling off with distance" />
@@ -778,7 +855,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- ================= Left Vertical Toolbar (The Action Tools) ================= -->
-            <!-- Docked directly to the left of the HelixViewport3D - every section below
+            <!-- Docked directly to the left of the 3D viewport - every section below
                  uses one of the CurrentEditorMode-driven Styles defined in this window's own
                  Resources above, so only ONE section (matching whatever ModeComboBox is
                  currently set to) is ever visible at a time; DeleteButton alone sits outside
@@ -884,6 +961,13 @@
                                              Padding="4,2" Checked="BrushModeButton_Checked" Tag="Subtract"
                                              ToolTip="Subtract" />
                             </StackPanel>
+                            <!-- Weights menu (Core.Skinning.WeightTools) -->
+                            <Button Content="Mir" Style="{StaticResource ToolButtonStyle}" Margin="0,6,0,2" Padding="4,2" Tag="Mirror"
+                                    Click="WeightToolButton_Click" ToolTip="Mirror Weights: copy +X onto -X, swapping .L/.R bones" />
+                            <Button Content="Smo" Style="{StaticResource ToolButtonStyle}" Margin="0,0,0,2" Padding="4,2" Tag="Smooth"
+                                    Click="WeightToolButton_Click" ToolTip="Smooth Weights over the whole mesh" />
+                            <Button Content="Nrm" Style="{StaticResource ToolButtonStyle}" Margin="0,0,0,2" Padding="4,2" Tag="Normalize"
+                                    Click="WeightToolButton_Click" ToolTip="Normalize All: every vertex's weights sum to 1" />
                         </StackPanel>
 
                         <!-- ==== Vertex Paint mode: no selector controls of its own (only a
@@ -913,6 +997,26 @@
                                              Style="{StaticResource GizmoModeButtonStyle}"
                                              Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                                              Checked="SculptBrushModeButton_Checked" Tag="Grab" ToolTip="Grab" />
+                                <RadioButton x:Name="SculptInflateButton" Content="In" GroupName="SculptBrushMode"
+                                             Style="{StaticResource GizmoModeButtonStyle}"
+                                             Margin="0,2,0,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                             Checked="SculptBrushModeButton_Checked" Tag="Inflate" ToolTip="Inflate (Shift: deflate)" />
+                                <RadioButton x:Name="SculptFlattenButton" Content="Fl" GroupName="SculptBrushMode"
+                                             Style="{StaticResource GizmoModeButtonStyle}"
+                                             Margin="0,2,0,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                             Checked="SculptBrushModeButton_Checked" Tag="Flatten" ToolTip="Flatten (Shift: contrast)" />
+                                <RadioButton x:Name="SculptPinchButton" Content="Pi" GroupName="SculptBrushMode"
+                                             Style="{StaticResource GizmoModeButtonStyle}"
+                                             Margin="0,2,0,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                             Checked="SculptBrushModeButton_Checked" Tag="Pinch" ToolTip="Pinch (Shift: magnify)" />
+                                <RadioButton x:Name="SculptCreaseButton" Content="Cr" GroupName="SculptBrushMode"
+                                             Style="{StaticResource GizmoModeButtonStyle}"
+                                             Margin="0,2,0,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                             Checked="SculptBrushModeButton_Checked" Tag="Crease" ToolTip="Crease (Shift: sharp ridge)" />
+                                <RadioButton x:Name="SculptClayButton" Content="Cl" GroupName="SculptBrushMode"
+                                             Style="{StaticResource GizmoModeButtonStyle}"
+                                             Margin="0,2,0,0" Padding="4,2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                             Checked="SculptBrushModeButton_Checked" Tag="Clay" ToolTip="Clay (Shift: carve)" />
                             </StackPanel>
                         </StackPanel>
 
@@ -940,28 +1044,10 @@
                  marks its own mouse-down Handled) - see MainWindow.xaml.cs's own remarks
                  on Viewport_MouseLeftButtonDown for why that's what makes "click a handle
                  to drag it" and "click empty space/another mesh to select" never conflict. -->
-            <h:HelixViewport3D x:Name="Viewport" Grid.Column="2"
-                               ShowCoordinateSystem="True"
-                               MouseLeftButtonDown="Viewport_MouseLeftButtonDown"
-                               MouseMove="Viewport_MouseMove"
-                               MouseLeftButtonUp="Viewport_MouseLeftButtonUp" />
-
-            <!-- Bloom - see MainWindow.xaml.cs's own BloomCheckBox_Changed remarks on
-                 why a blurred VisualBrush re-paint of the SAME viewport, layered on top
-                 at low opacity, is what "Bloom" means in a pipeline with no programmable
-                 pixel shader (and therefore no real bright-pass threshold filter) at
-                 all. IsHitTestVisible="False" so it never steals a click meant for the
-                 real viewport underneath it (Viewport_MouseLeftButtonDown, a gizmo drag,
-                 ...) - purely a visual overlay, Collapsed (off) by default. -->
-            <Rectangle x:Name="BloomOverlayRectangle" Grid.Column="2" IsHitTestVisible="False"
-                       Visibility="Collapsed" Opacity="0.35">
-                <Rectangle.Fill>
-                    <VisualBrush Visual="{Binding ElementName=Viewport}" Stretch="None" />
-                </Rectangle.Fill>
-                <Rectangle.Effect>
-                    <BlurEffect x:Name="BloomBlurEffect" Radius="14" />
-                </Rectangle.Effect>
-            </Rectangle>
+            <v:EditorViewport x:Name="Viewport" Grid.Column="2"
+                              MouseLeftButtonDown="Viewport_MouseLeftButtonDown"
+                              MouseMove="Viewport_MouseMove"
+                              MouseLeftButtonUp="Viewport_MouseLeftButtonUp" />
 
             <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch" />
 
@@ -1002,7 +1088,46 @@
                             </TreeView.ItemContainerStyle>
                             <TreeView.ItemTemplate>
                                 <HierarchicalDataTemplate DataType="{x:Type vm:NodeViewModel}" ItemsSource="{Binding Children}">
-                                    <TextBlock Text="{Binding Name}" FontSize="12" />
+                                    <StackPanel Orientation="Horizontal">
+                                    <!-- Visibility eye: click to hide/show this object in the viewport (undoable). -->
+                                    <TextBlock FontFamily="Segoe MDL2 Assets" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"
+                                               Cursor="Hand" ToolTip="Hide / show in viewport (H, Alt+H)"
+                                               MouseLeftButtonDown="OutlinerEye_MouseLeftButtonDown">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="&#xE7B3;" />
+                                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsHidden}" Value="True">
+                                                        <Setter Property="Text" Value="&#xED1A;" />
+                                                        <Setter Property="Opacity" Value="0.5" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Name}" FontSize="12">
+                                        <TextBlock.Style>
+                                            <!-- Objects that are part of a multi-selection (but not the active one) -->
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsHidden}" Value="True">
+                                                        <Setter Property="Opacity" Value="0.4" />
+                                                        <Setter Property="FontStyle" Value="Italic" />
+                                                    </DataTrigger>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding IsInSelection}" Value="True" />
+                                                            <Condition Binding="{Binding IsSelected}" Value="False" />
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    </StackPanel>
                                 </HierarchicalDataTemplate>
                             </TreeView.ItemTemplate>
                         </TreeView>
@@ -1091,6 +1216,32 @@
                                             <Button Content="Shade Smooth" Margin="0,0,4,4" Padding="8,2" Click="ShadeSmoothButton_Click" />
                                             <Button Content="Shade Flat" Margin="0,0,4,4" Padding="8,2" Click="ShadeFlatButton_Click" />
                                         </WrapPanel>
+
+                                        <!-- Shape keys (morph targets): Add Basis, edit the mesh, Save Shape Key;
+                                             each key blends in with its slider and can be keyframed. -->
+                                        <TextBlock Text="SHAPE KEYS" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
+                                        <WrapPanel Margin="8,0,8,4">
+                                            <Button Content="Add Basis" Margin="0,0,4,4" Padding="8,2" Click="AddShapeBasisButton_Click"
+                                                    ToolTip="Store the current shape as the rest shape" />
+                                            <Button Content="Save Shape Key" Margin="0,0,4,4" Padding="8,2" Click="SaveShapeKeyButton_Click"
+                                                    IsEnabled="{Binding HasShapeBasis}"
+                                                    ToolTip="Edit the mesh first; this saves the edited shape as a key and restores the basis" />
+                                        </WrapPanel>
+                                        <ItemsControl ItemsSource="{Binding ShapeKeyRows}" Margin="8,0,8,8">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                                        <TextBlock Text="{Binding Name}" Width="56" VerticalAlignment="Center" FontSize="11" />
+                                                        <Slider Minimum="0" Maximum="1" Value="{Binding Value, Mode=TwoWay}" Width="90" VerticalAlignment="Center" />
+                                                        <TextBlock Text="{Binding Value, StringFormat={}{0:0.00}}" Width="30" Margin="4,0,0,0" VerticalAlignment="Center" FontSize="11" />
+                                                        <Button Content="Key" Padding="4,0" Margin="2,0,0,0" Click="KeyShapeKeyButton_Click" ToolTip="Insert a keyframe for this value at the current frame" />
+                                                        <Button Content="✕" Padding="4,0" Margin="2,0,0,0" Click="RemoveShapeKeyButton_Click" ToolTip="Remove this shape key" />
+                                                        <TextBlock Text=" (invalid)" Foreground="#FFE07070" FontSize="10" VerticalAlignment="Center"
+                                                                   Visibility="{Binding IsValid, Converter={StaticResource InverseBoolToVisibility}}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
 
                                     <!-- Constraints - a non-destructive, evaluated-every-render
@@ -1101,9 +1252,17 @@
                                          neither of which has a Mesh. -->
                                     <StackPanel>
                                         <TextBlock Text="CONSTRAINTS" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
-                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                            <Button Content="Add Track To" Padding="8,2" Click="AddTrackToConstraintButton_Click" />
-                                        </StackPanel>
+                                        <WrapPanel Margin="8,0,8,4">
+                                            <Button Content="Add Track To" Padding="8,2" Margin="0,0,4,4" Click="AddTrackToConstraintButton_Click" />
+                                            <Button Content="Add IK" Padding="8,2" Margin="0,0,4,4" Click="AddIKConstraintButton_Click"
+                                                    ToolTip="Inverse Kinematics: put it on the last bone of a chain and pick a Target" />
+                                            <Button Content="Copy Location" Padding="8,2" Margin="0,0,4,4" Tag="CopyLocation" Click="AddParameterizedConstraintButton_Click" ToolTip="Follow another object's position (per axis)" />
+                                            <Button Content="Copy Rotation" Padding="8,2" Margin="0,0,4,4" Tag="CopyRotation" Click="AddParameterizedConstraintButton_Click" ToolTip="Match another object's rotation" />
+                                            <Button Content="Copy Scale" Padding="8,2" Margin="0,0,4,4" Tag="CopyScale" Click="AddParameterizedConstraintButton_Click" ToolTip="Match another object's scale" />
+                                            <Button Content="Limit Location" Padding="8,2" Margin="0,0,4,4" Tag="LimitLocation" Click="AddParameterizedConstraintButton_Click" ToolTip="Clamp the local position per axis" />
+                                            <Button Content="Limit Rotation" Padding="8,2" Margin="0,0,4,4" Tag="LimitRotation" Click="AddParameterizedConstraintButton_Click" ToolTip="Clamp the local rotation (degrees) per axis" />
+                                            <Button Content="Limit Scale" Padding="8,2" Margin="0,0,4,4" Tag="LimitScale" Click="AddParameterizedConstraintButton_Click" ToolTip="Clamp the local scale per axis" />
+                                        </WrapPanel>
 
                                         <ItemsControl ItemsSource="{Binding Constraints}" Margin="8,0,8,8">
                                             <ItemsControl.Resources>
@@ -1143,6 +1302,64 @@
                                                         </StackPanel>
                                                     </Border>
                                                 </DataTemplate>
+                                                <DataTemplate DataType="{x:Type vm:ParameterizedConstraintViewModel}">
+                                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                          ToolTip="Enable/disable this constraint without removing it" />
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                                <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveConstraintButton_Click" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
+                                                                        Visibility="{Binding UsesTarget, Converter={StaticResource BoolToVisibility}}">
+                                                                <TextBlock Text="Target" Width="90" VerticalAlignment="Center"
+                                                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                <ComboBox ItemsSource="{Binding AvailableTargets}" SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                                                                          DisplayMemberPath="Name" Width="120" />
+                                                            </StackPanel>
+                                                            <ItemsControl ItemsSource="{Binding Parameters}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                            <TextBlock Text="{Binding Label}" Width="90" VerticalAlignment="Center"
+                                                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                            <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="70"
+                                                                                     Visibility="{Binding IsNumber, Converter={StaticResource BoolToVisibility}}" />
+                                                                            <ComboBox ItemsSource="{Binding Choices}" SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}" Width="80"
+                                                                                      Visibility="{Binding IsChoice, Converter={StaticResource BoolToVisibility}}" />
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                                <DataTemplate DataType="{x:Type vm:InverseKinematicsConstraintViewModel}">
+                                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                                <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveConstraintButton_Click" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                <TextBlock Text="Target:" Width="64" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                <ComboBox ItemsSource="{Binding AvailableTargets}" SelectedItem="{Binding SelectedTarget, Mode=TwoWay}" DisplayMemberPath="Name" Width="120" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                <TextBlock Text="Pole:" Width="64" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                <ComboBox ItemsSource="{Binding AvailableTargets}" SelectedItem="{Binding SelectedPole, Mode=TwoWay}" DisplayMemberPath="Name" Width="120" />
+                                                            </StackPanel>
+                                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                <TextBlock Text="Chain:" Width="64" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                <TextBox Text="{Binding ChainLength, Mode=TwoWay}" Width="40" />
+                                                                <TextBlock Text="Iterations:" Margin="10,0,6,0" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                <TextBox Text="{Binding Iterations, Mode=TwoWay}" Width="40" />
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
                                             </ItemsControl.Resources>
                                         </ItemsControl>
                                     </StackPanel>
@@ -1164,23 +1381,34 @@
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
                                                     Visibility="{Binding IsPerspectiveCamera, Converter={StaticResource BoolToVisibility}}">
-                                            <TextBlock Text="Field of View" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Field of View" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding CameraFieldOfView, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
                                                     Visibility="{Binding IsOrthographicCamera, Converter={StaticResource BoolToVisibility}}">
-                                            <TextBlock Text="Width" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Width" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding CameraOrthographicWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="8,0">
-                                            <TextBlock Text="Near" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Near" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding CameraNearPlaneDistance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                            <TextBlock Text="Far" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Far" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding CameraFarPlaneDistance, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                                         </StackPanel>
                                         <!-- Sets Scene3D.ActiveCamera to THIS node - Engine.Camera.SceneCameraSync
                                              then pushes its world transform onto the viewport's
                                              actual rendering camera on the very next render. -->
+                                        <!-- Depth of field (final render only, Core.Scene.CameraData.DepthOfField). -->
+                                        <CheckBox Content="Depth of Field (render)" IsChecked="{Binding CameraDepthOfField, Mode=TwoWay}" Margin="8,6,8,2"
+                                                  Foreground="{StaticResource TextSecondaryBrush}"
+                                                  ToolTip="F12 renders blur everything away from the focus distance" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
+                                                    Visibility="{Binding CameraDepthOfField, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Focus" Style="{StaticResource InspectorWordLabelStyle}" />
+                                            <TextBox Text="{Binding CameraFocusDistance, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                            <TextBlock Text="F-Stop" Style="{StaticResource InspectorWordLabelStyle}" />
+                                            <TextBox Text="{Binding CameraFStop, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        </StackPanel>
                                         <Button Content="Set as Active Camera" Margin="8,4,8,8" Padding="8,4"
                                                 HorizontalAlignment="Left" Click="SetActiveCameraButton_Click" />
                                     </StackPanel>
@@ -1195,22 +1423,30 @@
                                                 <ComboBoxItem Content="Directional" />
                                                 <ComboBoxItem Content="Point" />
                                                 <ComboBoxItem Content="Spot" />
+                                                <ComboBoxItem Content="Area" />
                                             </ComboBox>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                            <TextBlock Text="Color" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Color" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding LightColorHex, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                            <TextBlock Text="Intensity" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Intensity" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding LightIntensity, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
                                                     Visibility="{Binding IsPointOrSpotLight, Converter={StaticResource BoolToVisibility}}">
-                                            <TextBlock Text="Range" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Range" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding LightRange, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4"
+                                                    Visibility="{Binding IsAreaLight, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Width" Style="{StaticResource InspectorWordLabelStyle}" />
+                                            <TextBox Text="{Binding LightWidth, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
+                                            <TextBlock Text="Height" Style="{StaticResource InspectorWordLabelStyle}" />
+                                            <TextBox Text="{Binding LightHeight, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="8,0,8,8"
                                                     Visibility="{Binding IsSpotLight, Converter={StaticResource BoolToVisibility}}">
-                                            <TextBlock Text="Spot Angle" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Spot Angle" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding LightSpotAngle, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                                         </StackPanel>
                                     </StackPanel>
@@ -1222,14 +1458,14 @@
                                     <StackPanel Visibility="{Binding HasCurve, Converter={StaticResource BoolToVisibility}}">
                                         <TextBlock Text="CURVE" Style="{StaticResource PanelHeaderStyle}" Margin="8,4,8,2" />
                                         <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                            <TextBlock Text="Bevel Depth" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Bevel Depth" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding CurveBevelDepth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                                             <CheckBox Content="Closed" IsChecked="{Binding CurveClosed, Mode=TwoWay}" Margin="8,0,0,0" VerticalAlignment="Center" />
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
-                                            <TextBlock Text="Segments/Span" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Segments/Span" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding CurveSegmentsPerSpan, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
-                                            <TextBlock Text="Radial Segments" Style="{StaticResource InspectorFieldLabelStyle}" />
+                                            <TextBlock Text="Radial Segments" Style="{StaticResource InspectorWordLabelStyle}" />
                                             <TextBox Text="{Binding CurveRadialSegments, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource InspectorFieldTextBoxStyle}" />
                                         </StackPanel>
 
@@ -1330,6 +1566,30 @@
                                             <Button Content="Add Array" Margin="0,0,4,4" Padding="8,2" Click="AddArrayModifierButton_Click" />
                                             <Button Content="Add Solidify" Margin="0,0,4,4" Padding="8,2" Click="AddSolidifyModifierButton_Click" />
                                             <Button Content="Add Edge Split" Margin="0,0,4,4" Padding="8,2" Click="AddEdgeSplitModifierButton_Click" />
+                                            <Button Content="Add Curve" Margin="0,0,4,4" Padding="8,2" Click="AddCurveDeformModifierButton_Click"
+                                                    ToolTip="Bend this mesh along a curve object (local X = along the curve)" />
+                                            <Button Content="Add Shrinkwrap" Margin="0,0,4,4" Padding="8,2" Click="AddShrinkwrapModifierButton_Click"
+                                                    ToolTip="Snap this mesh onto another object's surface" />
+                                            <Button Content="Add Weighted Normal" Margin="0,0,4,4" Padding="8,2" Click="AddWeightedNormalModifierButton_Click"
+                                                    ToolTip="Area-weighted normals for clean hard-surface shading" />
+                                            <Button Content="Add Bevel" Margin="0,0,4,4" Padding="8,2" Click="AddBevelModifierButton_Click"
+                                                    ToolTip="Non-destructive bevel of every edge sharper than the angle" />
+                                            <Button Content="Add Decimate" Margin="0,0,4,4" Padding="8,2" Click="AddDecimateModifierButton_Click"
+                                                    ToolTip="Polygon reduction for LODs (keeps UVs, weights, outline)" />
+                                            <Button Content="Add Displace" Margin="0,0,4,4" Padding="8,2" Tag="Displace" Click="AddParameterizedModifierButton_Click"
+                                                    ToolTip="Push the surface along its normals by fractal noise (rocks, terrain)" />
+                                            <Button Content="Add Smooth" Margin="0,0,4,4" Padding="8,2" Tag="Smooth" Click="AddParameterizedModifierButton_Click"
+                                                    ToolTip="Laplacian smoothing of the shape" />
+                                            <Button Content="Add Triangulate" Margin="0,0,4,4" Padding="8,2" Tag="Triangulate" Click="AddParameterizedModifierButton_Click"
+                                                    ToolTip="Split polygons into triangles (the exact triangulation a game engine gets)" />
+                                            <Button Content="Add Weld" Margin="0,0,4,4" Padding="8,2" Tag="Weld" Click="AddParameterizedModifierButton_Click"
+                                                    ToolTip="Merge vertices closer than a distance (Merge by Distance)" />
+                                            <Button Content="Add Simple Deform" Margin="0,0,4,4" Padding="8,2" Tag="SimpleDeform" Click="AddParameterizedModifierButton_Click"
+                                                    ToolTip="Twist, Bend, Taper or Stretch along an axis" />
+                                            <Button Content="Add Cast" Margin="0,0,4,4" Padding="8,2" Tag="Cast" Click="AddParameterizedModifierButton_Click"
+                                                    ToolTip="Pull the shape towards a sphere, cylinder or box" />
+                                            <Button Content="Add Remesh" Margin="0,0,4,4" Padding="8,2" Tag="Remesh" Click="AddParameterizedModifierButton_Click"
+                                                    ToolTip="Rebuild as an even, watertight voxel mesh (non-destructive)" />
                                         </WrapPanel>
 
                                         <ItemsControl ItemsSource="{Binding Modifiers}" Margin="8,0,8,8">
@@ -1341,7 +1601,8 @@
                                                         <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
                                                                   ToolTip="Enable/disable this modifier without removing it" />
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                         <TextBlock Text="Axis:" VerticalAlignment="Center" Margin="0,0,6,0"
@@ -1362,7 +1623,8 @@
                                                         <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
                                                                   ToolTip="Enable/disable this modifier without removing it" />
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                         <TextBlock Text="Iterations:" VerticalAlignment="Center" Margin="0,0,6,0"
@@ -1384,7 +1646,8 @@
                                                         <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
                                                                   ToolTip="Enable/disable this modifier without removing it" />
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                         <TextBlock Text="Operation:" VerticalAlignment="Center" Margin="0,0,6,0"
@@ -1416,7 +1679,8 @@
                                                         <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
                                                                   ToolTip="Enable/disable this modifier without removing it" />
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                         <TextBlock Text="Count:" VerticalAlignment="Center" Margin="0,0,6,0"
@@ -1430,6 +1694,20 @@
                                                         <TextBox Text="{Binding RelativeOffsetY, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="40" Margin="0,0,2,0" />
                                                         <TextBox Text="{Binding RelativeOffsetZ, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Width="40" />
                                                     </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Constant Offset X/Y/Z:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding ConstantOffsetX, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="40" Margin="0,0,2,0" />
+                                                        <TextBox Text="{Binding ConstantOffsetY, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="40" Margin="0,0,2,0" />
+                                                        <TextBox Text="{Binding ConstantOffsetZ, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="40" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <CheckBox Content="Merge" IsChecked="{Binding Merge, Mode=TwoWay}" VerticalAlignment="Center" Margin="0,0,8,0"
+                                                                  ToolTip="Weld touching vertices of neighbouring copies (UV seams kept)" />
+                                                        <TextBlock Text="Distance:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding MergeDistance, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="50" />
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>
@@ -1437,6 +1715,148 @@
                                              normals by Thickness, closing every boundary edge
                                              with a new side wall - see Core.Modifiers.SolidifyModifier's
                                              own remarks (including its known hard-edge limitation). -->
+                                        <!-- Core.Modifiers.ShrinkwrapModifier: snap onto a target surface. -->
+                                        <DataTemplate DataType="{x:Type vm:ShrinkwrapModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Target:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <ComboBox ItemsSource="{Binding AvailableTargets}" SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                                                                  DisplayMemberPath="Name" Width="120" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Mode:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <ComboBox SelectedValue="{Binding Mode, Mode=TwoWay}" SelectedValuePath="Tag" Width="120">
+                                                            <ComboBoxItem Content="Nearest surface" Tag="NearestSurface" />
+                                                            <ComboBoxItem Content="Project (normal)" Tag="Project" />
+                                                        </ComboBox>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Offset:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding Offset, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="50" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                        <DataTemplate DataType="{x:Type vm:CurveDeformModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Curve:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <ComboBox ItemsSource="{Binding AvailableTargets}" SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                                                                  DisplayMemberPath="Name" Width="120" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                        <DataTemplate DataType="{x:Type vm:BevelModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Width:" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding Width, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="42" />
+                                                        <TextBlock Text="Segments:" VerticalAlignment="Center" Margin="8,0,4,0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding Segments, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="28" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Angle:" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding AngleDegrees, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="42" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                        <DataTemplate DataType="{x:Type vm:WeightedNormalModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Max angle:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBox Text="{Binding AngleDegrees, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="50" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                        <!-- Polygon reduction (Core.Modifiers.DecimateModifier / MeshDecimator). -->
+                                        <!-- Displace, Smooth, Triangulate, Weld, Simple Deform: generic parameter rows. -->
+                                        <DataTemplate DataType="{x:Type vm:ParameterizedModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <ItemsControl ItemsSource="{Binding Parameters}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                    <TextBlock Text="{Binding Label}" Width="90" VerticalAlignment="Center"
+                                                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                                    <TextBox Text="{Binding Text, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="70"
+                                                                             Visibility="{Binding IsNumber, Converter={StaticResource BoolToVisibility}}" />
+                                                                    <ComboBox ItemsSource="{Binding Choices}" SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}" Width="110"
+                                                                              Visibility="{Binding IsChoice, Converter={StaticResource BoolToVisibility}}" />
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                        <DataTemplate DataType="{x:Type vm:DecimateModifierViewModel}">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                                  ToolTip="Enable/disable this modifier without removing it" />
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <TextBlock Text="Ratio:" VerticalAlignment="Center" Margin="0,0,6,0"
+                                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <Slider Value="{Binding Ratio, Mode=TwoWay}" Minimum="0.01" Maximum="1" Width="110" VerticalAlignment="Center"
+                                                                IsSnapToTickEnabled="True" TickFrequency="0.01" />
+                                                        <TextBox Text="{Binding Ratio, Mode=TwoWay, UpdateSourceTrigger=LostFocus, StringFormat=0.##}" Width="40" Margin="6,0,0,0" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
                                         <DataTemplate DataType="{x:Type vm:SolidifyModifierViewModel}">
                                             <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4" Padding="6">
                                                 <StackPanel>
@@ -1444,7 +1864,8 @@
                                                         <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
                                                                   ToolTip="Enable/disable this modifier without removing it" />
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                         <TextBlock Text="Thickness:" VerticalAlignment="Center" Margin="0,0,6,0"
@@ -1465,7 +1886,8 @@
                                                         <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}" Margin="0,0,6,0" VerticalAlignment="Center"
                                                                   ToolTip="Enable/disable this modifier without removing it" />
                                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                                        <Button Content="Remove" Margin="12,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
+                                                        <Button Content="Apply" Margin="12,0,0,0" Padding="6,0" Click="ApplyModifierButton_Click" ToolTip="Bake this modifier into the mesh" />
+                                                        <Button Content="Remove" Margin="4,0,0,0" Padding="6,0" Click="RemoveModifierButton_Click" />
                                                     </StackPanel>
                                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                                                         <TextBlock Text="Angle Threshold:" VerticalAlignment="Center" Margin="0,0,6,0"
@@ -1559,6 +1981,61 @@
                                                    TextTrimming="CharacterEllipsis" FontStyle="Italic"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
                                                    Visibility="{Binding HasMetallicRoughnessTexture, Converter={StaticResource BoolToVisibility}}" />
+
+                                        <!-- Alpha mode (Core.Materials.MaterialAlphaMode) + glTF doubleSided. -->
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <TextBlock Text="Alpha" Width="70" VerticalAlignment="Center"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <ComboBox SelectedIndex="{Binding AlphaModeIndex, Mode=TwoWay}" Width="90"
+                                                      ToolTip="Opaque, Blend (glass) or Clip (cut-out: foliage, fences)">
+                                                <ComboBoxItem Content="Opaque" />
+                                                <ComboBoxItem Content="Blend" />
+                                                <ComboBoxItem Content="Clip" />
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <CheckBox Content="Double-sided" IsChecked="{Binding DoubleSided, Mode=TwoWay}" Margin="8,0,8,6"
+                                                  Foreground="{StaticResource TextSecondaryBrush}"
+                                                  ToolTip="Exported as glTF doubleSided (the editor always shows both sides)" />
+                                        <StackPanel Visibility="{Binding IsAlphaClip, Converter={StaticResource BoolToVisibility}}">
+                                            <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
+                                                <TextBlock Text="Cutoff" Width="70" VerticalAlignment="Center"
+                                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding AlphaCutoff, StringFormat={}{0:0.00}}" Width="36" VerticalAlignment="Center"
+                                                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            </StackPanel>
+                                            <Slider Margin="8,0,8,8" Minimum="0" Maximum="1" SmallChange="0.01" LargeChange="0.1"
+                                                    Value="{Binding AlphaCutoff, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        </StackPanel>
+
+                                        <!-- Emission (Core.Materials.Material.EmissiveColor/Strength/TexturePath):
+                                             self-lit surfaces; exported as glTF emissive + emissive_strength. -->
+                                        <TextBlock Text="EMISSION" FontSize="11" Margin="8,4,8,2" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <Border Width="26" Height="26" Margin="0,0,8,0"
+                                                    Background="{Binding EmissiveColor, Converter={StaticResource ColorToBrush}}"
+                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                    ToolTip="Emission color (black = no emission)" />
+                                            <TextBox Text="{Binding EmissiveColorHex, Mode=TwoWay}"
+                                                     Style="{StaticResource InspectorFieldTextBoxStyle}" Width="90"
+                                                     ToolTip="Emission color (hex), #000000 = off" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,2">
+                                            <TextBlock Text="Strength" Width="70" VerticalAlignment="Center"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            <TextBlock Text="{Binding EmissiveStrength, StringFormat={}{0:0.00}}" Width="36" VerticalAlignment="Center"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        </StackPanel>
+                                        <Slider Margin="8,0,8,4" Minimum="0" Maximum="10" SmallChange="0.1" LargeChange="1"
+                                                Value="{Binding EmissiveStrength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <StackPanel Orientation="Horizontal" Margin="8,0,8,4">
+                                            <Button Content="Load Emission Map..." Padding="8,4" Click="LoadEmissionMapButton_Click" />
+                                            <Button Content="Clear" Padding="8,4" Margin="4,0,0,0" Click="ClearEmissionMapButton_Click"
+                                                    Visibility="{Binding HasEmissiveTexture, Converter={StaticResource BoolToVisibility}}" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding EmissiveTextureFileName}" Margin="8,0,8,8"
+                                                   TextTrimming="CharacterEllipsis" FontStyle="Italic"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Visibility="{Binding HasEmissiveTexture, Converter={StaticResource BoolToVisibility}}" />
 
                                         <!-- UV Projection - (re)maps this mesh's own UVs, for a custom
                                              primitive or an Edit-Mode-reshaped mesh whose authored UVs
@@ -1714,6 +2191,16 @@
 
                                     <StackPanel Style="{StaticResource TexturePaintToolStyle}">
                                         <TextBlock Text="Texture Paint Brush" Style="{StaticResource PanelHeaderStyle}" Margin="0,0,0,2" />
+                                        <TextBlock Text="Brush" VerticalAlignment="Center" Margin="0,0,0,2"
+                                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+                                        <ComboBox x:Name="TexturePaintModeComboBox" Margin="0,0,0,6" SelectedIndex="0"
+                                                  SelectionChanged="TexturePaintModeComboBox_SelectionChanged"
+                                                  ToolTip="Draw paints the colour; Soften blurs; Smear drags colour along the stroke; Fill floods the whole texture">
+                                            <ComboBoxItem Content="Draw" />
+                                            <ComboBoxItem Content="Soften" />
+                                            <ComboBoxItem Content="Smear" />
+                                            <ComboBoxItem Content="Fill" />
+                                        </ComboBox>
                                         <!-- Radius here is a PIXEL distance into the material's own
                                              painted texture (see Engine.Editing.TexturePaintSession.BrushRadius's
                                              own remarks), unlike every other brush's own world-space
@@ -1752,7 +2239,14 @@
                  centered within this thin bar instead of stretching to fill it. -->
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
                 <Button x:Name="PlayPauseButton" Content="Play" VerticalAlignment="Center" Padding="12,2" Margin="0,0,4,0" Click="PlayPauseButton_Click" />
-                <Button Content="Stop" VerticalAlignment="Center" Padding="12,2" Margin="0,0,16,0" Click="StopButton_Click" />
+                <Button Content="Stop" VerticalAlignment="Center" Padding="12,2" Margin="0,0,4,0" Click="StopButton_Click" />
+                <!-- Auto Keying (Blender's record button): every committed transform keys the moved objects at the current frame. -->
+                <CheckBox x:Name="AutoKeyButton" Content="&#x25CF; Rec" VerticalAlignment="Center" Margin="4,0,16,0" Foreground="#E05555"
+                              ToolTip="Auto Keying: moving, rotating or scaling an object inserts a keyframe at the current frame"
+                              Checked="AutoKeyButton_Changed" Unchecked="AutoKeyButton_Changed" />
+                <CheckBox x:Name="MotionPathCheckBox" Content="Path" VerticalAlignment="Center" Margin="0,0,16,0"
+                          ToolTip="Motion Path: draw the selected object's path through the whole animation (dots = frames, white = keyframes)"
+                          Checked="MotionPathCheckBox_Changed" Unchecked="MotionPathCheckBox_Changed" />
 
                 <TextBlock Text="Frame:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" />
                 <!-- The Dopesheet: DopesheetCanvas overlays FrameScrubber (same Width, so
@@ -1773,6 +2267,16 @@
                 </Grid>
                 <TextBlock x:Name="FrameLabel" Text="0 / 120" VerticalAlignment="Center" Margin="0,0,16,0"
                            Foreground="{StaticResource TextSecondaryBrush}" MinWidth="60" />
+
+                <!-- Actions: separate animation clips (Idle/Run/Jump...). The timeline plays and
+                     edits the selected one; glTF export writes each as its own animation. -->
+                <TextBlock Text="Action:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" />
+                <ComboBox x:Name="ActionComboBox" Width="120" VerticalAlignment="Center" DisplayMemberPath="Name"
+                          SelectionChanged="ActionComboBox_SelectionChanged" ToolTip="Active animation clip" />
+                <Button Content="+" Padding="6,0" Margin="4,0,0,0" VerticalAlignment="Center" Click="NewActionButton_Click" ToolTip="New empty action" />
+                <Button Content="Copy" Padding="6,0" Margin="2,0,0,0" VerticalAlignment="Center" Click="DuplicateActionButton_Click" ToolTip="Duplicate the active action" />
+                <Button Content="Rename" Padding="6,0" Margin="2,0,0,0" VerticalAlignment="Center" Click="RenameActionButton_Click" ToolTip="Rename the active action" />
+                <Button Content="X" Padding="6,0" Margin="2,0,16,0" VerticalAlignment="Center" Click="DeleteActionButton_Click" ToolTip="Delete the active action" />
 
                 <TextBlock Text="FPS:" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource TextSecondaryBrush}" />
                 <TextBox x:Name="FpsTextBox" Width="50" VerticalAlignment="Center" Text="24" TextChanged="FpsTextBox_TextChanged" />

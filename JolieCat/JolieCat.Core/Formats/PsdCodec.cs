@@ -46,6 +46,17 @@ namespace JolieCat.Core.Formats
             (BlendMode.Saturation, "sat "),
             (BlendMode.Color, "colr"),
             (BlendMode.Luminosity, "lum "),
+            (BlendMode.Dissolve, "diss"),
+            (BlendMode.LinearBurn, "lbrn"),
+            (BlendMode.DarkerColor, "dkCl"),
+            (BlendMode.LinearDodge, "lddg"),
+            (BlendMode.LighterColor, "lgCl"),
+            (BlendMode.VividLight, "vLit"),
+            (BlendMode.LinearLight, "lLit"),
+            (BlendMode.PinLight, "pLit"),
+            (BlendMode.HardMix, "hMix"),
+            (BlendMode.Subtract, "fsub"),
+            (BlendMode.Divide, "fdiv"),
         };
 
         // ============================== Writing ==============================

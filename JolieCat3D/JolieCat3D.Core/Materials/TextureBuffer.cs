@@ -61,5 +61,26 @@ namespace JolieCat3D.Core.Materials
             if (x < 0 || x >= Width || y < 0 || y >= Height) throw new ArgumentOutOfRangeException();
             _pixels[y * Width + x] = color;
         }
-    }
+
+        /// <summary>An independent copy of this buffer.</summary>
+        public TextureBuffer Clone()
+        {
+            var clone = new TextureBuffer(Width, Height);
+            Array.Copy(_pixels, clone._pixels, _pixels.Length);
+            return clone;
+        }
+
+        /// <summary>Overwrites every pixel with <paramref name="source"/>'s (same size only).</summary>
+        public void CopyPixelsFrom(TextureBuffer source)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            if (source.Width != Width || source.Height != Height)
+                throw new ArgumentException("Texture sizes differ.", nameof(source));
+            Array.Copy(source._pixels, _pixels, _pixels.Length);
+        }
+
+        /// <summary>True when every pixel equals <paramref name="other"/>'s.</summary>
+        public bool ContentEquals(TextureBuffer other) =>
+            other.Width == Width && other.Height == Height && _pixels.AsSpan().SequenceEqual(other._pixels);
+}
 }

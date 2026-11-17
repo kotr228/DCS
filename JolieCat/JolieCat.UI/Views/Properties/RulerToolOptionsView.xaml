@@ -1,0 +1,31 @@
+<UserControl x:Class="JolieCat.UI.Views.Properties.RulerToolOptionsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Margin="10,8,10,8">
+        <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"
+                   Text="Drag on the image to measure a distance and angle (Shift: steps of 45°). Drag along something that should be level - a horizon, a table edge - then Straighten Layer." />
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="70" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Text="Length" Foreground="{StaticResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding LengthText}" Foreground="{StaticResource TextPrimaryBrush}" AutomationProperties.Name="Ruler length" />
+            <TextBlock Grid.Row="1" Text="Angle" Foreground="{StaticResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding AngleText}" Foreground="{StaticResource TextPrimaryBrush}" AutomationProperties.Name="Ruler angle" />
+            <TextBlock Grid.Row="2" Text="Size" Foreground="{StaticResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SizeText}" Foreground="{StaticResource TextPrimaryBrush}" />
+            <TextBlock Grid.Row="3" Text="From / to" Foreground="{StaticResource TextSecondaryBrush}" />
+            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding PointsText}" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap" />
+        </Grid>
+        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+            <Button Content="Straighten Layer" Padding="8,3" Command="{Binding StraightenCommand}" IsEnabled="{Binding HasLine}"
+                    Style="{StaticResource PrimaryButtonStyle}"
+                    ToolTip="Turns the active layer so the measured line becomes level (or upright, if it's closer to vertical)" />
+            <Button Content="Clear" Padding="8,3" Margin="6,0,0,0" Command="{Binding ClearCommand}" IsEnabled="{Binding HasLine}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

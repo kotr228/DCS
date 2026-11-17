@@ -1,4 +1,4 @@
-﻿namespace GrayCat.Core.Validation;
+namespace GrayCat.Core.Validation;
 
 using GrayCat.Core.Models;
 using System.Text.RegularExpressions;
@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 public class BlockValidator
 {
     private static readonly Regex EmailRegex = new(@"^[^\s@]+@[^\s@]+\.[^\s@]+$", RegexOptions.Compiled);
-    private static readonly Regex UrlRegex = new(@"^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex BareDomainRegex = new(@"^[a-z0-9-]+(\.[a-z0-9-]+)+(/\S*)?$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex HexColorRegex = new(@"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$", RegexOptions.Compiled);
 
     public static (bool IsValid, List<string> Errors) ValidateBlock(BlockModel block)
@@ -82,8 +82,8 @@ public class BlockValidator
 
         if (block.Properties.TryGetValue("url", out var url) &&
             !string.IsNullOrEmpty(url?.ToString()) &&
-            url.ToString() != "#" &&
-            !IsValidUrl(url.ToString()))
+            url?.ToString() != "#" &&
+            !IsValidUrl(url?.ToString() ?? ""))
         {
             errors.Add("Button URL is invalid");
         }
@@ -208,8 +208,8 @@ public class BlockValidator
 
         if (block.Properties.TryGetValue("image", out var image) &&
             !string.IsNullOrEmpty(image?.ToString()) &&
-            !IsValidUrl(image.ToString()) &&
-            !IsValidImagePath(image.ToString()))
+            !IsValidUrl(image?.ToString() ?? "") &&
+            !IsValidImagePath(image?.ToString() ?? ""))
         {
             errors.Add("Card image path or URL is invalid");
         }
@@ -229,8 +229,8 @@ public class BlockValidator
 
         if (block.Properties.TryGetValue("backgroundImage", out var bgImage) &&
             !string.IsNullOrEmpty(bgImage?.ToString()) &&
-            !IsValidUrl(bgImage.ToString()) &&
-            !IsValidImagePath(bgImage.ToString()))
+            !IsValidUrl(bgImage?.ToString() ?? "") &&
+            !IsValidImagePath(bgImage?.ToString() ?? ""))
         {
             errors.Add("Background image path or URL is invalid");
         }
@@ -253,11 +253,15 @@ public class BlockValidator
     {
         var errors = new List<string>();
 
-        if (string.IsNullOrWhiteSpace(block.ImagePath))
+        var src = block.Properties.TryGetValue("src", out var srcValue) ? srcValue?.ToString() : null;
+        if (string.IsNullOrWhiteSpace(src))
+            src = block.ImagePath;
+
+        if (string.IsNullOrWhiteSpace(src))
         {
-            errors.Add("Image path is required");
+            errors.Add("Image URL is required");
         }
-        else if (!IsValidUrl(block.ImagePath) && !IsValidImagePath(block.ImagePath))
+        else if (!IsValidUrl(src) && !IsValidImagePath(src))
         {
             errors.Add("Image path or URL is invalid");
         }
@@ -283,7 +287,12 @@ public class BlockValidator
     {
         if (string.IsNullOrWhiteSpace(url))
             return false;
-        return UrlRegex.IsMatch(url) || url.StartsWith("/") || url == "#";
+        url = url.Trim();
+        if (url.StartsWith('/') || url.StartsWith('#') || url.StartsWith("./") || url.StartsWith("../"))
+            return true;
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+            return uri.Scheme is "http" or "https" or "mailto" or "tel";
+        return BareDomainRegex.IsMatch(url);
     }
 
     public static bool IsValidHexColor(string color)

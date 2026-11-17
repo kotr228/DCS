@@ -1,32 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- net8.0-windows + UseWPF, not plain net8.0: this project maps JolieCat3D.Core's
-       platform-agnostic scene data into System.Windows.Media.Media3D types
-       (MeshGeometry3D, Model3DGroup, ...) and HelixToolkit.Wpf's HelixViewport3D, both
-       WPF-only. JolieCat3D.Core stays plain net8.0 deliberately (see its own csproj) so
-       the data model itself never depends on WPF or Windows. -->
+  <!-- net8.0-windows + UseWPF: the viewport control is a WPF element that shows the
+       DirectX 11 renderer (Vortice) through a D3DImage. JolieCat3D.Core stays plain net8.0
+       so the data model never depends on WPF, Windows or a graphics API. -->
   <PropertyGroup>
     <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <UseWPF>true</UseWPF>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- This sandbox has no Windows Desktop runtime, only the reference assemblies -
          needed to let a Windows-targeted project restore/compile here at all (see
          JolieCat.UI.csproj for the same setting, established in an earlier round). -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <!-- HelixToolkit.Wpf 2.24.0 (the latest, and the classic/canonical WPF 3D toolkit
-         the task names) ships only a net462 build - there is no net8.0-windows-native
-         package for it. NuGet resolves it into this project via the standard .NET
-         Framework compatibility shim, which is the normal, well-established way every
-         net6/7/8-windows WPF app consumes this exact package (its own WPF/PresentationFramework
-         surface is unchanged across .NET Framework and modern .NET, so the shim is a
-         non-issue at both compile and run time) - only the NU1701 advisory warning it
-         triggers needs suppressing, not worked around. -->
-    <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="HelixToolkit.Wpf" Version="2.24.0" />
+    <PackageReference Include="Vortice.D3DCompiler" Version="3.8.3" />
+    <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    <PackageReference Include="Vortice.Direct3D9" Version="3.8.3" />
   </ItemGroup>
 
   <ItemGroup>

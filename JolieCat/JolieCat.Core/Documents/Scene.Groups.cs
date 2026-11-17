@@ -448,6 +448,7 @@ namespace JolieCat.Core.Documents
                             Color = SKColors.White.WithAlpha((byte)Math.Clamp(unit.Opacity * 255.0, 0, 255)),
                             BlendMode = Layer.ToSkiaBlendMode(unit.BlendMode),
                         };
+                        Rendering.BlendModes.Apply(paint, unit.BlendMode);
                         canvas.SaveLayer(new SKRect(0, 0, width, height), paint);
                         SceneCompositor.DrawGroupMembers(canvas, this, unit, width, height, backdrop);
                         if (unit.Mask is { IsEnabled: true } groupMask)

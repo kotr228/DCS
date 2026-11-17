@@ -163,6 +163,36 @@ namespace JolieCat3D.UI.ViewModels
                 RaiseChanged();
             }
         }
+
+        public float ConstantOffsetX
+        {
+            get => _array.ConstantOffset.X;
+            set { var c = _array.ConstantOffset; _array.ConstantOffset = new Vector3(value, c.Y, c.Z); OnPropertyChanged(); RaiseChanged(); }
+        }
+
+        public float ConstantOffsetY
+        {
+            get => _array.ConstantOffset.Y;
+            set { var c = _array.ConstantOffset; _array.ConstantOffset = new Vector3(c.X, value, c.Z); OnPropertyChanged(); RaiseChanged(); }
+        }
+
+        public float ConstantOffsetZ
+        {
+            get => _array.ConstantOffset.Z;
+            set { var c = _array.ConstantOffset; _array.ConstantOffset = new Vector3(c.X, c.Y, value); OnPropertyChanged(); RaiseChanged(); }
+        }
+
+        public bool Merge
+        {
+            get => _array.Merge;
+            set { if (_array.Merge == value) return; _array.Merge = value; OnPropertyChanged(); RaiseChanged(); }
+        }
+
+        public float MergeDistance
+        {
+            get => _array.MergeDistance;
+            set { var v = MathF.Max(0, value); if (_array.MergeDistance == v) return; _array.MergeDistance = v; OnPropertyChanged(); RaiseChanged(); }
+        }
     }
 
     public sealed class SolidifyModifierViewModel : ModifierViewModelBase
@@ -180,6 +210,158 @@ namespace JolieCat3D.UI.ViewModels
             {
                 if (_solidify.Thickness == value) return;
                 _solidify.Thickness = value;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+    }
+
+    public sealed class ShrinkwrapModifierViewModel : ModifierViewModelBase
+    {
+        private readonly ShrinkwrapModifier _shrinkwrap;
+        private readonly NodeViewModel _owner;
+        private readonly Func<IEnumerable<NodeViewModel>> _allNodesProvider;
+
+        public ShrinkwrapModifierViewModel(ShrinkwrapModifier shrinkwrap, Action onChanged, NodeViewModel owner, Func<IEnumerable<NodeViewModel>> allNodesProvider)
+            : base(shrinkwrap, onChanged)
+        {
+            _shrinkwrap = shrinkwrap;
+            _owner = owner;
+            _allNodesProvider = allNodesProvider;
+        }
+
+        /// <summary>"NearestSurface" or "Project".</summary>
+        public string Mode
+        {
+            get => _shrinkwrap.Mode.ToString();
+            set
+            {
+                if (!Enum.TryParse<ShrinkwrapMode>(value, out var mode) || mode == _shrinkwrap.Mode) return;
+                _shrinkwrap.Mode = mode;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+
+        public float Offset
+        {
+            get => _shrinkwrap.Offset;
+            set
+            {
+                if (_shrinkwrap.Offset == value) return;
+                _shrinkwrap.Offset = value;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+
+        public IEnumerable<NodeViewModel> AvailableTargets =>
+            _allNodesProvider().Where(candidate => candidate != _owner && candidate.UnderlyingNode.Mesh is not null);
+
+        public NodeViewModel? SelectedTarget
+        {
+            get => _shrinkwrap.Target is { } target ? _allNodesProvider().FirstOrDefault(candidate => candidate.UnderlyingNode == target) : null;
+            set
+            {
+                if (SelectedTarget == value) return;
+                _shrinkwrap.Target = value?.UnderlyingNode;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+    }
+
+    public sealed class CurveDeformModifierViewModel : ModifierViewModelBase
+    {
+        private readonly CurveDeformModifier _curve;
+        private readonly NodeViewModel _owner;
+        private readonly Func<IEnumerable<NodeViewModel>> _allNodesProvider;
+
+        public CurveDeformModifierViewModel(CurveDeformModifier curve, Action onChanged, NodeViewModel owner, Func<IEnumerable<NodeViewModel>> allNodesProvider)
+            : base(curve, onChanged)
+        {
+            _curve = curve;
+            _owner = owner;
+            _allNodesProvider = allNodesProvider;
+        }
+
+        /// <summary>Curve objects in the scene.</summary>
+        public IEnumerable<NodeViewModel> AvailableTargets =>
+            _allNodesProvider().Where(candidate => candidate != _owner && candidate.UnderlyingNode.Curve is not null);
+
+        public NodeViewModel? SelectedTarget
+        {
+            get => _curve.Target is { } target ? _allNodesProvider().FirstOrDefault(candidate => candidate.UnderlyingNode == target) : null;
+            set
+            {
+                if (SelectedTarget == value) return;
+                _curve.Target = value?.UnderlyingNode;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+    }
+
+    public sealed class WeightedNormalModifierViewModel : ModifierViewModelBase
+    {
+        private readonly WeightedNormalModifier _weighted;
+
+        public WeightedNormalModifierViewModel(WeightedNormalModifier weighted, Action onChanged) : base(weighted, onChanged) =>
+            _weighted = weighted;
+
+        public float AngleDegrees
+        {
+            get => _weighted.AngleDegrees;
+            set
+            {
+                if (_weighted.AngleDegrees == value) return;
+                _weighted.AngleDegrees = value;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+    }
+
+    public sealed class BevelModifierViewModel : ModifierViewModelBase
+    {
+        private readonly BevelModifier _bevel;
+
+        public BevelModifierViewModel(BevelModifier bevel, Action onChanged) : base(bevel, onChanged) => _bevel = bevel;
+
+        public float Width
+        {
+            get => _bevel.Width;
+            set { if (_bevel.Width == value) return; _bevel.Width = value; OnPropertyChanged(); RaiseChanged(); }
+        }
+
+        public int Segments
+        {
+            get => _bevel.Segments;
+            set { if (_bevel.Segments == value) return; _bevel.Segments = value; OnPropertyChanged(); RaiseChanged(); }
+        }
+
+        public float AngleDegrees
+        {
+            get => _bevel.AngleDegrees;
+            set { if (_bevel.AngleDegrees == value) return; _bevel.AngleDegrees = value; OnPropertyChanged(); RaiseChanged(); }
+        }
+    }
+
+    public sealed class DecimateModifierViewModel : ModifierViewModelBase
+    {
+        private readonly DecimateModifier _decimate;
+
+        public DecimateModifierViewModel(DecimateModifier decimate, Action onChanged) : base(decimate, onChanged) =>
+            _decimate = decimate;
+
+        /// <summary>Fraction of triangles kept (0.01..1).</summary>
+        public float Ratio
+        {
+            get => _decimate.Ratio;
+            set
+            {
+                if (_decimate.Ratio == value) return;
+                _decimate.Ratio = value;
                 OnPropertyChanged();
                 RaiseChanged();
             }
@@ -276,6 +458,64 @@ namespace JolieCat3D.UI.ViewModels
                 _boolean.Target = value?.UnderlyingNode;
                 OnPropertyChanged();
                 RaiseChanged();
+            }
+        }
+    }
+
+    /// <summary>Any <see cref="IParameterizedModifier"/> (Displace, Smooth, Triangulate,
+    /// Weld, Simple Deform): one row per parameter, shown by a single shared template.</summary>
+    public sealed class ParameterizedModifierViewModel : ModifierViewModelBase
+    {
+        public ParameterizedModifierViewModel(Modifier modifier, Action onChanged) : base(modifier, onChanged) =>
+            Parameters = ((IParameterizedModifier)modifier).Parameters.Select(p => new ModifierParameterViewModel(p, RaiseChanged)).ToList();
+
+        public IReadOnlyList<ModifierParameterViewModel> Parameters { get; }
+    }
+
+    public sealed class ModifierParameterViewModel : ObservableObject
+    {
+        private readonly ModifierParameter _parameter;
+        private readonly Action _changed;
+
+        public ModifierParameterViewModel(ModifierParameter parameter, Action changed)
+        {
+            _parameter = parameter;
+            _changed = changed;
+        }
+
+        public string Label => _parameter.Label;
+        public IReadOnlyList<string>? Choices => _parameter.Choices;
+        public bool IsChoice => _parameter.Choices is not null;
+        public bool IsNumber => _parameter.Choices is null;
+
+        public string Text
+        {
+            get => _parameter.IsInteger
+                ? ((int)_parameter.Get()).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : _parameter.Get().ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+            set
+            {
+                if (!float.TryParse((value ?? string.Empty).Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) || !float.IsFinite(v))
+                {
+                    OnPropertyChanged();
+                    return;
+                }
+                if (v == _parameter.Get()) return;
+                _parameter.Set(_parameter.IsInteger ? MathF.Round(v) : v);
+                OnPropertyChanged();
+                _changed();
+            }
+        }
+
+        public int SelectedIndex
+        {
+            get => (int)_parameter.Get();
+            set
+            {
+                if (value < 0 || value == (int)_parameter.Get()) return;
+                _parameter.Set(value);
+                OnPropertyChanged();
+                _changed();
             }
         }
     }

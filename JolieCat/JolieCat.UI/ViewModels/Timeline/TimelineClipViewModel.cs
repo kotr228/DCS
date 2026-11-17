@@ -12,7 +12,7 @@ namespace JolieCat.UI.ViewModels.Timeline
     /// </summary>
     public partial class TimelineClipViewModel : ObservableObject
     {
-        private const double MinLengthFrames = 2;
+        private const double MinLengthFrames = 1;
 
         private readonly TimelineViewModel _owner;
 
@@ -27,7 +27,36 @@ namespace JolieCat.UI.ViewModels.Timeline
         /// reason to depend on the Layers view-model namespace, and a Core
         /// <see cref="Layer"/> reference is what <see cref="TimelineViewModel"/>'s own
         /// flipbook logic needs (see its own remarks for the trade-off that implies).</summary>
-        public Layer? TargetLayer { get; set; }
+        public Layer? TargetLayer
+        {
+            get => _targetLayer;
+            set
+            {
+                _targetLayer = value;
+                if (value is not null) TargetLayerId = value.Id;
+            }
+        }
+
+        private Layer? _targetLayer;
+
+        /// <summary>The target layer's Id: kept even while the layer itself is briefly
+        /// gone (in the middle of an undo), so the link can be found again.</summary>
+        public System.Guid? TargetLayerId { get; set; }
+
+        /// <summary>A sound clip (drawn in a different color).</summary>
+        public bool IsAudio { get; init; }
+
+        /// <summary>A marker (drawn in a different color).</summary>
+        public bool IsMarker { get; init; }
+
+        /// <summary>A sound clip's waveform as path data (one unit per frame wide, 1 high), or null.</summary>
+        [ObservableProperty]
+        private string? waveform;
+
+        /// <summary>Drag/trim gestures: the timeline records each as one undo step.</summary>
+        public void BeginGesture() => _owner.BeginGesture();
+
+        public void EndGesture(string name) => _owner.EndGesture(name);
 
         [ObservableProperty]
         private double startFrame;
@@ -37,6 +66,9 @@ namespace JolieCat.UI.ViewModels.Timeline
 
         /// <summary>Delegates to the owning timeline's scale so the clip can size/position itself on screen.</summary>
         public double PixelsPerFrame => _owner.PixelsPerFrame;
+
+        /// <summary>The timeline was zoomed: re-position on screen.</summary>
+        internal void NotifyScaleChanged() => OnPropertyChanged(nameof(PixelsPerFrame));
 
         public TimelineClipViewModel(TimelineViewModel owner, string name, double startFrame, double lengthFrames)
         {

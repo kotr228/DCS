@@ -4,6 +4,7 @@ namespace AsmodayCat.Shared.Models;
 
 public class LlmRequest
 {
+    public string?          Model           { get; set; }
     public string           Prompt          { get; set; } = string.Empty;
     public string           Context         { get; set; } = string.Empty;
     public int              RequiredVram    { get; set; }

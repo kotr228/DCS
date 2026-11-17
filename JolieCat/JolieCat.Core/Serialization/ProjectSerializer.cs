@@ -66,6 +66,9 @@ namespace JolieCat.Core.Serialization
             {
                 SceneName = scene.Name,
                 SavedSelections = new Dictionary<string, string>(scene.SavedSelections),
+                SavedPaths = scene.SavedPaths.Count == 0 ? null : new Dictionary<string, string>(scene.SavedPaths),
+                Artboards = scene.Artboards.Count == 0 ? null : scene.Artboards
+                    .Select(a => new ArtboardData { Name = a.Name, X = a.Bounds.Left, Y = a.Bounds.Top, Width = a.Bounds.Width, Height = a.Bounds.Height }).ToList(),
                 Guides = scene.Guides.Select(g => (g.IsVertical ? "v:" : "h:") + g.Position.ToString("R", System.Globalization.CultureInfo.InvariantCulture)).ToList(),
                 ProjectType = projectType.ToString(),
                 SpriteSheetGrid = spriteSheetGrid is null
@@ -78,6 +81,10 @@ namespace JolieCat.Core.Serialization
                         PaddingY = spriteSheetGrid.PaddingY,
                         MarginX = spriteSheetGrid.MarginX,
                         MarginY = spriteSheetGrid.MarginY,
+                        PivotX = spriteSheetGrid.PivotX,
+                        PivotY = spriteSheetGrid.PivotY,
+                        RowNames = spriteSheetGrid.RowNames,
+                        CellPivots = spriteSheetGrid.CellPivotsText,
                     },
                 DocumentWidth = scene.Layers[0].Bitmap.Width,
                 DocumentHeight = scene.Layers[0].Bitmap.Height,
@@ -122,6 +129,7 @@ namespace JolieCat.Core.Serialization
                     IsVisible = layer.IsVisible,
                     IsLocked = layer.IsLocked,
                     Opacity = layer.Opacity,
+                    FillOpacity = layer.FillOpacity,
                     BlendMode = layer.BlendMode.ToString(),
                     BitmapEntryName = entryName,
                     HasMask = layer.Mask is not null,
@@ -142,6 +150,8 @@ namespace JolieCat.Core.Serialization
                         Color = t.Color.ToString(), X = t.Origin.X, Y = t.Origin.Y, Vertical = t.Vertical,
                         Alignment = t.Alignment.ToString(), Leading = t.Leading, Tracking = t.Tracking,
                         Underline = t.Underline, Strikethrough = t.Strikethrough, Warp = t.Warp, WarpStyle = t.WarpStyle.ToString(),
+                        PathData = t.PathData,
+                        BoxWidth = t.BoxWidth,
                     } : null,
                 });
 
@@ -162,6 +172,20 @@ namespace JolieCat.Core.Serialization
                     using var sourceEntryStream = sourceEntry.Open();
                     smartSource.Encode(sourceEntryStream, SKEncodedImageFormat.Png, 100);
                 }
+            }
+
+            // Sounds go inside the project, so it can be moved or shared without them.
+            for (var k = 0; k < manifest.TimelineTracks.Count; k++)
+            {
+                var track = manifest.TimelineTracks[k];
+                track.AudioEntryName = null;
+                if (track.AudioPath is not { } audio || !File.Exists(audio)) continue;
+                var name = $"audio/{k}{Path.GetExtension(audio).ToLowerInvariant()}";
+                var audioEntry = archive.CreateEntry(name, CompressionLevel.NoCompression);
+                using (var audioStream = audioEntry.Open())
+                using (var source = File.OpenRead(audio))
+                    source.CopyTo(audioStream);
+                track.AudioEntryName = name;
             }
 
             var manifestEntry = archive.CreateEntry(ManifestEntryName, CompressionLevel.Optimal);
@@ -185,6 +209,10 @@ namespace JolieCat.Core.Serialization
             ProjectType projectType = ProjectType.StandardImage,
             Documents.SpriteSheetGrid? spriteSheetGrid = null) =>
             Task.Run(() => Save(path, scene, timelineTracks, timelineTotalFrames, timelineFrameRate, projectType, spriteSheetGrid));
+
+        /// <summary>Where sounds unpacked from projects are kept.</summary>
+        public static string AudioCacheFolder { get; set; } = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "JolieCat", "AudioCache");
 
         public static ProjectLoadResult Load(string path)
         {
@@ -244,6 +272,7 @@ namespace JolieCat.Core.Serialization
                     IsVisible = layerEntry.IsVisible,
                     IsLocked = layerEntry.IsLocked,
                     Opacity = layerEntry.Opacity,
+                    FillOpacity = layerEntry.FillOpacity is > 0 and <= 1 or 0 ? layerEntry.FillOpacity : 1,
                     BlendMode = Enum.TryParse<BlendMode>(layerEntry.BlendMode, out var parsedBlend) ? parsedBlend : BlendMode.Normal,
                 };
 
@@ -315,7 +344,9 @@ namespace JolieCat.Core.Serialization
                         new SKPoint(text.X, text.Y), text.Vertical,
                         Enum.TryParse<TextAlignment>(text.Alignment, out var alignment) ? alignment : TextAlignment.Left,
                         text.Leading <= 0 ? 100 : text.Leading, text.Tracking, text.Underline, text.Strikethrough, text.Warp,
-                        Enum.TryParse<TextWarpStyle>(text.WarpStyle, out var warpStyle) ? warpStyle : TextWarpStyle.Arc);
+                        Enum.TryParse<TextWarpStyle>(text.WarpStyle, out var warpStyle) ? warpStyle : TextWarpStyle.Arc,
+                        text.PathData,
+                        text.BoxWidth);
                 }
 
                 scene.AddLayer(layer);
@@ -329,7 +360,12 @@ namespace JolieCat.Core.Serialization
 
             foreach (var (name, svg) in manifest.SavedSelections ?? new Dictionary<string, string>())
                 scene.SavedSelections[name] = svg;
+            foreach (var (name, savedPath) in manifest.SavedPaths ?? new Dictionary<string, string>())
+                scene.SavedPaths[name] = savedPath;
 
+            foreach (var a in manifest.Artboards ?? new List<ArtboardData>())
+                if (a.Width > 0 && a.Height > 0)
+                    scene.Artboards.Add(new Documents.Artboard(a.Name, SkiaSharp.SKRectI.Create(a.X, a.Y, a.Width, a.Height)));
             foreach (var text in manifest.Guides ?? new List<string>())
                 if (text.Length > 2 && (text[0] == 'v' || text[0] == 'h') && text[1] == ':'
                     && float.TryParse(text[2..], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var position))
@@ -350,7 +386,29 @@ namespace JolieCat.Core.Serialization
                 PaddingY = manifest.SpriteSheetGrid.PaddingY,
                 MarginX = manifest.SpriteSheetGrid.MarginX,
                 MarginY = manifest.SpriteSheetGrid.MarginY,
+                PivotX = manifest.SpriteSheetGrid.PivotX,
+                PivotY = manifest.SpriteSheetGrid.PivotY,
+                RowNames = manifest.SpriteSheetGrid.RowNames ?? string.Empty,
+                CellPivotsText = manifest.SpriteSheetGrid.CellPivots ?? string.Empty,
             };
+
+            // Sounds stored in the project are unpacked to a cache folder (named by their
+            // content, so opening the same project again reuses them) and played from there.
+            foreach (var track in manifest.TimelineTracks)
+            {
+                if (track.AudioEntryName is not { } name || archive.GetEntry(name) is not { } audioEntry) continue;
+                using var buffer = new MemoryStream();
+                using (var audioStream = audioEntry.Open()) audioStream.CopyTo(buffer);
+                var bytes = buffer.ToArray();
+                var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))[..16];
+                var cached = Path.Combine(AudioCacheFolder, hash + Path.GetExtension(name));
+                if (!File.Exists(cached))
+                {
+                    Directory.CreateDirectory(AudioCacheFolder);
+                    File.WriteAllBytes(cached, bytes);
+                }
+                track.AudioPath = cached;
+            }
 
             return new ProjectLoadResult(scene, manifest.TimelineTracks, manifest.TimelineTotalFrames, manifest.TimelineFrameRate, projectType, spriteSheetGrid);
         }

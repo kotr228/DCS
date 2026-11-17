@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using System.Numerics;
 using System.Windows;
 using System.Windows.Controls;
@@ -13,16 +13,17 @@ using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
 using JolieCat3D.Core.Sculpting;
 using JolieCat3D.Core.Skinning;
-using JolieCat3D.Engine.Camera;
 using JolieCat3D.Engine.Editing;
 using JolieCat3D.Engine.Gizmos;
 using JolieCat3D.Engine.Lighting;
 using JolieCat3D.Engine.Rendering;
+using JolieCat3D.Engine.Viewport;
 using JolieCat3D.Service;
 using JolieCat3D.Service.Animation;
 using JolieCat3D.Service.Commands;
 using JolieCat3D.Service.Export;
 using JolieCat3D.Service.Interop;
+using JolieCat3D.Service.Project;
 using JolieCat3D.UI.ViewModels;
 using Microsoft.Win32;
 
@@ -61,7 +62,11 @@ namespace JolieCat3D.UI
         private const string FileDialogFilter =
             $"{MeshFileService.AnyMeshFilter}|{MeshFileService.ObjFilter}|{MeshFileService.StlFilter}|{MeshFileService.GltfFilter}";
 
-        private readonly Scene3DRenderer _renderer;
+        // Open accepts projects and plain meshes; Save/Save As write projects only.
+        private const string OpenDialogFilter =
+            $"All supported (*.jolie3d;*.obj;*.stl;*.glb;*.gltf)|*.jolie3d;*.obj;*.stl;*.glb;*.gltf|{Jolie3DProjectSerializer.FileFilter}|{FileDialogFilter}";
+
+        private readonly EditorViewport _renderer;
         private readonly TransformGizmo _gizmo;
         private readonly ComponentGizmo _componentGizmo;
         private readonly SceneViewModel _sceneViewModel = new();
@@ -83,7 +88,7 @@ namespace JolieCat3D.UI
         // AnimationTimeline.FrameRate's own remarks), each tick moving CurrentTime
         // forward by its own nominal interval and pushing the result onto every
         // animated node via Apply().
-        private readonly AnimationTimeline _timeline = new();
+        private AnimationTimeline _timeline = new();
         private readonly DispatcherTimer _playbackTimer;
         private bool _isUpdatingAnimationUI;
         private bool _isUpdatingCameraViewUI;
@@ -121,13 +126,6 @@ namespace JolieCat3D.UI
         // field any handler could possibly touch is guaranteed to be assigned.
         private bool _isInitialized;
 
-        // Guards Viewport_MouseLeftButtonDown against the reentrant call WPF itself makes
-        // synchronously from inside GizmoHitTester.BeginDrag's own RaiseEvent - see
-        // TryBeginGizmoDrag's own remarks for exactly why that reentrant call happens
-        // (an observed System.StackOverflowException, not a hypothetical). Set for the
-        // duration of that one RaiseEvent call and nothing else, so it has no effect at
-        // all on any later, genuinely separate click.
-        private bool _isDispatchingGizmoMouseDown;
 
         // Guards RenderAnimationFramesMenuItem_Click against a second, overlapping
         // render being started while one is already in flight - see that method's own
@@ -157,12 +155,38 @@ namespace JolieCat3D.UI
             // The dark professional viewport preset (background gradient + matching
             // lighting) shared with any other JolieCat3D window that wants the same
             // BlackCat/JolieCat-aligned look - see ViewportTheme's own remarks for why
-            // this isn't just baked into Scene3DRenderer's/LightingSettings' own defaults.
-            Viewport.Background = ViewportTheme.CreateDarkBackground();
-
-            _renderer = new Scene3DRenderer(Viewport) { Lighting = ViewportTheme.CreateDarkThemeLighting() };
+            // this isn't just baked into viewport's/LightingSettings' own defaults.
+            _renderer = Viewport;
+            _renderer.Lighting = ViewportTheme.CreateDarkThemeLighting();
             _gizmo = new TransformGizmo(Viewport) { SceneNodes = () => _currentScene.Traverse() };
             _componentGizmo = new ComponentGizmo(Viewport);
+
+            // The whole object selection moves with the gizmo; one undo step per gesture.
+            _gizmo.AdditionalTargets = () => _objectSelection;
+            _gizmo.MultiTransformCommitted += (_, args) =>
+            {
+                var commands = args.Changes.Select(c => (IUndoableCommand)new TransformNodeCommand(c.Target, c.Before, c.After, "Transform", onChanged: () =>
+                {
+                    _renderer.Refresh();
+                    _sceneViewModel.FindViewModel(c.Target)?.SyncFromCore();
+                })).ToList();
+                commands.AddRange(AutoKeyCommands(args.Changes.Select(c => c.Target)));
+                _commandHistory.Record(new CompositeCommand("Transform Objects", commands));
+            };
+
+            // Gizmos draw into the viewport's overlay every frame.
+            _renderer.BuildOverlay += list =>
+            {
+                if (IsEditMode) _componentGizmo.Draw(list);
+                else if (!IsPaintOrSculptMode) _gizmo.Draw(list);
+                DrawMotionPath(list);
+            };
+            _commandHistory.Changed += (_, _) => InvalidateMotionPath();
+            _renderer.BrushRadiusProvider = () =>
+                IsSculptMode ? _renderer.SculptSession.BrushRadius
+                : IsWeightPaintMode ? _renderer.WeightPaintSession.BrushRadius
+                : IsVertexPaintMode ? _renderer.VertexPaintSession.BrushRadius
+                : null;
 
             // A gizmo drag changes the same Core Node a NodeViewModel wraps directly
             // (TransformGizmo has no idea NodeViewModel exists) - re-render the mesh at
@@ -177,7 +201,7 @@ namespace JolieCat3D.UI
 
             // Camera Piloting: live viewport navigation, while "View > Active Camera" is
             // toggled on, writes straight onto Scene3D.ActiveCamera's own transform (see
-            // Scene3DRenderer.OnPilotedCameraChanged) - resync the Properties Inspector
+            // viewport.OnPilotedCameraChanged) - resync the Properties Inspector
             // if that node happens to be the one currently shown there, the same reason
             // _gizmo.TransformChanged's own handler exists. Deliberately does NOT call
             // _renderer.Refresh() here - only the camera itself changed, not any mesh
@@ -201,13 +225,14 @@ namespace JolieCat3D.UI
                     _gizmo.Refresh();
                     _sceneViewModel.FindViewModel(args.Target)?.SyncFromCore();
                 });
-                _commandHistory.Record(command);
+                var keys = AutoKeyCommands(new[] { args.Target });
+                _commandHistory.Record(keys.Count == 0 ? command : new CompositeCommand("Transform Object", new IUndoableCommand[] { command }.Concat(keys)));
             };
 
             // A component-gizmo drag mutates the target mesh's own vertex positions
             // directly (see MeshEditSession.ApplyTranslation) - Refresh() re-renders the
             // scene from that updated Core.Geometry.Mesh AND rebuilds the marker overlay
-            // (Scene3DRenderer.Refresh already calls RefreshComponentOverlay itself), so
+            // (viewport.Refresh already calls RefreshComponentOverlay itself), so
             // both the mesh on screen and its vertex/edge/face dots catch up to the drag
             // together - the "immediate GPU geometry update" Edit Mode needs.
             _componentGizmo.EditApplied += (_, _) => _renderer.Refresh();
@@ -252,12 +277,27 @@ namespace JolieCat3D.UI
             // above. CanExecute is wired to CommandHistory's own CanUndo/CanRedo so the
             // key (and any menu item bound to the same command) is a no-op, not a
             // confusing error, once there's genuinely nothing left to undo/redo.
+            // Pending Inspector edits are committed first, so Ctrl+Z always undoes the
+            // most recent change.
             CommandBindings.Add(new CommandBinding(ApplicationCommands.Undo,
-                (_, _) => _commandHistory.Undo(),
-                (_, e) => e.CanExecute = _commandHistory.CanUndo));
+                (_, _) => { CommitPendingEdit(); _commandHistory.Undo(); _shaderEditor?.Rebuild(); },
+                (_, e) => e.CanExecute = _commandHistory.CanUndo || _pendingEditDescription is not null));
             CommandBindings.Add(new CommandBinding(ApplicationCommands.Redo,
-                (_, _) => _commandHistory.Redo(),
+                (_, _) => { CommitPendingEdit(); _commandHistory.Redo(); _shaderEditor?.Rebuild(); },
                 (_, e) => e.CanExecute = _commandHistory.CanRedo));
+
+            // Generic undo for everything that goes through a NodeViewModel (Inspector
+            // fields, modifiers, constraints, materials, curves, UV projection, ...).
+            _sceneViewModel.SceneChanged += (_, _) => ScheduleEditCommit("Edit Properties");
+            _editCommitTimer.Tick += (_, _) => CommitPendingEdit();
+            _commandHistory.Changed += (_, _) => { if (!_isCommittingEdit) ResetEditBaseline(); };
+            _commandHistory.Changed += (_, _) => { _graphEditor?.Redraw(); _uvEditor?.Redraw(); };
+            _sceneViewModel.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(SceneViewModel.SelectedNode)) return;
+                CommitPendingEdit(); // still targets the previously selected node
+                ResetEditBaseline();
+            };
 
             // A watched JolieWorkspaceWatcher owns a real OS file-system handle - stop
             // and dispose it when the window closes rather than leaking it for the rest
@@ -273,9 +313,34 @@ namespace JolieCat3D.UI
             _playbackTimer.Start();
             Closed += (_, _) => _playbackTimer.Stop();
 
+            // Unsaved-changes hints: any refresh, undo-stack change or inspector edit.
+            _renderer.Refreshed += (_, _) => MarkChanged();
+            _commandHistory.Changed += (_, _) => MarkChanged();
+            _sceneViewModel.SceneChanged += (_, _) => MarkChanged();
+            _dirtyCheckTimer.Tick += (_, _) => { _dirtyCheckTimer.Stop(); HasRealUnsavedChanges(); };
+
+            PreviewMouseDown += OnWindowPreviewMouseDown;
+            PreviewMouseWheel += (_, e) =>
+            {
+                if (_modalMeshOp?.OnWheel is not { } wheel) return;
+                wheel(Math.Sign(e.Delta));
+                UpdateModalMeshOperation(Mouse.GetPosition(Viewport));
+                e.Handled = true;
+            };
+
+            Closing += (_, e) =>
+            {
+                if (!ConfirmDiscardIfNeeded("closing")) e.Cancel = true;
+            };
+
             LoadScene(BuildDemoScene(), filePath: null);
             RefreshAnimationUI();
             RefreshLiveSyncStatus();
+            RebuildRecentMenu();
+
+            // Opening a .jolie3d from Explorer / the command line.
+            var args = Environment.GetCommandLineArgs();
+            if (args.Length > 1 && File.Exists(args[1])) OpenFile(args[1]);
 
             // Only past this point is every field this window's own event handlers touch
             // actually assigned - see _isInitialized's own remarks.
@@ -288,10 +353,14 @@ namespace JolieCat3D.UI
         /// and selection all reset together, and <paramref name="filePath"/> becomes
         /// what <see cref="SaveScene"/> writes back to (null, for a scene that isn't
         /// backed by a file yet - New, or the built-in demo scene at startup).</summary>
-        private void LoadScene(Scene3D scene, string? filePath)
+        private void LoadScene(Scene3D scene, string? filePath, AnimationTimeline? timeline = null, string? displayName = null)
         {
             _currentScene = scene;
             _currentFilePath = filePath;
+            _documentName = displayName ?? (filePath is null ? "Untitled" : Path.GetFileName(filePath));
+
+            _timeline.Stop();
+            _timeline = timeline ?? new AnimationTimeline();
 
             SelectNode(null);
             _sceneViewModel.Load(scene);
@@ -312,8 +381,70 @@ namespace JolieCat3D.UI
             // no tracked texture sources of its own regardless, so this is never a loss.
             _textureSources.Clear();
 
-            Title = $"JolieCat3D - {(filePath is null ? "Untitled" : Path.GetFileName(filePath))}";
+            if (_isInitialized) RefreshAnimationUI();
+            MarkSaved();
         }
+
+        // ================= Unsaved-changes tracking =================
+
+        // _savedSnapshot is a hash of the project data at the last save/load. Edits only
+        // raise the cheap _hasUnsavedChanges hint; whether the scene really differs is
+        // decided by re-hashing (debounced for the title, immediately before a prompt),
+        // so an undo back to the saved state clears the "*" again.
+        private byte[]? _savedSnapshot;
+        private bool _hasUnsavedChanges;
+        private string _documentName = "Untitled";
+        private readonly DispatcherTimer _dirtyCheckTimer = new() { Interval = TimeSpan.FromMilliseconds(800) };
+
+        private byte[] ComputeSnapshot()
+        {
+            var data = Jolie3DProjectSerializer.BuildData(_currentScene, _timeline);
+            return System.Security.Cryptography.SHA256.HashData(System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(data));
+        }
+
+        private void MarkSaved()
+        {
+            try { _savedSnapshot = ComputeSnapshot(); }
+            catch (Exception) { _savedSnapshot = null; }
+            _hasUnsavedChanges = false;
+            _dirtyCheckTimer.Stop();
+            UpdateTitle();
+        }
+
+        private void MarkChanged()
+        {
+            if (!_hasUnsavedChanges)
+            {
+                _hasUnsavedChanges = true;
+                UpdateTitle();
+            }
+            _dirtyCheckTimer.Stop();
+            _dirtyCheckTimer.Start();
+        }
+
+        /// <summary>True only if the scene really differs from the last saved/loaded state.</summary>
+        private bool HasRealUnsavedChanges()
+        {
+            if (!_hasUnsavedChanges) return false;
+
+            try
+            {
+                if (_savedSnapshot is not null && ComputeSnapshot().AsSpan().SequenceEqual(_savedSnapshot))
+                {
+                    _hasUnsavedChanges = false;
+                    UpdateTitle();
+                    return false;
+                }
+            }
+            catch (Exception)
+            {
+                // Can't hash it - assume it changed, so the user still gets asked.
+            }
+            return true;
+        }
+
+        private void UpdateTitle() =>
+            Title = $"JolieCat3D - {_documentName}{(_hasUnsavedChanges ? " *" : string.Empty)}";
 
         private void NewScene()
         {
@@ -325,29 +456,112 @@ namespace JolieCat3D.UI
         {
             if (!ConfirmDiscardIfNeeded("opening another file")) return;
 
-            var dialog = new OpenFileDialog { Filter = FileDialogFilter, Title = "Open" };
+            var dialog = new OpenFileDialog { Filter = OpenDialogFilter, Title = "Open" };
             if (dialog.ShowDialog(this) != true) return;
 
-            TryRun("Open", () => LoadScene(MeshFileService.ImportScene(dialog.FileName), dialog.FileName));
+            OpenFile(dialog.FileName);
         }
 
-        private void SaveScene()
+        /// <summary>A .jolie3d opens as the project itself; a mesh file (OBJ/STL/glTF)
+        /// opens as a new unsaved project, so Save never silently overwrites the
+        /// original model with a lossy export.</summary>
+        private void OpenFile(string path)
         {
-            if (_currentFilePath is null) { SaveSceneAs(); return; }
-            TryRun("Save", () => MeshFileService.ExportScene(_currentScene, _currentFilePath));
+            TryRun("Open", () =>
+            {
+                if (Jolie3DProjectSerializer.IsProjectFile(path))
+                {
+                    var (scene, timeline) = Jolie3DProjectSerializer.Load(path);
+                    LoadScene(scene, path, timeline);
+                    AddRecentFile(path);
+                }
+                else
+                {
+                    var (importedScene, importedTimeline) = MeshFileService.ImportSceneWithAnimation(path);
+                    LoadScene(importedScene, filePath: null, importedTimeline,
+                        displayName: Path.GetFileNameWithoutExtension(path) + Jolie3DProjectSerializer.FileExtension);
+                    // Not saved as a project yet - treat it as a change so closing asks.
+                    _savedSnapshot = null;
+                    MarkChanged();
+                }
+            });
         }
 
-        private void SaveSceneAs()
+        private bool SaveScene()
         {
-            var dialog = new SaveFileDialog { Filter = FileDialogFilter, Title = "Save As", FileName = _currentFilePath ?? "Untitled.obj" };
-            if (dialog.ShowDialog(this) != true) return;
+            if (_currentFilePath is null) return SaveSceneAs();
+            return SaveProjectTo(_currentFilePath);
+        }
 
+        private bool SaveSceneAs()
+        {
+            var dialog = new SaveFileDialog
+            {
+                Filter = Jolie3DProjectSerializer.FileFilter,
+                DefaultExt = Jolie3DProjectSerializer.FileExtension,
+                Title = "Save Project As",
+                FileName = Path.GetFileNameWithoutExtension(_currentFilePath ?? _documentName),
+            };
+            if (dialog.ShowDialog(this) != true) return false;
+
+            return SaveProjectTo(dialog.FileName);
+        }
+
+        private bool SaveProjectTo(string path)
+        {
+            var ok = false;
             TryRun("Save", () =>
             {
-                MeshFileService.ExportScene(_currentScene, dialog.FileName);
-                _currentFilePath = dialog.FileName;
-                Title = $"JolieCat3D - {Path.GetFileName(_currentFilePath)}";
+                Jolie3DProjectSerializer.Save(_currentScene, _timeline, path);
+                _currentFilePath = path;
+                _documentName = Path.GetFileName(path);
+                MarkSaved();
+                AddRecentFile(path);
+                ok = true;
             });
+            return ok;
+        }
+
+        // ================= Recent files =================
+
+        private static readonly string RecentFilesPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "JolieCat3D", "recent.txt");
+
+        private static List<string> LoadRecentFiles()
+        {
+            try { return File.Exists(RecentFilesPath) ? File.ReadAllLines(RecentFilesPath).Where(l => l.Length > 0).ToList() : new(); }
+            catch (Exception) { return new(); }
+        }
+
+        private void AddRecentFile(string path)
+        {
+            var list = LoadRecentFiles();
+            list.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+            list.Insert(0, path);
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(RecentFilesPath)!);
+                File.WriteAllLines(RecentFilesPath, list.Take(10));
+            }
+            catch (Exception) { /* recent list is a convenience only */ }
+            RebuildRecentMenu();
+        }
+
+        private void RebuildRecentMenu()
+        {
+            RecentFilesMenuItem.Items.Clear();
+            var list = LoadRecentFiles();
+            foreach (var path in list)
+            {
+                var item = new MenuItem { Header = path.Replace("_", "__") };
+                item.Click += (_, _) =>
+                {
+                    if (!File.Exists(path)) { MessageBox.Show(this, $"File not found:\n{path}", "JolieCat3D"); return; }
+                    if (ConfirmDiscardIfNeeded("opening another file")) OpenFile(path);
+                };
+                RecentFilesMenuItem.Items.Add(item);
+            }
+            RecentFilesMenuItem.IsEnabled = list.Count > 0;
         }
 
         /// <summary>Adds a file's content into the current scene as new root node(s) -
@@ -362,10 +576,15 @@ namespace JolieCat3D.UI
 
             TryRun("Import", () =>
             {
-                var imported = MeshFileService.ImportScene(dialog.FileName);
-                foreach (var root in imported.RootNodes) _currentScene.AddRootNode(root);
+                var (imported, importedTimeline) = MeshFileService.ImportSceneWithAnimation(dialog.FileName);
+                var roots = imported.RootNodes.ToList();
+                foreach (var root in roots) imported.RemoveRootNode(root);
 
-                _sceneViewModel.Load(_currentScene);
+                var commands = roots.Select(root => (IUndoableCommand)new AddNodeCommand(_currentScene, null, root, "Import", OnSceneStructureChanged)).ToList();
+                if (importedTimeline is not null)
+                    commands.Add(new MergeActionsCommand(() => _timeline, importedTimeline, OnActionsChanged));
+                var command = new CompositeCommand("Import", commands);
+                _commandHistory.Execute(command);
                 _renderer.Render(_currentScene);
             });
         }
@@ -393,6 +612,23 @@ namespace JolieCat3D.UI
         {
             if (!_isInitialized) return;
             AddNodeToScene(new Node("Plane") { Mesh = Primitives.CreatePlane() });
+        }
+
+        private void AddTextMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            var dialog = new AddTextWindow { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.Result is not { } options) return;
+            TryRun("Add Text", () =>
+            {
+                var mesh = Engine.Text.TextOutline.BuildMesh(options.Text, options.Font, options.Height, options.Depth, options.Bold, options.Italic);
+                if (mesh.Vertices.Count == 0)
+                {
+                    Viewport.ShowMessage("That text has no visible glyphs in this font.");
+                    return;
+                }
+                AddNodeToScene(new Node(mesh.Name) { Mesh = mesh });
+            });
         }
 
         private void AddCylinderMenuItem_Click(object sender, RoutedEventArgs e)
@@ -499,29 +735,193 @@ namespace JolieCat3D.UI
                 Bone = new BoneData { Head = Vector3.Zero, Tail = new Vector3(0f, 1f, 0f) },
                 LocalPosition = parent.Bone?.Tail ?? Vector3.Zero,
             };
-            parent.AddChild(bone);
             bone.Mesh = bone.Bone!.GenerateMesh();
-            bone.Bone.CaptureRestPose(bone);
-
-            _sceneViewModel.Load(_currentScene);
-            _renderer.Render(_currentScene, zoomToFit: false);
+            _commandHistory.Execute(new AddNodeCommand(_currentScene, parent, bone, "Add Bone", OnSceneStructureChanged));
+            bone.Bone.CaptureRestPose(bone); // needs the node already in the hierarchy
+            SelectNode(bone);
         }
 
         /// <summary>Adds <paramref name="node"/> as a new root of <see cref="_currentScene"/>
         /// and refreshes the Outliner/viewport immediately - the shared plumbing every
         /// File > Scene > "Add ..." handler above uses, so a freshly added primitive/
         /// camera/light node is instantly visible in the Outliner (<see cref="SceneViewModel.Load"/>
-        /// rebuilds the whole tree), selectable via <see cref="Scene3DRenderer.HitTest"/>
+        /// rebuilds the whole tree), selectable via <c>viewport.HitTest</c>
         /// (which reads straight from <see cref="_currentScene"/>/<c>Editing.MeshEditSession</c>'s
         /// own live state, nothing cached to go stale), and rendered
-        /// (<see cref="Scene3DRenderer.Render"/>) all in one call - never zooming to fit,
+        /// (<c>viewport.Render</c>) all in one call - never zooming to fit,
         /// so adding a second object doesn't yank the camera away from whatever the user
         /// was already looking at.</summary>
         private void AddNodeToScene(Node node)
         {
-            _currentScene.AddRootNode(node);
+            node.LocalPosition += Viewport.CursorPosition; // Blender: new objects at the 3D cursor
+            _commandHistory.Execute(new AddNodeCommand(_currentScene, null, node, $"Add {node.Name}", OnSceneStructureChanged));
+            SelectNode(node);
+        }
+
+        /// <summary>Shared refresh after a node was added/removed/moved (also on undo/redo).</summary>
+        private void OnSceneStructureChanged()
+        {
+            var selected = _sceneViewModel.SelectedNode?.UnderlyingNode;
             _sceneViewModel.Load(_currentScene);
             _renderer.Render(_currentScene, zoomToFit: false);
+
+            // Keep the selection only if that node is still in the scene.
+            SelectNode(selected is not null && _currentScene.Traverse().Contains(selected) ? selected : null);
+        }
+
+        // ================= Generic edit undo =================
+
+        // Baseline = snapshot of the selected node taken after the last recorded change.
+        // When a view-model edit happens we wait for a short pause (so a slider drag or
+        // typing becomes one step), then record baseline -> current as one command.
+        private NodeState? _editBaseline;
+        private Node? _editBaselineNode;
+        private string? _pendingEditDescription;
+        private bool _isCommittingEdit;
+        private bool _isRestoringNodeState;
+        private readonly DispatcherTimer _editCommitTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
+
+        private void ResetEditBaseline()
+        {
+            _pendingEditDescription = null;
+            _editCommitTimer.Stop();
+            _editBaselineNode = _sceneViewModel.SelectedNode?.UnderlyingNode;
+            _editBaseline = _editBaselineNode is null ? null : NodeState.Capture(_editBaselineNode, _editBaseline);
+        }
+
+        private void ScheduleEditCommit(string description)
+        {
+            if (_isRestoringNodeState || _editBaselineNode is null) return;
+            _pendingEditDescription ??= description;
+            _editCommitTimer.Stop();
+            _editCommitTimer.Start();
+        }
+
+        /// <summary>Records whatever changed on the baseline node since the last commit.</summary>
+        private void CommitPendingEdit(string? descriptionOverride = null)
+        {
+            _editCommitTimer.Stop();
+            var description = descriptionOverride ?? _pendingEditDescription;
+            _pendingEditDescription = null;
+            if (description is null || _editBaselineNode is not { } node || _editBaseline is not { } before) return;
+
+            var after = NodeState.Capture(node, before);
+            if (after.ContentEquals(before)) return; // nothing actually changed
+            _isCommittingEdit = true;
+            try
+            {
+                _commandHistory.Record(new NodeStateCommand(node, before, after, description, () => OnNodeStateRestored(node)));
+            }
+            finally
+            {
+                _isCommittingEdit = false;
+            }
+            _editBaseline = after;
+        }
+
+        /// <summary>Runs a keyframe edit on <paramref name="node"/>'s track and records it
+        /// as one undo step (skipped if nothing changed).</summary>
+        private void RecordKeyframeEdit(Node node, string description, Action edit)
+        {
+            if (BuildKeyframeEdit(node, description, edit) is { } command) _commandHistory.Record(command);
+        }
+
+        /// <summary>Runs <paramref name="edit"/> on the node's track and returns the undo
+        /// command for it (null when nothing changed), without recording it.</summary>
+        private IUndoableCommand? BuildKeyframeEdit(Node node, string description, Action edit)
+        {
+            var before = KeyframeTrackCommand.Snapshot(_timeline, node);
+            edit();
+            var after = KeyframeTrackCommand.Snapshot(_timeline, node);
+            if (KeyframeTrackCommand.SameContent(before, after)) return null;
+
+            return new KeyframeTrackCommand(() => _timeline, node, before, after, description, () =>
+            {
+                _timeline.Apply();
+                _sceneViewModel.FindViewModel(node)?.SyncFromCore();
+                _renderer.Refresh();
+                _selectedKeyframeTime = null;
+                RefreshDopesheet();
+            });
+        }
+
+        // ================= Motion paths =================
+
+        private MotionPath.Result? _motionPath;
+        private Node? _motionPathNode;
+        private bool _motionPathDirty = true;
+
+        private void MotionPathCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            InvalidateMotionPath();
+        }
+
+        private void InvalidateMotionPath()
+        {
+            _motionPathDirty = true;
+            if (MotionPathCheckBox?.IsChecked == true) _renderer.Refresh();
+        }
+
+        private void DrawMotionPath(OverlayDrawList list)
+        {
+            if (MotionPathCheckBox.IsChecked != true || _timeline.IsPlaying) return;
+            var node = _sceneViewModel.SelectedNode?.UnderlyingNode;
+            if (node is null) return;
+            if (_motionPathDirty || !ReferenceEquals(node, _motionPathNode))
+            {
+                _motionPathNode = node;
+                _motionPathDirty = false;
+                _motionPath = MotionPath.Compute(_currentScene, _timeline, node, 0, _timeline.TotalFrames);
+            }
+            if (_motionPath is not { Positions.Count: > 1 } path) return;
+            var lineColor = new Core.Numerics.Color4(1f, 0.6f, 0.2f);
+            list.AddPolyline(path.Positions, lineColor, 1.5f, layer: OverlayLayer.OnTop);
+            for (var i = 0; i < path.Positions.Count; i++) list.AddPoint(path.Positions[i], lineColor, 3f, OverlayLayer.OnTop);
+            foreach (var frame in path.KeyFrames)
+            {
+                var index = frame - path.StartFrame;
+                if (index >= 0 && index < path.Positions.Count) list.AddPoint(path.Positions[index], new Core.Numerics.Color4(1f, 1f, 1f), 7f, OverlayLayer.OnTop);
+            }
+        }
+
+        // ================= Auto Keying =================
+
+        private bool _autoKey;
+
+        private void AutoKeyButton_Changed(object sender, RoutedEventArgs e)
+        {
+            _autoKey = AutoKeyButton.IsChecked == true;
+            Viewport.ShowMessage(_autoKey ? "Auto Keying on: transforms insert keyframes" : "Auto Keying off");
+        }
+
+        /// <summary>With Auto Keying on, keys <paramref name="nodes"/> at the current frame and
+        /// returns the commands (to be grouped with the transform into one undo step).</summary>
+        private List<IUndoableCommand> AutoKeyCommands(IEnumerable<Node> nodes)
+        {
+            var result = new List<IUndoableCommand>();
+            if (!_autoKey) return result;
+            var interpolation = BezierInterpolationButton.IsChecked == true ? InterpolationMode.Bezier : InterpolationMode.Linear;
+            foreach (var node in nodes.Distinct())
+                if (BuildKeyframeEdit(node, "Auto Key", () => _timeline.GetOrCreateTrack(node).AddKeyframeFromCurrentTransform(_timeline.CurrentTime, interpolation)) is { } command)
+                    result.Add(command);
+            if (result.Count > 0) RefreshDopesheet();
+            return result;
+        }
+
+        private void OnNodeStateRestored(Node node)
+        {
+            _isRestoringNodeState = true;
+            try
+            {
+                _renderer.Refresh();
+                _gizmo.Refresh();
+                _sceneViewModel.FindViewModel(node)?.ReloadFromCore();
+            }
+            finally
+            {
+                _isRestoringNodeState = false;
+            }
         }
 
         /// <summary>The Camera Inspector's "Set as Active Camera" button - designates the
@@ -540,8 +940,8 @@ namespace JolieCat3D.UI
         }
 
         /// <summary>The Camera toolbar's "Camera View" checkbox - "View > Active Camera"
-        /// turned on/off (see <see cref="Scene3DRenderer.EnterActiveCameraView"/>/
-        /// <see cref="Scene3DRenderer.ExitActiveCameraView"/>), also reachable via Numpad
+        /// turned on/off (see <c>viewport.EnterActiveCameraView</c>/
+        /// <c>viewport.ExitActiveCameraView</c>), also reachable via Numpad
         /// 0 (see <see cref="MainWindow_PreviewKeyDown"/>, which just flips this same
         /// checkbox so both paths share this one method). Checking it with no
         /// <see cref="Scene3D.ActiveCamera"/> set yet reports that back to the user and
@@ -599,6 +999,14 @@ namespace JolieCat3D.UI
         private void ExportGltfMenuItem_Click(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
+            var optionsDialog = new GltfExportWindow(_objectSelection.Count > 0) { Owner = this };
+            if (optionsDialog.ShowDialog() != true) return;
+            var options = new GltfExportOptions
+            {
+                SelectedRoots = optionsDialog.SelectedOnly ? TopLevelSelection() : null,
+                IncludeHidden = optionsDialog.IncludeHidden,
+                IncludeAnimation = optionsDialog.IncludeAnimation,
+            };
 
             var dialog = new SaveFileDialog
             {
@@ -608,7 +1016,7 @@ namespace JolieCat3D.UI
             };
             if (dialog.ShowDialog(this) != true) return;
 
-            TryRun("Export GLB/glTF", () => GltfExporter.Export(_currentScene, _timeline, dialog.FileName));
+            TryRun("Export GLB/glTF", () => GltfExporter.Export(_currentScene, _timeline, dialog.FileName, options));
         }
 
         /// <summary>File > Scene > "Set Skybox..." - picks ONE of a skybox's own 6 face
@@ -628,13 +1036,27 @@ namespace JolieCat3D.UI
 
             var dialog = new OpenFileDialog
             {
-                Filter = "Skybox face image (e.g. cube_f.jpg)|*.jpg;*.jpeg;*.png;*.bmp",
-                Title = "Set Skybox - pick any ONE of its 6 face images",
+                Filter = "Skybox (HDR panorama or one of 6 face images)|*.hdr;*.jpg;*.jpeg;*.png;*.bmp|HDR panorama (*.hdr)|*.hdr|Skybox face image (e.g. cube_f.jpg)|*.jpg;*.jpeg;*.png;*.bmp",
+                Title = "Set Skybox - an equirectangular .hdr, or any ONE of a cube's 6 face images",
             };
             if (dialog.ShowDialog(this) != true) return;
 
             TryRun("Set Skybox", () =>
             {
+                if (EnvironmentSettings.IsPanorama(dialog.FileName))
+                {
+                    // Validate now rather than silently falling back to the gradient later.
+                    var probe = Core.Materials.HdrImage.LoadHdr(dialog.FileName);
+                    _currentScene.Environment = new EnvironmentSettings
+                    {
+                        SkyboxSource = dialog.FileName,
+                        SkyboxRotation = _currentScene.Environment?.SkyboxRotation ?? 0f,
+                        SkyboxStrength = _currentScene.Environment?.SkyboxStrength ?? 1f,
+                    };
+                    _renderer.Render(_currentScene, zoomToFit: false);
+                    Viewport.ShowMessage($"HDR environment {probe.Width}x{probe.Height} set (lights Material Preview, Rendered and F12).");
+                    return;
+                }
                 if (DeriveSkyboxPrefix(dialog.FileName) is not { } prefix)
                 {
                     MessageBox.Show(this,
@@ -644,12 +1066,56 @@ namespace JolieCat3D.UI
                     return;
                 }
 
-                _currentScene.Environment = new EnvironmentSettings { SkyboxSource = prefix };
+                _currentScene.Environment = new EnvironmentSettings { SkyboxSource = prefix, SkyboxStrength = _currentScene.Environment?.SkyboxStrength ?? 1f };
                 _renderer.Render(_currentScene, zoomToFit: false);
             });
         }
 
-        /// <summary>File > Scene > "Clear Skybox" - back to no environment at all
+        /// <summary>Add > "Skybox Rotation..." - turns an HDR panorama about +Y.</summary>
+        private void SkyboxRotationMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (_currentScene.Environment is not { } environment || !EnvironmentSettings.IsPanorama(environment.SkyboxSource))
+            {
+                Viewport.ShowMessage("Rotation applies to an HDR (.hdr) panorama skybox - set one first.");
+                return;
+            }
+            var dialog = new TextPromptWindow("Skybox Rotation", "Rotation about Y (degrees):",
+                environment.SkyboxRotation.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)) { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.Result is null) return;
+            if (!float.TryParse(dialog.Result.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var degrees) || !float.IsFinite(degrees))
+            {
+                Viewport.ShowMessage("Enter a number of degrees.");
+                return;
+            }
+            environment.SkyboxRotation = degrees % 360f;
+            _renderer.Render(_currentScene, zoomToFit: false);
+        }
+
+        /// <summary>Add > "Skybox Strength..." - Blender's World Strength: scales the
+        /// world texture's light and background in the viewport and the final render.</summary>
+        private void SkyboxStrengthMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            if (_currentScene.Environment is not { } environment)
+            {
+                Viewport.ShowMessage("Set a skybox or HDR panorama first.");
+                return;
+            }
+            var dialog = new TextPromptWindow("Skybox Strength", "World light strength (1 = as in the image):",
+                environment.SkyboxStrength.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)) { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.Result is null) return;
+            if (!float.TryParse(dialog.Result.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var strength)
+                || !float.IsFinite(strength) || strength < 0)
+            {
+                Viewport.ShowMessage("Enter a number of 0 or more.");
+                return;
+            }
+            environment.SkyboxStrength = strength;
+            _renderer.Render(_currentScene, zoomToFit: false);
+        }
+
+        /// <summary>Add > "Clear Skybox" - back to no environment at all
         /// (<see cref="Scene3D.Environment"/> null), matching every scene that never had
         /// one set.</summary>
         private void ClearSkyboxMenuItem_Click(object sender, RoutedEventArgs e)
@@ -679,23 +1145,22 @@ namespace JolieCat3D.UI
         }
 
         /// <summary>The Camera toolbar's Perspective/Orthographic toggle - swaps the
-        /// viewport's own projection (see <see cref="CameraFraming.SetPerspective"/>/
-        /// <see cref="CameraFraming.SetOrthographic"/>), preserving the current vantage
+        /// viewport's own projection (see <c>CameraFraming.SetPerspective</c>/
+        /// <c>CameraFraming.SetOrthographic</c>), preserving the current vantage
         /// point exactly - only the PROJECTION changes.</summary>
         private void CameraProjectionButton_Checked(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
             if (sender is not RadioButton { Tag: string modeName }) return;
 
-            if (modeName == "Orthographic") CameraFraming.SetOrthographic(Viewport);
-            else CameraFraming.SetPerspective(Viewport);
+            _renderer.SetOrthographic(modeName == "Orthographic");
         }
 
         /// <summary>The Camera toolbar's Top/Bottom/Front/Back/Left/Right buttons -
-        /// aligns the viewport to that preset (see <see cref="CameraFraming.AlignToPreset"/>),
+        /// aligns the viewport to that preset (see <c>CameraFraming.AlignToPreset</c>),
         /// framed on the currently selected node when one exists, or the whole scene
         /// otherwise - the same "prefer the selection, fall back to the whole scene"
-        /// precedent <see cref="CameraFraming"/>'s own <c>ZoomToFit</c> overloads already
+        /// precedent <c>CameraFraming</c>'s own <c>ZoomToFit</c> overloads already
         /// establish.</summary>
         private void ViewPresetButton_Click(object sender, RoutedEventArgs e)
         {
@@ -703,32 +1168,38 @@ namespace JolieCat3D.UI
             if (sender is not Button { Tag: string presetName }) return;
             if (!Enum.TryParse<ViewPreset>(presetName, out var preset)) return;
 
-            CameraFraming.AlignToPreset(Viewport, preset, _currentScene, _sceneViewModel.SelectedNode?.UnderlyingNode);
+            _renderer.AlignToPreset(preset, _sceneViewModel.SelectedNode?.UnderlyingNode, frame: true);
         }
 
         /// <summary>The Camera toolbar's "Grid" checkbox - shows/hides the reference grid
-        /// (<see cref="Scene3DRenderer.ShowGrid"/>).</summary>
+        /// (<c>viewport.ShowGrid</c>).</summary>
         private void ShowGridCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
             _renderer.ShowGrid = ShowGridCheckBox.IsChecked == true;
         }
 
-        /// <summary>The Camera toolbar's "Shadows" checkbox - <see cref="Scene3DRenderer.ShowShadows"/>.</summary>
+        /// <summary>The Camera toolbar's "Shadows" checkbox - <c>viewport.ShowShadows</c>.</summary>
+        private void WireframeOverlayCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _renderer.WireframeOverlay = WireframeOverlayCheckBox.IsChecked == true;
+        }
+
         private void ShowShadowsCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
             _renderer.ShowShadows = ShowShadowsCheckBox.IsChecked == true;
         }
 
-        /// <summary>The Camera toolbar's "Anti-Aliasing" checkbox - <see cref="Scene3DRenderer.AntiAliasingEnabled"/>.</summary>
+        /// <summary>The Camera toolbar's "Anti-Aliasing" checkbox - <c>viewport.AntiAliasingEnabled</c>.</summary>
         private void AntiAliasingCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
             _renderer.AntiAliasingEnabled = AntiAliasingCheckBox.IsChecked == true;
         }
 
-        /// <summary>The Camera toolbar's "SSAO" checkbox - <see cref="Scene3DRenderer.ShowAmbientOcclusion"/>.</summary>
+        /// <summary>The Camera toolbar's "SSAO" checkbox - <c>viewport.ShowAmbientOcclusion</c>.</summary>
         private void SsaoCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
@@ -736,18 +1207,18 @@ namespace JolieCat3D.UI
         }
 
         /// <summary>The Camera toolbar's "Bloom" checkbox - shows/hides
-        /// <see cref="BloomOverlayRectangle"/> (see its own XAML remarks). Nothing here
-        /// touches <see cref="Scene3DRenderer"/> at all: Bloom, unlike Shadows/SSAO/
+        /// <c>BloomOverlayRectangle</c> (see its own XAML remarks). Nothing here
+        /// touches <c>viewport</c> at all: Bloom, unlike Shadows/SSAO/
         /// Anti-Aliasing, is a pure 2D compositing effect layered OVER the already-
         /// rendered viewport, not anything added to the 3D scene itself.</summary>
         private void BloomCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
-            BloomOverlayRectangle.Visibility = BloomCheckBox.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            _renderer.BloomEnabled = BloomCheckBox.IsChecked == true;
         }
 
         /// <summary>The Camera toolbar's grid size field - keeps the reference grid
-        /// visual (<see cref="Scene3DRenderer.GridSize"/>) AND both gizmos' own
+        /// visual (<c>viewport.GridSize</c>) AND both gizmos' own
         /// Ctrl-held-drag snap increment (<see cref="TransformGizmo.GridSize"/>/
         /// <see cref="ComponentGizmo.GridSize"/>) in step with the same one value, so
         /// what's drawn on the ground is exactly what a snapped drag actually snaps to.
@@ -889,7 +1360,7 @@ namespace JolieCat3D.UI
         private void AboutMenuItem_Click(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
-            MessageBox.Show(this, "JolieCat3D\nA Blender-inspired 3D modeling/animation tool built on HelixToolkit.Wpf.",
+            MessageBox.Show(this, "JolieCat3D\nA Blender-inspired 3D modeling/animation tool with a DirectX 11 viewport.",
                 "About JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -985,12 +1456,17 @@ namespace JolieCat3D.UI
         /// its own (nothing meaningful to lose).</summary>
         private bool ConfirmDiscardIfNeeded(string action)
         {
-            if (_currentFilePath is null && _currentScene.RootNodes.Count == 0) return true;
+            if (!HasRealUnsavedChanges()) return true;
 
-            var result = MessageBox.Show(
-                $"Discard the current scene before {action}? Any unsaved changes will be lost.",
-                "JolieCat3D", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
-            return result == MessageBoxResult.Yes;
+            var result = MessageBox.Show(this,
+                $"Save changes to {_documentName} before {action}?",
+                "JolieCat3D", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning, MessageBoxResult.Yes);
+            return result switch
+            {
+                MessageBoxResult.Yes => SaveScene(),
+                MessageBoxResult.No => true,
+                _ => false,
+            };
         }
 
         private void TryRun(string operationName, Action action)
@@ -1032,13 +1508,13 @@ namespace JolieCat3D.UI
         /// handle didn't already claim first (see <see cref="TryBeginGizmoDrag"/>),
         /// so dragging a gizmo handle never gets misread as "clicked empty space,
         /// deselect/clear" partway through the gesture - WPF's own native 3D hit-testing
-        /// alone can't be relied on for that (see <see cref="GizmoHitTester"/>'s own
+        /// alone can't be relied on for that (see <c>GizmoHitTester</c>'s own
         /// remarks on why a mesh occluding the manipulator's hit-test geometry can stop the
         /// click ever reaching it at all).
         /// </summary>
         private void Viewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (!_isInitialized || _isDispatchingGizmoMouseDown) return;
+            if (!_isInitialized) return;
 
             var position = e.GetPosition(Viewport);
 
@@ -1080,62 +1556,254 @@ namespace JolieCat3D.UI
 
             if (IsEditMode)
             {
-                HandleComponentClick(position, additive: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+                if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt) && TrySelectEdgeLoop(position)) return;
+                if (!HandleComponentClick(position, additive: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)))
+                    BeginBoxSelect(position);
                 return;
             }
 
             var hitNode = _renderer.HitTest(position);
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            {
+                ToggleInSelection(hitNode);
+                return;
+            }
+            if (hitNode is null)
+            {
+                BeginBoxSelect(position); // click deselects, drag box-selects
+                return;
+            }
             SelectNode(hitNode);
         }
 
-        /// <summary>Checks <paramref name="position"/> against the currently-active gizmo's
-        /// own handles - Translate/Scale arrows AND Rotate rings alike, whichever <c>Mode</c>
-        /// currently has handles built (<see cref="ComponentGizmo.Handles"/> in Edit Mode,
-        /// <see cref="TransformGizmo.Handles"/> otherwise - never both, mirroring which one
-        /// is actually attached/visible at a time) - BEFORE either mode's own mesh/component
-        /// selection logic runs, via <see cref="GizmoHitTester"/> - an explicit,
-        /// occlusion-independent check WPF's own native 3D hit-testing on the manipulator
-        /// itself can't be relied on for (see that class's own remarks - a Rotate ring
-        /// suffered the exact same occlusion bug as a Translate arrow, so it gets the exact
-        /// same fix here, not a separate one). Starts the hit handle's own real drag
-        /// (<see cref="GizmoHitTester.BeginDrag"/>) and returns true the moment one is found,
-        /// so the caller can consume <paramref name="sourceArgs"/> and skip selection
-        /// entirely - a hit is never ambiguous with a selection click, since a gizmo handle
-        /// is never itself a selectable mesh.
-        ///
-        /// <see cref="GizmoHitTester.BeginDrag"/>'s own <c>RaiseEvent</c> call is
-        /// SYNCHRONOUS, and (confirmed by an actual observed <see cref="StackOverflowException"/>
-        /// on real hardware, not just a theoretical concern) WPF's own class handling
-        /// promotes an unhandled <c>Mouse.MouseDownEvent</c> into a fresh
-        /// <c>MouseLeftButtonDownEvent</c> regardless of whether the manipulator's own
-        /// <c>OnMouseDown</c> already marked the ORIGINAL event handled - and that
-        /// promoted event bubbles right back out to this same <see cref="Viewport_MouseLeftButtonDown"/>
-        /// handler, with the mouse still sitting on the very same handle, which would
-        /// hit-test and dispatch again, forever - true of a Rotate ring's own drag exactly as
-        /// much as a Translate arrow's, since the recursion is a property of RaiseEvent
-        /// itself, not of which manipulator subtype raised it.
-        /// <see cref="_isDispatchingGizmoMouseDown"/> is set for the exact duration of the
-        /// <c>BeginDrag</c> call so that reentrant, WPF-generated invocation (and only that
-        /// one - it happens nested inside THIS call's own stack frame, never on a later
-        /// dispatcher tick) bails out immediately instead of hit-testing and dispatching
-        /// again.</summary>
+        /// <summary>Starts a drag when the click lands on a gizmo handle.</summary>
         private bool TryBeginGizmoDrag(Point position, MouseButtonEventArgs sourceArgs)
         {
-            var handles = IsEditMode ? _componentGizmo.Handles : _gizmo.Handles;
-            if (GizmoHitTester.HitTest(Viewport, handles, position) is not { } manipulator) return false;
-
-            _isDispatchingGizmoMouseDown = true;
-            try
-            {
-                GizmoHitTester.BeginDrag(manipulator, sourceArgs);
-            }
-            finally
-            {
-                _isDispatchingGizmoMouseDown = false;
-            }
-
-            return true;
+            var started = IsEditMode ? _componentGizmo.TryBeginDrag(position) : _gizmo.TryBeginDrag(position);
+            if (started) Viewport.CaptureMouse();
+            return started;
         }
+
+        private bool IsGizmoDragging => _gizmo.IsDragging || _componentGizmo.IsDragging;
+
+        private bool IsModalTransform => _gizmo.IsModal || _componentGizmo.IsModal;
+
+        /// <summary>During G/R/S: left click confirms, right click cancels (Blender behaviour).
+        /// Runs in the tunnelling phase so the viewport doesn't start orbiting on that right click.</summary>
+        private void OnWindowPreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!_isInitialized) return;
+
+            if (_modalMeshOp is not null)
+            {
+                if (e.ChangedButton == MouseButton.Left) ConfirmModalMeshOperation();
+                else if (e.ChangedButton == MouseButton.Right) CancelModalMeshOperation();
+                e.Handled = true;
+                return;
+            }
+
+            if (_isKnifeActive && Viewport.IsMouseOver)
+            {
+                if (e.ChangedButton == MouseButton.Left) KnifeClick(e.GetPosition(Viewport));
+                else if (e.ChangedButton == MouseButton.Right) EndKnife();
+                e.Handled = true;
+                return;
+            }
+
+            if (!IsModalTransform) return;
+            if (e.ChangedButton == MouseButton.Left) EndGizmoDrag();
+            else if (e.ChangedButton == MouseButton.Right) CancelGizmoDrag();
+            e.Handled = true;
+        }
+
+        private void CancelGizmoDrag()
+        {
+            if (_gizmo.IsDragging) _gizmo.CancelDrag();
+            if (_componentGizmo.IsDragging) _componentGizmo.CancelDrag();
+            if (Viewport.IsMouseCaptured) Viewport.ReleaseMouseCapture();
+            _renderer.Refresh();
+        }
+
+        /// <summary>Blender keyboard shortcuts for the viewport. Returns true if handled.</summary>
+        private bool HandleBlenderKeys(KeyEventArgs e)
+        {
+            var key = e.Key == Key.System ? e.SystemKey : e.Key;
+            var mods = Keyboard.Modifiers;
+            var mouse = Mouse.GetPosition(Viewport);
+
+            if (_modalMeshOp is not null)
+            {
+                if (key == Key.Escape) CancelModalMeshOperation();
+                else if (key is Key.Enter or Key.Space) ConfirmModalMeshOperation();
+                return true;
+            }
+
+            if (_isKnifeActive && key == Key.Escape)
+            {
+                EndKnife();
+                return true;
+            }
+
+            if (IsModalTransform)
+            {
+                switch (key)
+                {
+                    case Key.X: ConstrainModal(0, mouse); return true;
+                    case Key.Y: ConstrainModal(1, mouse); return true;
+                    case Key.Z: ConstrainModal(2, mouse); return true;
+                    case Key.Enter: case Key.Space: EndGizmoDrag(); return true;
+                }
+                return false;
+            }
+
+            if (IsEditMode && (Viewport.IsMouseOver || Viewport.IsKeyboardFocusWithin))
+            {
+                switch (key)
+                {
+                    case Key.A when mods == ModifierKeys.None: SelectAllComponents(true); return true;
+                    case Key.A when mods == ModifierKeys.Alt: SelectAllComponents(false); return true;
+                    case Key.I when mods == ModifierKeys.Control: InvertComponentSelection(); return true;
+                    case Key.L when mods is ModifierKeys.None or ModifierKeys.Control: SelectLinkedComponents(); return true;
+                    case Key.E when mods == ModifierKeys.None: ExtrudeRegion(); return true;
+                    case Key.I when mods == ModifierKeys.None: BeginModalInset(); return true;
+                    case Key.K when mods == ModifierKeys.None: BeginKnife(); return true;
+                    case Key.R when mods == ModifierKeys.Control: BeginModalLoopCut(); return true;
+                    case Key.B when mods == ModifierKeys.Control: BeginModalBevel(); return true;
+                    case Key.E when mods == ModifierKeys.Alt: BeginModalExtrudeAlongNormals(); return true;
+                    case Key.M when mods == ModifierKeys.None: MergeAtCenter(); return true;
+                    case Key.F when mods == ModifierKeys.None: FillFace(); return true;
+                    case Key.T when mods == ModifierKeys.Control: TriangulateFaces(); return true;
+                    case Key.P when mods == ModifierKeys.None: SeparateSelection(); return true;
+                    case Key.J when mods == ModifierKeys.Alt: TrisToQuads(); return true;
+                    case Key.X when mods == ModifierKeys.Control: DissolveFaces(); return true;
+                    case Key.X when mods == ModifierKeys.None: DeleteSelected(); return true;
+                }
+            }
+
+            if (!IsEditMode && !IsPaintOrSculptMode && (Viewport.IsMouseOver || Viewport.IsKeyboardFocusWithin))
+            {
+                switch (key)
+                {
+                    case Key.A when mods == ModifierKeys.None: SelectAllObjects(true); return true;
+                    case Key.A when mods == ModifierKeys.Alt: SelectAllObjects(false); return true;
+                    case Key.J when mods == ModifierKeys.Control: JoinSelectedObjects(); return true;
+                    case Key.H when mods == ModifierKeys.None: HideObjects(selected: true); return true;
+                    case Key.H when mods == ModifierKeys.Shift: HideObjects(selected: false); return true;
+                    case Key.H when mods == ModifierKeys.Alt: RevealHidden(); return true;
+                    case Key.D when mods == ModifierKeys.Shift:
+                        DuplicateSelectedObjects();
+                        if (_gizmo.BeginModal(GizmoMode.Translate, mouse)) Viewport.Focus();
+                        return true;
+                    case Key.D when mods == ModifierKeys.Alt:
+                        DuplicateLinkedObjects();
+                        if (_gizmo.BeginModal(GizmoMode.Translate, mouse)) Viewport.Focus();
+                        return true;
+                }
+            }
+
+            if (key == Key.Escape && _animationRenderCancel is { } renderCancel)
+            {
+                renderCancel.Cancel();
+                return true;
+            }
+
+            if (key == Key.F12 && mods == ModifierKeys.None)
+            {
+                RenderImage();
+                return true;
+            }
+
+            if (key == Key.F6 && mods == ModifierKeys.Shift)
+            {
+                OpenGraphEditor();
+                return true;
+            }
+
+            if (key == Key.F3 && mods == ModifierKeys.Shift)
+            {
+                OpenShaderEditor();
+                return true;
+            }
+
+            if (!IsEditMode && !IsPaintOrSculptMode && Viewport.IsMouseOver)
+            {
+                if (key == Key.I && mods == ModifierKeys.None) { InsertKeyframesForSelection(); return true; }
+                if (key == Key.I && mods == ModifierKeys.Alt) { DeleteKeyframesForSelection(); return true; }
+            }
+
+            if (key == Key.C && mods == ModifierKeys.Shift && Viewport.IsMouseOver)
+            {
+                ResetCursorAndFrame();
+                return true;
+            }
+
+            if (!IsEditMode && key == Key.A && mods == ModifierKeys.Control)
+            {
+                ApplyAllTransforms();
+                return true;
+            }
+
+            if (!IsEditMode && key == Key.X && mods == ModifierKeys.None && Viewport.IsMouseOver)
+            {
+                DeleteSelected();
+                return true;
+            }
+
+            if (IsEditMode && key == Key.E && mods == ModifierKeys.Shift && Viewport.IsMouseOver)
+            {
+                ToggleCrease();
+                return true;
+            }
+
+            if (key == Key.S && mods == ModifierKeys.Shift && Viewport.IsMouseOver && !IsPaintOrSculptMode)
+            {
+                ShowSnapMenu();
+                return true;
+            }
+
+            if (mods != ModifierKeys.None) return false;
+
+            switch (key)
+            {
+                case Key.Tab:
+                    SelectModeByTag(CurrentEditorMode == "Edit" ? "Object" : "Edit");
+                    return true;
+                case Key.D1 when IsEditMode: VertexModeButton.IsChecked = true; return true;
+                case Key.D2 when IsEditMode: EdgeModeButton.IsChecked = true; return true;
+                case Key.D3 when IsEditMode: FaceModeButton.IsChecked = true; return true;
+                case Key.G or Key.R or Key.S when Viewport.IsMouseOver && !IsPaintOrSculptMode:
+                    if (IsEditMode)
+                    {
+                        if (key == Key.G && _componentGizmo.BeginModal(mouse)) Viewport.Focus();
+                        return true;
+                    }
+                    var mode = key == Key.G ? GizmoMode.Translate : key == Key.R ? GizmoMode.Rotate : GizmoMode.Scale;
+                    if (_gizmo.BeginModal(mode, mouse)) Viewport.Focus();
+                    return true;
+            }
+            return false;
+        }
+
+        private void ConstrainModal(int axis, Point mouse)
+        {
+            if (_gizmo.IsModal) _gizmo.ConstrainModal(axis, mouse);
+            else if (_componentGizmo.IsModal) _componentGizmo.ConstrainModal(axis, mouse);
+            _renderer.Refresh();
+        }
+
+        private void SelectModeByTag(string tag)
+        {
+            foreach (var item in ModeComboBox.Items)
+            {
+                if (item is ComboBoxItem { Tag: string t } comboItem && t == tag)
+                {
+                    ModeComboBox.SelectedItem = comboItem;
+                    return;
+                }
+            }
+        }
+
+        private bool IsPaintOrSculptMode => IsWeightPaintMode || IsVertexPaintMode || IsSculptMode || IsTexturePaintMode;
 
         /// <summary>Selection made from the Scene Outliner instead of a viewport click -
         /// the same <see cref="SelectNode"/> path either way, so the renderer's highlight,
@@ -1261,10 +1929,9 @@ namespace JolieCat3D.UI
         /// drag from the user's own point of view.</summary>
         private void ReparentNode(Node node, Node? newParent)
         {
-            if (!_currentScene.Reparent(node, newParent)) return;
-
-            _sceneViewModel.Load(_currentScene);
-            _renderer.Render(_currentScene, zoomToFit: false);
+            var command = new ReparentNodeCommand(_currentScene, node, newParent, "Parent Object", OnSceneStructureChanged);
+            if (!command.TryExecute()) return;
+            _commandHistory.Record(command);
             SelectNode(node);
         }
 
@@ -1312,7 +1979,16 @@ namespace JolieCat3D.UI
 
         private void SelectNode(Node? node)
         {
-            _renderer.Select(node);
+            if (!_keepGroupOnSelect)
+            {
+                _objectSelection.Clear();
+                if (node is not null) _objectSelection.Add(node);
+            }
+            _renderer.SetSelection(_objectSelection, node);
+            _graphEditor?.Redraw();
+            _uvEditor?.Redraw();
+            foreach (var sceneNode in _currentScene.Traverse())
+                if (_sceneViewModel.FindViewModel(sceneNode) is { } vm) vm.IsInSelection = _objectSelection.Contains(sceneNode);
             _sceneViewModel.SelectedNode = _sceneViewModel.FindViewModel(node);
             _selectedKeyframeTime = null;
             RefreshDopesheet();
@@ -1403,7 +2079,7 @@ namespace JolieCat3D.UI
 
         /// <summary>The viewport shading toolbar - see <see cref="ShadingMode"/>'s own
         /// remarks for what each of the 4 modes actually changes. Setting
-        /// <see cref="Scene3DRenderer.ShadingMode"/> re-renders immediately on its own,
+        /// <c>viewport.ShadingMode</c> re-renders immediately on its own,
         /// the same "setting the mode applies it too" shape <see cref="GizmoModeButton_Checked"/>
         /// already uses for <see cref="TransformGizmo.Mode"/>.</summary>
         private void ShadingModeButton_Checked(object sender, RoutedEventArgs e)
@@ -1441,6 +2117,7 @@ namespace JolieCat3D.UI
             EdgeModeButton.IsEnabled = enteringEditMode;
             FaceModeButton.IsEnabled = enteringEditMode;
             ProportionalEditingCheckBox.IsEnabled = enteringEditMode;
+            MirrorXCheckBox.IsEnabled = enteringEditMode;
             ProportionalRadiusSlider.IsEnabled = enteringEditMode;
             ExtrudeButton.IsEnabled = enteringEditMode;
             SubdivideButton.IsEnabled = enteringEditMode;
@@ -1558,7 +2235,7 @@ namespace JolieCat3D.UI
         }
 
         /// <summary>Rebuilds <see cref="ActiveBoneComboBox"/>'s own item list from
-        /// whatever <see cref="Scene3DRenderer.WeightPaintSession"/>'s current
+        /// whatever <c>viewport.WeightPaintSession</c>'s current
         /// <c>Target</c> is bound to - called whenever that target changes (entering
         /// Weight Paint mode, or re-targeting it via a selection change) so the combo
         /// always lists the CURRENTLY painted mesh's own bones, never a stale set left
@@ -1587,6 +2264,44 @@ namespace JolieCat3D.UI
         {
             if (!_isInitialized) return;
             _renderer.WeightPaintSession.Strength = (float)e.NewValue;
+        }
+
+        /// <summary>Weight Paint toolbar: Mirror / Smooth / Normalize (undoable).</summary>
+        private void WeightToolButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized || sender is not FrameworkElement { Tag: string tool }) return;
+            if (_renderer.WeightPaintSession.Target is not { Mesh: { } mesh, SkinBinding: { } binding } node)
+            {
+                Viewport.ShowMessage("Weight tools need a skinned mesh in Weight Paint mode.");
+                return;
+            }
+            var report = "";
+            var command = MeshEditCommandFactory.Capture(node, tool + " Weights", () =>
+            {
+                switch (tool)
+                {
+                    case "Mirror":
+                        var mirrored = Core.Skinning.WeightTools.MirrorX(mesh, binding.Bones);
+                        report = $"Mirrored weights onto {mirrored} vertices";
+                        return mirrored > 0;
+                    case "Smooth":
+                        Core.Skinning.WeightTools.Smooth(mesh, iterations: 2);
+                        report = "Smoothed weights";
+                        return true;
+                    default:
+                        var normalized = Core.Skinning.WeightTools.Normalize(mesh);
+                        report = $"Normalized {normalized} vertices";
+                        return normalized > 0;
+                }
+            }, onChanged: () => _renderer.Refresh());
+            if (command is null)
+            {
+                Viewport.ShowMessage(tool == "Mirror" ? "Nothing mirrored: no vertices at matching -X positions." : "Weights already normalized.");
+                return;
+            }
+            _commandHistory.Record(command);
+            _renderer.Refresh();
+            Viewport.ShowMessage(report);
         }
 
         private void BrushModeButton_Checked(object sender, RoutedEventArgs e)
@@ -1690,6 +2405,12 @@ namespace JolieCat3D.UI
             _renderer.TexturePaintSession.Color = new Color4(parsed.ScR, parsed.ScG, parsed.ScB, parsed.ScA);
         }
 
+        private void TexturePaintModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || sender is not ComboBox box) return;
+            _renderer.TexturePaintSession.Mode = (Core.Materials.TexturePaintMode)Math.Max(0, box.SelectedIndex);
+        }
+
         private void TextureBrushRadiusSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (!_isInitialized) return;
@@ -1721,6 +2442,36 @@ namespace JolieCat3D.UI
         private void Viewport_MouseMove(object sender, MouseEventArgs e)
         {
             if (!_isInitialized) return;
+
+            if (_modalMeshOp is not null)
+            {
+                UpdateModalMeshOperation(e.GetPosition(Viewport));
+                return;
+            }
+
+            if (_isKnifeActive)
+            {
+                if (_knifeStart is { } knifeStart) Viewport.SetGuideLine(knifeStart, e.GetPosition(Viewport));
+                return;
+            }
+
+            if (IsGizmoDragging)
+            {
+                if (!IsModalTransform && e.LeftButton != MouseButtonState.Pressed) { EndGizmoDrag(); return; }
+                if (_gizmo.IsDragging) _gizmo.UpdateDrag(e.GetPosition(Viewport));
+                else _componentGizmo.UpdateDrag(e.GetPosition(Viewport));
+                return;
+            }
+
+            if (_boxSelectStart is not null)
+            {
+                if (e.LeftButton == MouseButtonState.Pressed) UpdateBoxSelect(e.GetPosition(Viewport));
+                else EndBoxSelect(e.GetPosition(Viewport));
+                return;
+            }
+
+            if (IsEditMode) _componentGizmo.UpdateHover(e.GetPosition(Viewport));
+            else _gizmo.UpdateHover(e.GetPosition(Viewport));
 
             if (_isPaintingWeights)
             {
@@ -1755,8 +2506,37 @@ namespace JolieCat3D.UI
             }
         }
 
+        private void EndGizmoDrag()
+        {
+            if (_gizmo.IsDragging) _gizmo.EndDrag();
+            if (_componentGizmo.IsDragging) _componentGizmo.EndDrag();
+            if (Viewport.IsMouseCaptured) Viewport.ReleaseMouseCapture();
+            _renderer.Refresh();
+        }
+
         private void Viewport_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            if (IsGizmoDragging)
+            {
+                EndGizmoDrag();
+                e.Handled = true;
+                return;
+            }
+
+            if (_boxSelectStart is not null)
+            {
+                EndBoxSelect(e.GetPosition(Viewport));
+                e.Handled = true;
+                return;
+            }
+
+            // One undo step per brush stroke.
+            string? strokeName =
+                _isPaintingWeights ? "Weight Paint" :
+                _isPaintingVertexColors ? "Vertex Paint" :
+                _isPaintingTexture ? "Texture Paint" :
+                _isSculpting ? "Sculpt" : null;
+
             _isPaintingWeights = false;
             _isPaintingVertexColors = false;
             _isPaintingTexture = false;
@@ -1765,6 +2545,8 @@ namespace JolieCat3D.UI
                 _isSculpting = false;
                 _renderer.SculptSession.EndStroke();
             }
+
+            if (strokeName is not null) CommitPendingEdit(strokeName);
         }
 
         private void ComponentModeButton_Checked(object sender, RoutedEventArgs e)
@@ -1790,6 +2572,12 @@ namespace JolieCat3D.UI
         /// <see cref="MeshEditSession.BeginProportionalDrag"/>, called right at the start
         /// of each gesture) - toggling it mid-drag has no effect on whatever drag is
         /// already in progress, only future ones.</summary>
+        private void MirrorXCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized) return;
+            _renderer.EditSession.MirrorX = MirrorXCheckBox.IsChecked == true;
+        }
+
         private void ProportionalEditingCheckBox_Changed(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
@@ -1815,680 +2603,38 @@ namespace JolieCat3D.UI
         /// <paramref name="additive"/> is set (a Shift-click on empty space is a no-op,
         /// not a clear - the same convention a plain click already has for "add to",
         /// not "replace, with nothing").</summary>
-        private void HandleComponentClick(Point position, bool additive)
+        /// <summary>Selects the component under <paramref name="position"/>. Returns false when
+        /// nothing was hit, so the caller can start a box selection instead.</summary>
+        private bool HandleComponentClick(Point position, bool additive)
         {
             var session = _renderer.EditSession;
-            if (session.Target is not { } node) return;
+            if (session.Target is not { } node) return false;
+            var hit = true;
 
             switch (session.ComponentMode)
             {
                 case ComponentType.Vertex:
                     if (ComponentHitTester.HitTestVertex(Viewport, node, position) is { } vertexIndex)
                         session.SelectVertex(vertexIndex, additive);
-                    else if (!additive)
-                        session.Clear();
+                    else hit = false;
                     break;
 
                 case ComponentType.Edge:
                     if (ComponentHitTester.HitTestEdge(Viewport, node, position) is { } edge)
                         session.SelectEdge(edge.A, edge.B, additive);
-                    else if (!additive)
-                        session.Clear();
+                    else hit = false;
                     break;
 
                 case ComponentType.Face:
                     if (ComponentHitTester.HitTestFace(Viewport, node, position) is { } face)
                         session.SelectFace(face.Indices, additive);
-                    else if (!additive)
-                        session.Clear();
+                    else hit = false;
                     break;
             }
 
             _renderer.RefreshComponentOverlay();
             _componentGizmo.Attach(session);
-        }
-
-        /// <summary>A modest, fixed initial offset for the Extrude toolbar button -
-        /// enough to visibly separate the new cap face from the original one so the
-        /// result is never a degenerate zero-thickness extrusion, while still leaving
-        /// the freshly-extruded (now selected - see <see cref="MeshEditSession.ExtrudeSelectedFace"/>)
-        /// face for <see cref="ComponentGizmo"/> to drag further afterward - the same
-        /// "Extrude immediately creates geometry a small amount out, then let the user
-        /// drag it" convention most modeling tools use for a toolbar/menu-triggered
-        /// Extrude (as opposed to one dragged out live from the very first mouse-move).</summary>
-        private const float DefaultExtrudeDistance = 0.5f;
-
-        /// <summary>The Edit Mode toolbar's "Extrude" button - extrudes whichever face
-        /// is currently fully selected (Face mode) via <see cref="MeshEditSession.ExtrudeSelectedFace"/>,
-        /// wrapped into an undoable <see cref="MeshEditCommand"/> via
-        /// <see cref="MeshEditCommandFactory.Capture"/> and recorded onto
-        /// <see cref="_commandHistory"/>, then re-renders (<see cref="Scene3DRenderer.Refresh"/>
-        /// rebuilds the viewport's geometry straight from the now-extruded
-        /// <c>Core.Geometry.Mesh</c>, the same "real-time" update mechanism every other
-        /// Edit Mode operation already uses) and rebuilds the component gizmo at the new
-        /// cap face's own centroid. Tells the user what to do instead if nothing
-        /// extrudable is currently selected, rather than silently doing nothing.</summary>
-        private void ExtrudeButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-
-            var session = _renderer.EditSession;
-            if (session.Target is not { } node) return;
-
-            TryRun("Extrude", () =>
-            {
-                var command = MeshEditCommandFactory.Capture(node, "Extrude Face",
-                    () => session.ExtrudeSelectedFace(DefaultExtrudeDistance),
-                    onChanged: () =>
-                    {
-                        _renderer.Refresh();
-                        _componentGizmo.Attach(session);
-                    });
-
-                if (command is null)
-                {
-                    MessageBox.Show(this,
-                        "Select a single quad/n-gon face (Face mode) to extrude - a triangle "
-                        + "(from an STL import, or after Subdivide) can't be extruded directly.",
-                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                _commandHistory.Record(command);
-                _renderer.Refresh();
-                _componentGizmo.Attach(session);
-            });
-        }
-
-        /// <summary>The Edit Mode toolbar's "Subdivide" button - subdivides the WHOLE
-        /// target mesh via <see cref="MeshEditSession.SubdivideMesh"/> (see its own
-        /// remarks on why this is never a partial/selection-scoped operation), likewise
-        /// wrapped into an undoable, recorded <see cref="MeshEditCommand"/>, and
-        /// re-renders/rebuilds the gizmo the same way <see cref="ExtrudeButton_Click"/>
-        /// does.</summary>
-        private void SubdivideButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-
-            var session = _renderer.EditSession;
-            if (session.Target is not { } node) return;
-
-            TryRun("Subdivide", () =>
-            {
-                var command = MeshEditCommandFactory.Capture(node, "Subdivide Mesh",
-                    () => session.SubdivideMesh(),
-                    onChanged: () =>
-                    {
-                        _renderer.Refresh();
-                        _componentGizmo.Attach(session);
-                    });
-
-                if (command is null) return; // no mesh on this node at all - nothing to subdivide or undo
-
-                _commandHistory.Record(command);
-                _renderer.Refresh();
-                _componentGizmo.Attach(session);
-            });
-        }
-
-        /// <summary>The Edit Mode toolbar's "Loop Cut" button - inserts a new edge loop
-        /// through the ring of quads reachable from whichever single edge (exactly 2
-        /// selected vertices - Edge mode) is currently selected, via
-        /// <see cref="MeshEditSession.LoopCutSelectedEdge"/>, wrapped into an undoable,
-        /// recorded <see cref="MeshEditCommand"/> the same way <see cref="ExtrudeButton_Click"/>
-        /// already is.</summary>
-        private void LoopCutButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-
-            var session = _renderer.EditSession;
-            if (session.Target is not { } node) return;
-
-            TryRun("Loop Cut", () =>
-            {
-                var command = MeshEditCommandFactory.Capture(node, "Loop Cut",
-                    () => session.LoopCutSelectedEdge(),
-                    onChanged: () =>
-                    {
-                        _renderer.Refresh();
-                        _componentGizmo.Attach(session);
-                    });
-
-                if (command is null)
-                {
-                    MessageBox.Show(this,
-                        "Select a single edge (Edge mode) that's part of at least one quad to Loop Cut.",
-                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                _commandHistory.Record(command);
-                _renderer.Refresh();
-                _componentGizmo.Attach(session);
-            });
-        }
-
-        /// <summary>The size of the corner facet the Edit Mode toolbar's "Bevel" button
-        /// cuts - a fraction of each surrounding edge's own length (see
-        /// <see cref="Mesh.BevelVertex"/>'s own remarks), the same "a modest, fixed,
-        /// visibly-there starting amount, immediately ready for a further tweak" role
-        /// <see cref="DefaultExtrudeDistance"/> plays for Extrude.</summary>
-        private const float DefaultBevelAmount = 0.25f;
-
-        /// <summary>The Edit Mode toolbar's "Bevel" button - chamfers whichever single
-        /// vertex is currently selected (Vertex mode) via <see cref="MeshEditSession.BevelSelectedVertex"/>,
-        /// wrapped into an undoable, recorded <see cref="MeshEditCommand"/> the same way
-        /// <see cref="ExtrudeButton_Click"/> already is.</summary>
-        private void BevelButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-
-            var session = _renderer.EditSession;
-            if (session.Target is not { } node) return;
-
-            TryRun("Bevel", () =>
-            {
-                var command = MeshEditCommandFactory.Capture(node, "Bevel Vertex",
-                    () => session.BevelSelectedVertex(DefaultBevelAmount),
-                    onChanged: () =>
-                    {
-                        _renderer.Refresh();
-                        _componentGizmo.Attach(session);
-                    });
-
-                if (command is null)
-                {
-                    MessageBox.Show(this,
-                        "Select a single vertex (Vertex mode) fully surrounded by faces to Bevel - "
-                        + "a boundary/edge vertex can't be beveled.",
-                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                _commandHistory.Record(command);
-                _renderer.Refresh();
-                _componentGizmo.Attach(session);
-            });
-        }
-
-        /// <summary>The Edit Mode toolbar's "Mark Seam" button - flags whichever single
-        /// edge (exactly 2 selected vertices - Edge mode) is currently selected as a UV
-        /// Seam via <see cref="MeshEditSession.MarkSeamOnSelectedEdge"/>, wrapped into an
-        /// undoable, recorded <see cref="MeshEditCommand"/> the same way
-        /// <see cref="LoopCutButton_Click"/> already is - marking/clearing a seam is a
-        /// real mesh edit (persisted on <see cref="Mesh.SeamEdges"/>), so it deserves the
-        /// same Undo/Redo coverage as any other Edit Mode action.</summary>
-        private void MarkSeamButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-
-            var session = _renderer.EditSession;
-            if (session.Target is not { } node) return;
-
-            TryRun("Mark Seam", () =>
-            {
-                var command = MeshEditCommandFactory.Capture(node, "Mark Seam",
-                    () => session.MarkSeamOnSelectedEdge(),
-                    onChanged: _renderer.Refresh);
-
-                if (command is null)
-                {
-                    MessageBox.Show(this, "Select a single edge (Edge mode) to Mark Seam.",
-                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                _commandHistory.Record(command);
-                _renderer.Refresh();
-            });
-        }
-
-        /// <summary>The reverse of <see cref="MarkSeamButton_Click"/> - same selection
-        /// requirement, un-flags the edge instead via <see cref="MeshEditSession.ClearSeamOnSelectedEdge"/>.</summary>
-        private void ClearSeamButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-
-            var session = _renderer.EditSession;
-            if (session.Target is not { } node) return;
-
-            TryRun("Clear Seam", () =>
-            {
-                var command = MeshEditCommandFactory.Capture(node, "Clear Seam",
-                    () => session.ClearSeamOnSelectedEdge(),
-                    onChanged: _renderer.Refresh);
-
-                if (command is null)
-                {
-                    MessageBox.Show(this, "Select a single edge (Edge mode) to Clear Seam.",
-                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                _commandHistory.Record(command);
-                _renderer.Refresh();
-            });
-        }
-
-        /// <summary>The Edit Mode toolbar's "Unwrap" button - runs <see cref="MeshEditSession.UnwrapTargetMesh"/>
-        /// against the WHOLE target mesh (never a partial/selection-scoped operation,
-        /// the same "always applies to everything" convention <see cref="SubdivideButton_Click"/>
-        /// already follows), wrapped into an undoable, recorded <see cref="MeshEditCommand"/>
-        /// and re-rendered/re-gizmo'd the same way every other Edit Mode action here
-        /// is.</summary>
-        private void UnwrapButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-
-            var session = _renderer.EditSession;
-            if (session.Target is not { } node) return;
-
-            TryRun("Unwrap", () =>
-            {
-                var command = MeshEditCommandFactory.Capture(node, "Unwrap",
-                    () => session.UnwrapTargetMesh(),
-                    onChanged: () =>
-                    {
-                        _renderer.Refresh();
-                        _componentGizmo.Attach(session);
-                    });
-
-                if (command is null) return; // no mesh on this node at all - nothing to unwrap or undo
-
-                _commandHistory.Record(command);
-                _renderer.Refresh();
-                _componentGizmo.Attach(session);
-            });
-        }
-
-        /// <summary>The Object Mode toolbar's "Affect Only: Origin" checkbox - Custom
-        /// Pivot Points (see <see cref="TransformGizmo.AffectOnlyOrigin"/>'s own
-        /// remarks).</summary>
-        private void AffectOnlyOriginCheckBox_Changed(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _gizmo.AffectOnlyOrigin = AffectOnlyOriginCheckBox.IsChecked == true;
-        }
-
-        /// <summary>Face Snapping's own "Align to Surface" toggle - see
-        /// <see cref="TransformGizmo.AlignToSurfaceEnabled"/>'s own remarks.</summary>
-        private void AlignToSurfaceCheckBox_Changed(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _gizmo.AlignToSurfaceEnabled = AlignToSurfaceCheckBox.IsChecked == true;
-        }
-
-        /// <summary>The "Delete" toolbar button - Object Mode deletes the whole selected
-        /// node (see <see cref="DeleteSelectedNode"/>); Edit Mode deletes the selected
-        /// vertices/edges/faces instead (see <see cref="DeleteSelectedComponents"/>). Also
-        /// reachable via the Delete key from anywhere in the window - see
-        /// <see cref="MainWindow_PreviewKeyDown"/> - this button exists purely so the same
-        /// command has a mouse-only path too, mirroring <see cref="DuplicateButton_Click"/>.</summary>
-        private void DeleteButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            DeleteSelected();
-        }
-
-        /// <summary>Routes to whichever "Delete" actually means right now - Object Mode
-        /// (the whole selected node) or Edit Mode (a component selection) - the shared
-        /// entry point both <see cref="DeleteButton_Click"/> and the Delete key (see
-        /// <see cref="MainWindow_PreviewKeyDown"/>) call, mirroring
-        /// <see cref="DuplicateSelected"/>'s own exact shape.</summary>
-        private void DeleteSelected()
-        {
-            if (IsEditMode) DeleteSelectedComponents();
-            else DeleteSelectedNode();
-        }
-
-        /// <summary>Object Mode's own "Delete" command - removes the selected node (and
-        /// its whole subtree) from the scene graph via <see cref="DeleteNodeCommandFactory.Create"/>/
-        /// <see cref="DeleteNodeCommand"/> (wrapped for Undo/Redo the same
-        /// <see cref="CommandHistory.Execute"/> way <see cref="DuplicateSelectedNode"/>'s
-        /// own <see cref="DuplicateNodeCommand"/> already is), clears the selection
-        /// (there is nothing left to keep the gizmo attached to or the Properties
-        /// Inspector showing), and drops every <see cref="_textureSources"/> entry for the
-        /// deleted subtree - keeping one around for a node that's no longer reachable from
-        /// <see cref="_currentScene"/> at all would be a real, silently-accumulating memory
-        /// leak over a session that deletes many nodes in turn (the same reasoning
-        /// <see cref="LoadScene"/>'s own wholesale <c>_textureSources.Clear()</c> already
-        /// discloses, just scoped to one deleted subtree instead of an entire replaced
-        /// scene). A no-op with nothing selected.</summary>
-        private void DeleteSelectedNode()
-        {
-            if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
-
-            TryRun("Delete", () =>
-            {
-                var command = DeleteNodeCommandFactory.Create(_currentScene, node, _timeline, onChanged: () =>
-                {
-                    _sceneViewModel.Load(_currentScene);
-                    _renderer.Render(_currentScene, zoomToFit: false);
-                });
-
-                _commandHistory.Execute(command);
-                SelectNode(null);
-
-                foreach (var removedNode in command.Target.Traverse()) _textureSources.Remove(removedNode);
-            });
-        }
-
-        /// <summary>The actual "Delete Vertices/Edges/Faces" command both
-        /// <see cref="DeleteButton_Click"/> and the Delete key (see
-        /// <see cref="MainWindow_PreviewKeyDown"/>) funnel into (via
-        /// <see cref="DeleteSelected"/>) - a no-op (not even an undoable no-op command
-        /// recorded) with nothing currently selected, matching
-        /// <see cref="MeshEditSession.DeleteSelected"/>'s own "false = nothing happened"
-        /// return.</summary>
-        private void DeleteSelectedComponents()
-        {
-            var session = _renderer.EditSession;
-            if (session.Target is not { } node) return;
-
-            TryRun("Delete", () =>
-            {
-                var command = MeshEditCommandFactory.Capture(node, "Delete Selected",
-                    () => session.DeleteSelected(),
-                    onChanged: () =>
-                    {
-                        _renderer.Refresh();
-                        _componentGizmo.Attach(session);
-                    });
-
-                if (command is null) return; // nothing selected (or no mesh) - nothing to delete or undo
-
-                _commandHistory.Record(command);
-                _renderer.Refresh();
-                _componentGizmo.Attach(session);
-            });
-        }
-
-        /// <summary>The "Duplicate" toolbar button - Object Mode duplicates the whole
-        /// selected node (see <see cref="DuplicateSelectedNode"/>); Edit Mode duplicates
-        /// the selected vertices/edges/faces instead (see
-        /// <see cref="DuplicateSelectedComponents"/>). Also reachable via Ctrl+D from
-        /// anywhere in the window - see <see cref="MainWindow_PreviewKeyDown"/> - this
-        /// button exists purely so the same command has a mouse-only path too, the same
-        /// "button and key both funnel into one method" shape <see cref="DeleteButton_Click"/>/
-        /// <see cref="DeleteSelectedComponents"/> already have.</summary>
-        private void DuplicateButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            DuplicateSelected();
-        }
-
-        /// <summary>Routes to whichever "Duplicate" actually means right now - Object Mode
-        /// (a whole node) or Edit Mode (a component selection) - the shared entry point
-        /// both <see cref="DuplicateButton_Click"/> and Ctrl+D (see
-        /// <see cref="MainWindow_PreviewKeyDown"/>) call.</summary>
-        private void DuplicateSelected()
-        {
-            if (IsEditMode) DuplicateSelectedComponents();
-            else DuplicateSelectedNode();
-        }
-
-        /// <summary>Object Mode's own "Duplicate" command - deep-clones the selected node
-        /// (see <see cref="DuplicateNodeCommandFactory.Create"/>/<see cref="Node.Clone"/>:
-        /// its own mesh, modifiers, material binding, AND every descendant, recursively,
-        /// plus - once actually executed - a copy of any keyframe track it or any of its
-        /// descendants had on <see cref="_timeline"/>), inserts the clone into the scene
-        /// graph next to the original (wrapped in an undoable <see cref="DuplicateNodeCommand"/>,
-        /// via <see cref="CommandHistory.Execute"/> rather than <see cref="CommandHistory.Record"/>
-        /// since - unlike a gizmo drag - nothing has inserted it anywhere yet), and selects
-        /// the new clone - the standard "duplicate leaves the COPY selected, ready to move"
-        /// convention every modeling tool's own Duplicate follows. A no-op with nothing
-        /// selected.</summary>
-        private void DuplicateSelectedNode()
-        {
-            if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
-
-            TryRun("Duplicate", () =>
-            {
-                var command = DuplicateNodeCommandFactory.Create(_currentScene, node, _timeline, onChanged: () =>
-                {
-                    _sceneViewModel.Load(_currentScene);
-                    _renderer.Render(_currentScene, zoomToFit: false);
-                });
-
-                _commandHistory.Execute(command);
-                SelectNode(command.Clone);
-            });
-        }
-
-        /// <summary>Edit Mode's own "Duplicate" command - duplicates whichever
-        /// vertices/edges/faces are currently selected via
-        /// <see cref="MeshEditSession.DuplicateSelected"/>, wrapped into an undoable
-        /// <see cref="MeshEditCommand"/> exactly the same way <see cref="DeleteSelectedComponents"/>
-        /// already is (a duplicate changes the mesh's own vertex COUNT, the same reason
-        /// Delete needs a full before/after <see cref="Mesh.Clone"/> snapshot rather than
-        /// the lightweight per-index <see cref="VertexTranslateCommand"/> a plain drag
-        /// uses). Leaves the freshly duplicated geometry selected, ready to drag via
-        /// <see cref="ComponentGizmo"/> - see <see cref="MeshEditSession.DuplicateSelected"/>'s
-        /// own remarks.</summary>
-        private void DuplicateSelectedComponents()
-        {
-            var session = _renderer.EditSession;
-            if (session.Target is not { } node) return;
-
-            TryRun("Duplicate", () =>
-            {
-                var command = MeshEditCommandFactory.Capture(node, "Duplicate Selected",
-                    () => session.DuplicateSelected(),
-                    onChanged: () =>
-                    {
-                        _renderer.Refresh();
-                        _componentGizmo.Attach(session);
-                    });
-
-                if (command is null) return; // nothing selected (or no mesh) - nothing to duplicate or undo
-
-                _commandHistory.Record(command);
-                _renderer.Refresh();
-                _componentGizmo.Attach(session);
-            });
-        }
-
-        /// <summary>Window-wide Delete/Ctrl+D handling for <see cref="DeleteSelected"/>/
-        /// <see cref="DuplicateSelected"/> - <see cref="PreviewKeyDown"/> (a tunneling
-        /// event reaching this window before any child control's own bubbling
-        /// <c>KeyDown</c>) rather than a routed <see cref="System.Windows.Input.KeyBinding"/>/
-        /// <see cref="RoutedCommand"/>, so both keys work regardless of which control
-        /// inside the window currently has keyboard focus (the viewport, the Outliner
-        /// tree, a Properties panel field) - the same "reachable from anywhere in the
-        /// window" reasoning <see cref="ApplicationCommands.Undo"/>/<see cref="ApplicationCommands.Redo"/>'s
-        /// own <see cref="CommandBindings"/> already rely on (their default Ctrl+Z/Ctrl+Y
-        /// gestures), just via a plain key check instead of a full <c>RoutedCommand</c>
-        /// since there's no menu item/<c>InputGestureText</c> this needs to also drive.
-        ///
-        /// The one thing this must NEVER do is steal a keystroke away from an actively
-        /// focused <see cref="TextBox"/> (the Properties Inspector's own Name/Position/
-        /// Rotation/Scale/... fields, among others): Delete has its own native, entirely
-        /// different meaning there (delete the character ahead of the caret), and this
-        /// handler firing anyway would silently destroy the whole selected object (Object
-        /// Mode) or mesh selection (Edit Mode) the moment someone tries to edit a text
-        /// field with the Delete key - a real, easy-to-hit data-loss trap a window-wide
-        /// tunneling handler is otherwise exactly positioned to spring. Checked once, up
-        /// front, for BOTH keys below (Ctrl+D isn't a TextBox's own native shortcut
-        /// either, so it could arguably still fire there safely, but skipping it too keeps
-        /// this one rule simple and exception-free rather than needing a second, subtly
-        /// different justification per key).</summary>
-        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
-        {
-            if (!_isInitialized) return;
-            if (e.OriginalSource is TextBox) return;
-
-            if (e.Key == Key.Delete)
-            {
-                DeleteSelected();
-                e.Handled = true;
-                return;
-            }
-
-            if (e.Key == Key.D && Keyboard.Modifiers == ModifierKeys.Control)
-            {
-                DuplicateSelected();
-                e.Handled = true;
-                return;
-            }
-
-            if (e.Key == Key.NumPad0)
-            {
-                // Just flips the same checkbox "View > Active Camera" itself is - both
-                // paths funnel into ActiveCameraViewCheckBox_Changed, the same "button and
-                // key both call one shared method" shape DeleteSelected/DuplicateSelected
-                // already use above.
-                ActiveCameraViewCheckBox.IsChecked = ActiveCameraViewCheckBox.IsChecked != true;
-                e.Handled = true;
-            }
-        }
-
-        /// <summary>The Modifiers panel's "Add Mirror"/"Add Subsurf" buttons - append a
-        /// new, default-settings modifier to the selected node's own stack.
-        /// <see cref="NodeViewModel.AddMirrorModifier"/>/<see cref="NodeViewModel.AddSubdivisionSurfaceModifier"/>
-        /// already call this view model's own "something changed" callback themselves
-        /// (the same one wired to <see cref="SceneViewModel.SceneChanged"/> in this
-        /// window's own constructor), so no explicit <see cref="Scene3DRenderer.Refresh"/>
-        /// is needed here - it happens automatically, the same real-time-update path
-        /// every other Properties Inspector edit already goes through.</summary>
-        private void AddMirrorModifierButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _sceneViewModel.SelectedNode?.AddMirrorModifier();
-        }
-
-        private void AddSubsurfModifierButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _sceneViewModel.SelectedNode?.AddSubdivisionSurfaceModifier();
-        }
-
-        private void AddBooleanModifierButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _sceneViewModel.SelectedNode?.AddBooleanModifier();
-        }
-
-        private void AddArrayModifierButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _sceneViewModel.SelectedNode?.AddArrayModifier();
-        }
-
-        private void AddSolidifyModifierButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _sceneViewModel.SelectedNode?.AddSolidifyModifier();
-        }
-
-        private void AddEdgeSplitModifierButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _sceneViewModel.SelectedNode?.AddEdgeSplitModifier();
-        }
-
-        private void ShadeSmoothButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _sceneViewModel.SelectedNode?.ShadeSmooth();
-        }
-
-        private void ShadeFlatButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _sceneViewModel.SelectedNode?.ShadeFlat();
-        }
-
-        private void AddTrackToConstraintButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            _sceneViewModel.SelectedNode?.AddTrackToConstraint();
-        }
-
-        /// <summary>The Constraints panel's own per-entry "Remove" button - the clicked
-        /// <see cref="Button"/>'s own DataContext (from its enclosing <c>DataTemplate</c>)
-        /// IS the <see cref="ConstraintViewModelBase"/> to remove, the same pattern
-        /// <see cref="RemoveModifierButton_Click"/> already uses.</summary>
-        private void RemoveConstraintButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            if (sender is not FrameworkElement { DataContext: ConstraintViewModelBase constraintViewModel }) return;
-            _sceneViewModel.SelectedNode?.RemoveConstraint(constraintViewModel);
-        }
-
-        /// <summary>The Modifiers panel's own per-entry "Remove" button - the clicked
-        /// <see cref="Button"/>'s own DataContext (from its enclosing <c>DataTemplate</c>)
-        /// IS the <see cref="ModifierViewModelBase"/> to remove, since each list item's
-        /// template is data-bound to exactly one.</summary>
-        private void RemoveModifierButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            if (sender is not FrameworkElement { DataContext: ModifierViewModelBase modifierViewModel }) return;
-            _sceneViewModel.SelectedNode?.RemoveModifier(modifierViewModel);
-        }
-
-        /// <summary>The Properties panel's "Add Keyframe" button - records the selected
-        /// node's CURRENT Position/Rotation/Scale at the timeline's own current playback
-        /// position, using whichever of <see cref="LinearInterpolationButton"/>/<see cref="BezierInterpolationButton"/>
-        /// is checked for the segment LEAVING this keyframe (see
-        /// <see cref="AnimationTrack.AddKeyframeFromCurrentTransform"/>/<see cref="InterpolationMode"/>).
-        /// Recording a keyframe at exactly the transform the node already has never
-        /// changes its appearance, so no re-render is needed here.</summary>
-        private void AddKeyframeButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
-
-            var interpolation = BezierInterpolationButton.IsChecked == true ? InterpolationMode.Bezier : InterpolationMode.Linear;
-            _timeline.GetOrCreateTrack(node).AddKeyframeFromCurrentTransform(_timeline.CurrentTime, interpolation);
-            RefreshDopesheet();
-        }
-
-        /// <summary>The Material Inspector's "Load Clipbar Animation..." button - picks
-        /// a <c>.jolie</c> project and imports it as an animated texture sequence on the
-        /// selected node's material (see <see cref="ClipbarAnimationBridge"/>): a real
-        /// Clipbar Animation project (one frame per "Frame NNN" layer) or a Sprite
-        /// Sheet project (one frame per grid cell) both work; anything else is reported
-        /// rather than silently failing. Installs the resulting track via
-        /// <see cref="AnimationTimeline.SetTextureTrack"/> and applies/renders
-        /// immediately, so the first frame shows right away rather than only once
-        /// playback starts.</summary>
-        private void LoadClipbarAnimationButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!_isInitialized) return;
-            if (_sceneViewModel.SelectedNode is not { } nodeViewModel) return;
-            if (nodeViewModel.UnderlyingNode.Mesh?.Material is not { } material) return;
-
-            var dialog = new OpenFileDialog
-            {
-                Filter = "JolieCat Projects (*.jolie)|*.jolie",
-                Title = "Load Clipbar Animation",
-            };
-            if (dialog.ShowDialog(this) != true) return;
-
-            TryRun("Load Clipbar Animation", () =>
-            {
-                var manifest = JolieProjectReader.ReadManifest(dialog.FileName);
-                var cacheDirectory = GetTextureCacheDirectory();
-
-                TextureAnimationTrack track;
-                if (ClipbarReader.IsClipbarProject(manifest))
-                    track = ClipbarAnimationBridge.CreateFromClipbarProject(material, dialog.FileName, cacheDirectory);
-                else if (string.Equals(manifest.ProjectType, "SpriteSheet", StringComparison.OrdinalIgnoreCase))
-                    track = ClipbarAnimationBridge.CreateFromSpriteSheetProject(material, dialog.FileName, cacheDirectory);
-                else
-                {
-                    MessageBox.Show(this,
-                        $"'{Path.GetFileName(dialog.FileName)}' is a '{manifest.ProjectType}' project - "
-                        + "only Clipbar Animation and Sprite Sheet projects can be imported as an animated texture sequence.",
-                        "JolieCat3D", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                _timeline.SetTextureTrack(track);
-                _timeline.Apply();
-                nodeViewModel.SyncFromCore();
-                _renderer.Refresh();
-            });
+            return hit;
         }
 
         // ================= Animation playback transport =================
@@ -2569,8 +2715,81 @@ namespace JolieCat3D.UI
         /// an FPS edit). Guards every write with <see cref="_isUpdatingAnimationUI"/> so
         /// setting <c>FrameScrubber.Value</c> here doesn't re-trigger
         /// <see cref="FrameScrubber_ValueChanged"/> as if the user had dragged it.</summary>
+        // ================= Actions (animation clips) =================
+
+        private void RefreshActionList()
+        {
+            var actions = _timeline.Actions.ToList();
+            if (!ActionComboBox.Items.Cast<object>().SequenceEqual(actions))
+            {
+                ActionComboBox.Items.Clear();
+                foreach (var a in actions) ActionComboBox.Items.Add(a);
+            }
+            else
+            {
+                ActionComboBox.Items.Refresh(); // names may have changed
+            }
+            ActionComboBox.SelectedItem = _timeline.ActiveAction;
+        }
+
+        /// <summary>After the action list or active action changed: re-pose the scene from the
+        /// now-active clip and refresh everything that shows keys.</summary>
+        private void OnActionsChanged()
+        {
+            _timeline.Apply();
+            _sceneViewModel.SelectedNode?.SyncFromCore();
+            _renderer.Refresh();
+            _selectedKeyframeTime = null;
+            RefreshAnimationUI();
+            MarkChanged();
+        }
+
+        private void ActionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isInitialized || _isUpdatingAnimationUI) return;
+            if (ActionComboBox.SelectedItem is not AnimationAction action || ReferenceEquals(action, _timeline.ActiveAction)) return;
+            _timeline.ActiveAction = action;
+            OnActionsChanged();
+            Viewport.ShowMessage($"Active action: {action.Name}");
+        }
+
+        private void AddActionCore(bool copy)
+        {
+            var action = _timeline.AddAction(copy ? _timeline.ActiveAction.Name : "Action", copy);
+            _timeline.RemoveAction(action); // the command re-adds it, keeping undo/redo symmetric
+            _commandHistory.Execute(new ActionListCommand(() => _timeline, action, isAdd: true, OnActionsChanged));
+            Viewport.ShowMessage($"Added action {action.Name}");
+        }
+
+        private void NewActionButton_Click(object sender, RoutedEventArgs e) => AddActionCore(copy: false);
+
+        private void DuplicateActionButton_Click(object sender, RoutedEventArgs e) => AddActionCore(copy: true);
+
+        private void RenameActionButton_Click(object sender, RoutedEventArgs e)
+        {
+            var action = _timeline.ActiveAction;
+            var dialog = new TextPromptWindow("Rename Action", "Action name:", action.Name) { Owner = this };
+            if (dialog.ShowDialog() != true || dialog.Result is null || dialog.Result == action.Name) return;
+            var name = _timeline.UniqueActionName(dialog.Result);
+            _commandHistory.Execute(new RenameActionCommand(action, action.Name, name, OnActionsChanged));
+        }
+
+        private void DeleteActionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_timeline.Actions.Count <= 1)
+            {
+                Viewport.ShowMessage("The last action can't be deleted.");
+                return;
+            }
+            var name = _timeline.ActiveAction.Name;
+            _commandHistory.Execute(new ActionListCommand(() => _timeline, _timeline.ActiveAction, isAdd: false, OnActionsChanged));
+            Viewport.ShowMessage($"Deleted action {name}");
+        }
+
         private void RefreshAnimationUI()
         {
+            _graphEditor?.Redraw(); // playhead follows playback/scrubbing
+            _nlaEditor?.Redraw();
             _isUpdatingAnimationUI = true;
             try
             {
@@ -2578,6 +2797,7 @@ namespace JolieCat3D.UI
                 FrameScrubber.Value = _timeline.CurrentFrame;
                 FrameLabel.Text = $"{_timeline.CurrentFrame:0} / {_timeline.TotalFrames}";
                 PlayPauseButton.Content = _timeline.IsPlaying ? "Pause" : "Play";
+                RefreshActionList();
                 RefreshDopesheet();
             }
             finally
@@ -2764,7 +2984,9 @@ namespace JolieCat3D.UI
                     var frame = x / canvasWidth * _timeline.TotalFrames;
                     var newTime = frame / _timeline.FrameRate;
 
-                    if (track.RetimeKeyframe(oldTime, newTime))
+                    var moved = false;
+                    RecordKeyframeEdit(node, "Move Keyframe", () => moved = track.RetimeKeyframe(oldTime, newTime));
+                    if (moved)
                     {
                         _selectedKeyframeTime = newTime;
                         _timeline.Apply();
@@ -2790,7 +3012,7 @@ namespace JolieCat3D.UI
             if (_sceneViewModel.SelectedNode?.UnderlyingNode is not { } node) return;
             if (!_timeline.TryGetTrack(node, out var track) || track is null) return;
 
-            track.RemoveKeyframe(time);
+            RecordKeyframeEdit(node, "Delete Keyframe", () => track.RemoveKeyframe(time));
             _selectedKeyframeTime = null;
             _timeline.Apply();
             _sceneViewModel.SelectedNode?.SyncFromCore();
@@ -2862,6 +3084,29 @@ namespace JolieCat3D.UI
         /// (roughness in green, metallic in blue - see
         /// <see cref="Core.Materials.Material.MetallicRoughnessTexturePath"/>'s own
         /// remarks), this button does no repacking of its own.</summary>
+        private void LoadEmissionMapButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized || _sceneViewModel.SelectedNode is not { } nodeViewModel) return;
+            var dialog = new OpenFileDialog
+            {
+                Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|All files (*.*)|*.*",
+                Title = "Load Emission Map",
+            };
+            if (dialog.ShowDialog(this) != true) return;
+            TryRun("Load Emission Map", () =>
+            {
+                nodeViewModel.SetEmissiveTexture(dialog.FileName);
+                _renderer.Refresh();
+            });
+        }
+
+        private void ClearEmissionMapButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized || _sceneViewModel.SelectedNode is not { } nodeViewModel) return;
+            nodeViewModel.SetEmissiveTexture(null);
+            _renderer.Refresh();
+        }
+
         private void LoadMetallicRoughnessMapButton_Click(object sender, RoutedEventArgs e)
         {
             if (!_isInitialized) return;
@@ -3163,7 +3408,7 @@ namespace JolieCat3D.UI
         /// <see cref="Material"/>, a parent/child <see cref="Node"/> hierarchy (proving
         /// <see cref="Node.GetWorldTransform"/>'s composition, not just one node's own
         /// local transform), assembled into a <see cref="Scene3D"/> and handed to
-        /// <see cref="Scene3DRenderer.Render"/> - the exact same call any future
+        /// <c>viewport.Render</c> - the exact same call any future
         /// real-content loader in this project would make.
         /// </summary>
         private static Scene3D BuildDemoScene()

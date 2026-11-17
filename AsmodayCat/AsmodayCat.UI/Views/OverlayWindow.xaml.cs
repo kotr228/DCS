@@ -1,3 +1,4 @@
+using AsmodayCat.UI.Localization;
 using System.Windows;
 using System.Windows.Input;
 using AsmodayCat.UI.Services;
@@ -30,20 +31,29 @@ public partial class OverlayWindow : Window
         var text = QuickInput.Text.Trim();
         if (string.IsNullOrEmpty(text)) return;
 
-        ResponseBlock.Text = "Thinking...";
+        ResponseBlock.Text = Loc.T("overlay.thinking");
+        QuickInput.Clear();
 
-        var resp = await _ipc.SendCommandAsync(new IpcCommand
+        var answer = new System.Text.StringBuilder();
+        await foreach (var chunk in _ipc.StreamCommandAsync(new IpcCommand
         {
             Type       = IpcCommandType.Chat,
-            Parameters = { ["Message"] = text }
-        });
-
-        ResponseBlock.Text = resp?.Success == true && resp.Payload.HasValue
-            ? resp.Payload.Value.TryGetProperty("Content", out var c)
-                ? c.GetString() ?? string.Empty
-                : string.Empty
-            : $"Error: {resp?.Error ?? "Service offline"}";
-
-        QuickInput.Clear();
+            // Separate short conversation: doesn't mix with the main chat or its history
+            Parameters = { ["Message"] = text, ["Quick"] = "true", ["AllowWeb"] = "true" }
+        }))
+        {
+            if (!string.IsNullOrEmpty(chunk.Error))
+            {
+                answer.Append("\n" + Loc.F("chat.errorInline", chunk.Error));
+                ResponseBlock.Text = answer.ToString();
+                break;
+            }
+            if (!string.IsNullOrEmpty(chunk.Chunk))
+            {
+                answer.Append(chunk.Chunk);
+                ResponseBlock.Text = answer.ToString();
+            }
+            if (chunk.Done) break;
+        }
     }
 }

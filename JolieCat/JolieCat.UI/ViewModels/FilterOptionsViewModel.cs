@@ -41,6 +41,29 @@ namespace JolieCat.UI.ViewModels
 
         /// <summary>Uses the foreground/background colors (packed into Amount/SecondAmount).</summary>
         Clouds,
+
+        Wind,
+        Diffuse,
+        Crystallize,
+        ColorHalftone,
+        Maximum,
+        Minimum,
+        Offset,
+        Tiles,
+        Solarize,
+        RectangularToPolar,
+        PolarToRectangular,
+        Mezzotint,
+        Average,
+        Despeckle,
+        ZigZag,
+        Shear,
+        SpinBlur,
+        ReduceNoise,
+        SharpenEdges,
+        Fibers,
+        GlowingEdges,
+        Cutout,
     }
 
     /// <summary>
@@ -78,6 +101,10 @@ namespace JolieCat.UI.ViewModels
         public double SecondAmountMax { get; }
 
         public string SecondSuffix { get; } = string.Empty;
+
+        /// <summary>The colors filters like Fibers are drawn with (foreground to background).</summary>
+        public SKColor Foreground { get; set; } = SKColors.Black;
+        public SKColor Background { get; set; } = SKColors.White;
 
         [ObservableProperty]
         private double secondAmount;
@@ -309,6 +336,200 @@ namespace JolieCat.UI.ViewModels
                     HasSettings = false;
                     break;
 
+                case FilterKind.Wind:
+                    Title = "Wind";
+                    AmountLabel = "Strength";
+                    AmountMin = 1;
+                    AmountMax = 300;
+                    Suffix = "px";
+                    amount = 40;
+                    break;
+
+                case FilterKind.Diffuse:
+                    Title = "Diffuse";
+                    AmountLabel = "Amount";
+                    AmountMin = 1;
+                    AmountMax = 50;
+                    Suffix = "px";
+                    amount = 4;
+                    break;
+
+                case FilterKind.Crystallize:
+                    Title = "Crystallize";
+                    AmountLabel = "Cell Size";
+                    AmountMin = 3;
+                    AmountMax = 300;
+                    Suffix = "px";
+                    amount = 12;
+                    break;
+
+                case FilterKind.ColorHalftone:
+                    Title = "Color Halftone";
+                    AmountLabel = "Max. Radius";
+                    AmountMin = 2;
+                    AmountMax = 64;
+                    Suffix = "px";
+                    amount = 8;
+                    break;
+
+                case FilterKind.Maximum:
+                    Title = "Maximum";
+                    AmountLabel = "Radius";
+                    AmountMin = 1;
+                    AmountMax = 50;
+                    Suffix = "px";
+                    amount = 2;
+                    break;
+
+                case FilterKind.Minimum:
+                    Title = "Minimum";
+                    AmountLabel = "Radius";
+                    AmountMin = 1;
+                    AmountMax = 50;
+                    Suffix = "px";
+                    amount = 2;
+                    break;
+
+                case FilterKind.Offset:
+                    Title = "Offset (wraps around)";
+                    AmountLabel = "Horizontal";
+                    AmountMin = -5000;
+                    AmountMax = 5000;
+                    Suffix = "px";
+                    amount = 100;
+                    HasSecondAmount = true;
+                    SecondAmountLabel = "Vertical";
+                    SecondAmountMin = -5000;
+                    SecondAmountMax = 5000;
+                    SecondSuffix = "px";
+                    secondAmount = 100;
+                    break;
+
+                case FilterKind.Tiles:
+                    Title = "Tiles";
+                    AmountLabel = "Number of Tiles";
+                    AmountMin = 1;
+                    AmountMax = 99;
+                    Suffix = "across";
+                    amount = 10;
+                    break;
+
+                case FilterKind.Solarize:
+                    Title = "Solarize";
+                    HasSettings = false;
+                    break;
+
+                case FilterKind.RectangularToPolar:
+                    Title = "Polar Coordinates";
+                    HasSettings = false;
+                    break;
+
+                case FilterKind.PolarToRectangular:
+                    Title = "Polar Coordinates";
+                    HasSettings = false;
+                    break;
+
+                case FilterKind.Mezzotint:
+                    Title = "Mezzotint";
+                    HasSettings = false;
+                    break;
+
+                case FilterKind.Average:
+                    Title = "Average";
+                    HasSettings = false;
+                    break;
+
+                case FilterKind.Despeckle:
+                    Title = "Despeckle";
+                    HasSettings = false;
+                    break;
+
+                case FilterKind.ZigZag:
+                    Title = "ZigZag";
+                    AmountLabel = "Amount";
+                    AmountMin = -100;
+                    AmountMax = 100;
+                    Suffix = "%";
+                    amount = 30;
+                    HasSecondAmount = true;
+                    SecondAmountLabel = "Ridges";
+                    SecondAmountMin = 1;
+                    SecondAmountMax = 20;
+                    SecondSuffix = "";
+                    secondAmount = 5;
+                    break;
+
+                case FilterKind.Shear:
+                    Title = "Shear";
+                    AmountLabel = "Bend";
+                    AmountMin = -100;
+                    AmountMax = 100;
+                    Suffix = "%";
+                    amount = 20;
+                    break;
+
+                case FilterKind.SpinBlur:
+                    Title = "Spin Blur";
+                    AmountLabel = "Angle";
+                    AmountMin = 1;
+                    AmountMax = 90;
+                    Suffix = "°";
+                    amount = 15;
+                    break;
+
+                case FilterKind.ReduceNoise:
+                    Title = "Reduce Noise";
+                    AmountLabel = "Strength";
+                    AmountMin = 1;
+                    AmountMax = 10;
+                    Suffix = "";
+                    amount = 6;
+                    HasSecondAmount = true;
+                    SecondAmountLabel = "Preserve Details";
+                    SecondAmountMin = 0;
+                    SecondAmountMax = 100;
+                    SecondSuffix = "%";
+                    secondAmount = 50;
+                    break;
+
+                case FilterKind.SharpenEdges:
+                    Title = "Sharpen Edges";
+                    HasSettings = false;
+                    break;
+
+                case FilterKind.Fibers:
+                    Title = "Fibers";
+                    AmountLabel = "Variance";
+                    AmountMin = 1;
+                    AmountMax = 64;
+                    Suffix = "";
+                    amount = 16;
+                    HasSecondAmount = true;
+                    SecondAmountLabel = "Strength";
+                    SecondAmountMin = 1;
+                    SecondAmountMax = 64;
+                    SecondSuffix = "";
+                    secondAmount = 4;
+                    break;
+
+                case FilterKind.GlowingEdges:
+                    Title = "Glowing Edges";
+                    AmountLabel = "Brightness";
+                    AmountMin = 1;
+                    AmountMax = 20;
+                    Suffix = "";
+                    amount = 6;
+                    break;
+
+                case FilterKind.Cutout:
+                    Title = "Cutout";
+                    AmountLabel = "Levels";
+                    AmountMin = 2;
+                    AmountMax = 8;
+                    Suffix = "";
+                    amount = 4;
+                    break;
+
                 case FilterKind.Clouds:
                     Title = "Clouds";
                     HasSettings = false;
@@ -412,6 +633,29 @@ namespace JolieCat.UI.ViewModels
             FilterKind.Clouds => ArtFilters.Clouds(source,
                 Core.Adjustments.AdjustmentSettings.UnpackColor(Amount), Core.Adjustments.AdjustmentSettings.UnpackColor(SecondAmount),
                 HashCode.Combine((int)Amount, (int)SecondAmount, source.Width, source.Height)),
+            FilterKind.Wind => MoreFilters.Wind(source, (float)Amount),
+            FilterKind.Diffuse => MoreFilters.Diffuse(source, (float)Amount),
+            FilterKind.Crystallize => MoreFilters.Crystallize(source, (float)Amount),
+            FilterKind.ColorHalftone => MoreFilters.ColorHalftone(source, (float)Amount),
+            FilterKind.Maximum => MoreFilters.MaximumMinimum(source, (int)Math.Round(Amount), grow: true),
+            FilterKind.Minimum => MoreFilters.MaximumMinimum(source, (int)Math.Round(Amount), grow: false),
+            FilterKind.Offset => MoreFilters.Offset(source, (int)Math.Round(Amount), (int)Math.Round(SecondAmount)),
+            FilterKind.Tiles => MoreFilters.Tiles(source, (int)Math.Round(Amount)),
+            FilterKind.Solarize => MoreFilters.Solarize(source),
+            FilterKind.RectangularToPolar => MoreFilters.PolarCoordinates(source, toPolar: true),
+            FilterKind.PolarToRectangular => MoreFilters.PolarCoordinates(source, toPolar: false),
+            FilterKind.Mezzotint => MoreFilters.Mezzotint(source),
+            FilterKind.Average => MoreFilters.Average(source),
+            FilterKind.Despeckle => MoreFilters.Despeckle(source),
+            FilterKind.ZigZag => MoreFilters2.ZigZag(source, (float)Amount, (float)SecondAmount),
+            FilterKind.Shear => MoreFilters2.Shear(source, (float)Amount),
+            FilterKind.SpinBlur => MoreFilters2.SpinBlur(source, (float)Amount),
+            FilterKind.ReduceNoise => MoreFilters2.ReduceNoise(source, (float)Amount, (float)SecondAmount),
+            FilterKind.SharpenEdges => MoreFilters2.SharpenEdges(source),
+            // Fibers go from the foreground to the background color (set by whoever opens the dialog).
+            FilterKind.Fibers => MoreFilters2.Fibers(source, Foreground, Background, (float)Amount, (float)SecondAmount, 1234),
+            FilterKind.GlowingEdges => MoreFilters2.GlowingEdges(source, (float)Amount),
+            FilterKind.Cutout => MoreFilters2.Cutout(source, (int)Math.Round(Amount)),
             _ => throw new ArgumentOutOfRangeException(),
         };
     }

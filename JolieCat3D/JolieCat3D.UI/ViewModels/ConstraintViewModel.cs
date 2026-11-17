@@ -107,4 +107,104 @@ namespace JolieCat3D.UI.ViewModels
             }
         }
     }
+
+    /// <summary>Inspector for <see cref="InverseKinematicsConstraint"/>.</summary>
+    public sealed class InverseKinematicsConstraintViewModel : ConstraintViewModelBase
+    {
+        private readonly InverseKinematicsConstraint _ik;
+        private readonly NodeViewModel _owner;
+        private readonly Func<IEnumerable<NodeViewModel>> _allNodesProvider;
+
+        public InverseKinematicsConstraintViewModel(InverseKinematicsConstraint ik, Action onChanged, NodeViewModel owner, Func<IEnumerable<NodeViewModel>> allNodesProvider)
+            : base(ik, onChanged)
+        {
+            _ik = ik;
+            _owner = owner;
+            _allNodesProvider = allNodesProvider;
+        }
+
+        public IEnumerable<NodeViewModel> AvailableTargets => _allNodesProvider().Where(c => c != _owner);
+
+        public NodeViewModel? SelectedTarget
+        {
+            get => _ik.Target is { } t ? _allNodesProvider().FirstOrDefault(c => c.UnderlyingNode == t) : null;
+            set
+            {
+                if (SelectedTarget == value) return;
+                _ik.Target = value?.UnderlyingNode;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+
+        public NodeViewModel? SelectedPole
+        {
+            get => _ik.PoleTarget is { } p ? _allNodesProvider().FirstOrDefault(c => c.UnderlyingNode == p) : null;
+            set
+            {
+                if (SelectedPole == value) return;
+                _ik.PoleTarget = value?.UnderlyingNode;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+
+        public int ChainLength
+        {
+            get => _ik.ChainLength;
+            set
+            {
+                if (_ik.ChainLength == value) return;
+                _ik.ChainLength = value;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+
+        public int Iterations
+        {
+            get => _ik.Iterations;
+            set
+            {
+                if (_ik.Iterations == value) return;
+                _ik.Iterations = value;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+    }
+
+    /// <summary>Copy Location/Rotation/Scale and Limit Location/Rotation/Scale: optional
+    /// target plus generic parameter rows.</summary>
+    public sealed class ParameterizedConstraintViewModel : ConstraintViewModelBase
+    {
+        private readonly IParameterizedConstraint _constraint;
+        private readonly NodeViewModel _owner;
+        private readonly Func<IEnumerable<NodeViewModel>> _allNodesProvider;
+
+        public ParameterizedConstraintViewModel(Constraint constraint, Action onChanged, NodeViewModel owner, Func<IEnumerable<NodeViewModel>> allNodesProvider)
+            : base(constraint, onChanged)
+        {
+            _constraint = (IParameterizedConstraint)constraint;
+            _owner = owner;
+            _allNodesProvider = allNodesProvider;
+            Parameters = _constraint.Parameters.Select(p => new ModifierParameterViewModel(p, RaiseChanged)).ToList();
+        }
+
+        public bool UsesTarget => _constraint.UsesTarget;
+        public IReadOnlyList<ModifierParameterViewModel> Parameters { get; }
+        public IEnumerable<NodeViewModel> AvailableTargets => _allNodesProvider().Where(c => c != _owner);
+
+        public NodeViewModel? SelectedTarget
+        {
+            get => _constraint.Target is { } t ? _allNodesProvider().FirstOrDefault(c => c.UnderlyingNode == t) : null;
+            set
+            {
+                if (SelectedTarget == value) return;
+                _constraint.Target = value?.UnderlyingNode;
+                OnPropertyChanged();
+                RaiseChanged();
+            }
+        }
+    }
 }

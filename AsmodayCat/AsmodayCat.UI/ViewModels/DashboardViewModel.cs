@@ -1,3 +1,4 @@
+using AsmodayCat.UI.Localization;
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Windows.Threading;
@@ -53,7 +54,7 @@ public partial class DashboardViewModel : ObservableObject
     private async Task KillAllAsync()
     {
         var resp = await _ipc.SendCommandAsync(new IpcCommand { Type = IpcCommandType.KillSwitch });
-        KillSwitchStatus = resp?.Success == true ? "All tasks stopped." : $"Error: {resp?.Error}";
+        KillSwitchStatus = resp?.Success == true ? Loc.T("dash.killed") : Loc.F("common.error", resp?.Error);
     }
 
     [RelayCommand]
@@ -61,8 +62,7 @@ public partial class DashboardViewModel : ObservableObject
     {
         var resp = await _ipc.SendCommandAsync(new IpcCommand
         {
-            Type       = IpcCommandType.ChangeHardwareModel,
-            Parameters = new() { ["action"] = "unload" }
+            Type = IpcCommandType.UnloadModel
         });
         ActiveModelStatus = resp?.Success == true ? "Unloaded" : "Error";
     }

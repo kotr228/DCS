@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using SkiaSharp;
 
 namespace JolieCat.Core.Documents
@@ -30,6 +31,60 @@ namespace JolieCat.Core.Documents
         /// <summary>Border around the whole grid before the first row/column starts, in document pixels.</summary>
         public int MarginX { get; set; }
         public int MarginY { get; set; }
+
+        /// <summary>Where each sprite's pivot sits in its cell, in percent of the cell
+        /// (50, 100 = middle of the bottom edge, where a character stands). Game engines
+        /// place and turn the sprite around this point.</summary>
+        public double PivotX { get; set; } = 50;
+        public double PivotY { get; set; } = 100;
+
+        /// <summary>Names of the rows, comma-separated, top row first ("walk, jump, attack"):
+        /// each named row is exported as an animation. Empty: none.</summary>
+        public string RowNames { get; set; } = string.Empty;
+
+        /// <summary>The name of <paramref name="row"/> (0 = top), or null if it has none.</summary>
+        public string? RowName(int row)
+        {
+            var names = RowNames.Split(',');
+            return row >= 0 && row < names.Length && names[row].Trim() is { Length: > 0 } name ? name : null;
+        }
+
+        /// <summary>The pivot of the cell at <paramref name="rect"/>, in document pixels.</summary>
+        public SKPoint PivotIn(SKRect rect) =>
+            new(rect.Left + rect.Width * (float)(PivotX / 100), rect.Top + rect.Height * (float)(PivotY / 100));
+
+        /// <summary>Cells with their own pivot (in percent), by cell number (0 = top-left,
+        /// row by row). The others use <see cref="PivotX"/> / <see cref="PivotY"/>.</summary>
+        public Dictionary<int, (double X, double Y)> CellPivots { get; } = new();
+
+        /// <summary>Cell <paramref name="index"/>'s pivot in percent of the cell.</summary>
+        public (double X, double Y) PivotFor(int index) => CellPivots.TryGetValue(index, out var p) ? p : (PivotX, PivotY);
+
+        /// <summary>The pivot of cell <paramref name="index"/> placed at <paramref name="rect"/>, in document pixels.</summary>
+        public SKPoint PivotIn(SKRect rect, int index)
+        {
+            var (x, y) = PivotFor(index);
+            return new(rect.Left + rect.Width * (float)(x / 100), rect.Top + rect.Height * (float)(y / 100));
+        }
+
+        /// <summary>The cell pivots as text ("3:50,80;7:20,100"), for saving.</summary>
+        public string CellPivotsText
+        {
+            get => string.Join(";", CellPivots.OrderBy(p => p.Key).Select(p =>
+                string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{p.Key}:{p.Value.X:0.##},{p.Value.Y:0.##}")));
+            set
+            {
+                CellPivots.Clear();
+                foreach (var part in (value ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    var bits = part.Split(':', ',');
+                    if (bits.Length == 3 && int.TryParse(bits[0], out var i)
+                        && double.TryParse(bits[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var x)
+                        && double.TryParse(bits[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var y))
+                        CellPivots[i] = (Math.Clamp(x, 0, 100), Math.Clamp(y, 0, 100));
+                }
+            }
+        }
 
         /// <summary>Each cell's size for a document of (<paramref name="documentWidth"/>,
         /// <paramref name="documentHeight"/>) - the margins and inter-cell padding are

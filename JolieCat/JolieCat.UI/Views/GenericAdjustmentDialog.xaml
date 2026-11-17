@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
         xmlns:controls="clr-namespace:JolieCat.UI.Controls"
         mc:Ignorable="d"
-        Title="{Binding Title}" Width="400" SizeToContent="Height"
+        Title="{Binding Title, Converter={StaticResource Tr}}" Width="400" SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
         d:DataContext="{d:DesignInstance Type=vm:GenericAdjustmentViewModel, IsDesignTimeCreatable=False}">
     <StackPanel Margin="16">

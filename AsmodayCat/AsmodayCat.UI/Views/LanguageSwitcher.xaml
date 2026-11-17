@@ -1,0 +1,79 @@
+<UserControl x:Class="AsmodayCat.UI.Views.LanguageSwitcher"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:AsmodayCat.UI.Localization">
+    <!-- Compact dark drop-down: "UA ▾"; the list shows full language names -->
+    <UserControl.Resources>
+        <Style x:Key="LangItem" TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource BrushSidebarText}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBoxItem">
+                        <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="10,7" Margin="4,1">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushSidebarHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushSidebarActive}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <ComboBox x:Name="Combo" SelectionChanged="Combo_SelectionChanged" Style="{x:Null}"
+              ItemContainerStyle="{StaticResource LangItem}"
+              ToolTip="{l:Tr lang.tooltip}" AutomationProperties.Name="{l:Tr lang.tooltip}"
+              Cursor="Hand" Focusable="False">
+        <ComboBox.Template>
+            <ControlTemplate TargetType="ComboBox">
+                <Grid>
+                    <ToggleButton x:Name="Toggle" Focusable="False" ClickMode="Press" Style="{x:Null}"
+                                  IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border x:Name="Bd" CornerRadius="8" BorderThickness="1" Padding="12,5,10,5"
+                                        Background="{StaticResource BrushSidebarHover}" BorderBrush="{StaticResource BrushSidebarActive}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding SelectedItem.Short, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                   Foreground="White" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        <Path Data="M0,0 L8,0 L4,5 Z" Fill="{StaticResource BrushSidebarText}" Margin="12,1,0,0"
+                                              VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BrushAccent}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
+                    <Popup IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Top" VerticalOffset="-4"
+                           AllowsTransparency="True" StaysOpen="False" PopupAnimation="Fade"
+                           PlacementTarget="{Binding ElementName=Toggle}">
+                        <Border Background="{StaticResource BrushSidebar}" BorderBrush="{StaticResource BrushSidebarActive}"
+                                BorderThickness="1" CornerRadius="8" Padding="0,4" MinWidth="150">
+                            <ItemsPresenter/>
+                        </Border>
+                    </Popup>
+                </Grid>
+            </ControlTemplate>
+        </ComboBox.Template>
+        <ComboBox.ItemTemplate>
+            <DataTemplate>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding Short}" Width="30" FontWeight="SemiBold" Opacity="0.7"/>
+                    <TextBlock Text="{Binding Name}"/>
+                </StackPanel>
+            </DataTemplate>
+        </ComboBox.ItemTemplate>
+    </ComboBox>
+</UserControl>

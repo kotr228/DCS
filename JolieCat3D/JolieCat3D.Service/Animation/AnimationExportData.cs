@@ -24,6 +24,15 @@ namespace JolieCat3D.Service.Animation
 
         public List<AnimationTrackExportData> Tracks { get; set; } = new();
 
+        /// <summary>Every action (clip). When present it is authoritative; <see cref="Tracks"/>
+        /// then mirrors the active action for older readers.</summary>
+        public List<ActionExportData>? Actions { get; set; }
+
+        public string? ActiveAction { get; set; }
+
+        /// <summary>The NLA stack, bottom first (null/absent = none).</summary>
+        public List<NlaTrackExportData>? NlaTracks { get; set; }
+
         public List<TextureTrackExportData> TextureTracks { get; set; } = new();
     }
 
@@ -32,6 +41,34 @@ namespace JolieCat3D.Service.Animation
     /// reference itself (a plain data file obviously can't hold a live object
     /// reference), resolved back to a real node on import the same way it was built on
     /// export (see <see cref="AnimationExporter"/>'s own remarks on both directions).</summary>
+    public sealed class ActionExportData
+    {
+        public string Name { get; set; } = string.Empty;
+        public List<AnimationTrackExportData> Tracks { get; set; } = new();
+    }
+
+    public sealed class NlaTrackExportData
+    {
+        public string Name { get; set; } = string.Empty;
+        public bool Muted { get; set; }
+        public List<NlaStripExportData> Strips { get; set; } = new();
+    }
+
+    /// <summary>One <see cref="NlaStrip"/>; <see cref="Action"/> is the action's name.</summary>
+    public sealed class NlaStripExportData
+    {
+        public string Action { get; set; } = string.Empty;
+        public double Start { get; set; }
+        public double Speed { get; set; } = 1;
+        public double Repeat { get; set; } = 1;
+        public float Influence { get; set; } = 1;
+        public double BlendIn { get; set; }
+        public double BlendOut { get; set; }
+        public string BlendMode { get; set; } = nameof(NlaBlendMode.Replace);
+        public string Extrapolation { get; set; } = nameof(NlaExtrapolation.HoldForward);
+        public bool Muted { get; set; }
+    }
+
     public sealed class AnimationTrackExportData
     {
         /// <summary>This node's own name, then its parent's, its parent's parent's, and
@@ -46,6 +83,10 @@ namespace JolieCat3D.Service.Animation
         public string NodePath { get; set; } = string.Empty;
 
         public List<KeyframeExportData> Keyframes { get; set; } = new();
+
+        /// <summary>Per-channel F-curves (keys, interpolation, Bézier handles). When present
+        /// they are authoritative; <see cref="Keyframes"/> is kept for older readers.</summary>
+        public List<FCurveExportData>? Curves { get; set; }
     }
 
     /// <summary>One <see cref="Keyframe"/>, fully flattened to plain numbers - a
@@ -102,5 +143,24 @@ namespace JolieCat3D.Service.Animation
         public float OffsetY { get; set; }
         public float ScaleX { get; set; }
         public float ScaleY { get; set; }
+    }
+
+    public sealed class FCurveExportData
+    {
+        /// <summary>An <see cref="AnimationChannel"/> name, e.g. "LocationX".</summary>
+        public string Channel { get; set; } = string.Empty;
+        public List<FCurveKeyExportData> Keys { get; set; } = new();
+    }
+
+    public sealed class FCurveKeyExportData
+    {
+        public double Time { get; set; }
+        public float Value { get; set; }
+        public string Interpolation { get; set; } = nameof(InterpolationMode.Bezier);
+        public float HandleLeftTime { get; set; }
+        public float HandleLeftValue { get; set; }
+        public float HandleRightTime { get; set; }
+        public float HandleRightValue { get; set; }
+        public bool AutoHandles { get; set; } = true;
     }
 }

@@ -54,7 +54,7 @@ public class ChatRepository
         using var conn = _db.CreateConnection();
         conn.Open();
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM ChatMessages WHERE SessionId = @sid ORDER BY Timestamp;";
+        cmd.CommandText = "SELECT * FROM ChatMessages WHERE SessionId = @sid ORDER BY Timestamp, rowid;";
         cmd.Parameters.AddWithValue("@sid", sessionId.ToString());
         using var r = cmd.ExecuteReader();
         var list = new List<ChatMessageDto>();
@@ -89,6 +89,52 @@ public class ChatRepository
         upd.Parameters.AddWithValue("@now", now);
         upd.Parameters.AddWithValue("@sid", sessionId.ToString());
         upd.ExecuteNonQuery();
+    }
+
+    // Removes the message at `fromIndex` (0-based, in display order) and everything after it
+    public int TruncateSession(Guid sessionId, int fromIndex)
+    {
+        using var conn = _db.CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            DELETE FROM ChatMessages WHERE SessionId = @sid AND Id IN (
+                SELECT Id FROM ChatMessages WHERE SessionId = @sid
+                ORDER BY Timestamp, rowid LIMIT -1 OFFSET @skip);";
+        cmd.Parameters.AddWithValue("@sid", sessionId.ToString());
+        cmd.Parameters.AddWithValue("@skip", Math.Max(0, fromIndex));
+        return cmd.ExecuteNonQuery();
+    }
+
+    // Sessions whose title or any message contains the text (case-insensitive, any language)
+    public List<ChatSessionRecord> SearchSessions(string text)
+    {
+        var hits = new HashSet<string>();
+        using (var conn = _db.CreateConnection())
+        {
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT SessionId, Content FROM ChatMessages;";
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                if (r.GetString(1).Contains(text, StringComparison.CurrentCultureIgnoreCase))
+                    hits.Add(r.GetString(0));
+        }
+        return GetSessions()
+            .Where(s => hits.Contains(s.Id.ToString()) || s.Title.Contains(text, StringComparison.CurrentCultureIgnoreCase))
+            .ToList();
+    }
+
+    public void DeleteSession(Guid sessionId)
+    {
+        using var conn = _db.CreateConnection();
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = @"
+            DELETE FROM ChatMessages WHERE SessionId = @sid;
+            DELETE FROM ChatSessions WHERE Id = @sid;";
+        cmd.Parameters.AddWithValue("@sid", sessionId.ToString());
+        cmd.ExecuteNonQuery();
     }
 
     private static ChatMessageDto MapMessage(SqliteDataReader r)

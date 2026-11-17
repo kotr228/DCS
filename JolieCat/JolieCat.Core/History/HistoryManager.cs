@@ -14,11 +14,11 @@ namespace JolieCat.Core.History
         /// <summary>Cap on undo depth. Pixel edits only keep their changed tiles (see
         /// <see cref="LayerPixelsCommand"/>), so this can be generous; the memory budget
         /// below is what actually protects large documents.</summary>
-        public const int MaxDepth = 200;
+        public static int MaxDepth { get; set; } = 200;
 
         /// <summary>Upper bound on memory held by sized history entries. The oldest
         /// entries are dropped first once this is exceeded.</summary>
-        public const long MaxBytes = 1L * 1024 * 1024 * 1024;
+        public static long MaxBytes { get; set; } = 1L * 1024 * 1024 * 1024;
 
         private long _undoBytes;
 

@@ -1,184 +1,377 @@
 <UserControl x:Class="AsmodayCat.UI.Views.ChatView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:AsmodayCat.UI.Localization"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:mdxam="clr-namespace:Markdig.Wpf;assembly=Markdig.Wpf">
-    <Grid Margin="20" Background="{StaticResource BrushBackground}">
+    <UserControl.Resources>
+        <!-- Markdown in bubbles: no page padding, app font -->
+        <Style TargetType="FlowDocument" x:Key="{x:Static mdxam:Styles.DocumentStyleKey}">
+            <Setter Property="PagePadding" Value="0"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontSize" Value="13.5"/>
+            <Setter Property="LineHeight" Value="20"/>
+        </Style>
+        <!-- Switch + icon + label in the options strip -->
+        <Style x:Key="OptionLabel" TargetType="TextBlock">
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+        </Style>
+        <Style x:Key="OptionIcon" TargetType="materialDesign:PackIcon">
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushNav}"/>
+        </Style>
+        <Style x:Key="MsgAction" TargetType="Button" BasedOn="{StaticResource MaterialDesignIconButton}">
+            <Setter Property="Width" Value="26"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushMuted}"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource BrushBackground}"
+          AllowDrop="True" DragOver="Files_DragOver" Drop="Files_Drop">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>   <!-- header -->
+            <RowDefinition Height="Auto"/>   <!-- options strip -->
             <RowDefinition Height="*"/>      <!-- messages -->
-            <RowDefinition Height="Auto"/>   <!-- agent state indicator -->
-            <RowDefinition Height="Auto"/>   <!-- pending attachments -->
-            <RowDefinition Height="Auto"/>   <!-- input row -->
+            <RowDefinition Height="Auto"/>   <!-- input -->
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
-            <TextBlock Text="CHAT" FontSize="18" FontWeight="Bold"
-                       Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"/>
-            <Button Content="CLEAR"
-                    Command="{Binding ClearChatCommand}"
-                    Style="{StaticResource MaterialDesignOutlinedButton}"
-                    Foreground="{StaticResource BrushDark}"
-                    BorderBrush="{StaticResource BrushNav}"
-                    Margin="12,0,0,0" Height="28" Padding="8,0"/>
-        </StackPanel>
+        <!-- ── Header: title | history, search, new chat ─────────────────── -->
+        <DockPanel Grid.Row="0" Margin="32,8,32,14">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBox Width="170" VerticalAlignment="Center"
+                         materialDesign:HintAssist.Hint="{l:Tr chat.searchHint}"
+                         materialDesign:TextFieldAssist.HasLeadingIcon="True"
+                         materialDesign:TextFieldAssist.LeadingIcon="Magnify"
+                         Text="{Binding SessionQuery, UpdateSourceTrigger=PropertyChanged, Delay=400}"
+                         ToolTip="{l:Tr chat.searchTip}"/>
+                <ComboBox ItemsSource="{Binding Sessions}"
+                          SelectedItem="{Binding SelectedSession}"
+                          DisplayMemberPath="Display"
+                          Width="250" Margin="14,0,0,0" VerticalAlignment="Center"
+                          materialDesign:HintAssist.Hint="{l:Tr chat.historyHint}"
+                          ToolTip="{l:Tr chat.historyTip}"/>
+                <Button Command="{Binding DeleteSessionCommand}" Style="{StaticResource SmallIconButton}"
+                        Margin="4,0,0,0" ToolTip="{l:Tr chat.deleteTip}">
+                    <materialDesign:PackIcon Kind="DeleteOutline" Width="18" Height="18"/>
+                </Button>
+                <Button Command="{Binding ExportChatCommand}" Style="{StaticResource SmallIconButton}"
+                        ToolTip="{l:Tr chat.exportTip}">
+                    <materialDesign:PackIcon Kind="ContentSaveOutline" Width="18" Height="18"/>
+                </Button>
+                <Button Command="{Binding ClearChatCommand}" Style="{StaticResource AccentButton}" Margin="12,0,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Plus" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{l:Tr chat.new}"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock Text="{l:Tr chat.title}" Style="{StaticResource PageTitle}"/>
+                <TextBlock Text="{l:Tr chat.subtitle}" Style="{StaticResource PageSubtitle}"/>
+            </StackPanel>
+        </DockPanel>
 
-        <!-- Messages list -->
-        <ScrollViewer Grid.Row="1" x:Name="Scroller"
-                      VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding Messages}">
+        <!-- ── Options: what the assistant may use ───────────────────────── -->
+        <Border Grid.Row="1" Margin="32,0,32,10" Padding="14,8" CornerRadius="8"
+                Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+            <WrapPanel Orientation="Horizontal">
+                <TextBlock Text="{l:Tr chat.canUse}" Style="{StaticResource Caption}" FontSize="12.5"
+                           VerticalAlignment="Center" Margin="0,0,14,0"/>
+                <StackPanel Orientation="Horizontal" Margin="0,2,22,2">
+                    <ToggleButton IsChecked="{Binding AllowWeb}" Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                  VerticalAlignment="Center"
+                                  ToolTip="{l:Tr chat.webTip}"/>
+                    <materialDesign:PackIcon Kind="Web" Style="{StaticResource OptionIcon}"/>
+                    <TextBlock Text="{l:Tr chat.web}" Style="{StaticResource OptionLabel}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,22,2">
+                    <ToggleButton IsChecked="{Binding AllowTools}" Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                  VerticalAlignment="Center"
+                                  ToolTip="{l:Tr chat.toolsTip}"/>
+                    <materialDesign:PackIcon Kind="FileCogOutline" Style="{StaticResource OptionIcon}"/>
+                    <TextBlock Text="{l:Tr chat.tools}" Style="{StaticResource OptionLabel}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
+                    <ToggleButton IsChecked="{Binding VoiceReplies}" Style="{StaticResource MaterialDesignSwitchToggleButton}"
+                                  VerticalAlignment="Center"
+                                  ToolTip="{l:Tr chat.voiceTip}"/>
+                    <materialDesign:PackIcon Kind="VolumeHigh" Style="{StaticResource OptionIcon}"/>
+                    <TextBlock Text="{l:Tr chat.voice}" Style="{StaticResource OptionLabel}"/>
+                </StackPanel>
+            </WrapPanel>
+        </Border>
+
+        <!-- ── Messages ──────────────────────────────────────────────────── -->
+        <ScrollViewer Grid.Row="2" x:Name="Scroller" VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Messages}" MaxWidth="940" Margin="32,4,32,8">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <Border HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToAlignmentConverter}}"
-                                MaxWidth="680"
-                                Margin="0,4"
-                                Padding="12,8"
-                                CornerRadius="8"
+                        <Border x:Name="Bubble"
+                                HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToAlignmentConverter}}"
+                                MaxWidth="760" Margin="0,6" Padding="16,10,16,6" CornerRadius="12"
+                                BorderThickness="1" BorderBrush="{StaticResource BrushBorder}"
                                 Background="{Binding Role, Converter={StaticResource RoleToBrushConverter}}">
                             <StackPanel>
-                                <!-- Role label -->
-                                <TextBlock Text="{Binding Role}"
-                                           FontSize="10" FontWeight="Bold"
-                                           Margin="0,0,0,4"
-                                           Typography.Capitals="AllSmallCaps">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Role}" Value="user">
-                                                    <Setter Property="Foreground" Value="{StaticResource BrushLight}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Role}" Value="User">
-                                                    <Setter Property="Foreground" Value="{StaticResource BrushLight}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                <!-- Who is speaking -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                    <materialDesign:PackIcon x:Name="RoleIcon" Kind="Cat" Width="14" Height="14"
+                                                             Foreground="{StaticResource BrushAccent}" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="RoleText" Text="{Binding Role}" FontSize="11.5" FontWeight="SemiBold"
+                                               Foreground="{StaticResource BrushNav}" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                </StackPanel>
 
                                 <!-- Attachment chips -->
                                 <ItemsControl ItemsSource="{Binding AttachmentPaths}">
                                     <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel Orientation="Horizontal"/>
-                                        </ItemsPanelTemplate>
+                                        <ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="{StaticResource BrushNav}" CornerRadius="4"
-                                                    Padding="6,2" Margin="0,0,4,4">
-                                                <TextBlock Text="{Binding}" FontSize="10"
-                                                           Foreground="{StaticResource BrushLight}"
-                                                           MaxWidth="160"
-                                                           TextTrimming="CharacterEllipsis"/>
+                                            <Border Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}"
+                                                    BorderThickness="1" CornerRadius="6" Padding="6,2" Margin="0,2,4,4">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <materialDesign:PackIcon Kind="Paperclip" Width="12" Height="12" VerticalAlignment="Center"
+                                                                             Foreground="{StaticResource BrushNav}"/>
+                                                    <TextBlock Text="{Binding Converter={StaticResource FileNameConverter}}" FontSize="11"
+                                                               Foreground="{StaticResource BrushDark}" MaxWidth="180" Margin="4,0,0,0"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
-                                <!-- Markdown viewer — foreground switches by role -->
-                                <mdxam:MarkdownViewer Markdown="{Binding Content}">
-                                    <mdxam:MarkdownViewer.Style>
-                                        <Style TargetType="mdxam:MarkdownViewer">
-                                            <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Role}" Value="user">
-                                                    <Setter Property="Foreground" Value="{StaticResource BrushLight}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Role}" Value="User">
-                                                    <Setter Property="Foreground" Value="{StaticResource BrushLight}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </mdxam:MarkdownViewer.Style>
-                                </mdxam:MarkdownViewer>
+                                <mdxam:MarkdownViewer Markdown="{Binding Content}" Foreground="{StaticResource BrushDark}"
+                                                      FontSize="13.5"/>
+
+                                <!-- Message actions -->
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,-8,0">
+                                    <Button Style="{StaticResource MsgAction}" ToolTip="{l:Tr chat.copy}"
+                                            Command="{Binding DataContext.CopyMessageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}">
+                                        <materialDesign:PackIcon Kind="ContentCopy" Width="14" Height="14"/>
+                                    </Button>
+                                    <Button Style="{StaticResource MsgAction}" ToolTip="{l:Tr chat.editTip}"
+                                            Command="{Binding DataContext.EditMessageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}" x:Name="BtnEdit" Visibility="Collapsed">
+                                        <materialDesign:PackIcon Kind="PencilOutline" Width="14" Height="14"/>
+                                    </Button>
+                                    <Button Style="{StaticResource MsgAction}" ToolTip="{l:Tr chat.regenerateTip}"
+                                            Command="{Binding DataContext.RegenerateMessageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}" x:Name="BtnRegenerate" Visibility="Collapsed">
+                                        <materialDesign:PackIcon Kind="Refresh" Width="14" Height="14"/>
+                                    </Button>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding Role}" Value="User">
+                                <Setter TargetName="BtnEdit" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="RoleText" Property="Text" Value="{l:Tr chat.you}"/>
+                                <Setter TargetName="RoleIcon" Property="Kind" Value="AccountOutline"/>
+                                <Setter TargetName="Bubble" Property="BorderBrush" Value="#E6D6A8"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="user">
+                                <Setter TargetName="BtnEdit" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="RoleText" Property="Text" Value="{l:Tr chat.you}"/>
+                                <Setter TargetName="RoleIcon" Property="Kind" Value="AccountOutline"/>
+                                <Setter TargetName="Bubble" Property="BorderBrush" Value="#E6D6A8"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="Assistant">
+                                <Setter TargetName="BtnRegenerate" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="RoleText" Property="Text" Value="AsmodayCat"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="assistant">
+                                <Setter TargetName="BtnRegenerate" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="RoleText" Property="Text" Value="AsmodayCat"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="Tool">
+                                <Setter TargetName="RoleText" Property="Text" Value="{l:Tr chat.tool}"/>
+                                <Setter TargetName="RoleIcon" Property="Kind" Value="Wrench"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="System">
+                                <Setter TargetName="RoleText" Property="Text" Value="{l:Tr chat.system}"/>
+                                <Setter TargetName="RoleIcon" Property="Kind" Value="InformationOutline"/>
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
 
-        <!-- Agent state indicator -->
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6"
-                    Visibility="{Binding IsAgentBusy, Converter={StaticResource BoolToVisConverter}}">
-            <materialDesign:PackIcon Kind="Robot" Width="16" Height="16"
-                                     Foreground="{StaticResource BrushAccent}" VerticalAlignment="Center"/>
-            <TextBlock Text="{Binding AgentStateText}"
-                       Foreground="{StaticResource BrushAccent}" Margin="6,0,0,0"
-                       FontStyle="Italic" VerticalAlignment="Center"/>
+        <!-- Empty conversation: greeting and hints -->
+        <StackPanel Grid.Row="2" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="560"
+                    IsHitTestVisible="False">
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Messages.Count}" Value="0">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+            <Border Width="64" Height="64" CornerRadius="18" Background="{StaticResource BrushAccentSoft}">
+                <materialDesign:PackIcon Kind="Cat" Width="34" Height="34" Foreground="{StaticResource BrushAccent}"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <TextBlock Text="{l:Tr chat.emptyTitle}" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource BrushDark}"
+                       HorizontalAlignment="Center" Margin="0,14,0,6"/>
+            <TextBlock Style="{StaticResource Caption}" FontSize="12.5" TextAlignment="Center"
+                       Text="{l:Tr chat.emptyText}"/>
+            <WrapPanel HorizontalAlignment="Center" Margin="0,16,0,0">
+                <Border Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
+                        CornerRadius="14" Padding="12,5" Margin="4">
+                    <TextBlock Text="{l:Tr chat.example1}" FontSize="12" Foreground="{StaticResource BrushNav}"/>
+                </Border>
+                <Border Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
+                        CornerRadius="14" Padding="12,5" Margin="4">
+                    <TextBlock Text="{l:Tr chat.example2}" FontSize="12" Foreground="{StaticResource BrushNav}"/>
+                </Border>
+                <Border Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
+                        CornerRadius="14" Padding="12,5" Margin="4">
+                    <TextBlock Text="{l:Tr chat.example3}" FontSize="12" Foreground="{StaticResource BrushNav}"/>
+                </Border>
+            </WrapPanel>
         </StackPanel>
 
-        <!-- Pending attachment preview strip -->
-        <ItemsControl Grid.Row="3" ItemsSource="{Binding PendingAttachments}"
-                      Margin="0,0,0,6"
-                      Visibility="{Binding HasPendingAttachments,
-                          Converter={StaticResource BoolToVisConverter}}">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <WrapPanel Orientation="Horizontal"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Border Background="{StaticResource BrushSurface}" CornerRadius="6"
-                            Padding="8,4" Margin="0,0,6,4"
-                            BorderBrush="{StaticResource BrushNav}" BorderThickness="1">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Paperclip" Width="12" Height="12"
-                                                     Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"
-                                                     Margin="0,0,4,0"/>
-                            <TextBlock Text="{Binding Converter={StaticResource FileNameConverter}}"
-                                       FontSize="11" Foreground="{StaticResource BrushDark}" MaxWidth="140"
-                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-                            <Button Style="{StaticResource MaterialDesignIconButton}"
-                                    Width="18" Height="18" Padding="0"
-                                    Margin="6,0,0,0"
-                                    Command="{Binding DataContext.RemoveAttachmentCommand,
-                                        RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    CommandParameter="{Binding}">
-                                <materialDesign:PackIcon Kind="Close" Width="10" Height="10"/>
-                            </Button>
-                        </StackPanel>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <!-- ── Input area ────────────────────────────────────────────────── -->
+        <StackPanel Grid.Row="3" MaxWidth="940" Margin="32,0,32,20">
 
-        <!-- Input row: [📎] [text box] [SEND] -->
-        <Grid Grid.Row="4">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
+            <!-- Agent state + voice status -->
+            <StackPanel Margin="4,0,0,6">
+                <StackPanel Orientation="Horizontal"
+                            Visibility="{Binding IsAgentBusy, Converter={StaticResource BoolToVisConverter}}">
+                    <ProgressBar Style="{StaticResource MaterialDesignCircularProgressBar}" IsIndeterminate="True"
+                                 Width="14" Height="14" Value="0"/>
+                    <TextBlock Text="{Binding AgentStateText}" Foreground="{StaticResource BrushAccent}" Margin="8,0,0,0"
+                               FontSize="12.5" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding VoiceStatus}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <materialDesign:PackIcon Kind="Microphone" Width="15" Height="15"
+                                             Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding VoiceStatus}" Foreground="{StaticResource BrushNav}" Margin="6,0,0,0"
+                               FontSize="12.5" VerticalAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
 
-            <Button Grid.Column="0"
-                    Command="{Binding AttachFileCommand}"
-                    Style="{StaticResource MaterialDesignIconButton}"
-                    Foreground="{StaticResource BrushNav}"
-                    ToolTip="Attach file"
-                    Margin="0,0,6,0">
-                <materialDesign:PackIcon Kind="Paperclip" Width="20" Height="20"/>
-            </Button>
+            <!-- Composer card: attachments on top, then [📎] text [🎤] [send] -->
+            <Border Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}"
+                    BorderThickness="1" CornerRadius="12" Padding="8,6">
+                <StackPanel>
+                    <ItemsControl ItemsSource="{Binding PendingAttachments}" Margin="6,4,6,2"
+                                  Visibility="{Binding HasPendingAttachments, Converter={StaticResource BoolToVisConverter}}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource BrushSurfaceAlt}" CornerRadius="6"
+                                        Padding="8,3,4,3" Margin="0,0,6,4">
+                                    <StackPanel Orientation="Horizontal">
+                                        <materialDesign:PackIcon Kind="Paperclip" Width="12" Height="12"
+                                                                 Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Converter={StaticResource FileNameConverter}}"
+                                                   FontSize="11.5" Foreground="{StaticResource BrushDark}" MaxWidth="160"
+                                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="4,0,0,0"/>
+                                        <Button Style="{StaticResource MaterialDesignIconButton}" Width="20" Height="20" Padding="0"
+                                                Margin="4,0,0,0" Foreground="{StaticResource BrushNav}" ToolTip="{l:Tr chat.removeTip}"
+                                                Command="{Binding DataContext.RemoveAttachmentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}">
+                                            <materialDesign:PackIcon Kind="Close" Width="12" Height="12"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
-            <TextBox Grid.Column="1"
-                     x:Name="InputBox"
-                     materialDesign:HintAssist.Hint="Type a message…"
-                     Text="{Binding UserInput, UpdateSourceTrigger=PropertyChanged}"
-                     AcceptsReturn="False"
-                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                     KeyDown="InputBox_KeyDown"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="2"
-                    Content="SEND"
-                    Command="{Binding SendCommand}"
-                    Background="{StaticResource BrushAccent}"
-                    Foreground="{StaticResource BrushLight}"
-                    Margin="8,0,0,0"
-                    IsEnabled="{Binding IsAgentBusy,
-                        Converter={StaticResource InverseBoolConverter}}"/>
-        </Grid>
+                        <Button Grid.Column="0" Command="{Binding AttachFileCommand}"
+                                Style="{StaticResource MaterialDesignIconButton}" Width="38" Height="38"
+                                Foreground="{StaticResource BrushNav}" ToolTip="{l:Tr chat.attachTip}" VerticalAlignment="Bottom">
+                            <materialDesign:PackIcon Kind="Paperclip" Width="20" Height="20"/>
+                        </Button>
+
+                        <TextBox Grid.Column="1" x:Name="InputBox"
+                                 materialDesign:HintAssist.Hint="{l:Tr chat.inputHint}"
+                                 materialDesign:TextFieldAssist.DecorationVisibility="Hidden"
+                                 Text="{Binding UserInput, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 MinHeight="38" MaxHeight="160" FontSize="14" Padding="4,8"
+                                 BorderThickness="0" VerticalContentAlignment="Center"
+                                 VerticalScrollBarVisibility="Auto" Margin="4,0"
+                                 ToolTip="{l:Tr chat.inputTip}"
+                                 PreviewKeyDown="InputBox_PreviewKeyDown"
+                                 PreviewDragOver="Files_DragOver"
+                                 PreviewDrop="Files_Drop"/>
+
+                        <!-- Voice input: click (or Ctrl+Shift+Space), speak, pause → sent -->
+                        <Button Grid.Column="2" Command="{Binding ToggleListenCommand}" Width="38" Height="38"
+                                VerticalAlignment="Bottom"
+                                ToolTip="{l:Tr chat.micTip}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignIconButton}">
+                                    <Setter Property="Foreground" Value="{StaticResource BrushNav}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsListening}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource BrushDanger}"/>
+                                            <Setter Property="Background" Value="#F8E3E0"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <materialDesign:PackIcon Kind="Microphone" Width="20" Height="20"/>
+                        </Button>
+
+                        <Button Grid.Column="3" Command="{Binding StopCommand}" Style="{StaticResource QuietButton}"
+                                Margin="6,0,0,2" VerticalAlignment="Bottom"
+                                Visibility="{Binding ShowStop, Converter={StaticResource BoolToVisConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="Stop" Width="16" Height="16" Margin="0,0,4,0" VerticalAlignment="Center"
+                                                         Foreground="{StaticResource BrushDanger}"/>
+                                <TextBlock Text="{l:Tr chat.stop}"/>
+                            </StackPanel>
+                        </Button>
+
+                        <Button Grid.Column="4" Command="{Binding SendCommand}" Style="{StaticResource AccentButton}"
+                                Margin="6,0,2,2" VerticalAlignment="Bottom"
+                                IsEnabled="{Binding IsAgentBusy, Converter={StaticResource InverseBoolConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{l:Tr chat.send}"/>
+                                <materialDesign:PackIcon Kind="Send" Width="15" Height="15" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
     </Grid>
 </UserControl>

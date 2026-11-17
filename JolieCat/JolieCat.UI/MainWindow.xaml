@@ -13,7 +13,7 @@
         mc:Ignorable="d"
         Title="JolieCat" Height="720" Width="1280" MinHeight="480" MinWidth="720"
         Icon="/Assets/JolieCatLogo.ico"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="CenterScreen" WindowState="Maximized"
         WindowStyle="None" ResizeMode="CanResize"
         UseLayoutRounding="True" SnapsToDevicePixels="True"
         PreviewKeyDown="Window_PreviewKeyDown" PreviewKeyUp="Window_PreviewKeyUp" Deactivated="Window_Deactivated"
@@ -66,6 +66,8 @@
         <KeyBinding Key="F5" Modifiers="Shift" Command="{Binding Canvas.ContentAwareFillCommand}" />
         <KeyBinding Key="X" Modifiers="Control+Shift" Command="{Binding OpenLiquifyCommand}" />
         <KeyBinding Key="W" Modifiers="Control+Alt+Shift" Command="{Binding ExportAsCommand}" />
+        <KeyBinding Key="P" Modifiers="Control" Command="{Binding PrintCommand}" />
+        <KeyBinding Key="T" Modifiers="Control+Shift" Command="{Binding ToggleTimelineCommand}" />
         <KeyBinding Key="R" Modifiers="Control+Shift" Command="{Binding LensCorrectionCommand}" />
         <KeyBinding Key="A" Modifiers="Control+Shift" Command="{Binding OpenCameraRawCommand}" />
         <KeyBinding Key="R" Modifiers="Control" Command="{Binding Canvas.ToggleRulersCommand}" />
@@ -88,6 +90,12 @@
         <KeyBinding Key="D0" Modifiers="Control" Command="{Binding Canvas.ZoomToFitCommand}" />
         <KeyBinding Key="NumPad0" Modifiers="Control" Command="{Binding Canvas.ZoomToFitCommand}" />
         <KeyBinding Key="D1" Modifiers="Control" Command="{Binding Canvas.ZoomActualPixelsCommand}" />
+        <KeyBinding Key="V" Modifiers="Control+Alt" Command="{Binding VanishingPointCommand}" />
+        <KeyBinding Key="K" Modifiers="Control" Command="{Binding EditPreferencesCommand}" />
+        <KeyBinding Key="D2" Modifiers="Control" Command="{Binding ViewChannelCommand}" CommandParameter="0" />
+        <KeyBinding Key="D3" Modifiers="Control" Command="{Binding ViewChannelCommand}" CommandParameter="1" />
+        <KeyBinding Key="D4" Modifiers="Control" Command="{Binding ViewChannelCommand}" CommandParameter="2" />
+        <KeyBinding Key="D5" Modifiers="Control" Command="{Binding ViewChannelCommand}" CommandParameter="3" />
         <KeyBinding Key="OemPlus" Modifiers="Control" Command="{Binding Canvas.ZoomInCommand}" />
         <KeyBinding Key="Add" Modifiers="Control" Command="{Binding Canvas.ZoomInCommand}" />
         <KeyBinding Key="OemMinus" Modifiers="Control" Command="{Binding Canvas.ZoomOutCommand}" />
@@ -100,6 +108,8 @@
         <KeyBinding Key="E" Modifiers="Control" Command="{Binding Layers.MergeDownCommand}" />
         <KeyBinding Key="OemCloseBrackets" Modifiers="Control" Command="{Binding Layers.MoveLayerUpCommand}" />
         <KeyBinding Key="OemOpenBrackets" Modifiers="Control" Command="{Binding Layers.MoveLayerDownCommand}" />
+        <KeyBinding Key="OemCloseBrackets" Modifiers="Control+Shift" Command="{Binding Layers.BringToFrontCommand}" />
+        <KeyBinding Key="OemOpenBrackets" Modifiers="Control+Shift" Command="{Binding Layers.SendToBackCommand}" />
         <KeyBinding Key="L" Modifiers="Control" Command="{Binding OpenLevelsDialogCommand}" />
         <KeyBinding Key="M" Modifiers="Control" Command="{Binding OpenCurvesDialogCommand}" />
         <KeyBinding Key="U" Modifiers="Control" Command="{Binding OpenSimpleAdjustmentDialogCommand}"
@@ -275,6 +285,14 @@
             <Setter Property="Background" Value="{StaticResource PanelAltBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
+            <Style.Triggers>
+                <!-- The selected tool's tile is gold (its icon turns dark to match), so the
+                     icon never sits dark-on-dark. -->
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <!-- Collapsible category section in the Tools panel: a flat chevron+title header
@@ -386,9 +404,12 @@
                                     </Style>
                                 </Rectangle.Style>
                             </Rectangle>
-                            <Grid Visibility="Collapsed">
+                            <Grid>
                                 <Grid.Style>
+                                    <!-- Hidden by the style (not on the element: a value set there
+                                         would beat the trigger, and the glyph would never show). -->
                                     <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}}" Value="Maximized">
                                                 <Setter Property="Visibility" Value="Visible" />
@@ -447,6 +468,10 @@
                  change the layer once their dialog's Apply is clicked. -->
             <DockPanel Margin="4,3">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- The interface language. -->
+                    <ComboBox ItemsSource="{Binding InterfaceLanguages}" SelectedValuePath="Code" DisplayMemberPath="Short"
+                              SelectedValue="{Binding InterfaceLanguage, Mode=TwoWay}" Width="62" Height="26" Margin="0,0,8,0"
+                              VerticalAlignment="Center" ToolTip="Interface language" AutomationProperties.Name="Interface language" />
                     <Button Style="{StaticResource IconButtonStyle}" Content="&#xE7A7;" ToolTip="Undo (Ctrl+Z)" Command="{Binding UndoCommand}" />
                     <Button Style="{StaticResource IconButtonStyle}" Content="&#xE7A6;" ToolTip="Redo (Ctrl+Y)" Command="{Binding RedoCommand}" />
                     <Border Width="1" Margin="6,3" Background="{StaticResource BorderBrush}" />
@@ -456,11 +481,15 @@
                             Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ExportImageCommand}" />
                 </StackPanel>
 
-                <Menu VerticalAlignment="Center">
+                <Menu x:Name="MainMenu" VerticalAlignment="Center">
                     <MenuItem Header="_File">
                         <MenuItem Header="New..." InputGestureText="Ctrl+N" Command="{Binding NewDocumentCommand}" />
                         <MenuItem Header="Open..." InputGestureText="Ctrl+O" Command="{Binding OpenProjectCommand}"
                                   ToolTip="Open a .jolie project, a Photoshop .psd or an image (PNG, JPEG, WebP...)" />
+                        <MenuItem Header="Import Sprite Atlas..." Command="{Binding ImportSpriteAtlasCommand}"
+                                  ToolTip="A TexturePacker / Aseprite / JolieCat atlas (.json + .png) opened as a Sprite Sheet, one row per animation" />
+                        <MenuItem Header="Pack Sprites into Sheet..." Command="{Binding PackSpritesCommand}"
+                                  ToolTip="Several pictures (or a GIF's frames) packed into a new Sprite Sheet, its grid already set" />
                         <MenuItem Header="Open Recent" ItemsSource="{Binding RecentFiles}" IsEnabled="{Binding HasRecentFiles}">
                             <MenuItem.ItemContainerStyle>
                                 <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
@@ -478,13 +507,20 @@
                         <MenuItem Header="Place Smart Object..." Command="{Binding PlaceSmartObjectCommand}" />
                         <Separator />
                         <MenuItem Header="Export Image..." InputGestureText="Ctrl+Shift+E" Command="{Binding ExportImageCommand}" />
+                        <MenuItem Header="Print..." InputGestureText="Ctrl+P" Command="{Binding PrintCommand}" />
                         <MenuItem Header="Export As..." InputGestureText="Alt+Shift+Ctrl+W" Command="{Binding ExportAsCommand}"
                                   ToolTip="Save the image in one format at several sizes at once" />
                         <MenuItem Header="Export as Photoshop (PSD)..." Command="{Binding ExportPsdCommand}" />
                         <MenuItem Header="Export Layers to Files..." Command="{Binding ExportLayersToFilesCommand}" />
+                        <MenuItem Header="Export Artboards to Files..." Command="{Binding ExportArtboardsCommand}"
+                                  ToolTip="One PNG per artboard (Image &gt; Artboards), named after it" />
+                        <MenuItem Header="Export Animation..." Command="{Binding ExportAnimationCommand}"
+                                  ToolTip="Save the timeline's frames as an animated GIF, PNG files or a sprite sheet" />
                         <Separator />
                         <MenuItem Header="Automate">
                             <MenuItem Header="Batch..." Command="{Binding OpenBatchCommand}" />
+                            <MenuItem Header="Photomerge..." Command="{Binding PhotomergeCommand}"
+                                      ToolTip="Stitch overlapping photos into one panorama (opens as a new document)" />
                             <MenuItem Header="Merge to HDR Pro (visible layers)" Command="{Binding RunMultiShotCommand}" CommandParameter="Hdr"
                                       ToolTip="Blend bracketed exposures, imported as layers, into one image with detail in shadows and highlights" />
                         </MenuItem>
@@ -509,16 +545,24 @@
                         <MenuItem Header="Fill with Background" InputGestureText="Ctrl+Backspace" Command="{Binding Canvas.FillSelectionWithBackgroundCommand}" />
                         <MenuItem Header="Stroke..." Command="{Binding StrokeSelectionCommand}" />
                         <MenuItem Header="Fade..." InputGestureText="Shift+Ctrl+F" Command="{Binding FadeCommand}" />
+                        <MenuItem Header="Define Brush Preset..." Command="{Binding DefineBrushPresetCommand}"
+                                  ToolTip="Turns the selected area (or the whole image) into a brush tip: dark parts paint, light parts don't" />
                         <MenuItem Header="Define Pattern" Command="{Binding DefinePatternCommand}"
                                   ToolTip="Turns the selected area (or the whole image) into a pattern for Pattern Overlay" />
                         <MenuItem Header="Manage Patterns..." Command="{Binding ManagePatternsCommand}" />
+                        <Separator />
+                        <MenuItem Header="Preferences..." InputGestureText="Ctrl+K" Command="{Binding EditPreferencesCommand}"
+                                  ToolTip="Undo steps and memory, how often recovery copies are made, how many recent files are listed" />
                         <MenuItem Header="Clear" InputGestureText="Delete" Command="{Binding Canvas.DeleteSelectedPixelsCommand}" />
                         <Separator />
                         <MenuItem Header="Free Transform" InputGestureText="Ctrl+T" Click="FreeTransformMenu_Click" />
                         <MenuItem Header="Puppet Warp" Command="{Binding PuppetWarpCommand}" ToolTip="Pin the layer and bend it around the pins" />
+                        <MenuItem Header="Sky Replacement..." Command="{Binding SkyReplacementCommand}" ToolTip="Find the sky and put a new one in" />
                         <MenuItem Header="Auto-Align Layers" Command="{Binding RunMultiShotCommand}" CommandParameter="Align"
                                   ToolTip="Shift the visible layers so they line up with the bottom one (several shots of one scene)" />
                         <MenuItem Header="Transform">
+                            <MenuItem Header="Distort / Perspective..." Command="{Binding DistortLayerCommand}"
+                                      ToolTip="Drag the layer's four corners one by one: fit it into a frame or screen, or straighten a photo taken at an angle" />
                             <MenuItem Header="Flip Layer Horizontal" Command="{Binding Layers.FlipLayerHorizontalCommand}" />
                             <MenuItem Header="Flip Layer Vertical" Command="{Binding Layers.FlipLayerVerticalCommand}" />
                         </MenuItem>
@@ -575,6 +619,28 @@
                         <MenuItem Header="Auto Color" InputGestureText="Ctrl+Shift+B" Command="{Binding OpenFilterDialogCommand}"
                                   CommandParameter="{x:Static vm:FilterKind.AutoColor}" />
                         <Separator />
+                        <MenuItem Header="Artboards">
+                            <MenuItem Header="New Artboard from Selection..." Command="{Binding ArtboardCommand}" CommandParameter="FromSelection"
+                                      ToolTip="The selected area becomes a named artboard" />
+                            <MenuItem Header="New Artboard..." Command="{Binding ArtboardCommand}" CommandParameter="New"
+                                      ToolTip="A named artboard of a common size (icon, phone screen, banner...) or your own" />
+                            <MenuItem Header="Delete Artboard..." Command="{Binding ArtboardCommand}" CommandParameter="Delete" />
+                            <MenuItem Header="Clear Artboards" Command="{Binding ArtboardCommand}" CommandParameter="Clear" />
+                            <Separator />
+                            <MenuItem Header="Export Artboards to Files..." Command="{Binding ExportArtboardsCommand}" />
+                        </MenuItem>
+                        <MenuItem Header="Mode">
+                            <MenuItem Header="Grayscale" Command="{Binding ConvertModeCommand}" CommandParameter="Grayscale"
+                                      ToolTip="Every pixel layer, and text color, to gray" />
+                            <MenuItem Header="Indexed Color..." Command="{Binding ConvertModeCommand}" CommandParameter="Indexed"
+                                      ToolTip="Few colors (one palette from the whole image), optionally dithered - a GIF look" />
+                            <MenuItem Header="Bitmap..." Command="{Binding ConvertModeCommand}" CommandParameter="Bitmap"
+                                      ToolTip="Pure black and white: dithered dots or a 50% threshold" />
+                        </MenuItem>
+                        <MenuItem Header="Calculations..." Command="{Binding CalculationsCommand}"
+                                  ToolTip="Blends two channels into a gray mask: a new layer, a selection or a layer mask (for hair, sky, fine edges)" />
+                        <MenuItem Header="Apply Image..." Command="{Binding ApplyImageCommand}"
+                                  ToolTip="Blends a layer or the merged image (or one of its channels) onto the active layer" />
                         <MenuItem Header="Duplicate" Command="{Binding DuplicateDocumentCommand}" ToolTip="Open a copy of this document in a new tab" />
                         <Separator />
                         <MenuItem Header="Image Size..." InputGestureText="Ctrl+Alt+I" Command="{Binding ImageSizeCommand}" />
@@ -604,6 +670,8 @@
                         <MenuItem Header="New Group" Command="{Binding Layers.NewGroupCommand}" />
                         <MenuItem Header="Group Layers" InputGestureText="Ctrl+G" Command="{Binding Layers.GroupLayersCommand}" />
                         <MenuItem Header="Ungroup Layers" InputGestureText="Ctrl+Shift+G" Command="{Binding Layers.UngroupCommand}" />
+                        <MenuItem Header="Type on Path..." Command="{Binding TypeOnPathCommand}"
+                                  ToolTip="Text that follows the path drawn with the Pen tool" />
                         <MenuItem Header="Rasterize Type" Command="{Binding Layers.RasterizeActiveTypeCommand}"
                                   ToolTip="Turn the text layer into ordinary pixels" />
                         <MenuItem Header="Create / Release Clipping Mask" InputGestureText="Ctrl+Alt+G" Command="{Binding Layers.ToggleClippingMaskCommand}"
@@ -660,8 +728,25 @@
                             <MenuItem Header="Clear Layer Style" Command="{Binding ClearLayerStyleCommand}" />
                         </MenuItem>
                         <Separator />
-                        <MenuItem Header="Bring Forward" InputGestureText="Ctrl+]" Command="{Binding Layers.MoveLayerUpCommand}" />
-                        <MenuItem Header="Send Backward" InputGestureText="Ctrl+[" Command="{Binding Layers.MoveLayerDownCommand}" />
+                        <MenuItem Header="Arrange">
+                            <MenuItem Header="Bring to Front" InputGestureText="Shift+Ctrl+]" Command="{Binding Layers.BringToFrontCommand}" />
+                            <MenuItem Header="Bring Forward" InputGestureText="Ctrl+]" Command="{Binding Layers.MoveLayerUpCommand}" />
+                            <MenuItem Header="Send Backward" InputGestureText="Ctrl+[" Command="{Binding Layers.MoveLayerDownCommand}" />
+                            <MenuItem Header="Send to Back" InputGestureText="Shift+Ctrl+[" Command="{Binding Layers.SendToBackCommand}" />
+                        </MenuItem>
+                        <MenuItem Header="Align" ToolTip="Several selected layers line up with each other; one layer lines up with the canvas">
+                            <MenuItem Header="Top Edges" Command="{Binding Layers.AlignLayersCommand}" CommandParameter="Top" />
+                            <MenuItem Header="Vertical Centers" Command="{Binding Layers.AlignLayersCommand}" CommandParameter="VCenter" />
+                            <MenuItem Header="Bottom Edges" Command="{Binding Layers.AlignLayersCommand}" CommandParameter="Bottom" />
+                            <Separator />
+                            <MenuItem Header="Left Edges" Command="{Binding Layers.AlignLayersCommand}" CommandParameter="Left" />
+                            <MenuItem Header="Horizontal Centers" Command="{Binding Layers.AlignLayersCommand}" CommandParameter="HCenter" />
+                            <MenuItem Header="Right Edges" Command="{Binding Layers.AlignLayersCommand}" CommandParameter="Right" />
+                        </MenuItem>
+                        <MenuItem Header="Distribute" ToolTip="Three or more selected layers, evenly spaced between the outermost two">
+                            <MenuItem Header="Horizontal Centers" Command="{Binding Layers.DistributeLayersCommand}" CommandParameter="Horizontal" />
+                            <MenuItem Header="Vertical Centers" Command="{Binding Layers.DistributeLayersCommand}" CommandParameter="Vertical" />
+                        </MenuItem>
                         <MenuItem Header="Merge Down" InputGestureText="Ctrl+E" Command="{Binding Layers.MergeDownCommand}" />
                         <MenuItem Header="Smart Filters..." Command="{Binding OpenSmartFiltersCommand}" />
                         <MenuItem Header="Rasterize Smart Filters" Command="{Binding Layers.RasterizeSmartFiltersCommand}" />
@@ -673,10 +758,20 @@
                             <MenuItem Header="Reveal Selection" Command="{Binding Layers.AddMaskFromSelectionCommand}" CommandParameter="Reveal" />
                             <MenuItem Header="Hide Selection" Command="{Binding Layers.AddMaskFromSelectionCommand}" CommandParameter="Hide" />
                         </MenuItem>
+                        <MenuItem Header="Layer Mask from Transparency" Command="{Binding MaskFromTransparencyCommand}"
+                                  ToolTip="A mask that shows the layer where it's painted and hides it where it's see-through" />
                         <MenuItem Header="Delete Layer Mask" Command="{Binding Layers.RemoveMaskCommand}" />
                         <Separator />
-                        <MenuItem Header="Edit Smart Object Contents" Command="{Binding EditSmartObjectContentsCommand}"
-                                  CommandParameter="{Binding Layers.ActiveLayer.Model}" />
+                        <MenuItem Header="Smart Objects">
+                            <MenuItem Header="Convert to Smart Object" Command="{Binding SmartObjectCommand}" CommandParameter="Convert"
+                                      ToolTip="The layer becomes a Smart Object: scaling and turning it later keep its full quality" />
+                            <MenuItem Header="Edit Contents" Command="{Binding EditSmartObjectContentsCommand}"
+                                      CommandParameter="{Binding Layers.ActiveLayer.Model}" />
+                            <MenuItem Header="Replace Contents..." Command="{Binding SmartObjectCommand}" CommandParameter="Replace"
+                                      ToolTip="A new picture in the same place, size and angle (a mock-up's screen, a template's photo)" />
+                            <MenuItem Header="Export Contents..." Command="{Binding SmartObjectCommand}" CommandParameter="Export"
+                                      ToolTip="Saves the Smart Object's original picture, at its full size" />
+                        </MenuItem>
                     </MenuItem>
 
                     <MenuItem Header="_Select">
@@ -685,6 +780,8 @@
                         <MenuItem Header="Reselect" InputGestureText="Ctrl+Shift+D" Command="{Binding Canvas.ReselectCommand}" />
                         <MenuItem Header="Inverse" InputGestureText="Ctrl+Shift+I" Command="{Binding Canvas.InvertSelectionCommand}" />
                         <MenuItem Header="Select and Mask..." InputGestureText="Alt+Ctrl+R" Command="{Binding SelectAndMaskCommand}" />
+                        <MenuItem Header="Transform Selection..." Command="{Binding TransformSelectionDialogCommand}"
+                                  ToolTip="Scale, turn or move the selection's outline (not the pixels)" />
                         <MenuItem Header="Edit in Quick Mask Mode" InputGestureText="Q" IsCheckable="True"
                                   IsChecked="{Binding Canvas.IsQuickMask, Mode=OneWay}" Command="{Binding Canvas.ToggleQuickMaskCommand}" />
                         <MenuItem Header="Grow..." Command="{Binding GrowSelectionCommand}" CommandParameter="Grow" />
@@ -696,6 +793,11 @@
                         <Separator />
                         <MenuItem Header="Color Range..." Command="{Binding SelectColorRangeCommand}"
                                   ToolTip="Select every pixel close to the foreground color (pick it with the Eyedropper)" />
+                        <MenuItem Header="Focus Area..." Command="{Binding SelectFocusAreaCommand}"
+                                  ToolTip="Select the sharp, in-focus parts of the photo" />
+                        <MenuItem Header="Subject" Command="{Binding SelectSubjectCommand}"
+                                  ToolTip="Select the photo's main subject (best when it differs in color from the background; refine with Select and Mask)" />
+                        <MenuItem Header="Sky" Command="{Binding SelectSkyCommand}" ToolTip="Select the sky" />
                         <Separator />
                         <MenuItem Header="Feather..." InputGestureText="Shift+F6" Command="{Binding ModifySelectionCommand}"
                                   CommandParameter="{x:Static vm:SelectionModifyKind.Feather}" />
@@ -717,6 +819,8 @@
                         <Separator />
                         <MenuItem Header="Camera Raw Filter..." Command="{Binding OpenCameraRawCommand}" InputGestureText="Shift+Ctrl+A" />
                         <MenuItem Header="Liquify..." Command="{Binding OpenLiquifyCommand}" InputGestureText="Shift+Ctrl+X" />
+                        <MenuItem Header="Vanishing Point..." Command="{Binding VanishingPointCommand}" InputGestureText="Alt+Ctrl+V"
+                                  ToolTip="Lays a picture onto a wall, floor or screen of the photo in perspective (or tiles it over it), as a new layer" />
                         <Separator />
                         <MenuItem Header="Blur Gallery">
                             <MenuItem Header="Tilt-Shift..." Command="{Binding OpenBlurGalleryCommand}" CommandParameter="TiltShift" />
@@ -725,12 +829,16 @@
                         <MenuItem Header="Blur">
                             <MenuItem Header="Gaussian Blur..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.GaussianBlur}" />
+                            <MenuItem Header="Average" Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Average}" />
                             <MenuItem Header="Box Blur..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.BoxBlur}" />
                             <MenuItem Header="Motion Blur..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.MotionBlur}" />
                             <MenuItem Header="Radial Blur..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.RadialBlur}" />
+                            <MenuItem Header="Spin Blur..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.SpinBlur}" />
                             <MenuItem Header="Surface Blur..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.SurfaceBlur}" />
                             <MenuItem Header="Lens Blur..." Command="{Binding LensBlurCommand}" />
@@ -738,16 +846,23 @@
                         <MenuItem Header="Sharpen">
                             <MenuItem Header="Sharpen..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.Sharpen}" />
+                            <MenuItem Header="Sharpen Edges" Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.SharpenEdges}" />
                             <MenuItem Header="Unsharp Mask..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.UnsharpMask}" />
                             <MenuItem Header="Smart Sharpen..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.SmartSharpen}" />
+                            <MenuItem Header="Shake Reduction..." Command="{Binding ShakeReductionCommand}" />
                         </MenuItem>
                         <MenuItem Header="Noise">
                             <MenuItem Header="Add Noise..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.Noise}" />
+                            <MenuItem Header="Reduce Noise..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.ReduceNoise}" />
                             <MenuItem Header="Median (Dust &amp; Scratches)..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.Median}" />
+                            <MenuItem Header="Despeckle" Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Despeckle}" />
                         </MenuItem>
                         <MenuItem Header="Distort">
                             <MenuItem Header="Twirl..." Command="{Binding OpenFilterDialogCommand}"
@@ -760,17 +875,37 @@
                                       CommandParameter="{x:Static vm:FilterKind.Ripple}" />
                             <MenuItem Header="Spherize..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.Spherize}" />
+                            <MenuItem Header="Displace..." Command="{Binding DisplaceFilterCommand}"
+                                      ToolTip="Shift pixels by another layer's brightness: text on cloth, ripples on water" />
+                            <MenuItem Header="ZigZag..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.ZigZag}" />
+                            <MenuItem Header="Shear..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Shear}" />
+                            <MenuItem Header="Polar Coordinates: Rectangular to Polar" Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.RectangularToPolar}" />
+                            <MenuItem Header="Polar Coordinates: Polar to Rectangular" Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.PolarToRectangular}" />
                         </MenuItem>
                         <MenuItem Header="Lens Correction..." Command="{Binding LensCorrectionCommand}" InputGestureText="Shift+Ctrl+R" />
                         <MenuItem Header="Render">
+                            <MenuItem Header="Fibers..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Fibers}" />
                             <MenuItem Header="Clouds" Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.Clouds}"
                                       ToolTip="Fills the layer with clouds from the foreground to the background color" />
                             <MenuItem Header="Lens Flare..." Command="{Binding LensFlareCommand}" />
                             <MenuItem Header="Lighting Effects..." Command="{Binding LightingEffectsCommand}" />
                         </MenuItem>
-                        <MenuItem Header="Pixelate..." Command="{Binding OpenFilterDialogCommand}"
-                                  CommandParameter="{x:Static vm:FilterKind.Pixelate}" />
+                        <MenuItem Header="Pixelate">
+                            <MenuItem Header="Mosaic..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Pixelate}" />
+                            <MenuItem Header="Crystallize..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Crystallize}" />
+                            <MenuItem Header="Color Halftone..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.ColorHalftone}" />
+                            <MenuItem Header="Mezzotint" Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Mezzotint}" />
+                        </MenuItem>
                         <MenuItem Header="Stylize">
                             <MenuItem Header="Emboss..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.Emboss}" />
@@ -778,13 +913,80 @@
                                       CommandParameter="{x:Static vm:FilterKind.FindEdges}" />
                             <MenuItem Header="Oil Paint..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.OilPaint}" />
+                            <MenuItem Header="Glowing Edges..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.GlowingEdges}" />
+                            <MenuItem Header="Cutout..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Cutout}" />
+                            <MenuItem Header="Solarize" Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Solarize}" />
+                            <MenuItem Header="Wind..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Wind}" />
+                            <MenuItem Header="Diffuse..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Diffuse}" />
+                            <MenuItem Header="Tiles..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Tiles}" />
                         </MenuItem>
                         <MenuItem Header="Vignette..." Command="{Binding OpenFilterDialogCommand}"
                                   CommandParameter="{x:Static vm:FilterKind.Vignette}" />
                         <MenuItem Header="Other">
                             <MenuItem Header="High Pass..." Command="{Binding OpenFilterDialogCommand}"
                                       CommandParameter="{x:Static vm:FilterKind.HighPass}" />
+                            <MenuItem Header="Custom..." Command="{Binding CustomFilterCommand}"
+                                      ToolTip="Your own convolution kernel (sharpen, emboss, edge detection...), previewed live" />
+                            <MenuItem Header="Maximum..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Maximum}" />
+                            <MenuItem Header="Minimum..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Minimum}" />
+                            <MenuItem Header="Offset..." Command="{Binding OpenFilterDialogCommand}"
+                                      CommandParameter="{x:Static vm:FilterKind.Offset}" />
                         </MenuItem>
+                    </MenuItem>
+
+                    <MenuItem Header="_Animation">
+                        <MenuItem Header="Convert to Clipbar Animation..." Command="{Binding ConvertToClipbarAnimationCommand}"
+                                  ToolTip="Animation is made in Clipbar Animation projects: open a copy of this document as one" />
+                        <Separator />
+                        <MenuItem Header="Show Timeline" InputGestureText="Shift+Ctrl+T" Command="{Binding ToggleTimelineCommand}"
+                                  IsCheckable="True" IsChecked="{Binding ActiveDocument.IsTimelineMode, Mode=OneWay}" />
+                        <Separator />
+                        <MenuItem Header="Play / Pause" Command="{Binding AnimationCommand}" CommandParameter="Play" />
+                        <MenuItem Header="Next Frame" Command="{Binding AnimationCommand}" CommandParameter="NextFrame" />
+                        <MenuItem Header="Previous Frame" Command="{Binding AnimationCommand}" CommandParameter="PreviousFrame" />
+                        <Separator />
+                        <MenuItem Header="New Frame" Command="{Binding AnimationCommand}" CommandParameter="NewFrame"
+                                  ToolTip="Frame-by-frame: a blank frame (a new layer) after the current one" />
+                        <MenuItem Header="Duplicate Frame" Command="{Binding AnimationCommand}" CommandParameter="DuplicateFrame" />
+                        <MenuItem Header="Delete Frame" Command="{Binding AnimationCommand}" CommandParameter="DeleteFrame" />
+                        <MenuItem Header="Make Frames Multi-layer" Command="{Binding AnimationCommand}" CommandParameter="MultiLayerFrames"
+                                  ToolTip="Each frame becomes a group, so a frame can have several layers (lines over colors)" />
+                        <MenuItem Header="Onion Skin" Command="{Binding AnimationCommand}" CommandParameter="OnionSkin"
+                                  IsCheckable="True" IsChecked="{Binding ActiveDocument.Timeline.OnionSkin, Mode=OneWay}" />
+                        <Separator />
+                        <MenuItem Header="Animate Layer" Command="{Binding AnimationCommand}" CommandParameter="AnimateLayer"
+                                  ToolTip="Keyframes: move, scale, turn and fade the active layer or group" />
+                        <MenuItem Header="Move Along Path..." Command="{Binding AnimationCommand}" CommandParameter="MoveAlongPath"
+                                  ToolTip="The selected layer travels along a path drawn with the Pen tool (and can turn to follow it)" />
+                        <MenuItem Header="Reverse Keyframes" Command="{Binding AnimationCommand}" CommandParameter="ReverseKeys"
+                                  ToolTip="The selected keys (or all of the selected layer's) play backwards" />
+                        <MenuItem Header="Stretch Keyframes..." Command="{Binding AnimationCommand}" CommandParameter="StretchKeys"
+                                  ToolTip="Spread the keys out in time, or squeeze them together" />
+                        <MenuItem Header="Add Camera" Command="{Binding AnimationCommand}" CommandParameter="AddCamera"
+                                  ToolTip="Zoom, pan and turn the whole picture with keyframes" />
+                        <MenuItem Header="Add Audio..." Command="{Binding AnimationCommand}" CommandParameter="AddAudio" />
+                        <Separator />
+                        <MenuItem Header="Add Marker..." Command="{Binding AddMarkerCommand}" ToolTip="A named spot at the playhead (a beat, a word...)" />
+                        <MenuItem Header="Next Marker" Command="{Binding AnimationCommand}" CommandParameter="NextMarker" />
+                        <MenuItem Header="Previous Marker" Command="{Binding AnimationCommand}" CommandParameter="PreviousMarker" />
+                        <MenuItem Header="Set Work Area Start (In)" Command="{Binding AnimationCommand}" CommandParameter="SetIn"
+                                  ToolTip="Play and export only from here" />
+                        <MenuItem Header="Set Work Area End (Out)" Command="{Binding AnimationCommand}" CommandParameter="SetOut"
+                                  ToolTip="Play and export only up to here" />
+                        <MenuItem Header="Clear Work Area" Command="{Binding AnimationCommand}" CommandParameter="ClearWorkArea" />
+                        <MenuItem Header="Import Frames..." Command="{Binding ImportFramesCommand}"
+                                  ToolTip="An animated GIF, or several pictures, as frames" />
+                        <Separator />
+                        <MenuItem Header="Export Animation..." Command="{Binding ExportAnimationCommand}"
+                                  ToolTip="GIF, MP4 video, PNG files or a sprite sheet" />
                     </MenuItem>
 
                     <MenuItem Header="_View">
@@ -811,6 +1013,10 @@
 
                     <MenuItem Header="_Help">
                         <MenuItem Header="Keyboard Shortcuts" InputGestureText="F1" Click="ShortcutsMenu_Click" />
+                        <MenuItem Header="Edit Keyboard Shortcuts..." Click="EditShortcutsMenu_Click"
+                                  ToolTip="Change the key of any menu command; kept for next time" />
+                        <Separator />
+                        <MenuItem Header="_About JolieCat..." Click="AboutMenu_Click" />
                     </MenuItem>
                 </Menu>
             </DockPanel>
@@ -838,14 +1044,20 @@
                         <ItemsControl ItemsSource="{Binding Toolbox.ToolsByCategory}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Expander Header="{Binding DisplayName}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                    <Expander Header="{Binding DisplayName, Converter={StaticResource Tr}}" IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
                                               Style="{StaticResource ToolCategoryExpanderStyle}" Margin="0,0,0,2">
                                         <ListBox ItemsSource="{Binding Tools}"
                                                  Background="Transparent" BorderThickness="0"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                                                 ItemContainerStyle="{StaticResource ToolListBoxItemStyle}"
-                                                 SelectedItem="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.Toolbox.ActiveTool, Mode=TwoWay}">
+                                                 ItemContainerStyle="{StaticResource ToolListBoxItemStyle}">
+                                            <!-- Only the group holding the active tool shows a selection. -->
+                                            <ListBox.SelectedItem>
+                                                <MultiBinding Converter="{StaticResource ActiveInGroup}" Mode="TwoWay">
+                                                    <Binding RelativeSource="{RelativeSource AncestorType=Window}" Path="DataContext.Toolbox.ActiveTool" Mode="TwoWay" />
+                                                    <Binding Path="Tools" Mode="OneWay" />
+                                                </MultiBinding>
+                                            </ListBox.SelectedItem>
                                             <ListBox.ItemsPanel>
                                                 <ItemsPanelTemplate>
                                                     <WrapPanel Orientation="Horizontal" />
@@ -853,7 +1065,7 @@
                                             </ListBox.ItemsPanel>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border Style="{StaticResource ToolTileStyle}" ToolTip="{Binding ToolTip}">
+                                                    <Border Style="{StaticResource ToolTileStyle}" ToolTip="{Binding ToolTip, Converter={StaticResource Tr}}">
                                                         <!-- EvenOdd is the mini-language's default fill rule, which several icons
                                                              (marquees, zoom lens, canvas-rotate ring) rely on to punch a hole. -->
                                                         <Path Data="{Binding IconData}" Stretch="Uniform" Width="16" Height="16"
@@ -899,7 +1111,9 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" /> <!-- Document tab strip -->
                     <RowDefinition Height="Auto" /> <!-- Design/Timeline workspace switch -->
-                    <RowDefinition Height="*" /> <!-- Canvas or Timeline workspace -->
+                    <RowDefinition Height="*" /> <!-- Canvas -->
+                    <RowDefinition Height="Auto" /> <!-- Splitter (Timeline mode) -->
+                    <RowDefinition x:Name="TimelineRow" Height="0" /> <!-- Timeline, under the canvas (sized in code) -->
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0" Background="{StaticResource PanelAltBackgroundBrush}"
@@ -960,7 +1174,7 @@
                                       Style="{StaticResource PanelToggleButtonStyle}"
                                       IsChecked="{Binding ActiveDocument.IsDesignMode, Mode=OneWay}"
                                       Command="{Binding SetWorkspaceModeCommand}" CommandParameter="{x:Static vm:WorkspaceMode.Design}" />
-                        <ToggleButton Content="Timeline" Width="70"
+                        <ToggleButton Content="Timeline" Width="70" ToolTip="Animate: the Timeline under the canvas (Shift+Ctrl+T)"
                                       Style="{StaticResource PanelToggleButtonStyle}"
                                       IsChecked="{Binding ActiveDocument.IsTimelineMode, Mode=OneWay}"
                                       Command="{Binding SetWorkspaceModeCommand}" CommandParameter="{x:Static vm:WorkspaceMode.Timeline}" />
@@ -974,12 +1188,16 @@
                      at the SKElement's edge from a sub-pixel layout mismatch between
                      the two. Hidden (not just covered) while the Timeline workspace
                      shows instead, so a hidden SKElement isn't still costing repaints. -->
-                <Border Grid.Row="2" Style="{StaticResource DockPanelBorderStyle}" SnapsToDevicePixels="True"
-                        Visibility="{Binding ActiveDocument.IsDesignMode, Converter={StaticResource BoolToVisibility}}">
+                <!-- The canvas stays visible in Timeline mode too: the animation plays on it. -->
+                <Border Grid.Row="2" Style="{StaticResource DockPanelBorderStyle}" SnapsToDevicePixels="True">
                     <views:CanvasView x:Name="CanvasHost" DataContext="{Binding Canvas}" SnapsToDevicePixels="True" />
                 </Border>
 
-                <Border Grid.Row="2" Style="{StaticResource DockPanelBorderStyle}"
+                <GridSplitter Grid.Row="3" Height="5" HorizontalAlignment="Stretch" ResizeDirection="Rows"
+                              Background="{StaticResource BorderBrush}"
+                              Visibility="{Binding ActiveDocument.IsTimelineMode, Converter={StaticResource BoolToVisibility}}" />
+
+                <Border Grid.Row="4" Style="{StaticResource DockPanelBorderStyle}"
                         Visibility="{Binding ActiveDocument.IsTimelineMode, Converter={StaticResource BoolToVisibility}}">
                     <timeline:TimelineWorkspaceView DataContext="{Binding Timeline}" />
                 </Border>
@@ -1037,10 +1255,19 @@
                             <RadioButton IsChecked="{Binding Panels.ShowHistogram}" AutomationProperties.Name="HISTOGRAM">
                                 <TextBlock Text="HISTOGRAM" Style="{StaticResource PanelHeaderStyle}" />
                             </RadioButton>
+                            <RadioButton IsChecked="{Binding Panels.ShowSwatches}" AutomationProperties.Name="SWATCHES">
+                                <TextBlock Text="SWATCHES" Style="{StaticResource PanelHeaderStyle}" />
+                            </RadioButton>
+                            <RadioButton IsChecked="{Binding Panels.ShowChannels}" AutomationProperties.Name="CHANNELS">
+                                <TextBlock Text="CHANNELS" Style="{StaticResource PanelHeaderStyle}" />
+                            </RadioButton>
+                            <RadioButton IsChecked="{Binding Panels.ShowPaths}" AutomationProperties.Name="PATHS">
+                                <TextBlock Text="PATHS" Style="{StaticResource PanelHeaderStyle}" />
+                            </RadioButton>
                         </WrapPanel>
 
                         <!-- Which tool the properties below belong to. -->
-                        <TextBlock DockPanel.Dock="Top" Text="{Binding Toolbox.ActiveTool.DisplayName}" FontSize="11" FontWeight="SemiBold"
+                        <TextBlock DockPanel.Dock="Top" Text="{Binding Toolbox.ActiveTool.DisplayName, Converter={StaticResource Tr}}" FontSize="11" FontWeight="SemiBold"
                                    Foreground="{StaticResource AccentBrush}" Margin="10,2,10,0"
                                    Visibility="{Binding Panels.ShowProperties, Converter={StaticResource BoolToVisibility}}" />
 
@@ -1132,17 +1359,127 @@
                                        Foreground="{StaticResource TextSecondaryBrush}" />
                         </StackPanel>
 
+                        <!-- Swatches: click = foreground, Ctrl+click = background, right-click = remove. -->
+                        <DockPanel DockPanel.Dock="Top" Margin="10,8,10,0"
+                                   Visibility="{Binding Panels.ShowSwatches, Converter={StaticResource BoolToVisibility}}">
+                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
+                                <Button Content="+ Add Foreground" Padding="6,2" Command="{Binding Panels.AddSwatchCommand}"
+                                        ToolTip="Adds the foreground color as a swatch" />
+                                <Button Content="Reset" Padding="6,2" Margin="6,0,0,0" Command="{Binding Panels.ResetSwatchesCommand}"
+                                        ToolTip="Back to the starter colors" />
+                            </StackPanel>
+                            <TextBlock DockPanel.Dock="Bottom" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="Click: foreground color. Ctrl+click: background color. Right-click: remove." />
+                            <ItemsControl ItemsSource="{Binding Panels.Swatches}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Width="22" Height="22" Margin="0,0,3,3" Background="{Binding Brush}" Cursor="Hand"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                ToolTip="{Binding Hex}" AutomationProperties.Name="{Binding Hex}">
+                                            <Border.InputBindings>
+                                                <MouseBinding Gesture="LeftClick" CommandParameter="{Binding}"
+                                                              Command="{Binding DataContext.Panels.PickSwatchCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                <MouseBinding Gesture="Ctrl+LeftClick" CommandParameter="{Binding}"
+                                                              Command="{Binding DataContext.Panels.PickBackgroundSwatchCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                                <MouseBinding Gesture="RightClick" CommandParameter="{Binding}"
+                                                              Command="{Binding DataContext.Panels.RemoveSwatchCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            </Border.InputBindings>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </DockPanel>
+
+                        <!-- Channels: view one color channel alone; saved selections load on click. -->
+                        <DockPanel DockPanel.Dock="Top" Margin="10,8,10,0"
+                                   Visibility="{Binding Panels.ShowChannels, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock DockPanel.Dock="Bottom" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="Click a color channel to see it alone (gray); RGB shows all again. Saved selections (Select &gt; Save Selection) are listed below: click one to load it." />
+                            <ItemsControl ItemsSource="{Binding Panels.Channels}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border x:Name="Row" Padding="4,3" Margin="0,0,0,2" Cursor="Hand" Background="Transparent"
+                                                AutomationProperties.Name="{Binding Name}">
+                                            <Border.InputBindings>
+                                                <MouseBinding Gesture="LeftClick" CommandParameter="{Binding}"
+                                                              Command="{Binding DataContext.Panels.ChooseChannelCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            </Border.InputBindings>
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Source="{Binding Thumbnail}" Width="40" Height="40" Margin="0,0,8,0" />
+                                                <Button DockPanel.Dock="Right" Content="✕" Padding="4,0" ToolTip="Delete this saved selection"
+                                                        Command="{Binding DataContext.Panels.DeleteSavedSelectionCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}" x:Name="Delete" Visibility="Collapsed" />
+                                                <TextBlock DockPanel.Dock="Right" Text="{Binding Shortcut}" FontSize="11" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+                                            </DockPanel>
+                                        </Border>
+                                        <DataTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsViewed}" Value="True">
+                                                <Setter TargetName="Row" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Channel}" Value="-1">
+                                                <Setter TargetName="Delete" Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </DataTemplate.Triggers>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </DockPanel>
+
+                        <!-- Paths: named Pen paths; click one to make it the working path again. -->
+                        <DockPanel DockPanel.Dock="Top" Margin="10,8,10,0"
+                                   Visibility="{Binding Panels.ShowPaths, Converter={StaticResource BoolToVisibility}}">
+                            <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                <Button Content="Save Current Path" Padding="6,2" Margin="0,0,6,4" Command="{Binding Panels.SaveCurrentPathCommand}"
+                                        ToolTip="Keeps the Pen tool's path under a name, with the document" />
+                                <Button Content="Make Selection" Padding="6,2" Margin="0,0,6,4" Command="{Binding Canvas.ConvertPenPathToSelectionCommand}" />
+                                <Button Content="Fill" Padding="6,2" Margin="0,0,6,4" Command="{Binding Canvas.FillPenPathCommand}" />
+                                <Button Content="Stroke" Padding="6,2" Margin="0,0,6,4" Command="{Binding Canvas.StrokePenPathCommand}" />
+                            </WrapPanel>
+                            <TextBlock DockPanel.Dock="Bottom" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="Draw a path with the Pen tool, then Save Current Path. Click a saved path to bring it back to edit, fill, stroke or select with; ✕ deletes it. Saved with the project." />
+                            <ItemsControl ItemsSource="{Binding Panels.Paths}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Padding="4,3" Margin="0,0,0,2" Cursor="Hand" Background="Transparent" AutomationProperties.Name="{Binding Name}">
+                                            <Border.InputBindings>
+                                                <MouseBinding Gesture="LeftClick" CommandParameter="{Binding}"
+                                                              Command="{Binding DataContext.Panels.LoadPathCommand, RelativeSource={RelativeSource AncestorType=Window}}" />
+                                            </Border.InputBindings>
+                                            <DockPanel>
+                                                <Image DockPanel.Dock="Left" Source="{Binding Thumbnail}" Width="40" Height="40" Margin="0,0,8,0" />
+                                                <Button DockPanel.Dock="Right" Content="✕" Padding="4,0" ToolTip="Delete this path"
+                                                        Command="{Binding DataContext.Panels.DeletePathCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        CommandParameter="{Binding}" />
+                                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" />
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </DockPanel>
+
                         <!-- Only a SpriteSheet project shows this, above whichever
                              tool's own options follow - the grid is a project-wide
                              setting, not a per-tool one, so it isn't gated by which
                              tool happens to be active. -->
-                        <Border DockPanel.Dock="Top" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
-                                Visibility="{Binding Layers.IsSpriteSheetProject, Converter={StaticResource BoolToVisibility}}">
-                            <views:SpriteSheetGridPanelView DataContext="{Binding Layers}" />
-                        </Border>
+                        <!-- Scrolls, so a long panel (the sprite sheet grid plus the tool's
+                             options) never gets cut off when the panel is short. -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel>
+                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                                        Visibility="{Binding Layers.IsSpriteSheetProject, Converter={StaticResource BoolToVisibility}}">
+                                    <views:SpriteSheetGridPanelView DataContext="{Binding Layers}" />
+                                </Border>
 
-                        <ContentControl Content="{Binding Toolbox.CurrentToolOptions}"
-                                        Visibility="{Binding Panels.ShowProperties, Converter={StaticResource BoolToVisibility}}" />
+                                <ContentControl Content="{Binding Toolbox.CurrentToolOptions}"
+                                                Visibility="{Binding Panels.ShowProperties, Converter={StaticResource BoolToVisibility}}" />
+                            </StackPanel>
+                        </ScrollViewer>
                     </DockPanel>
                 </Border>
 
@@ -1197,7 +1534,7 @@
                                 <TextBlock Text="● REC" Foreground="#FFE0524A" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
                                            Visibility="{Binding IsRecording, Converter={StaticResource BoolToVisibility}}" />
                             </WrapPanel>
-                            <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status}" FontSize="11" TextWrapping="Wrap" Margin="2,6,2,0"
+                            <TextBlock DockPanel.Dock="Bottom" Text="{Binding Status, Converter={StaticResource Tr}}" FontSize="11" TextWrapping="Wrap" Margin="2,6,2,0"
                                        Foreground="{StaticResource TextSecondaryBrush}" />
                             <ListBox DockPanel.Dock="Top" ItemsSource="{Binding Actions}" SelectedItem="{Binding SelectedAction}"
                                      MaxHeight="120" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource ToolListBoxItemStyle}">
@@ -1472,11 +1809,20 @@
                              below - the same layout Photoshop's own Layers panel uses. -->
                         <StackPanel DockPanel.Dock="Top" Margin="8,0,8,8">
                             <ComboBox ItemsSource="{x:Static layers:BlendModeOption.All}"
-                                      DisplayMemberPath="DisplayName" SelectedValuePath="Value"
+                                      SelectedValuePath="Value"
                                       SelectedValue="{Binding Layers.ActiveLayer.BlendMode, Mode=TwoWay}"
-                                      ToolTip="Blend mode" Margin="0,0,0,6" />
+                                      ToolTip="Blend mode" Margin="0,0,0,6" >
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName, Converter={StaticResource Tr}}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                             <controls:LabeledSlider Label="Opacity" Minimum="0" Maximum="100" Suffix="%"
                                                      Value="{Binding Layers.ActiveLayer.OpacityPercent, Mode=TwoWay}" />
+                            <controls:LabeledSlider Label="Fill" Minimum="0" Maximum="100" Suffix="%"
+                                                     Value="{Binding Layers.ActiveLayer.FillPercent, Mode=TwoWay}"
+                                                     ToolTip="Like Opacity, but only for the layer's own pixels: drop shadow, glow and stroke stay full strength (0% leaves just the effects)" />
                         </StackPanel>
 
                         <!-- Layers.Items is already front-to-back (topmost/foreground layer
@@ -1590,6 +1936,14 @@
                                                         ToolTip="Fill layer - double-click the thumbnail to change it">
                                                     <Path Data="M2,4 L6,0 L11,5 L7,9 Z M11,7 Q12.5,9.5 11,10.5 Q9.5,9.5 11,7 Z" Fill="{StaticResource AccentBrush}"
                                                           Width="11" Height="11" Stretch="Uniform" />
+                                                </Border>
+                                                <!-- Smart Object layers: a small page badge in the corner. -->
+                                                <Border Background="{StaticResource PanelBackgroundBrush}" Width="14" Height="14"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Bottom" CornerRadius="2"
+                                                        Visibility="{Binding IsSmartObject, Converter={StaticResource BoolToVisibility}}"
+                                                        ToolTip="Smart Object - double-click to edit its contents; scaling keeps full quality">
+                                                    <Path Data="M1,0 H7 L10,3 V11 H1 Z M3,5 H8 V6 H3 Z M3,7.5 H8 V8.5 H3 Z" Fill="{StaticResource AccentBrush}"
+                                                          Width="10" Height="11" Stretch="Uniform" />
                                                 </Border>
                                                 <!-- Shape layers: a small shape badge in the corner. -->
                                                 <Border Background="{StaticResource PanelBackgroundBrush}" Width="14" Height="14"
@@ -1802,7 +2156,7 @@
 
             <!-- Right side: cursor position · document size and active layer · zoom. -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="10,3">
-                <TextBlock Text="{Binding Canvas.ToolHintText}" FontSize="11" Margin="0,0,16,0"
+                <TextBlock Text="{Binding Canvas.ToolHintText, Converter={StaticResource Tr}}" FontSize="11" Margin="0,0,16,0"
                            Foreground="{StaticResource AccentBrush}" />
                 <TextBlock Text="{Binding Canvas.CursorPositionText}" FontSize="11" FontFamily="Consolas"
                            MinWidth="110" Foreground="{StaticResource TextSecondaryBrush}" />

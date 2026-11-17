@@ -1,0 +1,65 @@
+<Window x:Class="AsmodayCat.UI.Views.ApprovalWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:l="clr-namespace:AsmodayCat.UI.Localization"
+        Title="{l:Tr approval.windowTitle}"
+        Width="580" SizeToContent="Height"
+        WindowStyle="None" ResizeMode="NoResize"
+        AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen"
+        KeyDown="Window_KeyDown">
+    <!-- Margin leaves room for the shadow -->
+    <Border Margin="16" CornerRadius="12" Background="{StaticResource BrushSurface}"
+            BorderBrush="{StaticResource BrushBorder}" BorderThickness="1"
+            MouseLeftButtonDown="Border_MouseLeftButtonDown">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="18" ShadowDepth="3" Opacity="0.22" Color="#2B2718"/>
+        </Border.Effect>
+        <StackPanel>
+            <!-- Amber top strip with the shield -->
+            <Border Background="{StaticResource BrushAccentSoft}" CornerRadius="12,12,0,0" Padding="22,14">
+                <StackPanel Orientation="Horizontal">
+                    <materialDesign:PackIcon Kind="ShieldAlertOutline" Width="22" Height="22"
+                                             Foreground="{StaticResource BrushAccent}" VerticalAlignment="Center"/>
+                    <TextBlock Text="{l:Tr approval.header}" FontSize="13.5" FontWeight="SemiBold" Margin="10,0,0,0"
+                               Foreground="#7D6020" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Margin="22,16,22,20">
+                <TextBlock x:Name="TitleText" FontSize="17" FontWeight="SemiBold" TextWrapping="Wrap"
+                           Foreground="{StaticResource BrushDark}"/>
+                <TextBlock x:Name="SourceText" Style="{StaticResource Caption}" FontSize="12" Margin="0,3,0,0"/>
+
+                <TextBox x:Name="DetailsText" Margin="0,14,0,0" MaxHeight="240"
+                         IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                         FontFamily="Consolas" FontSize="12.5" Padding="12,10"
+                         materialDesign:TextFieldAssist.DecorationVisibility="Hidden"
+                         Background="{StaticResource BrushSurfaceAlt}" Foreground="{StaticResource BrushDark}"
+                         BorderThickness="0"/>
+
+                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                    <materialDesign:PackIcon x:Name="MicIcon" Kind="Microphone" Width="16" Height="16"
+                                             Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="VoiceText" Margin="6,0,0,0" FontSize="12.5" VerticalAlignment="Center"
+                               Foreground="{StaticResource BrushNav}" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <Grid Margin="0,18,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="CountdownText" VerticalAlignment="Center" Style="{StaticResource Caption}"/>
+                    <Button Grid.Column="1" Content="{l:Tr approval.deny}" Click="Deny_Click"
+                            Style="{StaticResource QuietButton}" Height="38" Margin="0,0,10,0"/>
+                    <Button Grid.Column="2" Content="{l:Tr approval.approve}" Click="Approve_Click"
+                            Style="{StaticResource AccentButton}" Height="38"/>
+                </Grid>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

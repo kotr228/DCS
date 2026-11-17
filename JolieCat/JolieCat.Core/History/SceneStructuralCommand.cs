@@ -33,8 +33,11 @@ namespace JolieCat.Core.History
             Scene scene,
             IReadOnlyList<LayerSnapshot> before, int beforeActiveIndex,
             IReadOnlyList<LayerSnapshot> after, int afterActiveIndex,
-            IReadOnlyList<Guide>? guidesBefore = null, IReadOnlyList<Guide>? guidesAfter = null)
+            IReadOnlyList<Guide>? guidesBefore = null, IReadOnlyList<Guide>? guidesAfter = null,
+            IReadOnlyList<Artboard>? artboardsBefore = null, IReadOnlyList<Artboard>? artboardsAfter = null)
         {
+            _artboardsBefore = artboardsBefore;
+            _artboardsAfter = artboardsAfter;
             _guidesBefore = guidesBefore;
             _guidesAfter = guidesAfter;
             _scene = scene ?? throw new ArgumentNullException(nameof(scene));
@@ -47,17 +50,21 @@ namespace JolieCat.Core.History
         // Guides move with canvas rotate/flip/resize/crop, so those steps restore them too.
         private readonly IReadOnlyList<Guide>? _guidesBefore;
         private readonly IReadOnlyList<Guide>? _guidesAfter;
+        private readonly IReadOnlyList<Artboard>? _artboardsBefore;
+        private readonly IReadOnlyList<Artboard>? _artboardsAfter;
 
         public void Undo()
         {
             _scene.RestoreLayers(_before, _beforeActiveIndex);
             if (_guidesBefore is not null) _scene.RestoreGuides(_guidesBefore);
+            if (_artboardsBefore is not null) _scene.RestoreArtboards(_artboardsBefore);
         }
 
         public void Redo()
         {
             _scene.RestoreLayers(_after, _afterActiveIndex);
             if (_guidesAfter is not null) _scene.RestoreGuides(_guidesAfter);
+            if (_artboardsAfter is not null) _scene.RestoreArtboards(_artboardsAfter);
         }
     }
 }

@@ -1,10 +1,9 @@
 using System.Windows;
-using System.Windows.Media.Media3D;
-using HelixToolkit.Wpf;
+using JolieCat3D.Engine.Viewport;
 using JolieCat3D.Core.Geometry;
 using CoreNode = JolieCat3D.Core.Scene.Node;
 using CoreRay = JolieCat3D.Core.Geometry.Ray;
-// HelixToolkit.Wpf declares its own Polygon type too - alias JolieCat3D.Core.Geometry's
+// System.Windows.Shapes also has a Polygon type - alias JolieCat3D.Core.Geometry's
 // own one explicitly so every reference to it here is unambiguous.
 using CorePolygon = JolieCat3D.Core.Geometry.Polygon;
 using Vector3 = System.Numerics.Vector3;
@@ -15,8 +14,8 @@ namespace JolieCat3D.Engine.Editing
     /// Resolves a 2D viewport click to the nearest mesh component (vertex/edge/face) of
     /// a single <see cref="CoreNode"/> - Edit Mode's own equivalent of
     /// <c>Selection.SceneHitTester</c>, which only ever resolves to a whole node. Builds
-    /// a real world-space <see cref="CoreRay"/> from the click (via HelixToolkit.Wpf's
-    /// own <see cref="Viewport3DHelper.Point2DtoRay3D(System.Windows.Controls.Viewport3D,Point)"/>)
+    /// a real world-space <see cref="CoreRay"/> from the click (via the viewport's
+    /// own the viewport projector)
     /// and does all its actual intersection math through <see cref="RayIntersection"/> -
     /// <c>JolieCat3D.Core</c>'s own WPF-free ray/triangle/point/segment math - so a
     /// candidate is ranked by <see cref="RayIntersection.DistanceToPoint"/>/
@@ -44,7 +43,7 @@ namespace JolieCat3D.Engine.Editing
         /// - null if none is that close (or <paramref name="node"/> has no mesh/vertices),
         /// or if every candidate within range is actually BEHIND the camera (never a
         /// valid pick, however small its screen-space distance).</summary>
-        public static int? HitTestVertex(HelixViewport3D viewport, CoreNode node, Point screenPosition, double pixelThreshold = DefaultPixelThreshold)
+        public static int? HitTestVertex(IViewportProjector viewport, CoreNode node, Point screenPosition, double pixelThreshold = DefaultPixelThreshold)
         {
             ArgumentNullException.ThrowIfNull(viewport);
             ArgumentNullException.ThrowIfNull(node);
@@ -78,7 +77,7 @@ namespace JolieCat3D.Engine.Editing
         /// <paramref name="screenPosition"/> - the same "screen-space gates eligibility,
         /// ray depth breaks ties" combination <see cref="HitTestVertex"/> uses, via
         /// <see cref="RayIntersection.DistanceToSegment"/>.</summary>
-        public static (int A, int B)? HitTestEdge(HelixViewport3D viewport, CoreNode node, Point screenPosition, double pixelThreshold = DefaultPixelThreshold)
+        public static (int A, int B)? HitTestEdge(IViewportProjector viewport, CoreNode node, Point screenPosition, double pixelThreshold = DefaultPixelThreshold)
         {
             ArgumentNullException.ThrowIfNull(viewport);
             ArgumentNullException.ThrowIfNull(node);
@@ -121,7 +120,7 @@ namespace JolieCat3D.Engine.Editing
         /// consequence of comparing real ray depths, not a separate screen-space-area
         /// heuristic the way an earlier, 2D-point-in-polygon version of this method
         /// needed. Null if the ray hits none of this node's faces at all.</summary>
-        public static CorePolygon? HitTestFace(HelixViewport3D viewport, CoreNode node, Point screenPosition)
+        public static CorePolygon? HitTestFace(IViewportProjector viewport, CoreNode node, Point screenPosition)
         {
             ArgumentNullException.ThrowIfNull(viewport);
             ArgumentNullException.ThrowIfNull(node);
@@ -165,25 +164,21 @@ namespace JolieCat3D.Engine.Editing
         }
 
         /// <summary>Builds the real world-space ray <paramref name="screenPosition"/>
-        /// projects to, via HelixToolkit.Wpf's own <see cref="Viewport3DHelper.Point2DtoRay3D"/> -
+        /// projects to, via the viewport projector -
         /// already accounts for the viewport's current camera position/orientation AND
         /// projection (perspective or orthographic), so nothing here needs to know which
         /// kind of camera is active.</summary>
-        private static CoreRay BuildRay(HelixViewport3D viewport, Point screenPosition)
+        private static CoreRay BuildRay(IViewportProjector viewport, Point screenPosition)
         {
-            var ray3D = Viewport3DHelper.Point2DtoRay3D(viewport.Viewport, screenPosition);
-            return new CoreRay(
-                new Vector3((float)ray3D.Origin.X, (float)ray3D.Origin.Y, (float)ray3D.Origin.Z),
-                new Vector3((float)ray3D.Direction.X, (float)ray3D.Direction.Y, (float)ray3D.Direction.Z));
+            return viewport.ScreenToRay(screenPosition);
         }
 
-        private static bool WithinPixelThreshold(HelixViewport3D viewport, Vector3 worldPosition, Point screenPosition, double pixelThreshold) =>
+        private static bool WithinPixelThreshold(IViewportProjector viewport, Vector3 worldPosition, Point screenPosition, double pixelThreshold) =>
             (Project(viewport, worldPosition) - screenPosition).Length <= pixelThreshold;
 
-        private static Point Project(HelixViewport3D viewport, Vector3 worldPosition)
+        private static Point Project(IViewportProjector viewport, Vector3 worldPosition)
         {
-            var point3D = new Point3D(worldPosition.X, worldPosition.Y, worldPosition.Z);
-            return Viewport3DHelper.Point3DtoPoint2D(viewport.Viewport, point3D);
+            return viewport.WorldToScreen(worldPosition) ?? new Point(double.NaN, double.NaN);
         }
 
         /// <summary>Standard 2D point-to-segment distance: the distance from
@@ -205,6 +200,39 @@ namespace JolieCat3D.Engine.Editing
 
             var closest = new Point(a.X + ab.X * t, a.Y + ab.Y * t);
             return (point - closest).Length;
+        }
+
+        /// <summary>Box select: vertices whose screen position lies inside <paramref name="rect"/>.
+        /// With <paramref name="visibleOnly"/> (Blender's default, X-ray off) vertices hidden
+        /// behind the mesh's own faces are skipped.</summary>
+        public static IReadOnlyList<int> VerticesInRect(IViewportProjector viewport, CoreNode node, Rect rect, bool visibleOnly = true)
+        {
+            var result = new List<int>();
+            if (node.Mesh is not { } mesh) return result;
+            var world = node.GetWorldTransform();
+            var worldPositions = mesh.Vertices.Select(v => Vector3.Transform(v.Position, world)).ToArray();
+            var triangles = visibleOnly ? mesh.GetRenderFaces().ToArray() : Array.Empty<Face>();
+
+            for (var i = 0; i < worldPositions.Length; i++)
+            {
+                if (viewport.WorldToScreen(worldPositions[i]) is not { } screen || !rect.Contains(screen)) continue;
+                if (visibleOnly && IsOccluded(viewport, screen, worldPositions, triangles, worldPositions[i])) continue;
+                result.Add(i);
+            }
+            return result;
+        }
+
+        private static bool IsOccluded(IViewportProjector viewport, Point screen, Vector3[] positions, Face[] triangles, Vector3 target)
+        {
+            var ray = viewport.ScreenToRay(screen);
+            var targetDistance = Vector3.Dot(target - ray.Origin, ray.Direction);
+            var tolerance = MathF.Max(1e-4f, targetDistance * 1e-3f);
+            foreach (var t in triangles)
+            {
+                if (RayIntersection.IntersectTriangle(ray, positions[t.A], positions[t.B], positions[t.C]) is { } d && d < targetDistance - tolerance)
+                    return true;
+            }
+            return false;
         }
     }
 }

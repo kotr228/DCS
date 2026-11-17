@@ -18,7 +18,21 @@ namespace JolieCat3D.Engine.Editing
     /// </summary>
     public sealed class MeshEditSession
     {
-        private readonly HashSet<int> _selectedVertexIndices = new();
+        private readonly HashSet<int> _selection = new();
+
+        /// <summary>The selection, pruned of indices the current mesh no longer has. Undo/redo
+        /// can swap in a mesh with fewer vertices than the selection was made on (e.g. undoing
+        /// an inset), and nothing may index past the end because of that.</summary>
+        private HashSet<int> _selectedVertexIndices
+        {
+            get
+            {
+                var count = Target?.Mesh?.Vertices.Count ?? 0;
+                if (_selection.Count > 0 && (count == 0 || _selection.Max() >= count))
+                    _selection.RemoveWhere(i => i >= count || i < 0);
+                return _selection;
+            }
+        }
 
         /// <summary>The node currently being edited - null when Edit Mode isn't active
         /// (or nothing is selected to edit), in which case there is nothing to select or
@@ -57,6 +71,15 @@ namespace JolieCat3D.Engine.Editing
         /// <see cref="ProportionalEditingEnabled"/> is off.</summary>
         private Dictionary<int, float>? _proportionalWeights;
 
+        /// <summary>Blender's Edit Mode "X-Mirror": moving vertices also moves their
+        /// counterparts at -X (matched by position in the mesh's local space); vertices on
+        /// the X = 0 plane stay on it. Read at the start of each drag.</summary>
+        public bool MirrorX { get; set; }
+
+        // For the drag in progress: mirror vertex -> (source vertex, source weight).
+        private Dictionary<int, (int Source, float Weight)>? _mirrorPartners;
+        private HashSet<int>? _centreVertices;
+
         /// <summary>Every vertex index the CURRENT drag gesture actually affects - the
         /// plain <see cref="SelectedVertexIndices"/> themselves whenever
         /// <see cref="ProportionalEditingEnabled"/> is off (or no drag is in progress),
@@ -68,8 +91,15 @@ namespace JolieCat3D.Engine.Editing
         /// explicitly selected ones (missing this would silently break Undo: reverting
         /// only the selected vertices while leaving every proportionally-nudged one at its
         /// new, un-reverted position).</summary>
-        public IReadOnlyCollection<int> AffectedVertexIndices =>
-            (IReadOnlyCollection<int>?)_proportionalWeights?.Keys ?? _selectedVertexIndices;
+        public IReadOnlyCollection<int> AffectedVertexIndices
+        {
+            get
+            {
+                var primary = (IReadOnlyCollection<int>?)_proportionalWeights?.Keys ?? _selectedVertexIndices;
+                if (_mirrorPartners is not { Count: > 0 } mirrors) return primary;
+                return primary.Concat(mirrors.Keys).Distinct().ToList();
+            }
+        }
 
         /// <summary>Switches which node this session edits (or detaches entirely, for
         /// null) and clears any existing selection - a set of vertex indices selected
@@ -87,14 +117,72 @@ namespace JolieCat3D.Engine.Editing
         public void SelectVertex(int index, bool additive = false)
         {
             if (!additive) Clear();
-            _selectedVertexIndices.Add(index);
+            foreach (var i in WithCoincident(new[] { index })) _selectedVertexIndices.Add(i);
+        }
+
+        /// <summary>
+        /// <paramref name="indices"/> plus every other vertex sitting at the same position.
+        /// Meshes with split normals/UVs (a primitive cube has 24 vertices for 8 corners)
+        /// store one corner as several vertices; Blender treats such a corner as ONE vertex,
+        /// so selecting it must grab all of them or a move would tear the surface open.
+        /// </summary>
+        private IEnumerable<int> WithCoincident(IEnumerable<int> indices)
+        {
+            var list = indices.ToList();
+            if (Target?.Mesh is not { } mesh) return list;
+            var wanted = new HashSet<(int, int, int)>();
+            foreach (var i in list)
+                if ((uint)i < (uint)mesh.Vertices.Count) wanted.Add(Quantize(mesh.Vertices[i].Position));
+            var result = new HashSet<int>(list);
+            for (var i = 0; i < mesh.Vertices.Count; i++)
+                if (wanted.Contains(Quantize(mesh.Vertices[i].Position))) result.Add(i);
+            return result;
+
+            static (int, int, int) Quantize(Vector3 p) =>
+                ((int)MathF.Round(p.X * 100000f), (int)MathF.Round(p.Y * 100000f), (int)MathF.Round(p.Z * 100000f));
+        }
+
+        /// <summary>Replaces the selection exactly (no coincident-vertex expansion) - used
+        /// by operators that return their own result selection.</summary>
+        public void SetSelection(IEnumerable<int> indices)
+        {
+            _selectedVertexIndices.Clear();
+            var count = Target?.Mesh?.Vertices.Count ?? 0;
+            foreach (var i in indices) if ((uint)i < (uint)count) _selectedVertexIndices.Add(i);
+        }
+
+        /// <summary>A: select everything.</summary>
+        public void SelectAll()
+        {
+            if (Target?.Mesh is not { } mesh) return;
+            SetSelection(Enumerable.Range(0, mesh.Vertices.Count));
+        }
+
+        /// <summary>Ctrl+I: invert (whole corners, so split vertices stay together).</summary>
+        public void InvertSelection()
+        {
+            if (Target?.Mesh is not { } mesh) return;
+            var selectedKeys = _selectedVertexIndices.Select(i => MeshOperators.Key(mesh.Vertices[i].Position)).ToHashSet();
+            SetSelection(Enumerable.Range(0, mesh.Vertices.Count).Where(i => !selectedKeys.Contains(MeshOperators.Key(mesh.Vertices[i].Position))));
+        }
+
+        /// <summary>Adds (or with <paramref name="subtract"/> removes) whole corners.</summary>
+        public void ModifySelection(IEnumerable<int> indices, bool subtract)
+        {
+            foreach (var i in WithCoincident(indices))
+            {
+                if (subtract) _selectedVertexIndices.Remove(i);
+                else _selectedVertexIndices.Add(i);
+            }
         }
 
         /// <summary>Adds or removes a single vertex from the current selection without
         /// touching the rest of it - a plain Shift-click toggle.</summary>
         public void ToggleVertex(int index)
         {
-            if (!_selectedVertexIndices.Remove(index)) _selectedVertexIndices.Add(index);
+            var group = WithCoincident(new[] { index }).ToList();
+            if (_selectedVertexIndices.Contains(index)) foreach (var i in group) _selectedVertexIndices.Remove(i);
+            else foreach (var i in group) _selectedVertexIndices.Add(i);
         }
 
         /// <summary>Selects both of an edge's own endpoint vertices - replacing the
@@ -102,8 +190,7 @@ namespace JolieCat3D.Engine.Editing
         public void SelectEdge(int a, int b, bool additive = false)
         {
             if (!additive) Clear();
-            _selectedVertexIndices.Add(a);
-            _selectedVertexIndices.Add(b);
+            foreach (var i in WithCoincident(new[] { a, b })) _selectedVertexIndices.Add(i);
         }
 
         /// <summary>Selects every one of a face's own vertices - replacing the current
@@ -112,7 +199,7 @@ namespace JolieCat3D.Engine.Editing
         {
             ArgumentNullException.ThrowIfNull(indices);
             if (!additive) Clear();
-            foreach (var index in indices) _selectedVertexIndices.Add(index);
+            foreach (var index in WithCoincident(indices)) _selectedVertexIndices.Add(index);
         }
 
         public bool IsEdgeSelected(int a, int b) =>
@@ -160,6 +247,13 @@ namespace JolieCat3D.Engine.Editing
         {
             if (Target?.Mesh is not { } mesh || _selectedVertexIndices.Count == 0) return;
 
+            if (_mirrorPartners is not null || _centreVertices is not null)
+            {
+                ApplyMirroredTranslation(mesh, localDelta);
+                mesh.RecalculateNormals();
+                return;
+            }
+
             if (_proportionalWeights is { } weights)
             {
                 foreach (var (index, weight) in weights)
@@ -204,6 +298,57 @@ namespace JolieCat3D.Engine.Editing
         public void BeginProportionalDrag()
         {
             _proportionalWeights = null;
+            _mirrorPartners = null;
+            _centreVertices = null;
+            BeginProportionalWeights();
+            if (MirrorX) BuildMirrorPartners();
+        }
+
+        /// <summary>Pairs every moved vertex with the vertices at its mirrored (-X) position.</summary>
+        private void BuildMirrorPartners()
+        {
+            if (Target?.Mesh is not { } mesh || _selectedVertexIndices.Count == 0) return;
+            const float tolerance = 1e-4f;
+            var byPosition = new Dictionary<(int, int, int), List<int>>();
+            for (var i = 0; i < mesh.Vertices.Count; i++)
+            {
+                var key = JolieCat3D.Core.Geometry.MeshOperators.Key(mesh.Vertices[i].Position);
+                (byPosition.TryGetValue(key, out var list) ? list : byPosition[key] = new List<int>()).Add(i);
+            }
+            var weights = _proportionalWeights ?? _selectedVertexIndices.ToDictionary(i => i, _ => 1f);
+            var partners = new Dictionary<int, (int, float)>();
+            var centre = new HashSet<int>();
+            foreach (var (index, weight) in weights)
+            {
+                var p = mesh.Vertices[index].Position;
+                if (MathF.Abs(p.X) <= tolerance) { centre.Add(index); continue; }
+                if (!byPosition.TryGetValue(JolieCat3D.Core.Geometry.MeshOperators.Key(new Vector3(-p.X, p.Y, p.Z)), out var mirrored)) continue;
+                foreach (var m in mirrored)
+                    if (!weights.ContainsKey(m) && !partners.ContainsKey(m)) partners[m] = (index, weight);
+            }
+            _mirrorPartners = partners;
+            _centreVertices = centre;
+        }
+
+        private void ApplyMirroredTranslation(Mesh mesh, Vector3 localDelta)
+        {
+            var weights = _proportionalWeights ?? _selectedVertexIndices.ToDictionary(i => i, _ => 1f);
+            foreach (var (index, weight) in weights)
+            {
+                var delta = localDelta * weight;
+                if (_centreVertices?.Contains(index) == true) delta.X = 0; // stay on the mirror plane
+                mesh.SetVertexPosition(index, mesh.Vertices[index].Position + delta);
+            }
+            if (_mirrorPartners is null) return;
+            foreach (var (mirror, (_, weight)) in _mirrorPartners)
+            {
+                var delta = localDelta * weight;
+                mesh.SetVertexPosition(mirror, mesh.Vertices[mirror].Position + new Vector3(-delta.X, delta.Y, delta.Z));
+            }
+        }
+
+        private void BeginProportionalWeights()
+        {
             if (!ProportionalEditingEnabled || Target?.Mesh is not { } mesh || _selectedVertexIndices.Count == 0) return;
 
             var world = Target.GetWorldTransform();
@@ -240,7 +385,12 @@ namespace JolieCat3D.Engine.Editing
         /// LostMouseCapture), so <see cref="AffectedVertexIndices"/> falls back to the
         /// plain selection again until the next drag's own <see cref="BeginProportionalDrag"/>
         /// call recomputes it fresh.</summary>
-        public void EndProportionalDrag() => _proportionalWeights = null;
+        public void EndProportionalDrag()
+        {
+            _proportionalWeights = null;
+            _mirrorPartners = null;
+            _centreVertices = null;
+        }
 
         /// <summary>The raised-cosine "Smooth" falloff curve - see
         /// <see cref="BeginProportionalDrag"/>'s own remarks on why this one curve. 1 at
@@ -372,17 +522,12 @@ namespace JolieCat3D.Engine.Editing
         public bool LoopCutSelectedEdge()
         {
             if (Target?.Mesh is not { } mesh) return false;
-            if (_selectedVertexIndices.Count != 2) return false;
+            // The selected edge may be stored as several split vertices - use one per corner.
+            var corners = _selectedVertexIndices.GroupBy(i => MeshOperators.Key(mesh.Vertices[i].Position)).Select(g => g.First()).ToArray();
+            if (corners.Length != 2) return false;
 
-            var edge = _selectedVertexIndices.ToArray();
-            var newPolygons = mesh.LoopCut(edge[0], edge[1]);
-            if (newPolygons.Count == 0) return false;
-
-            Clear();
-            foreach (var polygon in newPolygons)
-                foreach (var index in polygon.Indices)
-                    _selectedVertexIndices.Add(index);
-
+            if (MeshTopologyOperators.LoopCut(mesh, corners[0], corners[1]) is not { } loop) return false;
+            SetSelection(loop);
             return true;
         }
 
@@ -448,6 +593,36 @@ namespace JolieCat3D.Engine.Editing
         /// <summary>The reverse of <see cref="MarkSeamOnSelectedEdge"/> - same selection
         /// requirement, un-flags the edge instead.</summary>
         public bool ClearSeamOnSelectedEdge() => TryGetSelectedEdge(out var mesh, out var a, out var b) && Mark(mesh!, a, b, seam: false);
+
+        /// <summary>Marks (or clears) a crease on every mesh edge whose two ends are both
+        /// selected. Returns how many edges changed state.</summary>
+        public int SetCreaseOnSelection(bool crease)
+        {
+            if (Target?.Mesh is not { } mesh || _selectedVertexIndices.Count < 2) return 0;
+            var changed = 0;
+            foreach (var (a, b) in mesh.GetEdges())
+            {
+                if (!_selectedVertexIndices.Contains(a) || !_selectedVertexIndices.Contains(b)) continue;
+                if (mesh.IsCrease(a, b) == crease) continue;
+                if (crease) mesh.MarkCrease(a, b); else mesh.ClearCrease(a, b);
+                changed++;
+            }
+            return changed;
+        }
+
+        /// <summary>True when every selected edge is already creased.</summary>
+        public bool SelectionFullyCreased()
+        {
+            if (Target?.Mesh is not { } mesh) return false;
+            var any = false;
+            foreach (var (a, b) in mesh.GetEdges())
+            {
+                if (!_selectedVertexIndices.Contains(a) || !_selectedVertexIndices.Contains(b)) continue;
+                any = true;
+                if (!mesh.IsCrease(a, b)) return false;
+            }
+            return any;
+        }
 
         private bool Mark(Mesh mesh, int a, int b, bool seam)
         {

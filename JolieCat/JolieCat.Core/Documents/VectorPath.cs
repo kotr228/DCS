@@ -36,6 +36,39 @@ namespace JolieCat.Core.Documents
         /// Pen tool behavior. Returns an empty, unopened path for zero anchors, and a
         /// bare <c>MoveTo</c> with no visible geometry for exactly one.
         /// </summary>
+        /// <summary>The path as text, every anchor kept ("closed|x y ix iy ox oy t;..."),
+        /// with "_" for a missing handle - for saving named paths.</summary>
+        public string ToText()
+        {
+            static string N(float v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+            static string H(SKPoint? p) => p is { } q ? $"{N(q.X)} {N(q.Y)}" : "_ _";
+            var anchors = new List<string>();
+            foreach (var a in Anchors)
+                anchors.Add($"{N(a.Position.X)} {N(a.Position.Y)} {H(a.InHandle)} {H(a.OutHandle)} {(int)a.Type}");
+            return (IsClosed ? "closed|" : "open|") + string.Join(";", anchors);
+        }
+
+        /// <summary>A path read back from <see cref="ToText"/>; null if the text isn't one.</summary>
+        public static VectorPath? FromText(string text)
+        {
+            var bar = text.IndexOf('|');
+            if (bar < 0) return null;
+            var path = new VectorPath { IsClosed = text[..bar] == "closed" };
+            var c = System.Globalization.CultureInfo.InvariantCulture;
+            foreach (var part in text[(bar + 1)..].Split(';', System.StringSplitOptions.RemoveEmptyEntries))
+            {
+                var v = part.Split(' ');
+                if (v.Length < 7) return null;
+                bool F(string s, out float f) => float.TryParse(s, System.Globalization.NumberStyles.Float, c, out f);
+                if (!F(v[0], out var x) || !F(v[1], out var y)) return null;
+                SKPoint? Handle(int i) => F(v[i], out var hx) && F(v[i + 1], out var hy) ? new SKPoint(hx, hy) : null;
+                var anchor = new PathAnchor(new SKPoint(x, y)) { InHandle = Handle(2), OutHandle = Handle(4) };
+                if (int.TryParse(v[6], out var type)) anchor.Type = (AnchorPointType)type;
+                path.Anchors.Add(anchor);
+            }
+            return path.Anchors.Count == 0 ? null : path;
+        }
+
         public SKPath ToSKPath()
         {
             var path = new SKPath();

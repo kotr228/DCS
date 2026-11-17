@@ -81,6 +81,75 @@ namespace JolieCat.Core.Filters
         }
 
         /// <summary>
+        /// Shake Reduction: undoes a straight camera-shake blur of <paramref name="length"/>
+        /// pixels at <paramref name="angleDegrees"/> by Richardson-Lucy deconvolution on
+        /// brightness (so colors don't fringe); the recovered detail is added back to the
+        /// color image. <paramref name="iterations"/> 1..40 (more = sharper, but noisier).
+        /// </summary>
+        public static SKBitmap ShakeReduction(SKBitmap source, float angleDegrees, float length, int iterations)
+        {
+            int w = source.Width, h = source.Height;
+            var steps = Math.Clamp((int)MathF.Round(length), 1, 80);
+            if (steps <= 1) return source.Copy();
+            iterations = Math.Clamp(iterations, 1, 40);
+
+            // The blur path: pixel offsets along a centered line.
+            var angle = angleDegrees * MathF.PI / 180;
+            var taps = new (int X, int Y)[steps];
+            for (var i = 0; i < steps; i++)
+            {
+                var t = i - (steps - 1) / 2f;
+                taps[i] = ((int)MathF.Round(t * MathF.Cos(angle)), (int)MathF.Round(-t * MathF.Sin(angle)));
+            }
+
+            var px = source.Pixels;
+            var observed = new float[w * h];
+            for (var i = 0; i < px.Length; i++)
+                observed[i] = Math.Max(1f, 0.299f * px[i].Red + 0.587f * px[i].Green + 0.114f * px[i].Blue);
+
+            float[] Blur(float[] input, int sign)
+            {
+                var output = new float[input.Length];
+                Parallel.For(0, h, y =>
+                {
+                    for (var x = 0; x < w; x++)
+                    {
+                        float sum = 0;
+                        foreach (var (dx, dy) in taps)
+                        {
+                            var sx = Math.Clamp(x + sign * dx, 0, w - 1);
+                            var sy = Math.Clamp(y + sign * dy, 0, h - 1);
+                            sum += input[sy * w + sx];
+                        }
+                        output[y * w + x] = sum / steps;
+                    }
+                });
+                return output;
+            }
+
+            var estimate = (float[])observed.Clone();
+            for (var it = 0; it < iterations; it++)
+            {
+                var blurred = Blur(estimate, 1);
+                var ratio = new float[blurred.Length];
+                for (var i = 0; i < ratio.Length; i++)
+                    ratio[i] = Math.Clamp(observed[i] / Math.Max(1f, blurred[i]), 0.5f, 2f); // damped: limits ringing
+                var correction = Blur(ratio, -1);
+                for (var i = 0; i < estimate.Length; i++)
+                    estimate[i] = Math.Clamp(estimate[i] * correction[i], 0, 255);
+            }
+
+            var dst = new SKColor[px.Length];
+            for (var i = 0; i < px.Length; i++)
+            {
+                var c = px[i];
+                var delta = estimate[i] - observed[i];
+                dst[i] = new SKColor(B(c.Red + delta), B(c.Green + delta), B(c.Blue + delta), c.Alpha);
+            }
+            return EnhanceFilters.FromPixels(source, dst);
+        }
+
+        /// <summary>
         /// Lens Blur: an out-of-focus camera blur. Each point spreads into a disc (not a
         /// soft Gaussian blob), and highlights brighter than <paramref name="threshold"/>
         /// bloom into bright bokeh circles by <paramref name="brightness"/> (0..100).

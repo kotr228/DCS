@@ -68,7 +68,24 @@ project types equally.
   the end, so a crash mid-save never damages the existing project.
 - A tab shows a **•** after its name while it has unsaved changes. Closing the
   tab or the app asks whether to save them.
-- **Crash recovery:** every 2 minutes, documents with unsaved changes are
+- **Help → Edit Keyboard Shortcuts...** lists every command that has a key
+  (named as in the menus) with its key. Type a new one (`Ctrl+Shift+K`,
+  `F5`, `Alt+Ctrl+1`) or clear it for none; a key that isn't one, or that
+  another command already uses, is marked and must be fixed before OK.
+  **Reset All** brings back the built-in keys. The menus show your keys, and
+  they are kept for next time. (The single-letter tool keys — B, V, M... —
+  belong to the tools.)
+- **Edit → Preferences...** (`Ctrl+K`) sets how many steps Undo can go back
+  (**History States**) and how much memory those steps may use, how often
+  recovery copies are made (0 turns them off), and how many files **Open
+  Recent** lists. **Ruler Units** sets what the rulers count in: pixels,
+  inches, centimeters or percent of the document's size; inches and
+  centimeters use **Resolution** (pixels per inch, 72 unless you change
+  it). **Transparency Grid Size / Colors** change the checkerboard shown
+  where the image is see-through (small, medium or large squares; dark,
+  medium or light). **Language** switches the interface between English,
+  Ukrainian and Russian. The settings apply at once and are kept for next time.
+- **Crash recovery:** every 2 minutes (see Preferences), documents with unsaved changes are
   copied to a recovery folder. If JolieCat doesn't shut down normally, the
   next start offers to restore them. Saving writes every layer's pixels
   and metadata, plus — for a Clipbar Animation project — the timeline's
@@ -85,7 +102,13 @@ From top to bottom:
   maximize or restore.
 - **Menu bar** — **File**, **Edit**, **Image**, **Layer**, **Select**,
   **Filter**, **View** and **Help** menus, each item showing its keyboard
-  shortcut. On the right: **Undo**/**Redo**, **Save** and **Export**.
+  shortcut. On the right: the **language switcher** (EN / УКР / РУС),
+  **Undo**/**Redo**, **Save** and **Export**.
+- **Interface language** — English, Ukrainian or Russian. Pick it in the
+  switcher on the menu bar or in **Edit → Preferences... → Language**: the
+  menus, panels, dialogs, tooltips and messages change at once, with no
+  restart, and the choice is kept for next time. Names you give things
+  (layers, documents, artboards) are never translated.
 - **Document tab strip** — one tab per open document (see
   [Multi-Document Tabs](#multi-document-tabs)), plus a **+** button to create
   another.
@@ -120,6 +143,7 @@ the **View** menu, to reclaim canvas space.
 
 - **View → Rulers** (`Ctrl+R`) shows rulers in document pixels along the top
   and left; a blue mark follows the pointer.
+- **View → Grid** (`Ctrl+'`) draws a grid over the document; **View → Grid
   Size...** sets its spacing.
 - **Guides**: drag from the left ruler for a vertical guide, from the top ruler
   for a horizontal one, or use **View → New Guide...** to type a position.
@@ -193,7 +217,35 @@ Elliptical Marquee, O → Sponge / Dodge / Burn, ...).
   Flag, Rise or Fish, with a **Bend** amount (negative bends the other way). With a text layer selected and the Text
   tool active, changing any of these restyles that layer at once (one undo
   step).
+  **Paragraph text:** drag a box with the Text tool instead of clicking
+  (a dashed outline shows it), then type: the words wrap to the box's width,
+  and **Alignment** places each line within the box (left, centered or
+  right). The typing box on the canvas wraps the same way. A plain click
+  still makes ordinary text whose lines break only at Enter. A word longer
+  than the box is broken where it doesn't fit. The box width is saved with
+  the project.
+  **Type on a path:** draw a curve with the **Pen** tool (click points, drag
+  for curves), then choose **Layer → Type on Path...** and type the text. The
+  letters follow the curve, each turned along it, in the Text tool's font,
+  size and tracking and the foreground color. **Alignment** puts the text at
+  the start, middle or end of the curve. Letters that don't fit past the
+  curve's end are left out. The text stays editable with the Text tool, and
+  moving the layer moves its curve too.
 - **Zoom (Z)** — click to zoom in, Alt+click to zoom out.
+- **Ruler (I, with the Eyedropper)** — drag on the image to measure: the
+  Properties panel shows the length, the angle, the width and height, and
+  where the line starts and ends. Shift keeps the line at 45° steps. Drag
+  along something that should be level — a horizon, a table edge — and
+  click **Straighten Layer**: the active layer turns around the middle of
+  the image so the line becomes level (or upright, if it was closer to
+  vertical). One undo step. **Clear** removes the line.
+- **Picture brushes:** select an area (or nothing, for the whole image) and
+  choose **Edit → Define Brush Preset...**: its darker, opaque parts become a
+  brush tip (white and see-through parts don't paint), saved with your brush
+  presets. The Brush tool takes it at once; each dab stamps that shape in the
+  foreground color, at the brush size, turned by Angle and squashed by
+  Roundness, with jitter, scatter and pen pressure as usual. The options show
+  the **Tip** in use; **Round tip** goes back to the ordinary one.
 - **Brush / Eraser / retouching tools** — `[` and `]` change the size. With
   a pen tablet, pressure can control size and/or opacity (brush options).
   **Flow** sets how much paint each dab lays down (low flow builds up like an
@@ -291,6 +343,10 @@ Elliptical Marquee, O → Sponge / Dodge / Burn, ...).
 - **Canvas Rotate (R)** — drag around the middle of the canvas to turn the
   view (Shift = 15° steps); the image itself isn't changed. **Esc** with the
   tool active, or **View → Reset Rotation**, straightens it again.
+- **Object Selection (W)** — drag a box loosely around a thing: the thing
+  inside is selected (the box's edges count as background, so leave a little
+  room around it). Shift adds to the selection, Alt subtracts. Works best when
+  the thing differs in color from what's around it.
 - **Quick Selection (W)** — paint over what you want: the selection grows into
   similar colors around the brush (Tolerance and brush size in the options).
   The first stroke starts a selection, later strokes add to it, Alt subtracts.
@@ -326,13 +382,29 @@ leaving hidden ones alone) and **Flatten Image** (one layer; hidden layers are
 discarded). **Edit → Transform → Flip Layer Horizontal/Vertical** mirrors the
 active layer only.
 
-Below the list, two controls apply to whichever layer is currently active:
+**Edit → Transform → Distort / Perspective...** pins the active layer's
+painted part by its four corners: drag each blue corner on the preview
+(the rest of the image shows underneath). Fit a picture into a frame, a
+screen or a book cover, or straighten a photo of a poster taken at an
+angle. With **Perspective** on, dragging a corner along an edge moves the
+corner across from it the other way, so the layer narrows or widens
+evenly. **Reset** puts the corners back. It works on pixel layers (text,
+shape, fill and Smart Object layers need Rasterize first); the layer
+mask stays as it is. One undo step.
 
-- **Blend Mode** — a dropdown of every supported blend mode (Normal,
-  Multiply, Screen, Overlay, Darken, Lighten, Color Dodge, Color Burn, Hard
-  Light, Soft Light, Difference, Exclusion, Hue, Saturation, Color,
-  Luminosity).
+Below the list, three controls apply to whichever layer is currently active:
+
+- **Blend Mode** — all 27 of Photoshop's modes, in its order: Normal,
+  Dissolve; Darken, Multiply, Color Burn, Linear Burn, Darker Color; Lighten,
+  Screen, Color Dodge, Linear Dodge (Add), Lighter Color; Overlay, Soft
+  Light, Hard Light, Vivid Light, Linear Light, Pin Light, Hard Mix;
+  Difference, Exclusion, Subtract, Divide; Hue, Saturation, Color,
+  Luminosity. They are saved in the project and in PSD files.
 - **Opacity** — 0–100%.
+- **Fill** — 0–100%, like Opacity but only for the layer's own pixels (and
+  overlays inside them): a drop shadow, outer glow or stroke stays at full
+  strength. At 0% only the effects show — for example a stroke outline with
+  nothing inside, or a shadow cast by an invisible shape.
 
 Every layer-list operation (add/delete/reorder/merge, and mask add/remove)
 is recorded as a single undo/redo step.
@@ -394,6 +466,18 @@ Groups (folders) keep related layers together:
 - **Bring Forward / Send Backward** move a layer through the stack: moving
   past the edge of a group takes the layer out of it, and moving onto a group
   puts the layer inside it. A selected group moves together with its layers.
+- **Layer → Arrange** also has **Bring to Front** (`Shift+Ctrl+]`) and
+  **Send to Back** (`Shift+Ctrl+[`): straight to the top or bottom of the
+  layer's level (inside its group, if it's in one).
+- **Layer → Align** lines layers up: **Top / Bottom / Left / Right Edges**
+  or **Vertical / Horizontal Centers**. With several layers selected
+  (Ctrl+click in the Layers panel), they line up with each other, using the
+  outer edges of all of them together. With one layer, it lines up with the
+  canvas (Horizontal Centers puts it in the middle). Only what's painted
+  counts, not the empty part of the layer. Text moves with its layer and
+  stays editable. Locked layers stay put.
+- **Layer → Distribute** spaces three or more selected layers so their
+  middles are evenly apart between the outermost two.
 - A group's eye button hides all of its layers; its **opacity** and **blend
   mode** apply to the group's layers composited together.
 - **Duplicate** and **Delete** work on the whole group; **Merge Down** on a
@@ -481,6 +565,11 @@ actual pixels.
 to the foreground color — connected or not (pick the color with the
 Eyedropper first; **Fuzziness** sets how close).
 
+**Select → Sky** selects the sky (plain, bright or blue areas reaching the
+top edge). **Select → Focus Area...** selects the sharp, in-focus parts of a
+photo — handy for a subject against a blurred background; **Sensitivity**
+takes in softer parts too. Refine either with Select and Mask.
+
 **Content-Aware Fill** (`Shift+F5`, Edit menu): select an object you want
 gone — loosely, with a little background around it — and the selection is
 filled with texture continued from its surroundings.
@@ -541,6 +630,16 @@ And around the app:
 - **Select → Select and Mask...** (`Alt+Ctrl+R`) cleans up the selection's
   edge: **Smooth** rounds off jagged steps and drops specks, **Shift Edge**
   moves the edge out or in, **Feather** softens it; the outline previews live.
+- **Select → Subject** selects the photo's main subject by itself: a person,
+  an animal, a product. It compares the colors along the photo's edges (the
+  background) with those in the middle, and keeps the biggest solid piece. It
+  works best when the subject's colors differ from the background's; where
+  they are alike (a dark subject on a dark background), part of it may be
+  missed. Fix the edges with **Select and Mask** or Quick Selection.
+- **Select → Transform Selection...** changes only the selection's outline,
+  not the pixels: **Width** and **Height** (percent) and **Angle** work
+  around its middle, **Move X / Y** slide it. The outline previews live, and
+  any feather is kept.
 - **Image → Duplicate** opens a copy of the whole document in a new tab.
 - **Image → Content-Aware Scale...** changes the width and/or height (30-200%)
   by taking out — or repeating — the least noticeable paths of pixels (sky,
@@ -614,27 +713,75 @@ canvas as you adjust its slider — nothing is committed until you click
 preview and leaves the layer untouched. With an active selection, filters
 and adjustments only change the selected area. Available filters:
 
+- **Vanishing Point...** (`Alt+Ctrl+V`) lays a picture onto a flat surface of
+  the photo in perspective: a poster on a wall, a screen image on a laptop,
+  tiles on a floor. Drag the four blue corners onto the surface's corners
+  (the grid shows the perspective). Then pick the **Picture**: the pixels
+  you copied, any layer (just its painted part), a file, or the sample
+  checker tiles. **Across** / **Down** place it on the surface, **Size** is
+  its width as a part of the surface's width, and **Tile** repeats it over
+  the whole surface. Nothing goes past the surface's edges. **OK** adds the
+  result as a new layer named "Vanishing Point"; set it to **Multiply** to
+  let the wall's own light and shade show through.
 - **Blur → Gaussian Blur**, **Box Blur**, **Motion Blur** (distance and
   angle), **Radial Blur** (zoom streaks from the center), **Surface Blur**
   (smooths skin and noise but keeps edges sharp), **Lens Blur** (an
   out-of-focus camera look: points become discs, and highlights brighter
   than **Specular Threshold** bloom into bright bokeh circles by **Specular
-  Brightness**)
+  Brightness**), **Average** (fills the layer or selection with its
+  average color, applied at once), **Spin Blur** (smears the picture round
+  its middle, like a spinning wheel; Angle is how far)
 - **Distort → Twirl**, **Pinch** (negative values bulge), **Wave**,
   **Ripple** (small pond-like ripples; Size is their wavelength),
-  **Spherize** (wraps the image around a ball; negative values pinch it in)
+  **Spherize** (wraps the image around a ball; negative values pinch it in),
+  **Polar Coordinates** (Rectangular to Polar curls the picture into a
+  circle, with its top edge in the middle, so a wide panorama becomes a
+  "little planet"; Polar to Rectangular unrolls a circle back into a strip),
+  **ZigZag** (rings running out from the middle, like a stone dropped in a
+  pond; Ridges is how many), **Shear** (each row slid sideways along a
+  curve, most at the middle)
+- **Other → Custom...** applies your own convolution kernel: rows of numbers
+  split by `;` (3×3, 5×5 or 7×7; the middle one is the pixel itself), divided
+  by **Scale**, plus **Offset**, previewed live. `0 -1 0; -1 5 -1; 0 -1 0`
+  sharpens, `-1 -1 -1; -1 8 -1; -1 -1 -1` finds edges.
+- **Distort → Displace...** shifts every pixel by the brightness of a **Map**
+  (another layer, or a picture file): middle gray stays, lighter moves right /
+  down, darker left / up, by up to the scales in pixels. A blurred gray copy
+  of a fabric photo as the map makes text follow its folds.
 - **Other → High Pass** (keeps only fine detail on gray; put it on a copy of
-  the photo with the Overlay blend mode to sharpen)
+  the photo with the Overlay blend mode to sharpen), **Maximum** /
+  **Minimum** (light or dark areas spread by the radius: Minimum thickens
+  dark lines, Maximum thins them), **Offset** (slides the picture; what
+  leaves one edge comes back at the other, so you can see and fix the seams
+  of a tile that has to repeat)
 - **Sharpen → Sharpen**, **Unsharp Mask** (amount and radius — the usual
-  photo sharpening), **Smart Sharpen** (sharpens brightness only, so edges
+  photo sharpening), **Sharpen Edges** (sharpens only the edges, so skin and
+  sky don't turn grainy; applied at once), **Smart Sharpen** (sharpens brightness only, so edges
   get no colored halos, and skips differences smaller than film grain or
-  sensor noise)
+  sensor noise), **Shake Reduction** (undoes the blur of a camera that moved
+  during the shot: set the direction it moved and the length of the streaks;
+  **Strength** is how hard it works — too high adds noise)
 - **Noise → Add Noise**, **Median** (removes dust, scratches and speckles
-  while keeping edges)
-- **Pixelate**, **Vignette**
+  while keeping edges), **Despeckle** (softens grain and specks, keeps
+  edges; applied at once), **Reduce Noise** (smooths grain in flat areas;
+  Preserve Details keeps fine edges sharp)
+- **Pixelate → Mosaic** (big square pixels), **Crystallize** (flat-colored
+  cells around scattered points), **Color Halftone** (printed as cyan,
+  magenta and yellow dots; Max. Radius is the biggest dot), **Mezzotint**
+  (grainy, every pixel fully on or off)
+- **Vignette**
 - **Stylize → Emboss**, **Find Edges** (Find Edges has no settings and
   applies immediately), **Oil Paint** (turns detail into flat brush-like
-  patches; Stylization is the brush size, Detail how many tones are kept)
+  patches; Stylization is the brush size, Detail how many tones are kept),
+  **Solarize** (bright tones turned over, like film exposed while
+  developing), **Wind** (bright parts streak off to the right; Strength is
+  how far), **Diffuse** (pixels scattered a little, like frosted glass),
+  **Tiles** (cut into tiles, each nudged; the number is tiles across),
+  **Glowing Edges** (edges glow in their own colors on black, like neon),
+  **Cutout** (a few flat colors with smooth edges, like colored paper)
+- **Render → Fibers** fills the layer with woven-looking vertical fibers from
+  the foreground to the background color (Variance: how much they change
+  along their length; Strength: how often).
 - **Render → Clouds** fills the layer with soft clouds from the foreground
   to the background color (applies at once). **Lens Flare** adds the glow,
   halo, streak and colored reflections of a bright light shining into a
@@ -700,6 +847,11 @@ Same live-preview/Apply/Cancel pattern as Filters:
 - **Replace Color** — changes hue, saturation and lightness only where the
   image is close to one color (the foreground color at first; click the
   swatch to pick another). **Fuzziness** sets how close.
+- **Edit → Sky Replacement...** finds the sky and puts a new one in: Blue
+  Sky, Light Clouds, Sunset, Dusk or Overcast. **Shift Edge** grows
+  (positive) or shrinks the sky area, **Fade Edge** softens the join, and
+  **Foreground Lighting** tints the rest of the photo to match the new sky.
+  The sky should touch the top edge of the photo and be fairly plain.
 - **Color Lookup** — a ready-made film look: Warm, Cool, Teal & Orange,
   Vintage Fade, Bleach Bypass or Film Noir, with **Intensity** to mix it
   with the original. Also as an adjustment layer.
@@ -734,6 +886,70 @@ active layer, and require one to be selected.
 
 Each of these is a single undo/redo step, and clears the selection.
 
+### Artboards
+
+An **artboard** is a named area of the document that is exported as its
+own picture. You can design an app icon in several sizes, a phone screen
+and a banner side by side in one document, then export them all at once.
+
+- **Image → Artboards → New Artboard from Selection...** turns the
+  selected area (draw it with the Rectangular Marquee) into an artboard.
+- **Image → Artboards → New Artboard...** makes one of a common size (app
+  icon, phone, tablet, web page, Instagram post or story, YouTube thumbnail,
+  banner, favicon) or of your own size (**Custom**). **X** and **Y** place
+  its top-left corner. A part that would stick out past the canvas is cut
+  off, so make the canvas big enough first (**Image → Canvas Size**).
+- Each artboard shows on the canvas as an orange frame, with its name and
+  size above it.
+- With the **Move** tool, drag an artboard by its name label to move it
+  (it stays on the canvas; one undo step).
+- **Delete Artboard...** and **Clear Artboards** remove them. Adding and
+  removing artboards can be undone.
+- **File → Export Artboards to Files...** (also at the bottom of the
+  Artboards menu) writes one PNG per artboard, named after it, with
+  everything visible inside its frame.
+
+Artboards are saved with the project. They stay on the same part of the
+picture when you crop, rotate, flip or resize the canvas or the image.
+
+### Mode and Apply Image
+
+**Image → Mode** converts the whole document (one undo step each). The
+conversion repaints the plain pixel layers. Text, shape, fill, adjustment
+and Smart Object layers keep their own settings (Grayscale also turns text
+gray):
+
+- **Grayscale** — every color becomes its gray by brightness.
+- **Indexed Color...** — the image drawn with only **Colors** (2–256)
+  colors, one palette for the whole image, like a GIF. **Dither: Diffusion**
+  mixes palette colors in fine dot patterns so gradients still look smooth;
+  **None** gives flat bands.
+- **Bitmap...** — pure black and white. **Diffusion Dither** shows gray
+  tones as dot patterns; **50% Threshold** turns everything lighter than
+  middle gray white and the rest black.
+
+These are one-time conversions: you can keep painting in color afterwards.
+
+**Image → Calculations...** blends one channel (gray, red, green, blue or
+transparency — of any layer or of the merged image, optionally inverted) with
+another into a gray mask, using a blending mode and opacity. **Result** puts
+it to use: a **New Layer**, a **Selection** (the lighter half) or the active
+layer's **Layer Mask**. A classic use: the Blue channel multiplied with itself
+gives a strong mask of a bright sky, for selecting around hair or trees.
+
+**Layer → Layer Mask from Transparency** gives the active layer a mask that
+shows it where it's painted and hides it where it's see-through, so you can
+then soften or extend the edge on the mask instead of the pixels.
+
+**Image → Apply Image...** blends an image onto the active layer:
+**Source** is a layer or **Merged** (everything visible), **Channel** is
+its full color or just its Red, Green or Blue channel (as gray), **Invert**
+turns it negative first, and **Blending** (Multiply, Screen, Overlay, Add,
+Subtract, Darken, Lighten, Difference or Normal) and **Opacity** set how it
+combines. The active layer's see-through parts stay see-through. A common
+use: Apply Image with the Blue channel, Multiply, onto a copy of a portrait
+to build a mask that darkens skin blemishes.
+
 ## Smart Objects
 
 **Place Smart Object...** places an image file as its own layer type that
@@ -743,6 +959,21 @@ like a non-destructive Smart Object layer in other editors. Double-clicking
 a Smart Object layer opens its embedded content in its own document tab for
 editing.
 
+**Layer → Smart Objects** has:
+
+- **Convert to Smart Object** — the active pixel layer's painted part
+  becomes a Smart Object in the same place, keeping its opacity and blend
+  mode. Scaling it down and back up later doesn't lose quality.
+- **Edit Contents** — the same as double-clicking the layer.
+- **Replace Contents...** — a new picture from a file takes the old one's
+  place, size and angle. It keeps its own shape and is fitted inside the old
+  box, centered. Handy for mock-ups: swap the screenshot on a phone or the
+  photo in a frame.
+- **Export Contents...** — saves the Smart Object's original picture, at its
+  full size, as a PNG.
+
+Converting and replacing are one undo step each.
+
 ## Import & Export
 
 - **Import...** adds one or more image files (PNG/JPG/BMP/WebP) as new
@@ -751,6 +982,9 @@ editing.
   layer (masked, if it has one) to PNG, JPEG, or WebP. A **Quality** slider
   applies to the two lossy formats; it's disabled (not hidden) when PNG is
   selected, since PNG is always lossless.
+- **Print...** (`Ctrl+P`) prints the flattened image centered on the page:
+  **Fit to Page**, or at a **Print Resolution** in pixels per inch (300 ppi
+  is photo quality; it shrinks to fit if larger than the page).
 - **Export As...** (`Alt+Shift+Ctrl+W`) saves the flattened image in one
   format at several sizes at once: list them in **Sizes**, e.g.
   `100%, 50%, 2x`. The extra sizes get a suffix (`photo@2x.png`,
@@ -787,6 +1021,13 @@ Import the shots as layers (File → Import), then:
   the bottom one — for shots taken by hand that moved a little. It works
   even when the shots are exposed differently. Shifts only (no rotation).
   One undo step.
+- **File → Automate → Photomerge...** stitches overlapping photos into a
+  panorama: choose the files (they are taken in name order, each overlapping
+  the one before by at least about 15%) and the result opens as a new
+  document, blended smoothly where the shots overlap. Shots are placed by
+  shifting, so it works best for a camera turned on a tripod or flat
+  subjects (documents, walls); transparent edges are left where the shots
+  don't line up — crop them off.
 - **File → Automate → Merge to HDR Pro (visible layers)** blends bracketed
   exposures (a dark, a normal and a bright shot) into a new **Merged HDR**
   layer that keeps detail in both the shadows and the highlights (exposure
@@ -802,10 +1043,22 @@ name suffix (e.g. `_edited`). The files are processed without opening tabs;
 file, that file is skipped and reported. Saving into the source folder
 requires a suffix, so originals are never overwritten.
 
-## Navigator, Info and Histogram
+## Animation
 
-The panel above the layers has four tabs: **PROPERTIES** (the active tool's
-options), **NAVIGATOR**, **INFO** and **HISTOGRAM**.
+Animation is made in **Clipbar Animation** projects (File → New → Clipbar
+Animation): frame by frame (each frame on its own layer, with onion skin),
+with keyframes (move, scale, turn and fade a layer or group), with sound,
+exported as GIF, MP4, PNG files or a sprite sheet. Everything is in the
+**Animation** menu; **Shift+Ctrl+T** shows or hides the Timeline under the
+canvas. To animate an ordinary picture, use **Animation → Convert to
+Clipbar Animation...**, which opens a copy of it as an animation project. See [ClipbarWorkflow.md](ClipbarWorkflow.md) for
+the full guide.
+
+## Navigator, Info, Histogram, Swatches, Channels and Paths
+
+The panel above the layers has seven tabs: **PROPERTIES** (the active tool's
+options), **NAVIGATOR**, **INFO**, **HISTOGRAM**, **SWATCHES**,
+**CHANNELS** and **PATHS**.
 
 - **Navigator** shows the whole image with a red frame around the part the
   canvas shows. Click or drag in the thumbnail to move the view there; the
@@ -816,6 +1069,23 @@ options), **NAVIGATOR**, **INFO** and **HISTOGRAM**.
 - **Histogram** plots the brightness of the visible image (white line) over the
   red, green and blue channels, with the mean, standard deviation, median and
   pixel count. Transparent pixels are left out.
+- **Swatches** is a palette of colors you keep. Click a swatch to make it
+  the foreground color, Ctrl+click to make it the background color, and
+  right-click to remove it. **+ Add Foreground** adds the current
+  foreground color. **Reset** brings back the starter colors. The swatches
+  are the same in every document and are kept when JolieCat is closed.
+- **Channels** lists **RGB**, **Red**, **Green** and **Blue**. Click Red,
+  Green or Blue (or press **Ctrl+3 / Ctrl+4 / Ctrl+5**) to see only that
+  channel on the canvas, as gray: handy for judging contrast or choosing
+  the channel to make a selection from. **RGB** (**Ctrl+2**) shows the full
+  image again. Only the view changes; painting and filters still work on
+  all the colors. Below them are the document's saved selections (**Select
+  → Save Selection**): click one to load it, or ✕ to delete it.
+- **Paths** keeps Pen tool paths. Draw one with the Pen tool and click **Save
+  Current Path** ("Path 1", "Path 2"...). Click a saved path to make it the
+  Pen's working path again — every point and curve handle is kept, so it can
+  still be edited — then **Make Selection**, **Fill** or **Stroke** it. ✕
+  deletes a path. Saved with the project.
 
 These panels update a few times a second while they are shown, and only
 recompute the image after it changes.
@@ -880,11 +1150,13 @@ you can paint, add a layer, and still undo the painting.
 | `Ctrl+T` | Free Transform |
 | `Ctrl+Shift+N` / `Ctrl+J` / `Ctrl+E` | New / Duplicate / Merge Down layer |
 | `Ctrl+[` / `Ctrl+]` | Send backward / Bring forward |
+| `Shift+Ctrl+[` / `Shift+Ctrl+]` | Send to back / Bring to front |
 | `Ctrl+L` / `Ctrl+M` / `Ctrl+U` | Levels / Curves / Hue-Saturation |
 | `Ctrl+I` / `Ctrl+Shift+U` | Invert / Desaturate |
 | `Ctrl+Alt+I` / `Ctrl+Alt+C` | Image size / Canvas size |
 | `Ctrl+Alt+Shift+L` / `Ctrl+Shift+B` | Auto Contrast / Auto Color |
 | `Ctrl+0` / `Ctrl+1` / `Ctrl++` / `Ctrl+-` | Fit / 100% / Zoom in / Zoom out |
+| `Ctrl+2` / `Ctrl+3` / `Ctrl+4` / `Ctrl+5` | View all channels / Red / Green / Blue only |
 | `Space`+drag, middle mouse | Pan |
 | `[` / `]` | Smaller / bigger brush |
 | Tool letters | V, M, L, W, C, I, B, N, E, G, S, J, O, R, P, A, T, U, H, Z |

@@ -28,6 +28,8 @@
          separate mechanism that doesn't make the file reachable from XAML at all. -->
     <Resource Include="Assets\JolieCatLogo.ico" />
     <Resource Include="Assets\JolieCatLogo.png" />
+    <EmbeddedResource Include="Localization\uk.json" LogicalName="JolieCat.UI.Localization.uk.json" />
+    <EmbeddedResource Include="Localization\ru.json" LogicalName="JolieCat.UI.Localization.ru.json" />
   </ItemGroup>
 
   <ItemGroup>

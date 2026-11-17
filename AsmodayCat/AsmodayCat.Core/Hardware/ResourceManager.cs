@@ -1,65 +1,79 @@
+using System.Runtime.InteropServices;
 using AsmodayCat.Shared.Models;
 
 namespace AsmodayCat.Core.Hardware;
 
+// System load: CPU (GetSystemTimes), RAM (GlobalMemoryStatusEx) and GPU (nvidia-smi).
 public class ResourceManager
 {
-    private readonly Dictionary<string, int> _modelVramUsage = new();
+    private readonly GpuMonitor _gpu;
     private readonly object _lock = new();
 
-    public void RegisterModel(string modelId, int vramMb)
+    private ulong _lastIdle, _lastKernel, _lastUser;
+    private double _cpuLoad;
+
+    public ResourceManager(GpuMonitor gpu) => _gpu = gpu;
+
+    public GpuMonitor Gpu => _gpu;
+
+    // VRAM in use on the GPU (all processes), MB
+    public int GetTotalVramUsedMb() => (int)_gpu.VramUsedMb;
+
+    // Called every second by the worker: CPU load is the change since the previous sample
+    public void Sample()
     {
+        if (!GetSystemTimes(out var idle, out var kernel, out var user)) return;
         lock (_lock)
-            _modelVramUsage[modelId] = vramMb;
+        {
+            var idleDelta  = idle.Value   - _lastIdle;
+            var totalDelta = (kernel.Value - _lastKernel) + (user.Value - _lastUser);   // kernel time includes idle
+            if (_lastKernel != 0 && totalDelta > 0)
+                _cpuLoad = Math.Clamp(100.0 * (totalDelta - idleDelta) / totalDelta, 0, 100);
+            (_lastIdle, _lastKernel, _lastUser) = (idle.Value, kernel.Value, user.Value);
+        }
     }
 
-    public void UnregisterModel(string modelId)
-    {
-        lock (_lock)
-            _modelVramUsage.Remove(modelId);
-    }
+    public double CpuLoad { get { lock (_lock) return _cpuLoad; } }
 
-    public int GetTotalVramUsedMb()
+    public static (long FreeBytes, long TotalBytes) GetRam()
     {
-        lock (_lock)
-            return _modelVramUsage.Values.Sum();
+        var status = new MemoryStatusEx { Length = (uint)Marshal.SizeOf<MemoryStatusEx>() };
+        return GlobalMemoryStatusEx(ref status)
+            ? ((long)status.AvailPhys, (long)status.TotalPhys)
+            : (0, 0);
     }
 
     public NodeResourceStatus GetCurrentStatus()
     {
+        var (free, _) = GetRam();
         return new NodeResourceStatus
         {
-            CpuLoad = GetCpuLoad(),
-            RamFree = GetFreeRamBytes(),
-            GpuLoad = 0,
-            VramFree = 0
+            CpuLoad  = CpuLoad,
+            RamFree  = free,
+            GpuLoad  = _gpu.LoadPercent,
+            VramFree = _gpu.VramFreeMb * 1024 * 1024
         };
     }
 
-    private static double GetCpuLoad()
+    // ── Win32 ────────────────────────────────────────────────────────────────
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FileTime
     {
-        try
-        {
-#if WINDOWS
-            using var counter = new System.Diagnostics.PerformanceCounter(
-                "Processor", "% Processor Time", "_Total");
-            counter.NextValue();
-            Thread.Sleep(100);
-            return counter.NextValue();
-#else
-            return 0;
-#endif
-        }
-        catch { return 0; }
+        public uint Low, High;
+        public ulong Value => ((ulong)High << 32) | Low;
     }
 
-    private static long GetFreeRamBytes()
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MemoryStatusEx
     {
-        try
-        {
-            var info = GC.GetGCMemoryInfo();
-            return info.TotalAvailableMemoryBytes - info.HeapSizeBytes;
-        }
-        catch { return 0; }
+        public uint  Length, MemoryLoad;
+        public ulong TotalPhys, AvailPhys, TotalPageFile, AvailPageFile, TotalVirtual, AvailVirtual, AvailExtendedVirtual;
     }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetSystemTimes(out FileTime idle, out FileTime kernel, out FileTime user);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx buffer);
 }

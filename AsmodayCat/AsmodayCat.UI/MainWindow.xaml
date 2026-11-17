@@ -2,119 +2,203 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-        Title="AsmodayCat — Control Panel"
+        xmlns:l="clr-namespace:AsmodayCat.UI.Localization"
+        xmlns:v="clr-namespace:AsmodayCat.UI.Views"
+        Title="{l:Tr main.title}"
         Icon="pack://application:,,,/Assets/AC.ico"
-        Height="720" Width="1280"
+        Height="760" Width="1280"
+        MinHeight="560" MinWidth="960"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
-        AllowsTransparency="True"
         ResizeMode="CanResize"
-        Background="Transparent">
+        Background="{StaticResource BrushBackground}">
+
+    <!-- Own title bar, but a real window frame: snapping, double-click maximize and
+         a maximized window that stops at the taskbar -->
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="38" ResizeBorderThickness="6"
+                      GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
 
     <Window.Resources>
-        <!-- Nav item: light bg, dark text; gold when selected -->
+        <!-- Sidebar item: icon + text; amber icon and a left bar when selected -->
         <Style x:Key="NavItemStyle" TargetType="ListBoxItem">
-            <Setter Property="Foreground"      Value="{StaticResource BrushDark}"/>
+            <Setter Property="Foreground"      Value="{StaticResource BrushSidebarText}"/>
             <Setter Property="Background"      Value="Transparent"/>
-            <Setter Property="FontSize"        Value="13"/>
-            <Setter Property="Padding"         Value="16,11"/>
-            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize"        Value="13.5"/>
+            <Setter Property="Padding"         Value="14,10"/>
+            <Setter Property="Margin"          Value="10,1"/>
             <Setter Property="Cursor"          Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter/>
-                        </Border>
+                        <Grid>
+                            <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="8"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter/>
+                            </Border>
+                            <Border x:Name="Bar" Width="3" CornerRadius="2" Margin="0,9"
+                                    HorizontalAlignment="Left" Background="{StaticResource BrushAccent}"
+                                    Visibility="Collapsed"/>
+                        </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="#D9B86A"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushSidebarHover}"/>
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushAccent}"/>
-                                <Setter Property="Foreground" Value="{StaticResource BrushLight}"/>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushSidebarActive}"/>
+                                <Setter TargetName="Bar" Property="Visibility" Value="Visible"/>
+                                <Setter Property="Foreground" Value="White"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="NavIcon" TargetType="materialDesign:PackIcon">
+            <Setter Property="Width" Value="19"/>
+            <Setter Property="Height" Value="19"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+            <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                    <Setter Property="Foreground" Value="#E2B84E"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
-    <Border Background="{StaticResource BrushBackground}"
-            BorderBrush="{StaticResource BrushAccent}"
-            BorderThickness="2">
+    <Border x:Name="RootBorder" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
         <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="44"/>   <!-- chrome header -->
-                <RowDefinition Height="*"/>    <!-- content      -->
-            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="224"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <!-- ── Chrome header ──────────────────────────────────────── -->
-            <Border Grid.Row="0"
-                    Background="{StaticResource BrushBackground}"
-                    MouseLeftButtonDown="Header_MouseLeftButtonDown"
-                    Padding="14,0">
-                <Grid>
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Image Source="pack://application:,,,/Assets/AC.ico"
-                               Width="22" Height="22" Margin="0,0,10,0"
+            <!-- ── Sidebar ─────────────────────────────────────────────── -->
+            <Grid Grid.Column="0" Background="{StaticResource BrushSidebar}" ClipToBounds="True">
+                <!-- Steppe grass and ears at the bottom: the steppe cat's home -->
+                <Canvas Width="224" Height="172" VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                        IsHitTestVisible="False">
+                    <Canvas.OpacityMask>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="Transparent" Offset="0"/>
+                            <GradientStop Color="#C0000000" Offset="0.55"/>
+                            <GradientStop Color="Black" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Canvas.OpacityMask>
+                    <Path Data="M6,172 q-4,-15 -8,-30 q2,15 6,30 z M48,172 q5,-18 10,-36 q-4,18 -6,36 z M84,172 q-5,-14 -10,-28 q3,14 6,28 z M122,172 q4,-17 8,-34 q-3,17 -6,34 z M158,172 q-5,-15 -9,-30 q3,15 6,30 z M196,172 q4,-18 9,-36 q-3,18 -6,36 z" Fill="#6B6236" Opacity="0.55"/>
+                    <Path Data="M14,172 Q18,135 10,82 M26,172 Q24,129 34,70 M40,172 Q46,142 42,96 M58,172 Q52,126 64,64 M74,172 Q80,146 72,104 M92,172 Q90,133 100,78 M112,172 Q118,150 110,112 M130,172 Q126,130 138,72 M148,172 Q154,144 146,100 M166,172 Q162,137 174,86 M184,172 Q190,151 182,114 M202,172 Q198,134 210,80 M218,172 Q222,153 216,118" Stroke="#8E8350" StrokeThickness="1.6" Opacity="0.6"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                    <Path Data="M34,51 l-2.5,-7 M34,51 l2.5,-7 M34,58 l-5,-5 M34,58 l5,-5 M64,45 l-2.5,-7 M64,45 l2.5,-7 M64,52 l-5,-5 M64,52 l5,-5 M100,59 l-2.5,-7 M100,59 l2.5,-7 M100,66 l-5,-5 M100,66 l5,-5 M138,53 l-2.5,-7 M138,53 l2.5,-7 M138,60 l-5,-5 M138,60 l5,-5 M174,67 l-2.5,-7 M174,67 l2.5,-7 M174,74 l-5,-5 M174,74 l5,-5 M210,61 l-2.5,-7 M210,61 l2.5,-7 M210,68 l-5,-5 M210,68 l5,-5 M10,63 l-2.5,-7 M10,63 l2.5,-7 M10,70 l-5,-5 M10,70 l5,-5" Stroke="#C9A85A" StrokeThickness="1" Opacity="0.45" StrokeEndLineCap="Round"/>
+                    <Path Data="M34,70 c-3.5,-5 -3.5,-13 0,-19 c3.5,6 3.5,14 0,19 z M64,64 c-3.5,-5 -3.5,-13 0,-19 c3.5,6 3.5,14 0,19 z M100,78 c-3.5,-5 -3.5,-13 0,-19 c3.5,6 3.5,14 0,19 z M138,72 c-3.5,-5 -3.5,-13 0,-19 c3.5,6 3.5,14 0,19 z M174,86 c-3.5,-5 -3.5,-13 0,-19 c3.5,6 3.5,14 0,19 z M210,80 c-3.5,-5 -3.5,-13 0,-19 c3.5,6 3.5,14 0,19 z M10,82 c-3.5,-5 -3.5,-13 0,-19 c3.5,6 3.5,14 0,19 z" Fill="#C9A85A" Opacity="0.55"/>
+                </Canvas>
+
+            <DockPanel Background="Transparent">
+
+                <!-- Brand (also a drag area for the window) -->
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="20,22,16,22">
+                    <Border Width="38" Height="38" CornerRadius="10" Background="#4A4429">
+                        <Image Source="pack://application:,,,/Assets/AC.ico" Width="26" Height="26"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
-                        <TextBlock Text="AsmodayCat" FontWeight="Bold" FontSize="13"
-                                   Foreground="{StaticResource BrushLight}"
-                                   VerticalAlignment="Center" Margin="0"/>
+                    </Border>
+                    <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="AsmodayCat" FontSize="16" FontWeight="SemiBold" Foreground="White"/>
+                        <TextBlock Text="{l:Tr main.tagline}" FontSize="11"
+                                   Foreground="{StaticResource BrushSidebarMuted}" Margin="0,1,0,0"/>
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Content="—" Click="MinimizeButton_Click"
-                                Style="{StaticResource ChromeButton}"/>
-                        <Button x:Name="MaximizeButton" Content="□" Click="MaximizeButton_Click"
-                                Style="{StaticResource ChromeButton}"/>
-                        <Button Content="✕" Click="AppCloseButton_Click"
-                                Style="{StaticResource ChromeCloseButton}"/>
-                    </StackPanel>
-                </Grid>
-            </Border>
+                </StackPanel>
 
-            <!-- ── Main area: sidebar + content ──────────────────────── -->
-            <Grid Grid.Row="1">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="170"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Sidebar — light sand bg, dark text (кольори поміняні) -->
-                <DockPanel Grid.Column="0" Background="{StaticResource BrushBackground}">
-
-                    <!-- Logo + brand -->
-                    
-
-                    <!-- Divider -->
-                    <Border DockPanel.Dock="Top" Height="1"
-                            Background="{StaticResource BrushAccent}"
-                            Margin="12,0,12,8" Opacity="0.5"/>
-
-                    <!-- Nav links -->
-                    <ListBox x:Name="NavList"
-                             DockPanel.Dock="Top"
-                             SelectionChanged="NavList_SelectionChanged"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             ItemContainerStyle="{StaticResource NavItemStyle}">
-                        <ListBoxItem Content="Dashboard"   Tag="Dashboard"/>
-                        <ListBoxItem Content="Chat"        Tag="Chat"/>
-                        <ListBoxItem Content="Models"      Tag="Models"/>
-                        <ListBoxItem Content="Hardware"    Tag="Hardware"/>
-                        <ListBoxItem Content="Agent Rules" Tag="AgentRules"/>
-                        <ListBoxItem Content="Terminal"    Tag="Terminal"/>
-                    </ListBox>
+                <!-- Footer: language + version -->
+                <DockPanel DockPanel.Dock="Bottom" Margin="20,0,16,18" LastChildFill="False">
+                    <v:LanguageSwitcher DockPanel.Dock="Left" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="VersionText" DockPanel.Dock="Right" VerticalAlignment="Center"
+                               FontSize="11" Foreground="{StaticResource BrushSidebarMuted}"/>
                 </DockPanel>
 
-                <!-- Content frame — nav-brown bg; views set their own bg -->
-                <Frame x:Name="ContentFrame"
-                       Grid.Column="1"
-                       Background="{StaticResource BrushNav}"
-                       NavigationUIVisibility="Hidden"/>
+                <TextBlock DockPanel.Dock="Top" Text="{l:Tr main.sections}" FontSize="10.5" FontWeight="SemiBold"
+                           Foreground="{StaticResource BrushSidebarMuted}" Margin="24,0,0,6"/>
+
+                <ListBox x:Name="NavList"
+                         SelectionChanged="NavList_SelectionChanged"
+                         Background="Transparent" BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ItemContainerStyle="{StaticResource NavItemStyle}">
+                    <ListBoxItem Tag="Dashboard" AutomationProperties.Name="{l:Tr nav.dashboard}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="ViewDashboardOutline" Style="{StaticResource NavIcon}"/>
+                            <TextBlock Text="{l:Tr nav.dashboard}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Chat" AutomationProperties.Name="{l:Tr nav.chat}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="MessageTextOutline" Style="{StaticResource NavIcon}"/>
+                            <TextBlock Text="{l:Tr nav.chat}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="AgentRules" AutomationProperties.Name="{l:Tr nav.agents}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="FolderMultipleOutline" Style="{StaticResource NavIcon}"/>
+                            <TextBlock Text="{l:Tr nav.agents}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Memory" AutomationProperties.Name="{l:Tr nav.memory}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Brain" Style="{StaticResource NavIcon}"/>
+                            <TextBlock Text="{l:Tr nav.memory}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Models" AutomationProperties.Name="{l:Tr nav.models}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="CubeOutline" Style="{StaticResource NavIcon}"/>
+                            <TextBlock Text="{l:Tr nav.models}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Hardware" AutomationProperties.Name="{l:Tr nav.settings}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="CogOutline" Style="{StaticResource NavIcon}"/>
+                            <TextBlock Text="{l:Tr nav.settings}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ListBoxItem>
+                    <ListBoxItem Tag="Terminal" AutomationProperties.Name="{l:Tr nav.terminal}">
+                        <StackPanel Orientation="Horizontal">
+                            <materialDesign:PackIcon Kind="Console" Style="{StaticResource NavIcon}"/>
+                            <TextBlock Text="{l:Tr nav.terminal}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ListBoxItem>
+                </ListBox>
+            </DockPanel>
+            </Grid>
+
+            <!-- ── Work area ───────────────────────────────────────────── -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="38"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Title bar: empty space drags the window -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Click="MinimizeButton_Click" Style="{StaticResource ChromeButton}"
+                            WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="{l:Tr common.minimize}">
+                        <materialDesign:PackIcon Kind="WindowMinimize" Width="16" Height="16"/>
+                    </Button>
+                    <Button x:Name="MaximizeButton" Click="MaximizeButton_Click" Style="{StaticResource ChromeButton}"
+                            WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="{l:Tr common.maximize}">
+                        <materialDesign:PackIcon x:Name="MaximizeIcon" Kind="WindowMaximize" Width="15" Height="15"/>
+                    </Button>
+                    <Button Click="AppCloseButton_Click" Style="{StaticResource ChromeCloseButton}"
+                            WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="{l:Tr common.hideToTray}">
+                        <materialDesign:PackIcon Kind="WindowClose" Width="16" Height="16"/>
+                    </Button>
+                </StackPanel>
+
+                <Frame x:Name="ContentFrame" Grid.Row="1"
+                       Background="{StaticResource BrushBackground}"
+                       NavigationUIVisibility="Hidden" Focusable="False"/>
             </Grid>
         </Grid>
     </Border>

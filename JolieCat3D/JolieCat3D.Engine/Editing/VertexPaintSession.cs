@@ -1,5 +1,5 @@
 using System.Windows;
-using HelixToolkit.Wpf;
+using JolieCat3D.Engine.Viewport;
 using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Materials;
 using JolieCat3D.Core.Modifiers;
@@ -35,15 +35,12 @@ namespace JolieCat3D.Engine.Editing
         /// exact same "raycast against what's actually on screen right now" shape
         /// <see cref="WeightPaintSession.RaycastWorldHitPoint"/> already uses)
         /// geometry, in world space.</summary>
-        public Vector3? RaycastWorldHitPoint(HelixViewport3D viewport, Point position)
+        public Vector3? RaycastWorldHitPoint(IViewportProjector viewport, Point position)
         {
             ArgumentNullException.ThrowIfNull(viewport);
             if (Target?.Mesh is not { } mesh) return null;
 
-            var ray3D = Viewport3DHelper.Point2DtoRay3D(viewport.Viewport, position);
-            var ray = new CoreRay(
-                new Vector3((float)ray3D.Origin.X, (float)ray3D.Origin.Y, (float)ray3D.Origin.Z),
-                new Vector3((float)ray3D.Direction.X, (float)ray3D.Direction.Y, (float)ray3D.Direction.Z));
+            var ray = viewport.ScreenToRay(position);
 
             var worldTransform = Target.GetWorldTransform();
             var evaluatedMesh = ModifierStack.Evaluate(mesh, Target.Modifiers, Target);

@@ -96,6 +96,31 @@ namespace JolieCat.UI.ViewModels.ToolOptions
         {
             ShowColorPicker = showColorPicker;
             foreach (var preset in BrushLibrary.Shared.All) Presets.Add(preset.Name);
+            BrushLibrary.Shared.PresetSaved += p => { if (!Presets.Contains(p.Name)) Presets.Add(p.Name); };
+        }
+
+        /// <summary>A picture tip (alpha only) used instead of the round one, or null.</summary>
+        public SkiaSharp.SKBitmap? Tip { get; private set; }
+
+        /// <summary>The picture tip's preset name, or null for the round tip.</summary>
+        [ObservableProperty]
+        private string? tipName;
+
+        /// <summary>Back to the round tip.</summary>
+        [RelayCommand]
+        private void UseRoundTip()
+        {
+            Tip?.Dispose();
+            Tip = null;
+            TipName = null;
+        }
+
+        /// <summary>Uses <paramref name="tip"/> (alpha only, owned here from now on) as the tip.</summary>
+        public void UseTip(string name, SkiaSharp.SKBitmap tip)
+        {
+            Tip?.Dispose();
+            Tip = tip;
+            TipName = name;
         }
 
         public ObservableCollection<string> Presets { get; } = new();
@@ -112,6 +137,8 @@ namespace JolieCat.UI.ViewModels.ToolOptions
             Roundness = p.Roundness;
             SizeJitter = p.SizeJitter;
             Scatter = p.Scatter;
+            if (BrushLibrary.LoadTip(p.TipFile) is { } tip) UseTip(p.Name, tip);
+            else UseRoundTip();
         }
 
         /// <summary>Keeps the current tip settings as "My brush N".</summary>
@@ -121,8 +148,9 @@ namespace JolieCat.UI.ViewModels.ToolOptions
             var n = 1;
             while (Presets.Contains($"My brush {n}")) n++;
             var name = $"My brush {n}";
-            BrushLibrary.Shared.Save(new BrushPreset(name, Size, Hardness, Spacing, Flow, Angle, Roundness, SizeJitter, Scatter));
-            Presets.Add(name);
+            var tipFile = TipName is { } tipName && BrushLibrary.Shared.Find(tipName) is { TipFile: { } file } ? file : null;
+            BrushLibrary.Shared.Save(new BrushPreset(name, Size, Hardness, Spacing, Flow, Angle, Roundness, SizeJitter, Scatter, tipFile));
+            if (!Presets.Contains(name)) Presets.Add(name);
         }
 
         [RelayCommand]

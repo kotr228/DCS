@@ -34,6 +34,11 @@ namespace JolieCat.Core.Tools
                 "M4,9 A5,5 0 1 1 14,9 A5,5 0 1 1 4,9 Z M10,9 A5,5 0 1 1 20,9 A5,5 0 1 1 10,9 Z " +
                 "M7,14 A5,5 0 1 1 17,14 A5,5 0 1 1 7,14 Z", "W"),
 
+            // A dashed box around a blob: draw a box, the thing in it gets selected.
+            new(ToolType.ObjectSelection, ToolCategory.Selection, "Object Selection",
+                "M2,2 H7 V3.5 H3.5 V7 H2 Z M17,2 H22 V7 H20.5 V3.5 H17 Z M2,17 H3.5 V20.5 H7 V22 H2 Z M20.5,17 H22 V22 H17 V20.5 H20.5 Z " +
+                "M7,12 C7,8 10,6 12.5,7 C16,8 17.5,11 16,14.5 C14.5,17.5 9,18 7.5,15 C7.1,14 7,13 7,12 Z", "W"),
+
             new(ToolType.MagicWand, ToolCategory.Selection, "Magic Wand",
                 "M12,2 L14,10 L22,12 L14,14 L12,22 L10,14 L2,12 L10,10 Z", "W"),
 
@@ -48,6 +53,10 @@ namespace JolieCat.Core.Tools
 
             new(ToolType.CanvasRotate, ToolCategory.Navigation, "Canvas Rotate",
                 "M5,12 A7,7 0 1 1 19,12 A7,7 0 1 1 5,12 Z M7,12 A5,5 0 1 1 17,12 A5,5 0 1 1 7,12 Z M20,6 L16,5 L17,9 Z", "R"),
+
+            // A slanted ruler with tick marks.
+            new(ToolType.Ruler, ToolCategory.Navigation, "Ruler",
+                "M2,17 L17,2 L22,7 L7,22 Z M4.8,17 L17,4.8 L19.2,7 L7,19.2 Z M5.6,16.3 L6.3,15.6 L8.4,17.7 L7.7,18.4 Z M8.6,13.3 L9.3,12.6 L10.5,13.8 L9.8,14.5 Z M11.6,10.3 L12.3,9.6 L14.4,11.7 L13.7,12.4 Z M14.6,7.3 L15.3,6.6 L16.5,7.8 L15.8,8.5 Z", "I"),
 
             // Painting & Editing
             new(ToolType.Brush, ToolCategory.Painting, "Brush",

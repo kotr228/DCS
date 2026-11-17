@@ -18,5 +18,15 @@ namespace JolieCat.UI.Views.Timeline
         {
             InitializeComponent();
         }
+
+        /// <summary>A ready-made speed curve was picked: put it in the handles.</summary>
+        private void CurvePreset_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is ComboBox { SelectedItem: string name } box && DataContext is ViewModels.Timeline.TimelineViewModel timeline)
+            {
+                timeline.ApplyCurvePresetCommand.Execute(name);
+                box.SelectedItem = null;
+            }
+        }
     }
 }

@@ -18,9 +18,9 @@ namespace JolieCat.Core.Filters
         /// How far (in pixels) <paramref name="moving"/> must be shifted to line up with
         /// <paramref name="reference"/>. Compares brightness normalized per image (so
         /// differently exposed shots align too), coarse to fine; searches up to
-        /// <paramref name="maxShift"/> of the image size (0..0.5).
+        /// <paramref name="maxShift"/> of the image size (0..0.95).
         /// </summary>
-        public static SKPointI FindOffset(SKBitmap reference, SKBitmap moving, float maxShift = 0.25f)
+        public static SKPointI FindOffset(SKBitmap reference, SKBitmap moving, float maxShift = 0.25f, float minOverlap = 0.25f)
         {
             var a = Gray.From(reference);
             var b = Gray.From(moving);
@@ -33,42 +33,72 @@ namespace JolieCat.Core.Filters
             }
 
             var top = levelsA.Count - 1;
-            var reach = Math.Max(2, (int)(Math.Max(levelsA[top].Width, levelsA[top].Height) * Math.Clamp(maxShift, 0.01f, 0.5f)));
-            int dx = 0, dy = 0;
-            for (var level = top; level >= 0; level--)
+            var reach = Math.Max(2, (int)(Math.Max(levelsA[top].Width, levelsA[top].Height) * Math.Clamp(maxShift, 0.01f, 0.95f)));
+
+            // Coarse: every shift; keep the few best (a small, blurry copy can be fooled).
+            var coarse = new List<(double Cost, int X, int Y)>();
+            for (var oy = -reach; oy <= reach; oy++)
+                for (var ox = -reach; ox <= reach; ox++)
+                {
+                    var cost = Difference(levelsA[top], levelsB[top], ox, oy, minOverlap);
+                    if (cost < double.MaxValue) coarse.Add((cost, ox, oy));
+                }
+            coarse.Sort((p, q) => p.Cost.CompareTo(q.Cost));
+            var candidates = new List<(int X, int Y)>();
+            foreach (var c in coarse)
             {
-                var range = level == top ? reach : 2;
-                var (bx, by) = (dx, dy);
-                var best = double.MaxValue;
-                for (var oy = dy - range; oy <= dy + range; oy++)
-                    for (var ox = dx - range; ox <= dx + range; ox++)
-                    {
-                        var cost = Difference(levelsA[level], levelsB[level], ox, oy);
-                        if (cost < best) { best = cost; bx = ox; by = oy; }
-                    }
-                (dx, dy) = (bx, by);
-                if (level > 0) { dx *= 2; dy *= 2; }
+                if (candidates.Exists(k => Math.Abs(k.X - c.X) <= 2 && Math.Abs(k.Y - c.Y) <= 2)) continue;
+                candidates.Add((c.X, c.Y));
+                if (candidates.Count == 6) break;
             }
-            return new SKPointI(dx, dy);
+            if (candidates.Count == 0) return new SKPointI(0, 0);
+
+            // Fine: refine each down to full size; the best match there wins.
+            var best = (Cost: double.MaxValue, X: 0, Y: 0);
+            foreach (var (cx, cy) in candidates)
+            {
+                int dx = cx, dy = cy;
+                var cost = double.MaxValue;
+                for (var level = top - 1; level >= 0; level--)
+                {
+                    dx *= 2; dy *= 2;
+                    var (bx, by) = (dx, dy);
+                    cost = double.MaxValue;
+                    for (var oy = dy - 2; oy <= dy + 2; oy++)
+                        for (var ox = dx - 2; ox <= dx + 2; ox++)
+                        {
+                            var c = Difference(levelsA[level], levelsB[level], ox, oy, minOverlap);
+                            if (c < cost) { cost = c; bx = ox; by = oy; }
+                        }
+                    (dx, dy) = (bx, by);
+                }
+                if (top == 0) cost = Difference(levelsA[0], levelsB[0], dx, dy, minOverlap);
+                if (cost < best.Cost) best = (cost, dx, dy);
+            }
+            return new SKPointI(best.X, best.Y);
         }
 
-        /// <summary>Mean absolute difference where reference(x, y) meets moving(x - dx, y - dy).</summary>
-        private static double Difference(Gray a, Gray b, int dx, int dy)
+        private static double Difference(Gray a, Gray b, int dx, int dy, float minOverlap)
         {
-            double sum = 0;
+            double sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0;
             long count = 0;
             var step = Math.Max(1, Math.Min(a.Width, a.Height) / 160);
             for (var y = Math.Max(0, dy); y < Math.Min(a.Height, b.Height + dy); y += step)
                 for (var x = Math.Max(0, dx); x < Math.Min(a.Width, b.Width + dx); x += step)
                 {
-                    var va = a.Values[y * a.Width + x];
-                    var vb = b.Values[(y - dy) * b.Width + (x - dx)];
-                    if (float.IsNaN(va) || float.IsNaN(vb)) continue;
-                    sum += Math.Abs(va - vb);
+                    double va = a.Values[y * a.Width + x];
+                    double vb = b.Values[(y - dy) * b.Width + (x - dx)];
+                    if (double.IsNaN(va) || double.IsNaN(vb)) continue;
+                    sa += va; sb += vb; saa += va * va; sbb += vb * vb; sab += va * vb;
                     count++;
                 }
             // Too little overlap isn't a real match.
-            return count < (long)a.Width * a.Height / (step * step) / 4 ? double.MaxValue : sum / count;
+            if (count < (long)a.Width * a.Height / (step * step) * minOverlap || count < 16) return double.MaxValue;
+            var cov = sab - sa * sb / count;
+            var va2 = saa - sa * sa / count;
+            var vb2 = sbb - sb * sb / count;
+            if (va2 < 1e-6 * count || vb2 < 1e-6 * count) return 1;
+            return 1 - cov / Math.Sqrt(va2 * vb2);
         }
 
         /// <summary>Normalized brightness (mean 0, spread 1); NaN where transparent.</summary>
@@ -120,6 +150,71 @@ namespace JolieCat.Core.Filters
                     }
                 return half;
             }
+        }
+
+        // ================= Photomerge =================
+
+        /// <summary>
+        /// Photomerge: stitches overlapping shots (in order, each overlapping the one
+        /// before by at least 15%) into one panorama. Shots are placed by shifting only
+        /// (best for a camera turned on a tripod or flat subjects), and blend smoothly
+        /// where they overlap. Returns the panorama and where each shot went.
+        /// </summary>
+        public static (SKBitmap Panorama, SKPointI[] Positions) Stitch(IReadOnlyList<SKBitmap> shots)
+        {
+            if (shots.Count == 0) throw new ArgumentException("No images.", nameof(shots));
+            var positions = new SKPointI[shots.Count];
+            for (var k = 1; k < shots.Count; k++)
+            {
+                // Where shot k sits relative to shot k-1: moving it by "offset" lines it up.
+                var offset = FindOffset(shots[k - 1], shots[k], maxShift: 0.9f, minOverlap: 0.12f);
+                positions[k] = new SKPointI(positions[k - 1].X + offset.X, positions[k - 1].Y + offset.Y);
+            }
+
+            int left = int.MaxValue, top = int.MaxValue, right = int.MinValue, bottom = int.MinValue;
+            for (var k = 0; k < shots.Count; k++)
+            {
+                left = Math.Min(left, positions[k].X); top = Math.Min(top, positions[k].Y);
+                right = Math.Max(right, positions[k].X + shots[k].Width); bottom = Math.Max(bottom, positions[k].Y + shots[k].Height);
+            }
+            for (var k = 0; k < shots.Count; k++) positions[k] = new SKPointI(positions[k].X - left, positions[k].Y - top);
+            int w = right - left, h = bottom - top;
+
+            // Feathered blend: each shot counts most in its middle, fading to its edges.
+            var sum = new float[w * h * 3];
+            var weight = new float[w * h];
+            var alpha = new float[w * h];
+            for (var k = 0; k < shots.Count; k++)
+            {
+                var shot = shots[k];
+                var px = shot.Pixels;
+                var at = positions[k];
+                int sw = shot.Width, sh = shot.Height;
+                Parallel.For(0, sh, y =>
+                {
+                    for (var x = 0; x < sw; x++)
+                    {
+                        var c = px[y * sw + x];
+                        if (c.Alpha == 0) continue;
+                        var edge = Math.Min(Math.Min(x + 1, sw - x), Math.Min(y + 1, sh - y));
+                        var wt = (float)edge * c.Alpha / 255f;
+                        var i = (at.Y + y) * w + at.X + x;
+                        sum[i * 3] += c.Red * wt; sum[i * 3 + 1] += c.Green * wt; sum[i * 3 + 2] += c.Blue * wt;
+                        weight[i] += wt;
+                        alpha[i] = Math.Max(alpha[i], c.Alpha);
+                    }
+                });
+            }
+
+            var result = new SKBitmap(w, h, SKColorType.Rgba8888, SKAlphaType.Premul);
+            var dst = new SKColor[w * h];
+            for (var i = 0; i < dst.Length; i++)
+            {
+                if (weight[i] <= 0) continue;
+                dst[i] = new SKColor((byte)(sum[i * 3] / weight[i]), (byte)(sum[i * 3 + 1] / weight[i]), (byte)(sum[i * 3 + 2] / weight[i]), (byte)alpha[i]);
+            }
+            result.Pixels = dst;
+            return (result, positions);
         }
 
         // ================= Exposure fusion =================

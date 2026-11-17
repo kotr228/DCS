@@ -106,6 +106,9 @@ public class AgentWorkspaceRepository
         SystemPrompt        = r.GetString(r.GetOrdinal("SystemPrompt")),
         AllowedExtensions   = r.GetString(r.GetOrdinal("AllowedExtensions")),
         AllowInternetAccess = r.GetInt32(r.GetOrdinal("AllowInternetAccess")) == 1,
-        IsActive            = r.GetInt32(r.GetOrdinal("IsActive")) == 1
+        IsActive            = r.GetInt32(r.GetOrdinal("IsActive")) == 1,
+        CreatedAt           = DateTime.TryParse(r.GetString(r.GetOrdinal("CreatedAt")), null,
+                                  System.Globalization.DateTimeStyles.RoundtripKind, out var created)
+                                  ? created.ToLocalTime() : DateTime.Now
     };
 }

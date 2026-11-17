@@ -52,6 +52,29 @@ namespace JolieCat.Core.Rendering
             ArgumentNullException.ThrowIfNull(canvas);
             ArgumentNullException.ThrowIfNull(scene);
 
+            // The animation camera looks at the whole picture through its own zoom/pan/turn.
+            if (scene.CameraMatrix is { } camera)
+            {
+                if (scene.CameraOpacity < 1)
+                {
+                    // Fade: the whole picture at the camera's opacity.
+                    using var fade = new SKPaint { Color = SKColors.White.WithAlpha((byte)Math.Clamp(scene.CameraOpacity * 255, 0, 255)) };
+                    canvas.SaveLayer(fade);
+                }
+                else
+                {
+                    canvas.Save();
+                }
+                canvas.Concat(camera);
+                try
+                {
+                    DrawRange(canvas, scene, Math.Max(0, from), Math.Min(to, scene.Layers.Count), null,
+                        documentWidth, documentHeight, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear), backdrop, previewLayer, previewBitmap);
+                }
+                finally { canvas.Restore(); }
+                return;
+            }
+
             DrawRange(canvas, scene, Math.Max(0, from), Math.Min(to, scene.Layers.Count), null,
                 documentWidth, documentHeight, sampling, backdrop, previewLayer, previewBitmap);
         }
@@ -99,7 +122,7 @@ namespace JolieCat.Core.Rendering
 
                 if (layer.IsVisible)
                 {
-                    var bitmap = ReferenceEquals(layer, previewLayer) && previewBitmap is not null ? previewBitmap : layer.Bitmap;
+                    var bitmap = ReferenceEquals(layer, previewLayer) && previewBitmap is not null ? previewBitmap : layer.AnimationBitmap ?? layer.Bitmap;
                     DrawLayer(canvas, layer, bitmap, documentWidth, documentHeight, sampling, backdrop);
                 }
                 i++;
@@ -127,6 +150,7 @@ namespace JolieCat.Core.Rendering
                 Color = SKColors.White.WithAlpha((byte)Math.Clamp(baseLayer.Opacity * 255.0, 0, 255)),
                 BlendMode = Layer.ToSkiaBlendMode(baseLayer.BlendMode),
             };
+            BlendModes.Apply(groupPaint, baseLayer.BlendMode);
             canvas.SaveLayer(bounds, groupPaint);
 
             DrawLayerAsBase(canvas, baseLayer, baseBitmap, documentWidth, documentHeight, sampling);
@@ -183,7 +207,96 @@ namespace JolieCat.Core.Rendering
             int documentWidth, int documentHeight, SKSamplingOptions sampling, Func<SKImage>? backdrop,
             Layer? previewLayer, SKBitmap? previewBitmap)
         {
-            if (group.Opacity <= 0) return;
+            // Timeline animation: keyed colors change the whole group, drawn together first.
+            if (group.AnimationColor is { } groupColor)
+            {
+                using var tint = new SKPaint { ColorFilter = SKColorFilter.CreateColorMatrix(groupColor) };
+                canvas.SaveLayer(tint);
+                try { DrawGroupBlurredOrNot(canvas, scene, group, lo, hi, documentWidth, documentHeight, sampling, backdrop, previewLayer, previewBitmap); }
+                finally { canvas.Restore(); }
+                return;
+            }
+            DrawGroupBlurredOrNot(canvas, scene, group, lo, hi, documentWidth, documentHeight, sampling, backdrop, previewLayer, previewBitmap);
+        }
+
+        private static void DrawGroupBlurredOrNot(SKCanvas canvas, Scene scene, Layer group, int lo, int hi,
+            int documentWidth, int documentHeight, SKSamplingOptions sampling, Func<SKImage>? backdrop,
+            Layer? previewLayer, SKBitmap? previewBitmap)
+        {
+            // Timeline animation: a keyed blur softens the whole group, drawn together first.
+            if (group.AnimationBlur > 0.05)
+            {
+                var sigma = (float)group.AnimationBlur / 2;
+                using var blur = new SKPaint { ImageFilter = SKImageFilter.CreateBlur(sigma, sigma) };
+                canvas.SaveLayer(blur);
+                try { DrawGroupBentOrPlaced(canvas, scene, group, lo, hi, documentWidth, documentHeight, sampling, backdrop, previewLayer, previewBitmap); }
+                finally { canvas.Restore(); }
+                return;
+            }
+            DrawGroupBentOrPlaced(canvas, scene, group, lo, hi, documentWidth, documentHeight, sampling, backdrop, previewLayer, previewBitmap);
+        }
+
+        private static void DrawGroupBentOrPlaced(SKCanvas canvas, Scene scene, Layer group, int lo, int hi,
+            int documentWidth, int documentHeight, SKSamplingOptions sampling, Func<SKImage>? backdrop,
+            Layer? previewLayer, SKBitmap? previewBitmap)
+        {
+            if (group.AnimationBend is not null || group.AnimationMotion is { Length: > 1 })
+            {
+                // A bent or motion-blurred group: its layers drawn together on their own,
+                // bent, then placed (at each moment of the frame, averaged, for motion blur).
+                using var together = new SKBitmap(documentWidth, documentHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
+                together.Erase(SKColors.Transparent);
+                using (var groupCanvas = new SKCanvas(together))
+                    DrawGroupContent(groupCanvas, scene, group, lo, hi, documentWidth, documentHeight, sampling, null, previewLayer, previewBitmap);
+                using var bent = group.AnimationBend is { } bend ? Animation.MeshBend.Bend(together, bend.Root, bend.Joint, bend.Degrees) : null;
+                using var image = SKImage.FromBitmap(bent ?? together);
+                var linear = new SKSamplingOptions(SKFilterMode.Linear);
+                if (group.AnimationMotion is { Length: > 1 } moments)
+                {
+                    canvas.SaveLayer();
+                    using var add = new SKPaint { BlendMode = SKBlendMode.Plus };
+                    for (var i = 0; i < moments.Length; i++)
+                    {
+                        add.Color = SKColors.White.WithAlpha((byte)(255 * (i + 1) / moments.Length - 255 * i / moments.Length));
+                        canvas.Save();
+                        canvas.Concat(moments[i]);
+                        canvas.DrawImage(image, 0, 0, linear, add);
+                        canvas.Restore();
+                    }
+                    canvas.Restore();
+                    return;
+                }
+                canvas.Save();
+                if (group.AnimationMatrix is { } placed) canvas.Concat(placed);
+                canvas.DrawImage(image, 0, 0, linear);
+                canvas.Restore();
+                return;
+            }
+            DrawGroupPlaced(canvas, scene, group, lo, hi, documentWidth, documentHeight, sampling, backdrop, previewLayer, previewBitmap);
+        }
+
+        private static void DrawGroupPlaced(SKCanvas canvas, Scene scene, Layer group, int lo, int hi,
+            int documentWidth, int documentHeight, SKSamplingOptions sampling, Func<SKImage>? backdrop,
+            Layer? previewLayer, SKBitmap? previewBitmap)
+        {
+            // Timeline animation moves/scales/turns the whole group, like a layer.
+            if (group.AnimationMatrix is { } animation)
+            {
+                canvas.Save();
+                canvas.Concat(animation);
+                try { DrawGroupContent(canvas, scene, group, lo, hi, documentWidth, documentHeight, new SKSamplingOptions(SKFilterMode.Linear), backdrop, previewLayer, previewBitmap); }
+                finally { canvas.Restore(); }
+                return;
+            }
+            DrawGroupContent(canvas, scene, group, lo, hi, documentWidth, documentHeight, sampling, backdrop, previewLayer, previewBitmap);
+        }
+
+        private static void DrawGroupContent(SKCanvas canvas, Scene scene, Layer group, int lo, int hi,
+            int documentWidth, int documentHeight, SKSamplingOptions sampling, Func<SKImage>? backdrop,
+            Layer? previewLayer, SKBitmap? previewBitmap)
+        {
+            var opacity = group.Opacity * group.AnimationOpacity;
+            if (opacity <= 0) return;
 
             var mask = group.Mask is { IsEnabled: true } m ? m : null;
 
@@ -205,21 +318,23 @@ namespace JolieCat.Core.Rendering
 
                 using var groupPaint = new SKPaint
                 {
-                    Color = SKColors.White.WithAlpha((byte)Math.Clamp(group.Opacity * 255.0, 0, 255)),
+                    Color = SKColors.White.WithAlpha((byte)Math.Clamp(opacity * 255.0, 0, 255)),
                     BlendMode = Layer.ToSkiaBlendMode(group.BlendMode),
                 };
+                BlendModes.Apply(groupPaint, group.BlendMode);
                 DrawStyled(canvas, group, merged, style, new SKRect(0, 0, documentWidth, documentHeight), groupPaint, default, applyMask: false);
                 return;
             }
 
-            var isolated = group.BlendMode != Shared.Enums.BlendMode.Normal || group.Opacity < 1 || mask is not null;
+            var isolated = group.BlendMode != Shared.Enums.BlendMode.Normal || opacity < 1 || mask is not null;
             if (isolated)
             {
                 using var paint = new SKPaint
                 {
-                    Color = SKColors.White.WithAlpha((byte)Math.Clamp(group.Opacity * 255.0, 0, 255)),
+                    Color = SKColors.White.WithAlpha((byte)Math.Clamp(opacity * 255.0, 0, 255)),
                     BlendMode = Layer.ToSkiaBlendMode(group.BlendMode),
                 };
+                BlendModes.Apply(paint, group.BlendMode);
                 canvas.SaveLayer(new SKRect(0, 0, documentWidth, documentHeight), paint);
             }
 
@@ -269,11 +384,76 @@ namespace JolieCat.Core.Rendering
                 return;
             }
 
+            // Timeline motion blur: the layer at several moments of the frame, averaged.
+            if (layer.AnimationMotion is { Length: > 1 } moments)
+            {
+                canvas.SaveLayer();
+                using var add = new SKPaint { BlendMode = SKBlendMode.Plus };
+                try
+                {
+                    for (var i = 0; i < moments.Length; i++)
+                    {
+                        var moment = moments[i];
+                        // Shares that add up to exactly 255, so still parts stay fully opaque.
+                        add.Color = SKColors.White.WithAlpha((byte)(255 * (i + 1) / moments.Length - 255 * i / moments.Length));
+                        canvas.SaveLayer(add);
+                        canvas.Concat(moment);
+                        DrawLayerContent(canvas, layer, bitmap, documentWidth, documentHeight, new SKSamplingOptions(SKFilterMode.Linear));
+                        canvas.Restore();
+                    }
+                }
+                finally { canvas.Restore(); }
+                return;
+            }
+
+            // Timeline animation: drawn moved/scaled/turned, its pixels untouched.
+            if (layer.AnimationMatrix is { } animation)
+            {
+                canvas.Save();
+                canvas.Concat(animation);
+                try { DrawLayerContent(canvas, layer, bitmap, documentWidth, documentHeight, animation.IsIdentity ? sampling : new SKSamplingOptions(SKFilterMode.Linear)); }
+                finally { canvas.Restore(); }
+                return;
+            }
+
+            DrawLayerContent(canvas, layer, bitmap, documentWidth, documentHeight, sampling);
+        }
+
+        private static void DrawLayerContent(SKCanvas canvas, Layer layer, SKBitmap bitmap, int documentWidth, int documentHeight, SKSamplingOptions sampling)
+        {
             using var layerPaint = new SKPaint
             {
-                Color = SKColors.White.WithAlpha((byte)Math.Clamp(layer.Opacity * 255.0, 0, 255)),
+                // Fill counts like opacity here, unless layer effects draw outside the pixels
+                // (then DrawStyled applies it to the content only).
+                Color = SKColors.White.WithAlpha((byte)Math.Clamp(layer.Opacity * layer.AnimationOpacity
+                    * (layer.Style is { HasAnyEffect: true } ? 1 : layer.FillOpacity) * 255.0, 0, 255)),
                 BlendMode = Layer.ToSkiaBlendMode(layer.BlendMode),
+                // Timeline animation: a keyed blur.
+                ImageFilter = layer.AnimationBlur > 0.05 ? SKImageFilter.CreateBlur((float)layer.AnimationBlur / 2, (float)layer.AnimationBlur / 2) : null,
+                // Timeline animation: keyed brightness / saturation / hue.
+                ColorFilter = layer.AnimationColor is { } colorMatrix ? SKColorFilter.CreateColorMatrix(colorMatrix) : null,
             };
+            BlendModes.Apply(layerPaint, layer.BlendMode);
+
+            // Dissolve: the layer drawn as a scatter of fully-shown pixels (opacity included).
+            if (layer.BlendMode == Shared.Enums.BlendMode.Dissolve && layer.Style is not { HasAnyEffect: true })
+            {
+                using var dissolved = BlendModes.Dissolve(bitmap, layer.Opacity * layer.AnimationOpacity);
+                layerPaint.Color = SKColors.White;
+                if (layer.Mask is { IsEnabled: true } dissolveMask)
+                {
+                    canvas.SaveLayer(new SKRect(0, 0, documentWidth, documentHeight), layerPaint);
+                    DrawBitmap(canvas, dissolved, sampling, null);
+                    using var maskPaint = new SKPaint { BlendMode = SKBlendMode.DstIn, ColorFilter = SKColorFilter.CreateLumaColor() };
+                    DrawBitmap(canvas, dissolveMask.Bitmap, sampling, maskPaint);
+                    canvas.Restore();
+                }
+                else
+                {
+                    DrawBitmap(canvas, dissolved, sampling, layerPaint);
+                }
+                return;
+            }
 
             if (layer.Style is { HasAnyEffect: true } style)
             {
@@ -364,9 +544,14 @@ namespace JolieCat.Core.Rendering
                 Content(paint);
             }
 
+            // Fill: the layer's own pixels (and the effects inside them) at this strength.
+            using var fillPaint = layer.FillOpacity < 1
+                ? new SKPaint { Color = SKColors.White.WithAlpha((byte)Math.Clamp(layer.FillOpacity * 255, 0, 255)) }
+                : null;
+
             if (!style.HasInnerEffect)
             {
-                Content(null);
+                Content(fillPaint);
                 canvas.Restore();
                 return;
             }
@@ -392,7 +577,7 @@ namespace JolieCat.Core.Rendering
 
             // The content and what's painted inside it share one layer, so inner effects
             // can't spill onto the shadow/glow/stroke underneath.
-            canvas.SaveLayer(bounds, null);
+            canvas.SaveLayer(bounds, fillPaint);
             Content(null);
 
             if (style.ColorOverlay && style.OverlayOpacity > 0)
@@ -569,6 +754,7 @@ namespace JolieCat.Core.Rendering
                 Color = SKColors.White.WithAlpha(alpha),
             })
             {
+                if (!normal) BlendModes.Apply(combine, layer.BlendMode);
                 canvas.SaveLayer(bounds, combine);
 
                 canvas.Save();

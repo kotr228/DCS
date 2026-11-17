@@ -1,136 +1,161 @@
 using System.Numerics;
+using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
 
 namespace JolieCat3D.Service.Animation
 {
     /// <summary>
-    /// One <see cref="Node"/>'s own keyframed Position/Rotation/Scale over time - a
-    /// sorted-by-time list of <see cref="Keyframe"/>s plus <see cref="Evaluate"/>, which
-    /// interpolates between the two keyframes bracketing a given moment (linearly for
-    /// Position/Scale, via <see cref="Quaternion.Slerp"/> - NOT a plain per-component
-    /// lerp, which would take the geometrically wrong path between two rotations - for
-    /// Rotation), clamping to the first/last keyframe's own value outside the track's
-    /// recorded time range.
+    /// A node's transform animation as nine F-curves (X/Y/Z location, Euler rotation in
+    /// degrees, scale) - like Blender, every channel has its own keys, interpolation and
+    /// Bézier handles. The whole-transform API (<see cref="AddKeyframe"/>,
+    /// <see cref="Keyframes"/>, <see cref="Evaluate"/>) still works on top of the curves.
     /// </summary>
     public sealed class AnimationTrack
     {
-        private readonly List<Keyframe> _keyframes = new();
-
-        /// <summary>Keyframe times within this distance of each other are treated as
-        /// "the same time" - <see cref="AddKeyframe"/> replaces rather than duplicates,
-        /// and <see cref="RemoveKeyframe"/> matches, within this tolerance, since a
-        /// frame-quantized UI scrubber (frame/FPS) rarely lands on the exact same double
-        /// twice even for "the same frame".</summary>
         private const double TimeEpsilon = 1e-6;
+        private readonly Dictionary<AnimationChannel, FCurve> _curves = new();
+        private readonly Dictionary<string, FCurve> _propertyCurves = new();
+
+        /// <summary>Prefix of a property curve that drives a shape key's value.</summary>
+        public const string ShapeKeyPrefix = "shape:";
+
+        /// <summary>Extra animated values besides the transform, keyed by a path such as
+        /// "shape:Smile" (a shape key's value).</summary>
+        public IReadOnlyDictionary<string, FCurve> PropertyCurves => _propertyCurves;
+
+        public FCurve PropertyCurve(string path)
+        {
+            if (!_propertyCurves.TryGetValue(path, out var curve)) _propertyCurves[path] = curve = new FCurve();
+            return curve;
+        }
+
+        /// <summary>Applies the property curves (shape key values) for <paramref name="time"/>.</summary>
+        public void ApplyProperties(double time)
+        {
+            foreach (var (path, curve) in _propertyCurves)
+            {
+                if (curve.Evaluate(time) is not { } value) continue;
+                if (path.StartsWith(ShapeKeyPrefix, StringComparison.Ordinal) && Target.Mesh is { } mesh)
+                {
+                    var name = path[ShapeKeyPrefix.Length..];
+                    if (mesh.ShapeKeys.FirstOrDefault(k => k.Name == name) is { } key) key.Value = value;
+                }
+            }
+        }
 
         public Node Target { get; }
 
-        /// <summary>Every keyframe, ordered by <see cref="Keyframe.Time"/> ascending.</summary>
-        public IReadOnlyList<Keyframe> Keyframes => _keyframes;
-
-        public AnimationTrack(Node target) => Target = target ?? throw new ArgumentNullException(nameof(target));
-
-        /// <summary>Adds a keyframe at <paramref name="time"/> - replacing any existing
-        /// one within <see cref="TimeEpsilon"/> of it (re-recording the same moment,
-        /// rather than accumulating near-duplicates), keeping the list sorted by time.
-        /// <paramref name="interpolation"/> governs the segment LEAVING this keyframe
-        /// (see <see cref="InterpolationMode"/>'s own remarks) - Linear by default.</summary>
-        public void AddKeyframe(double time, Vector3 position, Quaternion rotation, Vector3 scale, InterpolationMode interpolation = InterpolationMode.Linear)
+        public AnimationTrack(Node target)
         {
-            var keyframe = new Keyframe(time, position, rotation, scale, interpolation);
-            var existingIndex = _keyframes.FindIndex(k => Math.Abs(k.Time - time) < TimeEpsilon);
-
-            if (existingIndex >= 0) { _keyframes[existingIndex] = keyframe; return; }
-
-            var insertIndex = _keyframes.FindIndex(k => k.Time > time);
-            if (insertIndex < 0) _keyframes.Add(keyframe);
-            else _keyframes.Insert(insertIndex, keyframe);
+            Target = target ?? throw new ArgumentNullException(nameof(target));
+            foreach (var channel in AnimationChannels.All) _curves[channel] = new FCurve();
         }
 
-        /// <summary>Captures <see cref="Target"/>'s own CURRENT LocalPosition/LocalRotation/
-        /// LocalScale as a new keyframe at <paramref name="time"/> - the "record a
-        /// keyframe from where the object already is right now" convenience a Properties
-        /// panel's own "Add Keyframe" button uses, rather than a caller needing to read
-        /// and pass all three values itself.</summary>
+        public FCurve Curve(AnimationChannel channel) => _curves[channel];
+
+        public IReadOnlyDictionary<AnimationChannel, FCurve> Curves => _curves;
+
+        public bool IsEmpty => _curves.Values.All(c => c.Keys.Count == 0) && _propertyCurves.Values.All(c => c.Keys.Count == 0);
+
+        /// <summary>Whole-transform keys: one per distinct key time on any channel, holding the
+        /// full evaluated transform there. Used by the dopesheet, exporters and older code.</summary>
+        public IReadOnlyList<Keyframe> Keyframes
+        {
+            get
+            {
+                var times = _curves.Values.Concat(_propertyCurves.Values).SelectMany(c => c.Keys.Select(k => k.Time)).OrderBy(t => t).ToList();
+                var result = new List<Keyframe>();
+                foreach (var t in times)
+                {
+                    if (result.Count > 0 && Math.Abs(result[^1].Time - t) < TimeEpsilon) continue;
+                    var (p, r, s) = Evaluate(t)!.Value;
+                    var interpolation = _curves.Values.Select(c => c.KeyAt(t)).FirstOrDefault(k => k is not null)?.Interpolation ?? InterpolationMode.Linear;
+                    result.Add(new Keyframe(t, p, r, s, interpolation));
+                }
+                return result;
+            }
+        }
+
+        /// <summary>Keys every channel at <paramref name="time"/>.</summary>
+        public void AddKeyframe(double time, Vector3 position, Quaternion rotation, Vector3 scale, InterpolationMode interpolation = InterpolationMode.Linear)
+        {
+            var euler = EulerAngles.ToDegrees(rotation);
+            Insert(AnimationChannel.LocationX, time, position.X, interpolation);
+            Insert(AnimationChannel.LocationY, time, position.Y, interpolation);
+            Insert(AnimationChannel.LocationZ, time, position.Z, interpolation);
+            Insert(AnimationChannel.RotationX, time, Unwrap(AnimationChannel.RotationX, time, euler.X), interpolation);
+            Insert(AnimationChannel.RotationY, time, Unwrap(AnimationChannel.RotationY, time, euler.Y), interpolation);
+            Insert(AnimationChannel.RotationZ, time, Unwrap(AnimationChannel.RotationZ, time, euler.Z), interpolation);
+            Insert(AnimationChannel.ScaleX, time, scale.X, interpolation);
+            Insert(AnimationChannel.ScaleY, time, scale.Y, interpolation);
+            Insert(AnimationChannel.ScaleZ, time, scale.Z, interpolation);
+        }
+
+        private void Insert(AnimationChannel channel, double time, float value, InterpolationMode interpolation) =>
+            _curves[channel].Insert(time, value, interpolation);
+
+        /// <summary>Picks the Euler angle equivalent (±360°) closest to the neighbouring key so
+        /// rotation curves don't jump by a full turn.</summary>
+        private float Unwrap(AnimationChannel channel, double time, float degrees)
+        {
+            var keys = _curves[channel].Keys;
+            var neighbour = keys.Where(k => k.Time < time).LastOrDefault() ?? keys.FirstOrDefault(k => k.Time > time);
+            if (neighbour is null) return degrees;
+            while (degrees - neighbour.Value > 180f) degrees -= 360f;
+            while (neighbour.Value - degrees > 180f) degrees += 360f;
+            return degrees;
+        }
+
         public void AddKeyframeFromCurrentTransform(double time, InterpolationMode interpolation = InterpolationMode.Linear) =>
             AddKeyframe(time, Target.LocalPosition, Target.LocalRotation, Target.LocalScale, interpolation);
 
-        /// <summary>Removes the keyframe within <see cref="TimeEpsilon"/> of
-        /// <paramref name="time"/>, if any - a no-op if none is that close.</summary>
-        public void RemoveKeyframe(double time) =>
-            _keyframes.RemoveAll(k => Math.Abs(k.Time - time) < TimeEpsilon);
+        /// <summary>Removes every channel's key at <paramref name="time"/>.</summary>
+        public void RemoveKeyframe(double time)
+        {
+            foreach (var curve in _curves.Values) curve.Remove(time);
+            foreach (var curve in _propertyCurves.Values) curve.Remove(time);
+        }
 
-        /// <summary>Moves the keyframe at <paramref name="oldTime"/> (within
-        /// <see cref="TimeEpsilon"/>) to <paramref name="newTime"/> instead, keeping
-        /// every one of its own Position/Rotation/Scale/Interpolation values unchanged -
-        /// the Dopesheet's own "drag a keyframe marker horizontally to retime it"
-        /// action. Returns false (a no-op) if no keyframe sits at <paramref name="oldTime"/>
-        /// to begin with. If <paramref name="newTime"/> itself already has a keyframe
-        /// (within the same tolerance), THAT one is silently replaced by the moved one -
-        /// the same "landing on an existing time replaces it, rather than producing two
-        /// keyframes at once moment" convention <see cref="AddKeyframe"/> already
-        /// establishes, here reached by dragging one marker on top of another instead of
-        /// a second explicit <see cref="AddKeyframe"/> call. Does not itself clamp
-        /// <paramref name="newTime"/> to any particular range (e.g. a timeline's own
-        /// <see cref="AnimationTimeline.Duration"/>) - a <see cref="AnimationTrack"/> has
-        /// no notion of "the timeline's own bounds" at all (see this class's own
-        /// remarks), so a caller driving a drag against a specific timeline clamps
-        /// against ITS OWN <see cref="AnimationTimeline.Duration"/> before calling
-        /// this.</summary>
+        /// <summary>Moves every channel's key at <paramref name="oldTime"/> to <paramref name="newTime"/>.</summary>
         public bool RetimeKeyframe(double oldTime, double newTime)
         {
-            var index = _keyframes.FindIndex(k => Math.Abs(k.Time - oldTime) < TimeEpsilon);
-            if (index < 0) return false;
-
-            var keyframe = _keyframes[index];
-            _keyframes.RemoveAt(index);
-            AddKeyframe(newTime, keyframe.Position, keyframe.Rotation, keyframe.Scale, keyframe.Interpolation);
-            return true;
+            var moved = false;
+            foreach (var curve in _curves.Values.Concat(_propertyCurves.Values))
+                if (curve.KeyAt(oldTime) is { } key) moved |= curve.Retime(key, newTime);
+            return moved;
         }
 
-        /// <summary>The interpolated Position/Rotation/Scale at <paramref name="time"/> -
-        /// null with no keyframes recorded at all (nothing for
-        /// <see cref="AnimationTimeline.Apply"/> to apply). A single keyframe reads as a
-        /// constant value at every time; <paramref name="time"/> before the first or
-        /// after the last keyframe clamps to that keyframe's own value, rather than
-        /// extrapolating. The BEFORE keyframe's own <see cref="Keyframe.Interpolation"/>
-        /// governs this segment (see <see cref="InterpolationMode"/>'s own remarks) -
-        /// <see cref="InterpolationMode.Bezier"/> re-maps the raw time fraction through
-        /// <see cref="CubicBezierEasing"/> before it's used to Lerp/Slerp, so the
-        /// segment eases in and out rather than blending at a constant rate.</summary>
+        /// <summary>The transform at <paramref name="time"/>; channels without keys keep the
+        /// node's current value (like an un-animated channel in Blender).</summary>
         public (Vector3 Position, Quaternion Rotation, Vector3 Scale)? Evaluate(double time)
         {
-            if (_keyframes.Count == 0) return null;
-            if (_keyframes.Count == 1 || time <= _keyframes[0].Time)
-            {
-                var only = _keyframes[0];
-                return (only.Position, only.Rotation, only.Scale);
-            }
+            if (IsEmpty) return null;
+            float V(AnimationChannel c, float fallback) => _curves[c].Evaluate(time) ?? fallback;
 
-            var last = _keyframes[^1];
-            if (time >= last.Time) return (last.Position, last.Rotation, last.Scale);
-
-            // Find the last keyframe at or before `time` - the "before" bracket; the
-            // very next one in the (sorted) list is the "after" bracket.
-            var beforeIndex = 0;
-            for (var i = 0; i < _keyframes.Count; i++)
-            {
-                if (_keyframes[i].Time > time) break;
-                beforeIndex = i;
-            }
-
-            var before = _keyframes[beforeIndex];
-            var after = _keyframes[beforeIndex + 1];
-
-            var span = after.Time - before.Time;
-            var t = span > TimeEpsilon ? (float)((time - before.Time) / span) : 0f;
-
-            if (before.Interpolation == InterpolationMode.Bezier) t = CubicBezierEasing.Evaluate(t);
-
-            var position = Vector3.Lerp(before.Position, after.Position, t);
-            var rotation = Quaternion.Slerp(before.Rotation, after.Rotation, t);
-            var scale = Vector3.Lerp(before.Scale, after.Scale, t);
+            var p = Target.LocalPosition;
+            var s = Target.LocalScale;
+            var currentEuler = EulerAngles.ToDegrees(Target.LocalRotation);
+            var position = new Vector3(V(AnimationChannel.LocationX, p.X), V(AnimationChannel.LocationY, p.Y), V(AnimationChannel.LocationZ, p.Z));
+            var rotationCurves = _curves[AnimationChannel.RotationX].Keys.Count + _curves[AnimationChannel.RotationY].Keys.Count + _curves[AnimationChannel.RotationZ].Keys.Count;
+            var rotation = rotationCurves == 0
+                ? Target.LocalRotation
+                : EulerAngles.FromDegrees(V(AnimationChannel.RotationX, currentEuler.X), V(AnimationChannel.RotationY, currentEuler.Y), V(AnimationChannel.RotationZ, currentEuler.Z));
+            var scale = new Vector3(V(AnimationChannel.ScaleX, s.X), V(AnimationChannel.ScaleY, s.Y), V(AnimationChannel.ScaleZ, s.Z));
             return (position, rotation, scale);
         }
+
+        /// <summary>Deep copy (for undo, duplicating objects, ...), optionally for another node.</summary>
+        public AnimationTrack Clone(Node? target = null)
+        {
+            var copy = new AnimationTrack(target ?? Target);
+            foreach (var (channel, curve) in _curves) copy._curves[channel] = curve.Clone();
+            foreach (var (path, curve) in _propertyCurves) copy._propertyCurves[path] = curve.Clone();
+            return copy;
+        }
+
+        public bool ContentEquals(AnimationTrack? other) =>
+            other is not null && _curves.All(kv => kv.Value.ContentEquals(other._curves[kv.Key])) &&
+            _propertyCurves.Count == other._propertyCurves.Count &&
+            _propertyCurves.All(kv => other._propertyCurves.TryGetValue(kv.Key, out var o) && kv.Value.ContentEquals(o));
     }
 }

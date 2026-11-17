@@ -86,6 +86,9 @@ namespace JolieCat.UI.ViewModels
                 _lastToolByShortcut[value.Shortcut] = value;
         }
 
+        /// <summary>A tool's options (the same object its options panel shows).</summary>
+        public object OptionsFor(ToolType type) => GetOptions(type);
+
         private object GetOptions(ToolType type)
         {
             if (!_optionsByTool.TryGetValue(type, out var options))
@@ -119,6 +122,7 @@ namespace JolieCat.UI.ViewModels
             ToolType.RedEye => new RedEyeToolOptionsViewModel(),
 
             ToolType.ColorSampler => new EmptyToolOptionsViewModel(),
+            ToolType.Ruler => new RulerToolOptionsViewModel(),
 
             ToolType.PuppetWarp => new PuppetWarpToolOptionsViewModel(),
 
@@ -126,7 +130,7 @@ namespace JolieCat.UI.ViewModels
 
             ToolType.RectangularMarquee or ToolType.EllipticalMarquee or ToolType.Lasso or
                 ToolType.PolygonalLasso or ToolType.MagneticLasso or ToolType.QuickSelection or
-                ToolType.MagicWand => new SelectionToolOptionsViewModel(),
+                ToolType.MagicWand or ToolType.ObjectSelection => new SelectionToolOptionsViewModel(),
 
             // Path Selection/Direct Selection edit the same working path the Pen tool
             // draws, so all three share its options (the stroke width a "Stroke Path"

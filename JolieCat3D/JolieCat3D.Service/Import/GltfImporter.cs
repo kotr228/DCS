@@ -2,6 +2,7 @@ using System.Numerics;
 using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Numerics;
 using JolieCat3D.Core.Scene;
+using JolieCat3D.Service.Animation;
 using SharpGLTF.Schema2;
 using CoreMaterial = JolieCat3D.Core.Materials.Material;
 using CoreMesh = JolieCat3D.Core.Geometry.Mesh;
@@ -18,18 +19,11 @@ namespace JolieCat3D.Service.Import
     /// which this class deliberately mirrors section-for-section (node graph, then mesh/
     /// material, then camera/light) so the two stay easy to compare.
     ///
-    /// Deliberately, disclosed scope cuts (matching this project's own established
-    /// precedent - see <c>MeshFileService</c>'s own remarks on why <c>.fbx</c> isn't
-    /// supported at all): a <see cref="Skin"/> (skeletal skinning), an
-    /// <see cref="Animation"/>, and any morph target are all read straight past without
-    /// being applied - a skinned node's mesh still imports as a plain STATIC mesh at its
-    /// glTF-authored rest pose, with no <see cref="Node.SkinBinding"/>/joints attached at
-    /// all, and no <c>AnimationTimeline</c> track is ever produced from a glTF
-    /// <see cref="Animation"/>. Wiring either up is a real, separate piece of work (this
-    /// project's own timeline/skinning data model would need its own conversion from
-    /// glTF's rather than just being a reverse of <see cref="Export.GltfExporter"/>'s own
-    /// forward mapping) - out of scope for "open and render an imported model's meshes/
-    /// materials", which is what this class actually does completely and correctly.
+    /// Node animations (translation/rotation/scale) are imported by
+    /// <see cref="ImportWithAnimation"/>, one action per glTF animation. Skins become a
+    /// <see cref="SkinBinding"/> with the joints turned into bones (rest pose from the
+    /// inverse bind matrices) and per-vertex JOINTS_0/WEIGHTS_0. Morph targets become shape keys
+    /// (names from <c>extras.targetNames</c>), and weights animations become shape key curves.
     /// </summary>
     public static class GltfImporter
     {
@@ -46,7 +40,14 @@ namespace JolieCat3D.Service.Import
         /// the exporter's own "$CameraLookFix"/"$LightLookFix" helper child node).</summary>
         private static readonly Quaternion LookDirectionFix = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI);
 
-        public static CoreScene Import(string filePath)
+        public static CoreScene Import(string filePath) => ImportWithAnimation(filePath).Scene;
+
+        /// <summary>
+        /// Like <see cref="Import"/>, plus every glTF animation as its own
+        /// <see cref="AnimationAction"/> (node translation/rotation/scale channels). The
+        /// timeline is null when the file has no animations.
+        /// </summary>
+        public static (CoreScene Scene, AnimationTimeline? Timeline) ImportWithAnimation(string filePath)
         {
             ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
             if (!File.Exists(filePath)) throw new FileNotFoundException("glTF/GLB file not found.", filePath);
@@ -70,19 +71,185 @@ namespace JolieCat3D.Service.Import
             var rootGltfNodes = (model.DefaultScene ?? model.LogicalScenes.FirstOrDefault())?.VisualChildren
                 ?? model.LogicalNodes.Where(n => n.VisualParent is null);
 
+            var nodeMap = new Dictionary<GltfNode, CoreNode>();
             foreach (var gltfNode in rootGltfNodes)
-                scene.AddRootNode(BuildNode(gltfNode, materialCache, extractedImagePaths, textureDirectory));
+                scene.AddRootNode(BuildNode(gltfNode, materialCache, extractedImagePaths, textureDirectory, nodeMap));
 
-            return scene;
+            BuildSkins(model, nodeMap);
+            return (scene, BuildTimeline(model, nodeMap));
+        }
+
+        // ============================= Skins =============================
+
+        /// <summary>
+        /// For every skinned node: its joints become bones (unless already bones), the node
+        /// (and its extra-primitive "_Part" children) gets a <see cref="SkinBinding"/> whose
+        /// bone order matches the skin's joint order, so JOINTS_0 indices map 1:1.
+        ///
+        /// glTF skins a vertex as <c>v * IBM * jointWorld</c> (ignoring the mesh node's own
+        /// transform). <see cref="Core.Skinning.SkinningEvaluator"/> computes
+        /// <c>v * meshWorld * inverse(RestPose) * boneWorld</c>, so
+        /// <c>RestPose = inverse(IBM) * meshWorld</c> makes both identical.
+        /// </summary>
+        private static void BuildSkins(ModelRoot model, IReadOnlyDictionary<GltfNode, CoreNode> nodeMap)
+        {
+            var configured = new HashSet<CoreNode>();
+            foreach (var gltfNode in model.LogicalNodes)
+            {
+                if (gltfNode.Skin is not { JointsCount: > 0 } skin || !nodeMap.TryGetValue(gltfNode, out var meshNode)) continue;
+
+                var meshWorld = meshNode.GetWorldTransform();
+                var binding = new SkinBinding();
+                var joints = skin.Joints;
+                var inverseBinds = skin.InverseBindMatrices;
+                for (var j = 0; j < joints.Count; j++)
+                {
+                    if (!nodeMap.TryGetValue(joints[j], out var boneNode)) { binding.Bones.Add(meshNode); continue; }
+                    binding.Bones.Add(boneNode);
+                    if (!configured.Add(boneNode)) continue;
+
+                    var inverseBind = j < inverseBinds.Count ? inverseBinds[j] : Matrix4x4.Identity;
+                    var rest = Matrix4x4.Invert(inverseBind, out var bind) ? bind * meshWorld : boneNode.GetWorldTransform();
+                    boneNode.Bone ??= new BoneData { Head = Vector3.Zero, Tail = GuessTail(joints[j], joints) };
+                    boneNode.Bone.RestPoseWorldMatrix = rest;
+                    if (boneNode.Mesh is null) boneNode.Mesh = boneNode.Bone.GenerateMesh();
+                }
+
+                // Armature: the declared skeleton root, else the parent of the top joint.
+                var armatureGltf = skin.Skeleton ?? joints.FirstOrDefault(j => j.VisualParent is null || !joints.Contains(j.VisualParent))?.VisualParent;
+                if (armatureGltf is not null && nodeMap.TryGetValue(armatureGltf, out var armature) && armature.Bone is null)
+                {
+                    binding.Armature = armature;
+                    if (armature.Mesh is null && armature.Camera is null && armature.Light is null) armature.Armature ??= new ArmatureData();
+                }
+
+                meshNode.SkinBinding = binding;
+                foreach (var child in meshNode.Children)
+                    if (child.Mesh is not null && child.Bone is null && child.Name.StartsWith(meshNode.Mesh?.Name ?? meshNode.Name, StringComparison.Ordinal) && child.Name.Contains("_Part", StringComparison.Ordinal))
+                        child.SkinBinding = binding.Clone();
+            }
+
+            // A bone's visual tail: toward its only child joint, else a short stub.
+            static Vector3 GuessTail(GltfNode joint, IReadOnlyList<GltfNode> joints)
+            {
+                var childJoints = joint.VisualChildren.Where(joints.Contains).ToList();
+                if (childJoints.Count == 1)
+                {
+                    var offset = childJoints[0].LocalTransform.Translation;
+                    if (offset.LengthSquared() > 1e-10f) return offset;
+                }
+                var parentOffset = joint.VisualParent is { } parent && joints.Contains(parent) ? joint.LocalTransform.Translation.Length() : 0f;
+                return new Vector3(0, parentOffset > 1e-5f ? parentOffset * 0.5f : 0.1f, 0);
+            }
+        }
+
+        // ============================= Animation =============================
+
+        /// <summary>
+        /// One action per glTF animation. For every animated node, the union of its
+        /// channels' key times is sampled with SharpGLTF's own curve samplers (so LINEAR,
+        /// STEP and CUBICSPLINE all evaluate exactly as the file defines them) and stored
+        /// as full TRS keyframes; un-animated components keep the node's rest value.
+        /// </summary>
+        private static AnimationTimeline? BuildTimeline(ModelRoot model, IReadOnlyDictionary<GltfNode, CoreNode> nodeMap)
+        {
+            if (model.LogicalAnimations.Count == 0) return null;
+
+            var timeline = new AnimationTimeline();
+            var first = true;
+            var maxDuration = 0f;
+            foreach (var animation in model.LogicalAnimations)
+            {
+                var name = string.IsNullOrWhiteSpace(animation.Name) ? $"Animation{animation.LogicalIndex}" : animation.Name;
+                AnimationAction action;
+                if (first) { action = timeline.Actions[0]; action.Name = name; first = false; }
+                else action = timeline.AddAction(name);
+
+                foreach (var group in animation.Channels.Where(c => c.TargetNode is not null).GroupBy(c => c.TargetNode))
+                {
+                    if (!nodeMap.TryGetValue(group.Key, out var node)) continue;
+
+                    SharpGLTF.Animations.ICurveSampler<Vector3>? translation = null, scale = null;
+                    SharpGLTF.Animations.ICurveSampler<Quaternion>? rotation = null;
+                    SharpGLTF.Animations.ICurveSampler<float[]>? weights = null;
+                    var weightTimes = new SortedSet<float>();
+                    var times = new SortedSet<float>();
+                    var stepped = false;
+                    foreach (var channel in group)
+                    {
+                        switch (channel.TargetNodePath)
+                        {
+                            case PropertyPath.translation when channel.GetTranslationSampler() is { } s:
+                                translation = s.CreateCurveSampler();
+                                AddTimes(s, times);
+                                stepped |= s.InterpolationMode == AnimationInterpolationMode.STEP;
+                                break;
+                            case PropertyPath.rotation when channel.GetRotationSampler() is { } s:
+                                rotation = s.CreateCurveSampler();
+                                AddTimes(s, times);
+                                stepped |= s.InterpolationMode == AnimationInterpolationMode.STEP;
+                                break;
+                            case PropertyPath.scale when channel.GetScaleSampler() is { } s:
+                                scale = s.CreateCurveSampler();
+                                AddTimes(s, times);
+                                stepped |= s.InterpolationMode == AnimationInterpolationMode.STEP;
+                                break;
+                            case PropertyPath.weights when channel.GetMorphSampler() is { } s:
+                                weights = s.CreateCurveSampler();
+                                AddTimes(s, weightTimes);
+                                break;
+                        }
+                    }
+                    if (times.Count == 0 && weightTimes.Count == 0) continue;
+
+                    var needsLookFix = group.Key.Mesh is null && (group.Key.Camera is not null || group.Key.PunctualLight is not null);
+                    var track = new AnimationTrack(node);
+                    var mode = stepped ? InterpolationMode.Constant : InterpolationMode.Linear;
+                    foreach (var t in times)
+                    {
+                        var position = translation?.GetPoint(t) ?? node.LocalPosition;
+                        var rot = rotation is null ? node.LocalRotation : Quaternion.Normalize(rotation.GetPoint(t)) * (needsLookFix ? LookDirectionFix : Quaternion.Identity);
+                        var size = scale?.GetPoint(t) ?? node.LocalScale;
+                        track.AddKeyframe(t, position, rot, size, mode);
+                        maxDuration = MathF.Max(maxDuration, t);
+                    }
+
+                    // Morph weights -> one "shape:Name" curve per shape key of the node's mesh.
+                    if (weights is not null && node.Mesh is { ShapeKeys.Count: > 0 } morphMesh)
+                    {
+                        foreach (var t in weightTimes)
+                        {
+                            var w = weights.GetPoint(t);
+                            for (var k = 0; k < morphMesh.ShapeKeys.Count && k < w.Length; k++)
+                                track.PropertyCurve(AnimationTrack.ShapeKeyPrefix + morphMesh.ShapeKeys[k].Name).Insert(t, w[k], InterpolationMode.Linear);
+                            maxDuration = MathF.Max(maxDuration, t);
+                        }
+                    }
+                    action.SetTrack(track);
+                }
+            }
+
+            if (maxDuration > timeline.Duration) timeline.TotalFrames = (int)Math.Ceiling(maxDuration * timeline.FrameRate);
+            return timeline;
+
+            static void AddTimes<T>(IAnimationSampler<T> sampler, SortedSet<float> times)
+            {
+                if (sampler.InterpolationMode == AnimationInterpolationMode.CUBICSPLINE)
+                    foreach (var k in sampler.GetCubicKeys()) times.Add(k.Key);
+                else
+                    foreach (var k in sampler.GetLinearKeys()) times.Add(k.Key);
+            }
         }
 
         // ============================= Node graph =============================
 
         private static CoreNode BuildNode(
             GltfNode gltfNode, Dictionary<GltfMaterial, CoreMaterial> materialCache,
-            Dictionary<Image, string> extractedImagePaths, string textureDirectory)
+            Dictionary<Image, string> extractedImagePaths, string textureDirectory,
+            Dictionary<GltfNode, CoreNode> nodeMap)
         {
             var node = new CoreNode(gltfNode.Name ?? "Node");
+            nodeMap[gltfNode] = node;
 
             var transform = gltfNode.LocalTransform;
             node.LocalPosition = transform.Translation;
@@ -105,12 +272,14 @@ namespace JolieCat3D.Service.Import
                 // see Mesh.MaterialSlots' own remarks), but a lossless one: every
                 // primitive's own geometry and material still imports, just as a
                 // sibling node instead of a single combined mesh.
-                node.Mesh = BuildMesh(gltfMesh.Primitives[0], gltfMesh.Name ?? gltfNode.Name ?? "Mesh", materialCache, extractedImagePaths, textureDirectory);
+                var morphNames = ReadTargetNames(gltfMesh);
+                var morphWeights = gltfNode.MorphWeights is { Count: > 0 } nw ? nw : gltfMesh.MorphWeights;
+                node.Mesh = BuildMesh(gltfMesh.Primitives[0], gltfMesh.Name ?? gltfNode.Name ?? "Mesh", materialCache, extractedImagePaths, textureDirectory, morphNames, morphWeights);
 
                 for (var i = 1; i < gltfMesh.Primitives.Count; i++)
                 {
                     var partName = $"{gltfMesh.Name ?? gltfNode.Name ?? "Mesh"}_Part{i + 1}";
-                    node.AddChild(new CoreNode(partName) { Mesh = BuildMesh(gltfMesh.Primitives[i], partName, materialCache, extractedImagePaths, textureDirectory) });
+                    node.AddChild(new CoreNode(partName) { Mesh = BuildMesh(gltfMesh.Primitives[i], partName, materialCache, extractedImagePaths, textureDirectory, morphNames, morphWeights) });
                 }
             }
 
@@ -121,7 +290,7 @@ namespace JolieCat3D.Service.Import
                 node.Light = BuildLight(light);
 
             foreach (var child in gltfNode.VisualChildren)
-                node.AddChild(BuildNode(child, materialCache, extractedImagePaths, textureDirectory));
+                node.AddChild(BuildNode(child, materialCache, extractedImagePaths, textureDirectory, nodeMap));
 
             return node;
         }
@@ -131,7 +300,8 @@ namespace JolieCat3D.Service.Import
         private static CoreMesh BuildMesh(
             MeshPrimitive primitive, string name,
             Dictionary<GltfMaterial, CoreMaterial> materialCache,
-            Dictionary<Image, string> extractedImagePaths, string textureDirectory)
+            Dictionary<Image, string> extractedImagePaths, string textureDirectory,
+            IReadOnlyList<string>? morphNames = null, IReadOnlyList<float>? morphWeights = null)
         {
             var mesh = new CoreMesh(name) { Material = GetOrCreateMaterial(primitive.Material, materialCache, extractedImagePaths, textureDirectory) };
 
@@ -143,6 +313,9 @@ namespace JolieCat3D.Service.Import
             // Alpha defaults to 1 for a COLOR_0 accessor storing only RGB (no 4th
             // component) - matching glTF's own spec default for a missing alpha there.
             var colors = primitive.GetVertexAccessor("COLOR_0")?.AsColorArray(1f);
+            var jointIndices = primitive.GetVertexAccessor("JOINTS_0")?.AsVector4Array();
+            var jointWeights = primitive.GetVertexAccessor("WEIGHTS_0")?.AsVector4Array();
+            var hasSkin = jointIndices is { Count: > 0 } && jointWeights is { Count: > 0 };
 
             for (var i = 0; i < positions.Count; i++)
             {
@@ -152,7 +325,16 @@ namespace JolieCat3D.Service.Import
                 // White (see its own remarks) - a Color4.Transparent-black placeholder
                 // would read as "hide this vertex", not "no color data supplied".
                 var color = colors is { Count: > 0 } ? new Color4(colors[i]) : default;
-                mesh.AddVertex(new Vertex(positions[i], normal, uv, color));
+                if (hasSkin)
+                {
+                    var ji = jointIndices![i];
+                    mesh.AddVertex(new Vertex(positions[i], normal, uv, color,
+                        new BoneIndices((int)ji.X, (int)ji.Y, (int)ji.Z, (int)ji.W), jointWeights![i]));
+                }
+                else
+                {
+                    mesh.AddVertex(new Vertex(positions[i], normal, uv, color));
+                }
             }
 
             // GetTriangleIndices() already triangulates regardless of the primitive's own
@@ -162,7 +344,35 @@ namespace JolieCat3D.Service.Import
                 mesh.AddTriangle(a, b, c);
 
             if (normals is null) mesh.RecalculateNormals();
+
+            // Morph targets -> shape keys (absolute positions = base + POSITION delta).
+            for (var t = 0; t < primitive.MorphTargetsCount; t++)
+            {
+                if (mesh.ShapeBasis is null) ShapeKeys.AddBasis(mesh);
+                var deltas = primitive.GetMorphTargetAccessors(t).TryGetValue("POSITION", out var accessor) ? accessor.AsVector3Array() : null;
+                var keyPositions = new Vector3[mesh.Vertices.Count];
+                for (var i = 0; i < keyPositions.Length; i++)
+                    keyPositions[i] = mesh.Vertices[i].Position + (deltas is not null && i < deltas.Count ? deltas[i] : Vector3.Zero);
+                var keyName = morphNames is not null && t < morphNames.Count && !string.IsNullOrWhiteSpace(morphNames[t]) ? morphNames[t] : $"Key {t + 1}";
+                mesh.ShapeKeys.Add(new ShapeKey(ShapeKeys.UniqueName(mesh, keyName), keyPositions)
+                {
+                    Value = morphWeights is not null && t < morphWeights.Count ? morphWeights[t] : 0f,
+                });
+            }
             return mesh;
+        }
+
+        /// <summary>The de-facto standard <c>mesh.extras.targetNames</c> array, if present.</summary>
+        private static IReadOnlyList<string>? ReadTargetNames(SharpGLTF.Schema2.Mesh mesh)
+        {
+            try
+            {
+                if (mesh.Extras is System.Text.Json.Nodes.JsonObject extras && extras["targetNames"] is System.Text.Json.Nodes.JsonArray names)
+                    return names.Select(n => n?.GetValue<string>() ?? string.Empty).ToList();
+            }
+            catch (InvalidOperationException) { }
+            catch (FormatException) { }
+            return null;
         }
 
         private static CoreMaterial GetOrCreateMaterial(
@@ -199,6 +409,34 @@ namespace JolieCat3D.Service.Import
             if (gltfMaterial.FindChannel("Normal") is { } normal &&
                 TryExtractImage(normal.Texture, "Normal", extractedImagePaths, textureDirectory) is { } normalPath)
                 material.NormalTexturePath = normalPath;
+
+            if (gltfMaterial.FindChannel("Occlusion") is { } occlusion &&
+                TryExtractImage(occlusion.Texture, "Occlusion", extractedImagePaths, textureDirectory) is { } occlusionPath)
+                material.OcclusionTexturePath = occlusionPath;
+
+            material.DoubleSided = gltfMaterial.DoubleSided;
+            if (gltfMaterial.Alpha == AlphaMode.MASK)
+            {
+                material.AlphaMode = Core.Materials.MaterialAlphaMode.Clip;
+                material.AlphaCutoff = gltfMaterial.AlphaCutoff;
+            }
+            else if (gltfMaterial.Alpha == AlphaMode.BLEND)
+            {
+                material.AlphaMode = Core.Materials.MaterialAlphaMode.Blend;
+            }
+
+            if (gltfMaterial.FindChannel("Emissive") is { } emissive)
+            {
+                var color = emissive.Color;
+                material.EmissiveColor = new Color4(color.X, color.Y, color.Z);
+                try { material.EmissiveStrength = emissive.GetFactor("EmissiveStrength"); }
+                catch (ArgumentException) { material.EmissiveStrength = 1f; }
+                if (TryExtractImage(emissive.Texture, "Emissive", extractedImagePaths, textureDirectory) is { } emissivePath)
+                {
+                    material.EmissiveTexturePath = emissivePath;
+                    // A texture with a black factor still means "no emission" in glTF.
+                }
+            }
 
             cache[gltfMaterial] = material;
             return material;

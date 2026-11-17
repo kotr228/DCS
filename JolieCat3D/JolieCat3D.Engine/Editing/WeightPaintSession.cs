@@ -1,5 +1,5 @@
 using System.Windows;
-using HelixToolkit.Wpf;
+using JolieCat3D.Engine.Viewport;
 using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Modifiers;
 using JolieCat3D.Core.Skinning;
@@ -57,15 +57,12 @@ namespace JolieCat3D.Engine.Editing
         /// the mesh (or there is no <see cref="Target"/> at all). This is what
         /// <c>JolieCat3D.UI</c>'s own mouse-down/drag handler feeds straight into
         /// <see cref="PaintAt"/>.</summary>
-        public Vector3? RaycastWorldHitPoint(HelixViewport3D viewport, Point position)
+        public Vector3? RaycastWorldHitPoint(IViewportProjector viewport, Point position)
         {
             ArgumentNullException.ThrowIfNull(viewport);
             if (Target?.Mesh is not { } mesh) return null;
 
-            var ray3D = Viewport3DHelper.Point2DtoRay3D(viewport.Viewport, position);
-            var ray = new CoreRay(
-                new Vector3((float)ray3D.Origin.X, (float)ray3D.Origin.Y, (float)ray3D.Origin.Z),
-                new Vector3((float)ray3D.Direction.X, (float)ray3D.Direction.Y, (float)ray3D.Direction.Z));
+            var ray = viewport.ScreenToRay(position);
 
             var worldTransform = Target.GetWorldTransform();
             var evaluatedMesh = ModifierStack.Evaluate(mesh, Target.Modifiers, Target);

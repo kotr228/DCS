@@ -73,7 +73,7 @@ namespace JolieCat.UI.ViewModels
             command.Execute(null);
             var message = Layers.LastMultiShotMessage;
             if (!message.StartsWith("Aligned", StringComparison.Ordinal) && !message.StartsWith("Merged", StringComparison.Ordinal))
-                System.Windows.MessageBox.Show(message, which == "Hdr" ? "Merge to HDR Pro" : "Auto-Align Layers",
+                JolieCat.UI.MessageBox.Show(message, which == "Hdr" ? "Merge to HDR Pro" : "Auto-Align Layers",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
         }
 
@@ -147,6 +147,26 @@ namespace JolieCat.UI.ViewModels
             var unique = name;
             for (var n = 2; names.ContainsKey(unique); n++) unique = $"{name} ({n})";
             return unique;
+        }
+
+        /// <summary>Filter &gt; Sharpen &gt; Shake Reduction.</summary>
+        [RelayCommand]
+        private void ShakeReduction()
+        {
+            if (!CanAdjustPixels()) return;
+            var options = new FieldsDialogViewModel("Shake Reduction",
+                "Undoes the blur of a camera that moved during the shot. Set the direction the camera moved (0° = sideways, 90° = up and down) and how far, in pixels - the length of the streaks you see.");
+            var angle = options.Add(new SliderDialogField("Blur Direction", 0, 180, 0, "°"));
+            var length = options.Add(new SliderDialogField("Blur Length", 2, 60, 9, "px"));
+            var iterations = options.Add(new SliderDialogField("Strength", 1, 40, 10));
+
+            ActionStep Step() => new ActionStep
+                {
+                    Kind = "Tone", Command = "ShakeReduction", Title = $"Shake Reduction ({N(length.Value)} px at {N(angle.Value)}°)",
+                }
+                .With("Angle", angle.Value).With("Length", length.Value).With("Iterations", iterations.Value);
+
+            RunToneDialog(options, Step);
         }
 
         /// <summary>Filter &gt; Blur &gt; Lens Blur: an out-of-focus camera blur with bokeh.</summary>
@@ -272,6 +292,9 @@ namespace JolieCat.UI.ViewModels
                     ? new ColorStats(step.Number("MY"), step.Number("SY", 1), step.Number("MB"), step.Number("SB", 1), step.Number("MR"), step.Number("SR", 1))
                     : null,
                 step.Number("Luminance", 100), step.Number("Intensity", 100), step.Number("Fade"), step.Number("Neutralize") >= 0.5),
+            "SkyReplacement" => source => ApplySkyReplacement(source, step),
+            "ShakeReduction" => source => PhotoFilters.ShakeReduction(source,
+                (float)step.Number("Angle"), (float)step.Number("Length", 9), (int)step.Number("Iterations", 10)),
             "LensBlur" => source => PhotoFilters.LensBlur(source,
                 (float)step.Number("Radius", 15), (float)step.Number("Brightness"), (float)step.Number("Threshold", 230)),
             "LensCorrection" => source => ArtFilters.LensCorrection(source,

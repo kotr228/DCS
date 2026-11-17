@@ -24,6 +24,9 @@ namespace JolieCat.Core.Serialization
         /// always being present too), only meaningful when it's "SpriteSheet".</summary>
         public SpriteSheetGridData SpriteSheetGrid { get; set; } = new();
 
+        /// <summary>The document's artboards (named export areas).</summary>
+        public List<ArtboardData>? Artboards { get; set; }
+
         public int DocumentWidth { get; set; }
 
         public int DocumentHeight { get; set; }
@@ -42,6 +45,9 @@ namespace JolieCat.Core.Serialization
 
         /// <summary>Saved selections (Select > Save Selection): name -> SVG path data.</summary>
         public Dictionary<string, string> SavedSelections { get; set; } = new();
+
+        /// <summary>Named Pen paths (Paths panel).</summary>
+        public Dictionary<string, string>? SavedPaths { get; set; }
 
         /// <summary>Guides as "v:120" / "h:64.5" (vertical x / horizontal y, document pixels).</summary>
         public List<string> Guides { get; set; } = new();
@@ -62,6 +68,9 @@ namespace JolieCat.Core.Serialization
         public bool IsLocked { get; set; }
 
         public double Opacity { get; set; } = 1.0;
+
+        /// <summary>Fill opacity (the pixels only, not the outside effects), 0..1.</summary>
+        public double FillOpacity { get; set; } = 1.0;
 
         /// <summary><see cref="Shared.Enums.BlendMode"/>'s name, for the same reason as <see cref="Type"/>.</summary>
         public string BlendMode { get; set; } = "Normal";
@@ -124,6 +133,90 @@ namespace JolieCat.Core.Serialization
         public List<TimelineClipData> Clips { get; set; } = new();
 
         public List<double> KeyframeFrames { get; set; } = new();
+
+        /// <summary>The layer this track animates (by name), or null.</summary>
+        public string? LayerName { get; set; }
+
+        /// <summary>An audio track: the sound file it plays (its one clip is where), or null.</summary>
+        public string? AudioPath { get; set; }
+
+        /// <summary>Audio track volume, 0..100.</summary>
+        public double Volume { get; set; } = 100;
+
+        /// <summary>Silenced (audio tracks).</summary>
+        public bool Muted { get; set; }
+
+        /// <summary>The animation camera's track (its keyframes zoom/pan/turn the whole picture).</summary>
+        public bool IsCamera { get; set; }
+
+        /// <summary>The markers track (its clips are named spots on the timeline).</summary>
+        public bool IsMarkers { get; set; }
+
+        /// <summary>Bones: the layer this track's layer is attached to (by name), or null.</summary>
+        public string? ParentLayerName { get; set; }
+
+        /// <summary>The layer's joint (what it turns around), or null for the middle of its content.</summary>
+        public double? PivotX { get; set; }
+        public double? PivotY { get; set; }
+
+        /// <summary>Where the layer bends (the elbow), or null: it doesn't bend.</summary>
+        public double? BendX { get; set; }
+        public double? BendY { get; set; }
+
+        /// <summary>Fast motion smears (motion blur).</summary>
+        public bool MotionBlur { get; set; }
+
+        /// <summary>Wiggle: shift (px), turn (degrees) and shakes a second.</summary>
+        public double WiggleAmount { get; set; }
+        public double WiggleRotation { get; set; }
+        public double WiggleSpeed { get; set; } = 2;
+
+        /// <summary>Not a real track: the work area (In = its clip's start, Out = its last frame).</summary>
+        public bool IsWorkArea { get; set; }
+
+        /// <summary>The sound file stored inside the project (so it travels with it), or null.</summary>
+        public string? AudioEntryName { get; set; }
+
+        /// <summary>The keyframes with their values (newer files; older ones only have <see cref="KeyframeFrames"/>).</summary>
+        public List<KeyframeData>? Keys { get; set; }
+    }
+
+    public sealed class KeyframeData
+    {
+        public double Frame { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Scale { get; set; } = 100;
+        public double Rotation { get; set; }
+        public double Opacity { get; set; } = 100;
+        /// <summary>Older files: true = ease in and out, false = linear.</summary>
+        public bool Ease { get; set; } = true;
+
+        /// <summary>The easing by name (newer files).</summary>
+        public string? Easing { get; set; }
+
+        /// <summary>The Custom easing's curve handles.</summary>
+        public double CurveX1 { get; set; } = 0.42;
+        public double CurveY1 { get; set; }
+        public double CurveX2 { get; set; } = 0.58;
+        public double CurveY2 { get; set; } = 1;
+
+        /// <summary>Text layers: how much of the text shows (percent).</summary>
+        public double Reveal { get; set; } = 100;
+
+        /// <summary>Blur in pixels.</summary>
+        public double Blur { get; set; }
+
+        /// <summary>Bend at the track's bend point, in degrees.</summary>
+        public double Bend { get; set; }
+
+        /// <summary>Color effects: brightness, saturation (percent), hue (degrees).</summary>
+        public double Brightness { get; set; }
+        public double Saturation { get; set; } = 100;
+        public double Hue { get; set; }
+
+        public Animation.KeyEasing ToEasing() =>
+            System.Enum.TryParse<Animation.KeyEasing>(Easing, out var e) ? e : Ease ? Animation.KeyEasing.EaseInOut : Animation.KeyEasing.Linear;
     }
 
     public sealed class TimelineClipData
@@ -152,6 +245,25 @@ namespace JolieCat.Core.Serialization
         public int MarginX { get; set; }
 
         public int MarginY { get; set; }
+
+        public double PivotX { get; set; } = 50;
+
+        public double PivotY { get; set; } = 100;
+
+        public string RowNames { get; set; } = string.Empty;
+
+        /// <summary>Cells with their own pivot: "index:x,y;..." (percent).</summary>
+        public string CellPivots { get; set; } = string.Empty;
+    }
+
+    /// <summary>An artboard: a named area exported as its own picture.</summary>
+    public sealed class ArtboardData
+    {
+        public string Name { get; set; } = string.Empty;
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
     }
 
     /// <summary>An editable text layer's content (see <c>Documents.TextContent</c>).</summary>
@@ -174,5 +286,11 @@ namespace JolieCat.Core.Serialization
         public bool Strikethrough { get; set; }
         public float Warp { get; set; }
         public string WarpStyle { get; set; } = "Arc";
+
+        /// <summary>Type on a path: the curve the letters follow (SVG path data), or null.</summary>
+        public string? PathData { get; set; }
+
+        /// <summary>Paragraph text: the width words wrap at (0: point text).</summary>
+        public float BoxWidth { get; set; }
     }
 }

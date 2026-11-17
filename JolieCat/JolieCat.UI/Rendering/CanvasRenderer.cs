@@ -19,14 +19,58 @@ namespace JolieCat.UI.Rendering
     /// </summary>
     public static class CanvasRenderer
     {
-        private const int CheckerSize = 16;
+        private static int CheckerSize = 16;
 
         // Left as a neutral dark checkerboard, not re-themed to the new warm palette -
         // every raster editor's own universal "no pixel data here" convention, which a
         // checkerboard only reads as at a glance if it stays a plain neutral gray
         // regardless of the app's own current theme.
-        private static readonly SKColor CheckerLight = new(0x3A, 0x3A, 0x3D);
-        private static readonly SKColor CheckerDark = new(0x2A, 0x2A, 0x2C);
+        private static SKColor CheckerLight = new(0x3A, 0x3A, 0x3D);
+        private static SKColor CheckerDark = new(0x2A, 0x2A, 0x2C);
+
+        /// <summary>What the rulers count in (Edit &gt; Preferences).</summary>
+        public enum RulerUnit { Pixels, Inches, Centimeters, Percent }
+
+        public static RulerUnit RulerUnits { get; set; } = RulerUnit.Pixels;
+
+        /// <summary>Pixels per inch, for rulers in inches or centimeters.</summary>
+        public static double RulerPpi { get; set; } = 72;
+
+        /// <summary>The transparency grid (Edit &gt; Preferences): cell size ("Small", "Medium",
+        /// "Large") and colors ("Dark", "Medium", "Light").</summary>
+        public static void SetTransparencyGrid(string size, string colors)
+        {
+            CheckerSize = size switch { "Small" => 8, "Large" => 32, _ => 16 };
+            (CheckerLight, CheckerDark) = colors switch
+            {
+                "Light" => (new SKColor(0xFF, 0xFF, 0xFF), new SKColor(0xCC, 0xCC, 0xCC)),
+                "Medium" => (new SKColor(0x9A, 0x9A, 0x9A), new SKColor(0x6E, 0x6E, 0x6E)),
+                _ => (new SKColor(0x3A, 0x3A, 0x3D), new SKColor(0x2A, 0x2A, 0x2C)),
+            };
+            // The old shader isn't disposed: a canvas may still be drawing with it.
+            CheckerShader = CreateCheckerShader();
+        }
+
+        /// <summary>Document pixels in one ruler unit along x (or y).</summary>
+        internal static double PixelsPerUnit(RulerUnit unit, double ppi, int documentSize) => unit switch
+        {
+            RulerUnit.Inches => Math.Max(1e-6, ppi),
+            RulerUnit.Centimeters => Math.Max(1e-6, ppi / 2.54),
+            RulerUnit.Percent => Math.Max(1e-6, documentSize / 100.0),
+            _ => 1,
+        };
+
+        /// <summary>A round ruler step (in units) at least <paramref name="minDevice"/> screen
+        /// pixels apart; pixels never go below 1, other units down to 0.1.</summary>
+        internal static double UnitStep(double devicePerUnit, bool wholeOnly, double minDevice = 60)
+        {
+            var raw = minDevice / Math.Max(devicePerUnit, 1e-9);
+            var power = Math.Pow(10, Math.Floor(Math.Log10(raw)));
+            var step = 10 * power;
+            foreach (var m in new[] { 1.0, 2.0, 5.0, 10.0 })
+                if (m * power >= raw) { step = m * power; break; }
+            return wholeOnly ? Math.Max(1, step) : Math.Max(0.1, step);
+        }
 
         // "Main Background / Canvas Framing" - matches App.xaml's WindowBackgroundBrush.
         // Neutral dark charcoal, not the brand beige - the workspace itself is never a
@@ -67,16 +111,32 @@ namespace JolieCat.UI.Rendering
                 viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight,
                 viewModel.Layers.ContentVersion, sampling, previewLayer, previewBitmap);
 
+            // Only the document area shows the image (an animated layer moved past the
+            // edge is cut off there, as it will be when exported).
             canvas.Save();
+            canvas.ClipRect(documentRect);
             canvas.ResetMatrix();
-            canvas.DrawSurface(frame, 0, 0);
+            if (viewModel.ViewChannel is >= 1 and <= 3)
+            {
+                // Channels panel: one channel alone, as gray.
+                using var channelPaint = new SKPaint { ColorFilter = SKColorFilter.CreateColorMatrix(ViewModels.DocumentPanelsViewModel.ChannelMatrix(viewModel.ViewChannel)) };
+                canvas.DrawSurface(frame, 0, 0, channelPaint);
+            }
+            else
+            {
+                canvas.DrawSurface(frame, 0, 0);
+            }
             canvas.Restore();
 
+            DrawOnionSkin(canvas, viewModel, sampling);
+            DrawMotionPath(canvas, viewModel);
+            DrawJoint(canvas, viewModel);
             viewModel.DrawLiveShape(canvas);
 
             DrawQuickMask(canvas, viewModel);
             DrawPixelGrid(canvas, info, viewModel);
             DrawSpriteSheetGridOverlay(canvas, viewModel);
+            DrawArtboards(canvas, viewModel);
             DrawSelectionOverlay(canvas, viewModel);
             DrawCropOverlay(canvas, viewModel);
             DrawPerspectiveCropOverlay(canvas, viewModel);
@@ -86,6 +146,27 @@ namespace JolieCat.UI.Rendering
             DrawPenPathOverlay(canvas, viewModel);
             DrawCloneSourceMarker(canvas, viewModel);
             DrawColorSamplers(canvas, viewModel);
+            DrawRuler(canvas, viewModel);
+            if (viewModel.ObjectBoxDraft is { } objectBox)
+            {
+                // The Object Selection box being dragged.
+                using var dash = new SKPaint
+                {
+                    Color = new SKColor(255, 255, 255, 230), Style = SKPaintStyle.Stroke, StrokeWidth = 1 / (float)viewModel.Zoom,
+                    PathEffect = SKPathEffect.CreateDash(new[] { 5 / (float)viewModel.Zoom, 3 / (float)viewModel.Zoom }, 0),
+                };
+                canvas.DrawRect(objectBox, dash);
+            }
+            if (viewModel.TextBoxDraft is { } textBox)
+            {
+                // The paragraph text box being dragged out.
+                using var dash = new SKPaint
+                {
+                    Color = new SKColor(255, 255, 255, 220), Style = SKPaintStyle.Stroke, StrokeWidth = 1 / (float)viewModel.Zoom,
+                    PathEffect = SKPathEffect.CreateDash(new[] { 4 / (float)viewModel.Zoom, 3 / (float)viewModel.Zoom }, 0),
+                };
+                canvas.DrawRect(textBox, dash);
+            }
             DrawGradientGuide(canvas, viewModel);
             DrawSpotHealingStroke(canvas, viewModel);
             DrawBrushOutline(canvas, viewModel);
@@ -178,6 +259,48 @@ namespace JolieCat.UI.Rendering
                 canvas.DrawLine(0, y, width, y, y % (step * 4) == 0 ? major : paint);
         }
 
+        /// <summary>The Ruler tool's line, with small crosses at its ends.</summary>
+        private static void DrawRuler(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.RulerLine is not { } line) return;
+            var s = 1f / (float)viewModel.Zoom;
+            using var dark = new SKPaint { Color = new SKColor(0, 0, 0, 170), StrokeWidth = 3 * s, IsAntialias = true, Style = SKPaintStyle.Stroke };
+            using var light = new SKPaint { Color = new SKColor(255, 255, 255), StrokeWidth = 1.2f * s, IsAntialias = true, Style = SKPaintStyle.Stroke };
+            foreach (var paint in new[] { dark, light })
+            {
+                canvas.DrawLine(line.Start, line.End, paint);
+                foreach (var p in new[] { line.Start, line.End })
+                {
+                    canvas.DrawLine(p.X - 5 * s, p.Y, p.X + 5 * s, p.Y, paint);
+                    canvas.DrawLine(p.X, p.Y - 5 * s, p.X, p.Y + 5 * s, paint);
+                }
+            }
+        }
+
+        /// <summary>Each artboard: a frame with its name and size above it.</summary>
+        private static void DrawArtboards(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            var artboards = viewModel.Layers.Scene.Artboards;
+            if (artboards.Count == 0) return;
+            var s = 1f / (float)viewModel.Zoom;
+            using var shadow = new SKPaint { Color = new SKColor(0, 0, 0, 150), Style = SKPaintStyle.Stroke, StrokeWidth = 3 * s, IsAntialias = true };
+            using var frame = new SKPaint { Color = new SKColor(255, 190, 60), Style = SKPaintStyle.Stroke, StrokeWidth = 1.5f * s, IsAntialias = true };
+            using var font = new SKFont(SKTypeface.Default, 12 * s);
+            using var label = new SKPaint { Color = new SKColor(255, 190, 60), IsAntialias = true };
+            using var labelBack = new SKPaint { Color = new SKColor(0, 0, 0, 170) };
+            foreach (var a in artboards)
+            {
+                var r = new SKRect(a.Bounds.Left, a.Bounds.Top, a.Bounds.Right, a.Bounds.Bottom);
+                canvas.DrawRect(r, shadow);
+                canvas.DrawRect(r, frame);
+                var text = $"{a.Name}  {a.Bounds.Width}×{a.Bounds.Height}";
+                // Above the frame (inside it at the top of the canvas); the Move tool drags it by this label.
+                var labelRect = CanvasViewModel.ArtboardLabelRect(a, viewModel.Zoom);
+                canvas.DrawRect(labelRect, labelBack);
+                canvas.DrawText(text, r.Left + 4 * s, labelRect.Bottom - 4 * s, font, label);
+            }
+        }
+
         private static void DrawGuides(SKCanvas canvas, SKImageInfo info, CanvasViewModel viewModel)
         {
             var dragged = viewModel.DraggedGuide;
@@ -216,8 +339,9 @@ namespace JolieCat.UI.Rendering
             var size = CanvasViewModel.RulerSize;
             var zoom = viewModel.Zoom;
             var origin = viewModel.ViewMatrix.MapPoint(new SKPoint(0, 0)); // document (0,0) on screen
-            var step = RulerStep(zoom);
-            var minor = step / 5;
+            var whole = RulerUnits == RulerUnit.Pixels;
+            var unitX = PixelsPerUnit(RulerUnits, RulerPpi, viewModel.Layers.DocumentWidth);
+            var unitY = PixelsPerUnit(RulerUnits, RulerPpi, viewModel.Layers.DocumentHeight);
 
             using var background = new SKPaint { Color = new SKColor(0x2E, 0x29, 0x29) };
             using var line = new SKPaint { Color = new SKColor(0x8A, 0x83, 0x7C), StrokeWidth = 1, IsAntialias = false };
@@ -228,32 +352,40 @@ namespace JolieCat.UI.Rendering
             canvas.DrawRect(0, 0, info.Width, size, background);
             canvas.DrawRect(0, 0, size, info.Height, background);
 
-            // Top ruler: document x.
-            var firstX = Math.Floor(-origin.X / zoom / minor) * minor;
-            for (var v = firstX; ; v += minor)
+            static string Label(double v, double step) => (step < 1 ? Math.Round(v, 1) : Math.Round(v)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            // Top ruler: document x, in ruler units.
+            var stepX = UnitStep(zoom * unitX, whole);
+            var minorX = stepX / 5;
+            var firstX = Math.Floor(-origin.X / zoom / unitX / minorX) * minorX;
+            for (var i = 0; i < 4000; i++)
             {
-                var x = (float)(origin.X + v * zoom);
+                var v = firstX + i * minorX;
+                var x = (float)(origin.X + v * unitX * zoom);
                 if (x > info.Width) break;
                 if (x < size) continue;
-                var isMajor = Math.Abs(v / step - Math.Round(v / step)) < 1e-6;
+                var isMajor = Math.Abs(v / stepX - Math.Round(v / stepX)) < 1e-6;
                 canvas.DrawLine(x, isMajor ? 2 : size - 5, x, size, line);
-                if (isMajor) canvas.DrawText(((int)Math.Round(v)).ToString(System.Globalization.CultureInfo.InvariantCulture), x + 3, 11, font, text);
+                if (isMajor) canvas.DrawText(Label(v, stepX), x + 3, 11, font, text);
             }
 
             // Left ruler: document y, numbers written downwards.
-            var firstY = Math.Floor(-origin.Y / zoom / minor) * minor;
-            for (var v = firstY; ; v += minor)
+            var stepY = UnitStep(zoom * unitY, whole);
+            var minorY = stepY / 5;
+            var firstY = Math.Floor(-origin.Y / zoom / unitY / minorY) * minorY;
+            for (var i = 0; i < 4000; i++)
             {
-                var y = (float)(origin.Y + v * zoom);
+                var v = firstY + i * minorY;
+                var y = (float)(origin.Y + v * unitY * zoom);
                 if (y > info.Height) break;
                 if (y < size) continue;
-                var isMajor = Math.Abs(v / step - Math.Round(v / step)) < 1e-6;
+                var isMajor = Math.Abs(v / stepY - Math.Round(v / stepY)) < 1e-6;
                 canvas.DrawLine(isMajor ? 2 : size - 5, y, size, y, line);
                 if (isMajor)
                 {
                     canvas.Save();
                     canvas.RotateDegrees(-90, 11, y - 3);
-                    canvas.DrawText(((int)Math.Round(v)).ToString(System.Globalization.CultureInfo.InvariantCulture), 11, y - 3, font, text);
+                    canvas.DrawText(Label(v, stepY), 11, y - 3, font, text);
                     canvas.Restore();
                 }
             }
@@ -355,6 +487,88 @@ namespace JolieCat.UI.Rendering
             }
         }
 
+        /// <summary>Bones: the selected layer's joint (what it turns around) as a ringed cross.</summary>
+        private static void DrawJoint(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            var s = 1f / (float)viewModel.Zoom;
+            if (viewModel.BendSource?.Invoke() is { } b)
+            {
+                // The bend point: a pink diamond.
+                using var outline = new SKPaint { Color = new SKColor(0, 0, 0, 170), StrokeWidth = 3 * s, IsAntialias = true, Style = SKPaintStyle.Stroke };
+                using var pink = new SKPaint { Color = new SKColor(255, 110, 200), StrokeWidth = 1.5f * s, IsAntialias = true, Style = SKPaintStyle.Stroke };
+                using var diamond = new SKPath();
+                diamond.MoveTo(b.X, b.Y - 7 * s); diamond.LineTo(b.X + 7 * s, b.Y); diamond.LineTo(b.X, b.Y + 7 * s); diamond.LineTo(b.X - 7 * s, b.Y); diamond.Close();
+                canvas.DrawPath(diamond, outline);
+                canvas.DrawPath(diamond, pink);
+            }
+            if (viewModel.JointSource?.Invoke() is not { } p) return;
+            using var dark = new SKPaint { Color = new SKColor(0, 0, 0, 170), StrokeWidth = 3 * s, IsAntialias = true, Style = SKPaintStyle.Stroke };
+            using var light = new SKPaint { Color = new SKColor(120, 220, 255), StrokeWidth = 1.5f * s, IsAntialias = true, Style = SKPaintStyle.Stroke };
+            foreach (var paint in new[] { dark, light })
+            {
+                canvas.DrawCircle(p, 6 * s, paint);
+                canvas.DrawLine(p.X - 10 * s, p.Y, p.X + 10 * s, p.Y, paint);
+                canvas.DrawLine(p.X, p.Y - 10 * s, p.X, p.Y + 10 * s, paint);
+            }
+        }
+
+        /// <summary>The selected animated layer's path: a line through its position at every
+        /// frame, a dot per frame, a square per keyframe, the current frame ringed.</summary>
+        private static void DrawMotionPath(SKCanvas canvas, CanvasViewModel viewModel)
+        {
+            if (viewModel.MotionPathSource?.Invoke() is not { Count: > 1 } path) return;
+            var onScreen = 1f / (float)viewModel.Zoom;
+            using var shadow = new SKPaint { Color = new SKColor(0, 0, 0, 140), StrokeWidth = 3 * onScreen, IsAntialias = true, Style = SKPaintStyle.Stroke };
+            using var line = new SKPaint { Color = new SKColor(255, 214, 10, 220), StrokeWidth = 1.2f * onScreen, IsAntialias = true, Style = SKPaintStyle.Stroke };
+            using var dot = new SKPaint { Color = new SKColor(255, 214, 10), IsAntialias = true };
+            using var key = new SKPaint { Color = SKColors.White, IsAntialias = true };
+            using var ring = new SKPaint { Color = SKColors.White, StrokeWidth = 1.5f * onScreen, IsAntialias = true, Style = SKPaintStyle.Stroke };
+
+            using (var polyline = new SKPath())
+            {
+                polyline.MoveTo(path[0].Point);
+                for (var i = 1; i < path.Count; i++) polyline.LineTo(path[i].Point);
+                canvas.DrawPath(polyline, shadow);
+                canvas.DrawPath(polyline, line);
+            }
+            foreach (var (p, isKey, isCurrent) in path)
+            {
+                if (isKey)
+                {
+                    var s = 4 * onScreen;
+                    canvas.DrawRect(p.X - s, p.Y - s, 2 * s, 2 * s, shadow);
+                    canvas.DrawRect(p.X - s, p.Y - s, 2 * s, 2 * s, key);
+                }
+                else
+                {
+                    canvas.DrawCircle(p, 1.8f * onScreen, dot);
+                }
+                if (isCurrent) canvas.DrawCircle(p, 7 * onScreen, ring);
+            }
+        }
+
+        /// <summary>Onion skin: the frames before (reddish) and after (greenish) the
+        /// current one, faintly over it, for drawing frame-by-frame animation.</summary>
+        private static void DrawOnionSkin(SKCanvas canvas, CanvasViewModel viewModel, SKSamplingOptions sampling)
+        {
+            if (viewModel.OnionSkinSource?.Invoke() is not { Count: > 0 } layers) return;
+            foreach (var (layer, opacity, before) in layers)
+            {
+                // Tint: keep the drawing's shape, color it red (before) or green (after).
+                var tint = before ? new SKColor(230, 60, 60) : new SKColor(40, 190, 90);
+                using var filter = SKColorFilter.CreateColorMatrix(new[]
+                {
+                    0.3f, 0.3f, 0.3f, 0, tint.Red / 255f * 0.6f,
+                    0.3f, 0.3f, 0.3f, 0, tint.Green / 255f * 0.6f,
+                    0.3f, 0.3f, 0.3f, 0, tint.Blue / 255f * 0.6f,
+                    0, 0, 0, opacity, 0,
+                });
+                using var paint = new SKPaint { ColorFilter = filter };
+                using var image = SKImage.FromBitmap(layer.Bitmap);
+                canvas.DrawImage(image, 0, 0, sampling, paint);
+            }
+        }
+
         /// <summary>Color Sampler points: a ringed crosshair with its number.</summary>
         private static void DrawColorSamplers(SKCanvas canvas, CanvasViewModel viewModel)
         {
@@ -402,7 +616,7 @@ namespace JolieCat.UI.Rendering
 
         /// <summary>One 2×2-cell tile, repeated by a shader - a single draw call per frame
         /// instead of one rectangle per cell (tens of thousands on a large document).</summary>
-        private static readonly SKShader CheckerShader = CreateCheckerShader();
+        private static SKShader CheckerShader = CreateCheckerShader();
 
         private static SKShader CreateCheckerShader()
         {
@@ -482,6 +696,16 @@ namespace JolieCat.UI.Rendering
 
             foreach (var (_, _, rect) in grid.EnumerateCells(viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight))
                 canvas.DrawRect(rect, paint);
+
+            // Each cell's pivot: a small cross.
+            using var pivotPaint = new SKPaint { Color = new SKColor(255, 120, 60, 220), StrokeWidth = 1.5f * onScreenScale, IsAntialias = true };
+            var arm = 4f * onScreenScale;
+            foreach (var (column, row, rect) in grid.EnumerateCells(viewModel.Layers.DocumentWidth, viewModel.Layers.DocumentHeight))
+            {
+                var p = grid.PivotIn(rect, row * Math.Max(1, grid.Columns) + column);
+                canvas.DrawLine(p.X - arm, p.Y, p.X + arm, p.Y, pivotPaint);
+                canvas.DrawLine(p.X, p.Y - arm, p.X, p.Y + arm, pivotPaint);
+            }
         }
 
         /// <summary>Darkens everything outside the live crop rectangle, draws rule-of-

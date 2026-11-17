@@ -23,6 +23,19 @@ namespace JolieCat.Shared.Enums
         Hue,
         Saturation,
         Color,
-        Luminosity
+        Luminosity,
+
+        // Added later (kept at the end so saved numbers never shift).
+        Dissolve,
+        LinearBurn,
+        DarkerColor,
+        LinearDodge,
+        LighterColor,
+        VividLight,
+        LinearLight,
+        PinLight,
+        HardMix,
+        Subtract,
+        Divide
     }
 }

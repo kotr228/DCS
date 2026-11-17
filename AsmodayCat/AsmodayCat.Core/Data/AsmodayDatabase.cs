@@ -16,6 +16,13 @@ public class AsmodayDatabase
         ConnectionString = $"Data Source={dbPath}";
     }
 
+    // Explicit file (tests use a temporary database)
+    public AsmodayDatabase(string dbPath)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(dbPath))!);
+        ConnectionString = $"Data Source={dbPath};Pooling=False";
+    }
+
     public SqliteConnection CreateConnection() =>
         new SqliteConnection(ConnectionString);
 }

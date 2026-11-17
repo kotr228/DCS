@@ -1,39 +1,9 @@
 namespace AsmodayCat.Service.Ipc;
 
-public enum IpcCommandType
-{
-    GetStatus,
-    StartAgent,
-    StopAgent,
-    ChangeHardwareModel,
-    GetSystemLoad,
-    KillSwitch,
-    Chat,
-    PullModel,
-    GetPullStatus,
-    ListModels,
-    GetDashboardStats,
-    ClearContext,
-    GetModelPool,
-    UnloadModel,
-    GetHardwareConfig,
-    SaveHardwareConfig,
-    GetAgentRules,
-    AddAgentRule,
-    RemoveAgentRule,
-    GetLogs,
-    ExecuteCliCommand
-}
-
-public class IpcCommand
-{
-    public IpcCommandType Type { get; set; }
-    public Dictionary<string, string> Parameters { get; set; } = new();
-}
-
+// IpcCommandType and IpcCommand live in AsmodayCat.Shared.Ipc (shared with the UI).
 public class IpcResponse
 {
-    public bool Success { get; set; }
-    public string? Error { get; set; }
+    public bool    Success { get; set; }
+    public string? Error   { get; set; }
     public object? Payload { get; set; }
 }

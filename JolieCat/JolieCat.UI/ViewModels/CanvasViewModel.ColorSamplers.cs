@@ -76,6 +76,28 @@ namespace JolieCat.UI.ViewModels
 
         private void ReleaseColorSampler() => _draggingSampler = -1;
 
+        /// <summary>Onion skin: neighboring animation frames to draw faintly (set by the
+        /// document from its timeline); null or empty when off.</summary>
+        public Func<System.Collections.Generic.IReadOnlyList<(Core.Documents.Layer Layer, float Opacity, bool Before)>>? OnionSkinSource { get; set; }
+
+        /// <summary>The selected animated layer's joint where it is drawn (set by the document).</summary>
+        public Func<SKPoint?>? JointSource { get; set; }
+
+        /// <summary>The selected animated layer's bend point (the elbow), for a marker on the canvas.</summary>
+        public Func<SKPoint?>? BendSource { get; set; }
+
+        /// <summary>The selected animated layer's path over time (set by the document).</summary>
+        public Func<System.Collections.Generic.IReadOnlyList<(SKPoint Point, bool IsKey, bool IsCurrent)>>? MotionPathSource { get; set; }
+
+        /// <summary>Timeline animation: lets the Move tool drag an animated layer's
+        /// keyframe position instead of its pixels (set by the document).</summary>
+        public IAnimatedMove? AnimatedMove { get; set; }
+
+        private SKPoint? _animatedMoveStart;
+
+        /// <summary>Asks the view to redraw (after a change made outside the canvas, such as a new selection).</summary>
+        public void RequestRepaint() => RaiseInvalidate();
+
         /// <summary>Removes every color sampler (Info panel button).</summary>
         public void ClearColorSamplers()
         {

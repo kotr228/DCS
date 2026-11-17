@@ -20,6 +20,10 @@ namespace JolieCat3D.Core.Scene
 
         public string Name { get; set; }
 
+        /// <summary>Hidden in the viewport (Blender's H). Not drawn, picked or box-selected,
+        /// but still saved and exported.</summary>
+        public bool IsHidden { get; set; }
+
         public Vector3 LocalPosition { get; set; } = Vector3.Zero;
         public Quaternion LocalRotation { get; set; } = Quaternion.Identity;
         public Vector3 LocalScale { get; set; } = Vector3.One;
@@ -231,6 +235,7 @@ namespace JolieCat3D.Core.Scene
                 Armature = Armature?.Clone(),
                 Bone = Bone?.Clone(),
                 SkinBinding = SkinBinding?.Clone(),
+                IsHidden = IsHidden,
             };
 
             foreach (var modifier in Modifiers) clone.Modifiers.Add(modifier.Clone());

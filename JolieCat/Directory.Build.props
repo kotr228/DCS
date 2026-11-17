@@ -1,0 +1,12 @@
+<Project>
+  <!-- One version for every JolieCat project: change it here for a new release. -->
+  <PropertyGroup>
+    <Version>4.0.0</Version>
+    <Product>JolieCat</Product>
+    <Authors>kotr228</Authors>
+    <Company>kotr228</Company>
+    <Copyright>© 2026 kotr228</Copyright>
+    <!-- Keep "4.0.0" clean (no "+commit" suffix) where the app shows its version. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+</Project>

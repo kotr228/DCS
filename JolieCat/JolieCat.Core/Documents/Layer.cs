@@ -32,6 +32,10 @@ namespace JolieCat.Core.Documents
 
         public bool IsLocked { get; set; }
 
+        /// <summary>Fill: like Opacity, but only for the layer's own pixels (and effects inside
+        /// them) - drop shadow, outer glow and stroke stay at full strength. 0..1.</summary>
+        public double FillOpacity { get; set; } = 1;
+
         public double Opacity
         {
             get => _opacity;
@@ -39,6 +43,35 @@ namespace JolieCat.Core.Documents
         }
 
         public BlendMode BlendMode { get; set; } = BlendMode.Normal;
+
+        /// <summary>Animation (the Timeline's keyframes): how the layer is moved, scaled
+        /// and turned while drawn at the current frame - its pixels stay as they are.
+        /// Null when not animated. Not saved; the Timeline sets it.</summary>
+        public SkiaSharp.SKMatrix? AnimationMatrix { get; set; }
+
+        /// <summary>Animation: extra opacity (0..1) on top of <see cref="Opacity"/>.</summary>
+        public double AnimationOpacity { get; set; } = 1;
+
+        /// <summary>Animation: blur radius in pixels at the current frame (0 = sharp).</summary>
+        public double AnimationBlur { get; set; }
+
+        /// <summary>Animation: a color matrix (brightness / saturation / hue) at the current
+        /// frame, or null for the layer's own colors.</summary>
+        public float[]? AnimationColor { get; set; }
+
+        /// <summary>Animation: motion blur - where the layer is at moments spread over the
+        /// frame (each a full placement, like <see cref="AnimationMatrix"/>). The layer is
+        /// drawn at all of them, averaged, so fast motion smears. Null: no motion blur.</summary>
+        public SkiaSharp.SKMatrix[]? AnimationMotion { get; set; }
+
+        /// <summary>Animation: a group bent at a joint (an arm at the elbow) - its layers are
+        /// drawn together, then bent; null: not bent. (A plain layer gets its bent picture
+        /// in <see cref="AnimationBitmap"/> instead.)</summary>
+        public (SkiaSharp.SKPoint Root, SkiaSharp.SKPoint Joint, double Degrees)? AnimationBend { get; set; }
+
+        /// <summary>Animation: a picture drawn instead of <see cref="Bitmap"/> at the current
+        /// frame (a text layer partly typed out). Null: the layer's own pixels.</summary>
+        public SkiaSharp.SKBitmap? AnimationBitmap { get; set; }
 
         /// <summary>The layer's pixel buffer, sized to the document and initially fully transparent.</summary>
         public SKBitmap Bitmap { get; }
@@ -256,7 +289,7 @@ namespace JolieCat.Core.Documents
         /// <paramref name="embeddedScene"/> only for a "Place Embedded" Smart Object
         /// wrapping a whole nested composition; leave it null for a plain placed
         /// image.</summary>
-        public static Layer CreateSmartObject(string name, int width, int height, SKBitmap sourceBitmap, Scene? embeddedScene = null)
+        public static Layer CreateSmartObject(string name, int width, int height, SKBitmap sourceBitmap, Scene? embeddedScene = null, SKMatrix? placement = null)
         {
             ArgumentNullException.ThrowIfNull(sourceBitmap);
 
@@ -269,7 +302,7 @@ namespace JolieCat.Core.Documents
                 // identity scale/rotation).
                 SmartObjectTransform = new SmartObjectTransform
                 {
-                    Matrix = SKMatrix.CreateTranslation(width / 2f - sourceBitmap.Width / 2f, height / 2f - sourceBitmap.Height / 2f),
+                    Matrix = placement ?? SKMatrix.CreateTranslation(width / 2f - sourceBitmap.Width / 2f, height / 2f - sourceBitmap.Height / 2f),
                 },
             };
             layer.RenderSmartObject();
@@ -290,6 +323,26 @@ namespace JolieCat.Core.Documents
             using var rendered = LayerTransformer.Bake(SmartObject.SourceBitmap, SmartObjectTransform.Matrix, Bitmap.Width, Bitmap.Height);
             Canvas.Clear(SKColors.Transparent);
             Canvas.DrawBitmap(rendered, 0, 0);
+        }
+
+        /// <summary>
+        /// Layer &gt; Smart Objects &gt; Replace Contents: <paramref name="source"/> takes the
+        /// place of the current content - fitted inside the same box (keeping its own
+        /// shape, centered), with the same scale, turn and position. No-op unless this is
+        /// a Smart Object layer.
+        /// </summary>
+        public void ReplaceSmartObjectContent(SKBitmap source, Scene? embeddedScene = null)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            if (SmartObject is null || SmartObjectTransform is null) return;
+            var old = SmartObject.SourceBitmap;
+            var fit = Math.Min(old.Width / (float)Math.Max(1, source.Width), old.Height / (float)Math.Max(1, source.Height));
+            var offset = SKMatrix.CreateTranslation((old.Width - source.Width * fit) / 2, (old.Height - source.Height * fit) / 2);
+            var matrix = SmartObjectTransform.Matrix.PreConcat(offset).PreConcat(SKMatrix.CreateScale(fit, fit));
+            // The old content isn't disposed: undo snapshots may still hold it.
+            SmartObject = new SmartObjectContent(source, embeddedScene);
+            SmartObjectTransform = new SmartObjectTransform { Matrix = matrix };
+            RenderSmartObject();
         }
 
         /// <summary>Re-flattens this layer's embedded sub-project (sized

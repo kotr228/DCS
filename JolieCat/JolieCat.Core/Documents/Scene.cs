@@ -36,6 +36,13 @@ namespace JolieCat.Core.Documents
         /// <summary>The layer painting tools draw onto. Null only when the scene has no layers.</summary>
         public Layer? ActiveLayer { get; set; }
 
+        /// <summary>Animation camera: how the whole picture is zoomed, panned and turned at
+        /// the current frame (the Timeline's Camera track sets it; not saved). Null: none.</summary>
+        public SkiaSharp.SKMatrix? CameraMatrix { get; set; }
+
+        /// <summary>Animation camera fade: 1 shows the picture, 0 nothing (fade in / out).</summary>
+        public double CameraOpacity { get; set; } = 1;
+
         /// <summary>The scene's current selection - constrains where painting, erasing,
         /// and filling can affect <see cref="ActiveLayer"/>. Always present (starts with
         /// no selection, not null) so callers never need a null check before reading it.</summary>
@@ -44,6 +51,9 @@ namespace JolieCat.Core.Documents
         /// <summary>Select > Save Selection: named selections, as SVG path data (saved
         /// with the project).</summary>
         public Dictionary<string, string> SavedSelections { get; } = new();
+
+        /// <summary>Named Pen paths (Paths panel), as <see cref="VectorPath.ToText"/> text.</summary>
+        public Dictionary<string, string> SavedPaths { get; } = new();
 
         /// <summary>The document's guides (saved with the project).</summary>
         public List<Guide> Guides { get; } = new();
@@ -210,6 +220,7 @@ namespace JolieCat.Core.Documents
             if (newWidth <= 0) throw new ArgumentOutOfRangeException(nameof(newWidth));
             if (newHeight <= 0) throw new ArgumentOutOfRangeException(nameof(newHeight));
             ShiftGuides(offsetX, offsetY, newWidth, newHeight);
+            ShiftArtboards(offsetX, offsetY, newWidth, newHeight);
 
             for (var i = 0; i < _layers.Count; i++)
             {
@@ -221,6 +232,7 @@ namespace JolieCat.Core.Documents
                     IsVisible = old.IsVisible,
                     IsLocked = old.IsLocked,
                     Opacity = old.Opacity,
+                    FillOpacity = old.FillOpacity,
                     BlendMode = old.BlendMode,
                     Adjustment = old.Adjustment,
                     Style = old.Style,
@@ -270,6 +282,7 @@ namespace JolieCat.Core.Documents
         {
             if (cropRect.Width <= 0 || cropRect.Height <= 0) throw new ArgumentOutOfRangeException(nameof(cropRect));
             ShiftGuides(-cropRect.Left, -cropRect.Top, cropRect.Width, cropRect.Height);
+            ShiftArtboards(-cropRect.Left, -cropRect.Top, cropRect.Width, cropRect.Height);
 
             for (var i = 0; i < _layers.Count; i++)
             {
@@ -281,6 +294,7 @@ namespace JolieCat.Core.Documents
                     IsVisible = old.IsVisible,
                     IsLocked = old.IsLocked,
                     Opacity = old.Opacity,
+                    FillOpacity = old.FillOpacity,
                     BlendMode = old.BlendMode,
                     Adjustment = old.Adjustment,
                     Style = old.Style,
@@ -350,6 +364,7 @@ namespace JolieCat.Core.Documents
 
             var old = _layers[0].Bitmap;
             ScaleGuides((float)newWidth / old.Width, (float)newHeight / old.Height, newWidth, newHeight);
+            ScaleArtboards((float)newWidth / old.Width, (float)newHeight / old.Height, newWidth, newHeight);
             var downscale = newWidth < old.Width || newHeight < old.Height;
             var sampling = downscale
                 ? new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear)
@@ -378,6 +393,7 @@ namespace JolieCat.Core.Documents
             var newWidth = turns % 2 == 1 ? oldHeight : oldWidth;
             var newHeight = turns % 2 == 1 ? oldWidth : oldHeight;
             RotateGuides(turns, oldWidth, oldHeight);
+            RotateArtboards(turns, oldWidth, oldHeight);
 
             RebuildLayers(newWidth, newHeight, (canvas, source) =>
             {
@@ -408,6 +424,7 @@ namespace JolieCat.Core.Documents
             var width = _layers[0].Bitmap.Width;
             var height = _layers[0].Bitmap.Height;
             FlipGuides(horizontal, width, height);
+            FlipArtboards(horizontal, width, height);
             RebuildLayers(width, height, (canvas, source) => DrawFlipped(canvas, source, horizontal),
                 new VectorMap(p => horizontal ? new SKPoint(width - p.X, p.Y) : new SKPoint(p.X, height - p.Y), 1, TurnsOrMirrors: true));
         }
@@ -531,6 +548,7 @@ namespace JolieCat.Core.Documents
                     IsVisible = old.IsVisible,
                     IsLocked = old.IsLocked,
                     Opacity = old.Opacity,
+                    FillOpacity = old.FillOpacity,
                     BlendMode = old.BlendMode,
                     Adjustment = old.Adjustment,
                     Style = old.Style,
@@ -589,7 +607,7 @@ namespace JolieCat.Core.Documents
                 layer.IsVisible, layer.IsLocked, layer.Opacity, layer.BlendMode, layer.Bitmap.Pixels,
                 layer.Mask is not null, layer.Mask?.IsEnabled ?? false, layer.Mask?.Bitmap.Pixels,
                 layer.Id, layer.SmartObject, layer.SmartObjectTransform?.Matrix, layer.Adjustment, layer.Style, layer.ParentId, layer.IsExpanded, layer.IsClipped, layer.Text,
-                layer.SmartFilterSource?.Pixels, layer.HasSmartFilters ? layer.SmartFilters : null, layer.Shape, layer.Fill))
+                layer.SmartFilterSource?.Pixels, layer.HasSmartFilters ? layer.SmartFilters : null, layer.Shape, layer.Fill, layer.FillOpacity))
             .ToList();
 
         /// <summary>
@@ -621,6 +639,7 @@ namespace JolieCat.Core.Documents
                     IsVisible = entry.IsVisible,
                     IsLocked = entry.IsLocked,
                     Opacity = entry.Opacity,
+                    FillOpacity = entry.FillOpacity,
                     BlendMode = entry.BlendMode,
                     Style = entry.Style,
                     ParentId = entry.ParentId,

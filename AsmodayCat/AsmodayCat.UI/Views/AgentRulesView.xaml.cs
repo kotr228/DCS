@@ -9,5 +9,8 @@ public partial class AgentRulesView : UserControl
     {
         InitializeComponent();
         DataContext = vm;
+
+        // Refresh from the service each time the tab is shown
+        Loaded += (_, _) => vm.LoadRulesCommand.Execute(null);
     }
 }

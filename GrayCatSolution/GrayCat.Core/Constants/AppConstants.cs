@@ -1,8 +1,8 @@
-﻿namespace GrayCat.Core.Constants;
+namespace GrayCat.Core.Constants;
 public static class AppConstants
 {
     public const string AppName = "GrayCat";
-    public const string AppVersion = "1.0.0";
+    public const string AppVersion = "1.4.0";
     public const string ServiceName = "GrayCatGenerationService";
     public const string ServiceDisplayName = "GrayCat Generation Service";
     public const string ServiceDescription = "Background service for generating web and mobile projects";
@@ -24,5 +24,6 @@ public static class AppConstants
         public const string GenerateProject = "/api/generation/generate";
         public const string ValidateProject = "/api/generation/validate";
         public const string GetStatus = "/api/generation/status";
+        public const string Health = "/api/generation/health";
     }
 }

@@ -67,6 +67,10 @@
         <views:EyedropperToolOptionsView />
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type opts:RulerToolOptionsViewModel}">
+        <views:RulerToolOptionsView />
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type opts:EmptyToolOptionsViewModel}">
         <views:EmptyToolOptionsView />
     </DataTemplate>

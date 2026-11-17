@@ -91,6 +91,7 @@ namespace JolieCat.UI.Views
 
                 case nameof(CanvasViewModel.TextEditScreenX):
                 case nameof(CanvasViewModel.TextEditScreenY):
+                case nameof(CanvasViewModel.TextEditBoxScreenWidth):
                     if (viewModel.IsTextEditing)
                         PositionTextEditOverlay(viewModel);
                     break;
@@ -105,6 +106,10 @@ namespace JolieCat.UI.Views
             var left = viewModel.TextEditScreenX / _dpiScaleX;
             var top = viewModel.TextEditScreenY / _dpiScaleY;
             TextEditBox.Margin = new Thickness(left, top, 0, 0);
+            // Paragraph text: the editor is as wide as the box, and wraps like it.
+            var boxWidth = viewModel.TextEditBoxScreenWidth / _dpiScaleX;
+            TextEditBox.Width = boxWidth > 0 ? Math.Max(40, boxWidth) : double.NaN;
+            TextEditBox.TextWrapping = boxWidth > 0 ? TextWrapping.Wrap : TextWrapping.NoWrap;
         }
 
         private void OnPaintSurface(object? sender, SKPaintSurfaceEventArgs e)

@@ -6,36 +6,7 @@ using AsmodayCat.Shared.Models;
 
 namespace AsmodayCat.UI.Services;
 
-public enum IpcCommandType
-{
-    GetStatus,
-    StartAgent,
-    StopAgent,
-    ChangeHardwareModel,
-    GetSystemLoad,
-    KillSwitch,
-    Chat,
-    PullModel,
-    GetPullStatus,
-    ListModels,
-    GetDashboardStats,
-    ClearContext,
-    GetModelPool,
-    UnloadModel,
-    GetHardwareConfig,
-    SaveHardwareConfig,
-    GetAgentRules,
-    AddAgentRule,
-    RemoveAgentRule,
-    GetLogs,
-    ExecuteCliCommand
-}
-
-public class IpcCommand
-{
-    public IpcCommandType Type { get; set; }
-    public Dictionary<string, string> Parameters { get; set; } = new();
-}
+// IpcCommandType and IpcCommand live in AsmodayCat.Shared.Ipc (shared with the service).
 
 public class IpcResponse
 {
@@ -46,7 +17,7 @@ public class IpcResponse
 
 public class IpcClient
 {
-    private const string PipeName = "AsmodayCat.Service";
+    private static string PipeName => IpcPipe.Name;
 
     private static readonly JsonSerializerOptions _opts =
         new() { PropertyNameCaseInsensitive = true };

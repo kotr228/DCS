@@ -18,13 +18,15 @@ public sealed class TerminalLoggerProvider : ILoggerProvider
     {
         private readonly string           _source;
         private readonly TerminalLogStore _store;
+        private readonly bool             _isAgent;
 
         public TerminalLogger(string category, TerminalLogStore store)
         {
             _source = category.Contains('.')
                 ? category[(category.LastIndexOf('.') + 1)..]
                 : category;
-            _store = store;
+            _store   = store;
+            _isAgent = category.StartsWith("AsmodayCat.Agent", StringComparison.Ordinal);
         }
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
@@ -41,7 +43,7 @@ public sealed class TerminalLoggerProvider : ILoggerProvider
                 MsLogLevel.Warning  => LogEntryLevel.Warning,
                 MsLogLevel.Error    => LogEntryLevel.Error,
                 MsLogLevel.Critical => LogEntryLevel.Error,
-                _                   => LogEntryLevel.Info
+                _                   => _isAgent ? LogEntryLevel.Agent : LogEntryLevel.Info
             };
 
             var msg = formatter(state, exception);

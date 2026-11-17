@@ -81,6 +81,8 @@ namespace JolieCat.UI.ViewModels
         [NotifyPropertyChangedFor(nameof(IsTimelineMode))]
         private WorkspaceMode workspaceMode = WorkspaceMode.Design;
 
+        partial void OnWorkspaceModeChanged(WorkspaceMode value) => Timeline.IsWorkspaceActive = value == WorkspaceMode.Timeline;
+
         public bool IsDesignMode => WorkspaceMode == WorkspaceMode.Design;
 
         public bool IsTimelineMode => WorkspaceMode == WorkspaceMode.Timeline;
@@ -107,12 +109,53 @@ namespace JolieCat.UI.ViewModels
             // mutates a frame Layer's IsVisible directly, not through Layers.LayerViewModel,
             // so nothing else here would otherwise notice the canvas needs repainting.
             Timeline.FrameVisibilityChanged += OnTimelineFrameVisibilityChanged;
+            Timeline.FrameLayers = Layers;
+            Timeline.FrameChanged += OnTimelineFrameChanged;
+            Canvas.OnionSkinSource = Timeline.OnionSkinLayers;
+            Timeline.RecordEdit = (command, name) => Layers.History.Push(command, name);
+            Canvas.AnimatedMove = Timeline;
+            Canvas.MotionPathSource = Timeline.MotionPath;
+            Canvas.JointSource = Timeline.JointMarker;
+            Canvas.BendSource = Timeline.BendMarker;
+            Timeline.LastEdit = () => Layers.History.LastCommand;
+            // Undo/redo of a layer change rebuilds the layers: find the timeline's again.
+            Layers.History.Changed += OnHistoryChangedForTimeline;
 
             if (projectType == ProjectType.ClipbarAnimation)
                 workspaceMode = WorkspaceMode.Timeline;
+            Timeline.IsWorkspaceActive = workspaceMode == WorkspaceMode.Timeline;
         }
 
         private void OnTimelineFrameVisibilityChanged(object? sender, EventArgs e) => Layers.RequestRepaint();
+
+        private void OnHistoryChangedForTimeline(object? sender, EventArgs e)
+        {
+            // A new brush stroke (not undo/redo) changed one layer: only its frame picture is redone.
+            var only = !Layers.History.LastChangeWasUndoOrRedo && Layers.History.LastCommand is Core.History.LayerPixelsCommand pixels
+                ? pixels.LayerId
+                : null;
+            Timeline.RewireById(Layers.Scene, only);
+        }
+
+        /// <summary>Scrubbing to a frame makes its layer the one you draw on.</summary>
+        private void OnTimelineFrameChanged(object? sender, EventArgs e)
+        {
+            if (!Timeline.IsPlaying && Timeline.CurrentFrameClip?.TargetLayer is { } layer)
+            {
+                if (!layer.IsGroup)
+                {
+                    Layers.ActivateFrameLayer(layer);
+                }
+                else
+                {
+                    // A frame with several layers: stay on the same-named one ("Color", "Lines"...).
+                    var inside = Timeline.LayersOfFrame(layer).ToList();
+                    var name = Layers.ActiveLayer?.Model.Name;
+                    if ((inside.FirstOrDefault(l => l.Name == name) ?? inside.LastOrDefault()) is { } target) Layers.ActivateFrameLayer(target);
+                }
+            }
+            Layers.RequestRepaint();
+        }
 
         private void OnHistoryDirtyChanged(object? sender, EventArgs e)
         {
@@ -140,6 +183,8 @@ namespace JolieCat.UI.ViewModels
             if (_disposed) return;
 
             Timeline.FrameVisibilityChanged -= OnTimelineFrameVisibilityChanged;
+            Timeline.FrameChanged -= OnTimelineFrameChanged;
+            Layers.History.Changed -= OnHistoryChangedForTimeline;
             Layers.History.DirtyChanged -= OnHistoryDirtyChanged;
             Canvas.Dispose();
             Timeline.Dispose();

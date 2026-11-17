@@ -82,6 +82,9 @@ namespace JolieCat.Core.History
         /// <summary>True when the edit changed nothing (e.g. a click outside the selection).</summary>
         public bool IsEmpty => _tiles.Count == 0;
 
+        /// <summary>The layer whose pixels this edit changed (null for a bare bitmap).</summary>
+        public Guid? LayerId => _scene is null ? null : _layerId;
+
         /// <summary>Number of changed tiles kept - exposed for tests and diagnostics.</summary>
         public int TileCount => _tiles.Count;
 

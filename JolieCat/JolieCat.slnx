@@ -1,6 +1,5 @@
 <Solution>
   <Project Path="JolieCat.Core/JolieCat.Core.csproj" />
-  <Project Path="JolieCat.Service/JolieCat.Service.csproj" />
   <Project Path="JolieCat.Shared/JolieCat.Shared.csproj" />
   <Project Path="JolieCat.Tests/JolieCat.Tests.csproj" />
   <Project Path="JolieCat.UI.Tests/JolieCat.UI.Tests.csproj" />

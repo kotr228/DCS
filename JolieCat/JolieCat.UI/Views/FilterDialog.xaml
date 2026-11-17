@@ -6,7 +6,7 @@
         xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
         xmlns:controls="clr-namespace:JolieCat.UI.Controls"
         mc:Ignorable="d"
-        Title="{Binding Title}" Width="380" SizeToContent="Height"
+        Title="{Binding Title, Converter={StaticResource Tr}}" Width="380" SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         ShowInTaskbar="False"
         d:DataContext="{d:DesignInstance Type=vm:FilterOptionsViewModel, IsDesignTimeCreatable=False}">
@@ -21,12 +21,12 @@
              previews each change live behind the dialog. -->
         <StackPanel Grid.Row="0">
             <controls:LabeledSlider VerticalAlignment="Top"
-                                     Label="{Binding AmountLabel}" Suffix="{Binding Suffix}"
+                                     Label="{Binding AmountLabel, Converter={StaticResource Tr}}" Suffix="{Binding Suffix}"
                                      Minimum="{Binding AmountMin}" Maximum="{Binding AmountMax}"
                                      Value="{Binding Amount, Mode=TwoWay}" />
             <controls:LabeledSlider VerticalAlignment="Top" Margin="0,8,0,0"
                                      Visibility="{Binding HasSecondAmount, Converter={StaticResource BoolToVisibility}}"
-                                     Label="{Binding SecondAmountLabel}" Suffix="{Binding SecondSuffix}"
+                                     Label="{Binding SecondAmountLabel, Converter={StaticResource Tr}}" Suffix="{Binding SecondSuffix}"
                                      Minimum="{Binding SecondAmountMin}" Maximum="{Binding SecondAmountMax}"
                                      Value="{Binding SecondAmount, Mode=TwoWay}" />
             <TextBlock Text="Preview updates live on the canvas. Applies inside the selection, if there is one."

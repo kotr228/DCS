@@ -1,3 +1,4 @@
+using AsmodayCat.UI.Localization;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
@@ -63,12 +64,12 @@ public partial class TerminalViewModel : ObservableObject
             _ => true
         };
 
-    partial void OnShowInfoChanged(bool _)    => FilteredLogs.Refresh();
-    partial void OnShowWarningChanged(bool _) => FilteredLogs.Refresh();
-    partial void OnShowErrorChanged(bool _)   => FilteredLogs.Refresh();
-    partial void OnShowAgentChanged(bool _)   => FilteredLogs.Refresh();
-    partial void OnShowSystemChanged(bool _)  => FilteredLogs.Refresh();
-    partial void OnShowNetworkChanged(bool _) => FilteredLogs.Refresh();
+    partial void OnShowInfoChanged(bool value)    => FilteredLogs.Refresh();
+    partial void OnShowWarningChanged(bool value) => FilteredLogs.Refresh();
+    partial void OnShowErrorChanged(bool value)   => FilteredLogs.Refresh();
+    partial void OnShowAgentChanged(bool value)   => FilteredLogs.Refresh();
+    partial void OnShowSystemChanged(bool value)  => FilteredLogs.Refresh();
+    partial void OnShowNetworkChanged(bool value) => FilteredLogs.Refresh();
 
     // ── Log polling ──────────────────────────────────────────────────────────
 
@@ -141,7 +142,7 @@ public partial class TerminalViewModel : ObservableObject
             AllLogs.Add(new LogEntryDto
             {
                 Level   = LogEntryLevel.Error,
-                Message = resp?.Error ?? "Service offline",
+                Message = resp?.Error ?? Loc.T("memory.serviceDown"),
                 Source  = "CLI"
             });
         }
@@ -152,8 +153,8 @@ public partial class TerminalViewModel : ObservableObject
     {
         var dialog = new SaveFileDialog
         {
-            Title    = "Export Terminal Logs",
-            Filter   = "Log files (*.log)|*.log|Text files (*.txt)|*.txt",
+            Title    = Loc.T("term.exportTitle"),
+            Filter   = Loc.T("term.filterLogs") + " (*.log)|*.log|" + Loc.T("chat.filterText") + " (*.txt)|*.txt",
             FileName = $"asmodaycat_{DateTime.Now:yyyyMMdd_HHmmss}.log"
         };
         if (dialog.ShowDialog() != true) return;
@@ -166,7 +167,7 @@ public partial class TerminalViewModel : ObservableObject
         AllLogs.Add(new LogEntryDto
         {
             Level   = LogEntryLevel.System,
-            Message = $"Exported to {dialog.FileName}",
+            Message = Loc.F("term.savedTo", dialog.FileName),
             Source  = "Terminal"
         });
     }

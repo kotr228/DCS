@@ -1,231 +1,193 @@
-﻿namespace GrayCat.UI.ViewModels;
+namespace GrayCat.UI.ViewModels;
 
+using GrayCat.Core.Generation;
 using GrayCat.Core.Models;
-using GrayCat.Core.Data;
 using System.Text.RegularExpressions;
 
 public class BlockViewModel : BaseViewModel
 {
+    private static readonly Regex HexColor = new(@"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$", RegexOptions.Compiled);
+    private static readonly string[] SummaryKeys =
+        { "headline", "title", "brandName", "text", "planName", "quote", "copyright", "caption", "videoUrl", "src" };
+
     private readonly BlockModel _model;
-    private readonly DatabaseService? _databaseService;
+    private bool _isSelected;
 
-    public BlockModel Model => _model;
+    /// <summary>Raised whenever anything that ends up in the project file changes.</summary>
+    public event EventHandler? Changed;
 
-    public BlockViewModel(BlockModel model, DatabaseService? databaseService = null)
+    public BlockViewModel(BlockModel model)
     {
         _model = model;
-        _databaseService = databaseService;
     }
 
+    public BlockModel Model => _model;
     public string Id => _model.Id;
+    public string Type => _model.Type;
 
-    public string Type
+    public bool IsSelected
     {
-        get => _model.Type;
-        set
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
+
+    /// <summary>Short text shown on the canvas card.</summary>
+    public string DisplayText
+    {
+        get
         {
-            _model.Type = value;
-            OnPropertyChanged();
-            AutoSave();
+            if (!string.IsNullOrWhiteSpace(_model.Content))
+                return _model.Content;
+            foreach (var key in SummaryKeys)
+            {
+                if (_model.Properties.TryGetValue(key, out var value))
+                {
+                    var text = PropertyValues.AsString(value);
+                    if (!string.IsNullOrWhiteSpace(text))
+                        return text.Length > 120 ? text[..120] + "…" : text;
+                }
+            }
+            return ListSummary();
         }
+    }
+
+    private static readonly string[] ItemTextKeys = { "title", "name", "question", "text", "label", "author", "alt", "platform" };
+
+    /// <summary>Blocks made of lists (stats, footer links, plans…): "1000+ Clients · 50+ Projects · …".</summary>
+    private string ListSummary()
+    {
+        foreach (var value in _model.Properties.Values)
+        {
+            if (PropertyValues.ToPlain(value) is not List<object?> list)
+                continue;
+            var parts = list.OfType<Dictionary<string, object?>>().Select(ItemText).Where(t => t.Length > 0).ToList();
+            if (parts.Count == 0)
+                continue;
+            var text = string.Join(" · ", parts.Take(3)) + (parts.Count > 3 ? " · …" : "");
+            return text.Length > 120 ? text[..120] + "…" : text;
+        }
+        return string.Empty;
+    }
+
+    private static string ItemText(Dictionary<string, object?> item)
+    {
+        string Get(string key) => item.TryGetValue(key, out var v) ? PropertyValues.AsString(v).Trim() : "";
+        var number = Get("number");
+        var label = Get("label");
+        if (number.Length > 0)
+            return label.Length > 0 ? $"{number} {label}" : number;
+        return ItemTextKeys.Select(Get).FirstOrDefault(t => t.Length > 0 && !t.StartsWith("http")) ?? "";
     }
 
     public string Content
     {
         get => _model.Content;
-        set
-        {
-            _model.Content = value;
-            _model.ModifiedAt = DateTime.UtcNow;
-            OnPropertyChanged();
-            AutoSave();
-        }
+        set => Update(() => _model.Content = value ?? string.Empty, nameof(Content), nameof(DisplayText));
     }
 
     public double PositionX
     {
         get => _model.PositionX;
-        set
-        {
-            _model.PositionX = value;
-            OnPropertyChanged();
-            AutoSave();
-        }
+        set => Update(() => _model.PositionX = Math.Max(0, value), nameof(PositionX));
     }
 
     public double PositionY
     {
         get => _model.PositionY;
-        set
-        {
-            _model.PositionY = value;
-            OnPropertyChanged();
-            AutoSave();
-        }
+        set => Update(() => _model.PositionY = Math.Max(0, value), nameof(PositionY));
     }
 
     public double Width
     {
         get => _model.Width;
-        set
-        {
-            _model.Width = value;
-            OnPropertyChanged();
-            AutoSave();
-        }
+        set => Update(() => _model.Width = Math.Clamp(value, 50, 2000), nameof(Width));
     }
 
     public double Height
     {
         get => _model.Height;
-        set
-        {
-            _model.Height = value;
-            OnPropertyChanged();
-            AutoSave();
-        }
+        set => Update(() => _model.Height = Math.Clamp(value, 30, 2000), nameof(Height));
     }
 
-    // NEW in v0.3.2
     public string Color
     {
         get => _model.Color;
-        set
-        {
-            if (IsValidHexColor(value))
-            {
-                _model.Color = value;
-                _model.ModifiedAt = DateTime.UtcNow;
-                OnPropertyChanged();
-                AutoSave();
-            }
-        }
+        set { if (IsValidHexColor(value)) Update(() => _model.Color = value, nameof(Color)); }
     }
 
     public string Background
     {
         get => _model.Background;
-        set
-        {
-            if (IsValidHexColor(value))
-            {
-                _model.Background = value;
-                _model.ModifiedAt = DateTime.UtcNow;
-                OnPropertyChanged();
-                AutoSave();
-            }
-        }
+        set { if (IsValidHexColor(value)) Update(() => _model.Background = value, nameof(Background)); }
     }
 
     public int FontSize
     {
         get => _model.FontSize;
-        set
-        {
-            if (value >= 8 && value <= 72)
-            {
-                _model.FontSize = value;
-                _model.ModifiedAt = DateTime.UtcNow;
-                OnPropertyChanged();
-                AutoSave();
-            }
-        }
+        set { if (value is >= 8 and <= 72) Update(() => _model.FontSize = value, nameof(FontSize)); }
     }
 
     public string FontFamily
     {
         get => _model.FontFamily;
-        set
-        {
-            _model.FontFamily = value;
-            OnPropertyChanged();
-            AutoSave();
-        }
+        set => Update(() => _model.FontFamily = value, nameof(FontFamily));
     }
 
     public string TextAlignment
     {
         get => _model.TextAlignment;
-        set
-        {
-            _model.TextAlignment = value;
-            OnPropertyChanged();
-            AutoSave();
-        }
+        set => Update(() => _model.TextAlignment = value, nameof(TextAlignment));
     }
 
     public string? ImagePath
     {
         get => _model.ImagePath;
-        set
-        {
-            _model.ImagePath = value;
-            OnPropertyChanged();
-            AutoSave();
-        }
+        set => Update(() => _model.ImagePath = value, nameof(ImagePath));
     }
 
     public int BorderRadius
     {
         get => _model.BorderRadius;
-        set
-        {
-            _model.BorderRadius = value;
-            OnPropertyChanged();
-            AutoSave();
-        }
+        set => Update(() => _model.BorderRadius = Math.Clamp(value, 0, 200), nameof(BorderRadius));
     }
 
     public DateTime ModifiedAt => _model.ModifiedAt;
 
-    public string CssClasses
-    {
-        get => _model.CssClasses;
-        set
-        {
-            _model.CssClasses = value;
-            OnPropertyChanged();
-            AutoSave();
-        }
-    }
+    /// <summary>The block is kept in the project but left out of the published site.</summary>
+    public bool IsHiddenOnSite => PropertyValues.AsBool(GetBlockProperty("hidden"));
 
     public Dictionary<string, object> Properties => _model.Properties;
     public Dictionary<string, string> Styles => _model.Styles;
 
-    // Validation
-    private bool IsValidHexColor(string hex)
-    {
-        if (string.IsNullOrWhiteSpace(hex))
-            return false;
+    public object? GetBlockProperty(string key) =>
+        _model.Properties.TryGetValue(key, out var value) ? value : null;
 
-        var pattern = @"^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$";
-        return Regex.IsMatch(hex, pattern);
-    }
-
-    // Auto-save to database
-    private async void AutoSave()
+    /// <summary>Sets a type-specific property and marks the block as changed.</summary>
+    public void SetBlockProperty(string key, object value)
     {
-        if (_databaseService != null)
-        {
-            try
-            {
-                await _databaseService.SaveBlockAsync(_model);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Auto-save failed: {ex.Message}");
-            }
-        }
-    }
-
-    public void LoadPropertiesFromModel()
-    {
-        _model.LoadFromJson(); // extension method з DbContext
+        _model.SetProperty(key, value);
         OnPropertyChanged(nameof(Properties));
+        OnPropertyChanged(nameof(DisplayText));
+        OnPropertyChanged(nameof(IsHiddenOnSite));
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    public async Task SavePropertiesToModel()
+    public void ResetStyle()
     {
-        await Task.Run(() => AutoSave());
+        Color = "#000000";
+        Background = "#FFFFFF";
+        FontSize = 14;
+        TextAlignment = "Left";
+    }
+
+    public static bool IsValidHexColor(string? hex) => hex != null && HexColor.IsMatch(hex);
+
+    private void Update(Action apply, params string[] properties)
+    {
+        apply();
+        _model.ModifiedAt = DateTime.UtcNow;
+        foreach (var name in properties)
+            OnPropertyChanged(name);
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 }

@@ -137,7 +137,88 @@ namespace JolieCat3D.Core.Materials
         /// to disk on its own.</summary>
         public TextureBuffer? PaintedTextureBuffer { get; set; }
 
+        /// <summary>Optional ambient-occlusion map (red channel; glTF "occlusionTexture"),
+        /// e.g. from Bake Ambient Occlusion. Darkens the ambient light in creases.</summary>
+        public string? OcclusionTexturePath { get; set; }
+
+        /// <summary>Light the surface gives off by itself (sRGB colour; black = none).
+        /// Unaffected by scene lighting and picked up by bloom. glTF emissiveFactor.</summary>
+        public Color4 EmissiveColor { get; set; } = new(0f, 0f, 0f);
+
+        /// <summary>Multiplier on <see cref="EmissiveColor"/> (glTF KHR_materials_emissive_strength), 0..100.</summary>
+        public float EmissiveStrength
+        {
+            get => _emissiveStrength;
+            set => _emissiveStrength = Math.Clamp(value, 0f, 100f);
+        }
+        private float _emissiveStrength = 1f;
+
+        /// <summary>Optional emission map (sRGB), multiplied by <see cref="EmissiveColor"/>.</summary>
+        public string? EmissiveTexturePath { get; set; }
+
+        public MaterialAlphaMode AlphaMode { get; set; } = MaterialAlphaMode.Opaque;
+
+        /// <summary>Alpha threshold for <see cref="MaterialAlphaMode.Clip"/>, 0..1 (glTF default 0.5).</summary>
+        public float AlphaCutoff
+        {
+            get => _alphaCutoff;
+            set => _alphaCutoff = Math.Clamp(value, 0f, 1f);
+        }
+        private float _alphaCutoff = 0.5f;
+
+        /// <summary>Both faces visible in a game engine (glTF doubleSided). The editor
+        /// viewport always shows both sides.</summary>
+        public bool DoubleSided { get; set; }
+
+        /// <summary>The material's node tree (Shader Editor), if it has one. Applying it
+        /// bakes texture maps into the fields above; it is kept for further editing.</summary>
+        public Nodes.ShaderGraph? NodeGraph { get; set; }
+
+        /// <summary>True when the material is drawn with alpha blending.</summary>
+        public bool IsBlended => AlphaMode == MaterialAlphaMode.Blend || (AlphaMode == MaterialAlphaMode.Opaque && Opacity < 1f);
+
+        /// <summary>True when the material emits any light.</summary>
+        public bool IsEmissive => EmissiveStrength > 0f && (EmissiveColor.R > 0f || EmissiveColor.G > 0f || EmissiveColor.B > 0f);
+
         public Material(string name = "Material") => Name = name;
+
+        /// <summary>Copies every parameter of <paramref name="other"/> onto this instance,
+        /// keeping this instance's identity (animation tracks key on the instance). The
+        /// painted texture buffer reference is copied as-is.</summary>
+        public void CopyFrom(Material other)
+        {
+            ArgumentNullException.ThrowIfNull(other);
+            Name = other.Name;
+            DiffuseColor = other.DiffuseColor;
+            SpecularColor = other.SpecularColor;
+            SpecularPower = other.SpecularPower;
+            Opacity = other.Opacity;
+            Roughness = other.Roughness;
+            Metallic = other.Metallic;
+            DiffuseTexturePath = other.DiffuseTexturePath;
+            DiffuseTextureOffset = other.DiffuseTextureOffset;
+            DiffuseTextureScale = other.DiffuseTextureScale;
+            NormalTexturePath = other.NormalTexturePath;
+            MetallicRoughnessTexturePath = other.MetallicRoughnessTexturePath;
+            OcclusionTexturePath = other.OcclusionTexturePath;
+            EmissiveColor = other.EmissiveColor;
+            EmissiveStrength = other.EmissiveStrength;
+            EmissiveTexturePath = other.EmissiveTexturePath;
+            AlphaMode = other.AlphaMode;
+            AlphaCutoff = other.AlphaCutoff;
+            DoubleSided = other.DoubleSided;
+            PaintedTextureBuffer = other.PaintedTextureBuffer;
+            NodeGraph = other.NodeGraph?.Clone();
+        }
+
+        /// <summary>A new, independent material with the same parameters (the painted
+        /// texture buffer is shared, not copied).</summary>
+        public Material Clone()
+        {
+            var clone = new Material(Name);
+            clone.CopyFrom(this);
+            return clone;
+        }
 
         /// <summary>A flat, unlit-looking default - a plain mid-gray diffuse with no
         /// specular contribution - for a mesh created without an explicit material.</summary>

@@ -35,24 +35,33 @@ namespace JolieCat3D.Core.Modifiers
         /// common Array use (a fence, a row of steps, ...).</summary>
         public Vector3 RelativeOffset { get; set; } = new(1f, 0f, 0f);
 
+        /// <summary>Extra offset per copy in object units (Blender's Constant Offset).</summary>
+        public Vector3 ConstantOffset { get; set; } = Vector3.Zero;
+
+        /// <summary>Weld vertices of neighbouring copies that touch (Blender's Merge).</summary>
+        public bool Merge { get; set; }
+
+        public float MergeDistance { get; set; } = 0.001f;
+
         public override Mesh Apply(Mesh input, Node? owner = null)
         {
             ArgumentNullException.ThrowIfNull(input);
 
             var count = Math.Max(1, Count);
             var output = new Mesh(input.Name) { Material = input.Material };
+            foreach (var slot in input.MaterialSlots) output.AddMaterialSlot(slot);
 
             if (count == 1 || input.Vertices.Count == 0)
             {
                 foreach (var vertex in input.Vertices) output.AddVertex(vertex);
                 foreach (var face in input.Faces) output.AddFace(face);
-                foreach (var polygon in input.Polygons) output.AddPolygon(new Polygon(polygon.Indices));
+                foreach (var polygon in input.Polygons) output.AddPolygon(new Polygon(polygon.Indices) { MaterialSlotIndex = polygon.MaterialSlotIndex });
                 return output;
             }
 
             var (min, max) = input.GetBounds();
             var size = max - min;
-            var offsetPerCopy = new Vector3(RelativeOffset.X * size.X, RelativeOffset.Y * size.Y, RelativeOffset.Z * size.Z);
+            var offsetPerCopy = new Vector3(RelativeOffset.X * size.X, RelativeOffset.Y * size.Y, RelativeOffset.Z * size.Z) + ConstantOffset;
 
             for (var copyIndex = 0; copyIndex < count; copyIndex++)
             {
@@ -70,10 +79,11 @@ namespace JolieCat3D.Core.Modifiers
                     output.AddTriangle(face.A + vertexOffset, face.B + vertexOffset, face.C + vertexOffset);
 
                 foreach (var polygon in input.Polygons)
-                    output.AddPolygon(new Polygon(polygon.Indices.Select(index => index + vertexOffset)));
+                    output.AddPolygon(new Polygon(polygon.Indices.Select(index => index + vertexOffset)) { MaterialSlotIndex = polygon.MaterialSlotIndex });
             }
 
-            return output;
+            // Merge keeps UV seams (only welds vertices whose UVs match too).
+            return Merge ? new WeldModifier { Distance = MergeDistance, Mode = 1 }.Apply(output) : output;
         }
 
         public override Modifier Clone() => new ArrayModifier
@@ -81,6 +91,9 @@ namespace JolieCat3D.Core.Modifiers
             IsEnabled = IsEnabled,
             Count = Count,
             RelativeOffset = RelativeOffset,
+            ConstantOffset = ConstantOffset,
+            Merge = Merge,
+            MergeDistance = MergeDistance,
         };
     }
 }

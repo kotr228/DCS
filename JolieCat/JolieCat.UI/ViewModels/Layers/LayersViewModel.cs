@@ -129,12 +129,24 @@ namespace JolieCat.UI.ViewModels.Layers
         [ObservableProperty]
         private int spriteSheetMarginY;
 
+        [ObservableProperty]
+        private double spriteSheetPivotX = 50;
+
+        [ObservableProperty]
+        private double spriteSheetPivotY = 100;
+
+        [ObservableProperty]
+        private string spriteSheetRowNames = string.Empty;
+
         partial void OnSpriteSheetColumnsChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.Columns = Math.Max(1, value));
         partial void OnSpriteSheetRowsChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.Rows = Math.Max(1, value));
         partial void OnSpriteSheetPaddingXChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.PaddingX = Math.Max(0, value));
         partial void OnSpriteSheetPaddingYChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.PaddingY = Math.Max(0, value));
         partial void OnSpriteSheetMarginXChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.MarginX = Math.Max(0, value));
         partial void OnSpriteSheetMarginYChanged(int value) => PushSpriteSheetGridField(() => SpriteSheetGrid.MarginY = Math.Max(0, value));
+        partial void OnSpriteSheetPivotXChanged(double value) => PushSpriteSheetGridField(() => SpriteSheetGrid.PivotX = Math.Clamp(value, 0, 100));
+        partial void OnSpriteSheetPivotYChanged(double value) => PushSpriteSheetGridField(() => SpriteSheetGrid.PivotY = Math.Clamp(value, 0, 100));
+        partial void OnSpriteSheetRowNamesChanged(string value) => PushSpriteSheetGridField(() => SpriteSheetGrid.RowNames = value ?? string.Empty);
 
         private void PushSpriteSheetGridField(Action apply)
         {
@@ -142,6 +154,7 @@ namespace JolieCat.UI.ViewModels.Layers
 
             apply();
             RaiseInvalidate();
+            if (_previewCells is not null) StartSpritePreview();
         }
 
         /// <summary>Mirrors <see cref="SpriteSheetGrid"/>'s current values into the six
@@ -160,6 +173,9 @@ namespace JolieCat.UI.ViewModels.Layers
             SpriteSheetPaddingY = grid.PaddingY;
             SpriteSheetMarginX = grid.MarginX;
             SpriteSheetMarginY = grid.MarginY;
+            SpriteSheetPivotX = grid.PivotX;
+            SpriteSheetPivotY = grid.PivotY;
+            SpriteSheetRowNames = grid.RowNames;
 
             _isSyncingSpriteSheetGrid = false;
         }
@@ -378,8 +394,11 @@ namespace JolieCat.UI.ViewModels.Layers
         {
             var active = ActiveLayer?.Model;
             if (active is null) return new List<Layer>();
-            var live = _selectedLayers.Where(l => Scene.IndexOf(l) >= 0).ToList();
-            return live.Count > 1 && live.Contains(active) ? live : new List<Layer> { active };
+            // By Id: structural edits and undo rebuild the Layer objects (same Ids).
+            var live = _selectedLayers
+                .Select(l => Scene.Layers.FirstOrDefault(x => x.Id == l.Id))
+                .OfType<Layer>().Distinct().ToList();
+            return live.Count > 1 && live.Any(l => l.Id == active.Id) ? live : new List<Layer> { active };
         }
 
         /// <summary>Drag and drop in the Layers panel: moves the selection (or the
@@ -1008,11 +1027,17 @@ namespace JolieCat.UI.ViewModels.Layers
         /// The Layers list rebuild and canvas repaint both happen via <see cref="History"/>'s
         /// own Changed subscription (see the constructor), so this doesn't need to call
         /// either itself.</summary>
-        private void ExecuteStructuralChange(Action operation, [System.Runtime.CompilerServices.CallerMemberName] string caller = "")
+        private void ExecuteStructuralChange(Action operation, [System.Runtime.CompilerServices.CallerMemberName] string caller = "") =>
+            History.PushStructural(CaptureStructuralChange(operation), StepName(caller));
+
+        /// <summary>Runs <paramref name="operation"/> and returns the undo step for it,
+        /// without recording it (for callers that combine it with another edit).</summary>
+        internal SceneStructuralCommand CaptureStructuralChange(Action operation)
         {
             var before = Scene.CaptureLayers();
             var beforeActiveIndex = IndexOfLayer(ActiveLayer?.Model);
             var guidesBefore = Scene.Guides.ToList();
+            var artboardsBefore = Scene.Artboards.ToList();
 
             operation();
 
@@ -1021,8 +1046,12 @@ namespace JolieCat.UI.ViewModels.Layers
             var guidesAfter = Scene.Guides.ToList();
             var guidesChanged = !guidesBefore.SequenceEqual(guidesAfter);
 
-            History.PushStructural(new SceneStructuralCommand(Scene, before, beforeActiveIndex, after, afterActiveIndex,
-                guidesChanged ? guidesBefore : null, guidesChanged ? guidesAfter : null), StepName(caller));
+            var artboardsAfter = Scene.Artboards.ToList();
+            var artboardsChanged = !artboardsBefore.SequenceEqual(artboardsAfter);
+
+            return new SceneStructuralCommand(Scene, before, beforeActiveIndex, after, afterActiveIndex,
+                guidesChanged ? guidesBefore : null, guidesChanged ? guidesAfter : null,
+                artboardsChanged ? artboardsBefore : null, artboardsChanged ? artboardsAfter : null);
         }
 
         /// <summary>History panel name for a structural change, from the method that made it.</summary>

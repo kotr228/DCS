@@ -61,9 +61,30 @@ namespace JolieCat3D.Service.Animation
                 TotalFrames = timeline.TotalFrames,
             };
 
-            foreach (var track in timeline.Tracks)
+            List<AnimationTrackExportData> BuildTracks(IEnumerable<AnimationTrack> tracks)
+            {
+            var list = new List<AnimationTrackExportData>();
+            foreach (var track in tracks)
             {
                 var trackData = new AnimationTrackExportData { NodePath = NodePathResolver.GetPath(track.Target) };
+                trackData.Curves = track.Curves.Select(kv => (Channel: kv.Key.ToString(), Curve: kv.Value))
+                    .Concat(track.PropertyCurves.Select(kv => (Channel: kv.Key, Curve: kv.Value)))
+                    .Where(kv => kv.Curve.Keys.Count > 0)
+                    .Select(kv => new FCurveExportData
+                    {
+                        Channel = kv.Channel,
+                        Keys = kv.Curve.Keys.Select(k => new FCurveKeyExportData
+                        {
+                            Time = k.Time,
+                            Value = k.Value,
+                            Interpolation = k.Interpolation.ToString(),
+                            HandleLeftTime = k.HandleLeft.X,
+                            HandleLeftValue = k.HandleLeft.Y,
+                            HandleRightTime = k.HandleRight.X,
+                            HandleRightValue = k.HandleRight.Y,
+                            AutoHandles = k.AutoHandles,
+                        }).ToList(),
+                    }).ToList();
                 foreach (var keyframe in track.Keyframes)
                 {
                     trackData.Keyframes.Add(new KeyframeExportData
@@ -83,7 +104,34 @@ namespace JolieCat3D.Service.Animation
                     });
                 }
 
-                data.Tracks.Add(trackData);
+                list.Add(trackData);
+            }
+            return list;
+            }
+
+            data.Tracks = BuildTracks(timeline.Tracks);
+            data.ActiveAction = timeline.ActiveAction.Name;
+            data.Actions = timeline.Actions.Select(a => new ActionExportData { Name = a.Name, Tracks = BuildTracks(a.Tracks) }).ToList();
+            if (timeline.NlaTracks.Count > 0)
+            {
+                data.NlaTracks = timeline.NlaTracks.Select(t => new NlaTrackExportData
+                {
+                    Name = t.Name,
+                    Muted = t.Muted,
+                    Strips = t.Strips.Where(s => timeline.Actions.Contains(s.Action)).Select(s => new NlaStripExportData
+                    {
+                        Action = s.Action.Name,
+                        Start = s.Start,
+                        Speed = s.Speed,
+                        Repeat = s.Repeat,
+                        Influence = s.Influence,
+                        BlendIn = s.BlendIn,
+                        BlendOut = s.BlendOut,
+                        BlendMode = s.BlendMode.ToString(),
+                        Extrapolation = s.Extrapolation.ToString(),
+                        Muted = s.Muted,
+                    }).ToList(),
+                }).ToList();
             }
 
             foreach (var textureTrack in timeline.TextureTracks)
@@ -162,11 +210,39 @@ namespace JolieCat3D.Service.Animation
 
             var appliedCount = 0;
 
-            foreach (var trackData in data.Tracks)
+            void ApplyTracks(IEnumerable<AnimationTrackExportData> tracks)
+            {
+            foreach (var trackData in tracks)
             {
                 if (NodePathResolver.FindByPath(scene, trackData.NodePath) is not { } node) continue;
 
                 var track = timeline.GetOrCreateTrack(node);
+                if (trackData.Curves is { Count: > 0 } curves)
+                {
+                    foreach (var curveData in curves)
+                    {
+                        FCurve curve;
+                        if (Enum.TryParse<AnimationChannel>(curveData.Channel, out var channel)) curve = track.Curve(channel);
+                        else if (curveData.Channel.StartsWith(AnimationTrack.ShapeKeyPrefix, StringComparison.Ordinal)) curve = track.PropertyCurve(curveData.Channel);
+                        else continue;
+                        foreach (var k in curveData.Keys)
+                        {
+                            curve.Add(new FCurveKey
+                            {
+                                Time = k.Time,
+                                Value = k.Value,
+                                Interpolation = Enum.TryParse<InterpolationMode>(k.Interpolation, out var mode) ? mode : InterpolationMode.Bezier,
+                                HandleLeft = new System.Numerics.Vector2(k.HandleLeftTime, k.HandleLeftValue),
+                                HandleRight = new System.Numerics.Vector2(k.HandleRightTime, k.HandleRightValue),
+                                AutoHandles = k.AutoHandles,
+                            });
+                        }
+                        curve.Changed();
+                    }
+                    appliedCount++;
+                    continue;
+                }
+
                 foreach (var keyframeData in trackData.Keyframes)
                 {
                     var interpolation = Enum.TryParse<InterpolationMode>(keyframeData.Interpolation, out var parsed)
@@ -182,6 +258,44 @@ namespace JolieCat3D.Service.Animation
                 }
 
                 appliedCount++;
+            }
+            }
+
+            if (data.Actions is { Count: > 0 } actions)
+            {
+                timeline.ClearActions(actions[0].Name);
+                for (var ai = 0; ai < actions.Count; ai++)
+                {
+                    timeline.ActiveAction = ai == 0 ? timeline.Actions[0] : timeline.AddAction(actions[ai].Name);
+                    ApplyTracks(actions[ai].Tracks);
+                }
+                timeline.ActiveAction = timeline.Actions.FirstOrDefault(a => a.Name == data.ActiveAction) ?? timeline.Actions[0];
+
+                foreach (var trackData in data.NlaTracks ?? new List<NlaTrackExportData>())
+                {
+                    var track = new NlaTrack(string.IsNullOrWhiteSpace(trackData.Name) ? timeline.UniqueNlaTrackName() : trackData.Name) { Muted = trackData.Muted };
+                    foreach (var stripData in trackData.Strips)
+                    {
+                        if (timeline.Actions.FirstOrDefault(a => a.Name == stripData.Action) is not { } action) continue;
+                        track.Strips.Add(new NlaStrip(action)
+                        {
+                            Start = stripData.Start,
+                            Speed = stripData.Speed,
+                            Repeat = stripData.Repeat,
+                            Influence = stripData.Influence,
+                            BlendIn = Math.Max(0, stripData.BlendIn),
+                            BlendOut = Math.Max(0, stripData.BlendOut),
+                            BlendMode = Enum.TryParse<NlaBlendMode>(stripData.BlendMode, out var mode) ? mode : NlaBlendMode.Replace,
+                            Extrapolation = Enum.TryParse<NlaExtrapolation>(stripData.Extrapolation, out var ex) ? ex : NlaExtrapolation.HoldForward,
+                            Muted = stripData.Muted,
+                        });
+                    }
+                    timeline.NlaTracks.Add(track);
+                }
+            }
+            else
+            {
+                ApplyTracks(data.Tracks);
             }
 
             foreach (var trackData in data.TextureTracks)

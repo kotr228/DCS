@@ -47,7 +47,7 @@ namespace JolieCat.UI.ViewModels.Timeline
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(RulerTicks))]
         [NotifyPropertyChangedFor(nameof(TimelineWidth))]
-        private double pixelsPerFrame = 8;
+        private double pixelsPerFrame = 16;
 
         [ObservableProperty]
         private double currentFrame;
@@ -64,28 +64,36 @@ namespace JolieCat.UI.ViewModels.Timeline
 
         public TimelineViewModel()
         {
-            // Seed a couple of tracks so the panel demonstrates real content immediately
-            // instead of opening empty.
-            var transform = new TimelineTrackViewModel(this, "Transform");
-            transform.AddClip("Move In", 0, 48);
-            transform.Keyframes.Add(new KeyframeViewModel(this, 0));
-            transform.Keyframes.Add(new KeyframeViewModel(this, 48));
-            Tracks.Add(transform);
-
-            var opacity = new TimelineTrackViewModel(this, "Opacity");
-            opacity.AddClip("Fade In", 12, 24);
-            Tracks.Add(opacity);
-
             _playbackTimer.Tick += (_, _) => AdvancePlayback();
             UpdatePlaybackInterval();
         }
 
         partial void OnFrameRateChanged(double value) => UpdatePlaybackInterval();
 
+        partial void OnPixelsPerFrameChanged(double value)
+        {
+            foreach (var track in Tracks)
+            {
+                foreach (var clip in track.Clips) clip.NotifyScaleChanged();
+                foreach (var key in track.Keyframes) key.NotifyScaleChanged();
+            }
+        }
+
         private void UpdatePlaybackInterval() =>
             _playbackTimer.Interval = TimeSpan.FromSeconds(1.0 / Math.Max(1.0, FrameRate));
 
-        partial void OnCurrentFrameChanged(double value) => UpdateFrameLayerVisibility();
+        partial void OnCurrentFrameChanged(double value)
+        {
+            ScrubSound();
+            UpdateFrameLayerVisibility();
+            ApplyAnimation();
+            RefreshPoseEditor();
+            MarkCurrentThumb();
+            FrameChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>Raised when the playhead moves (onion skin and the active frame follow it).</summary>
+        public event EventHandler? FrameChanged;
 
         /// <summary>Raised whenever <see cref="UpdateFrameLayerVisibility"/> actually
         /// flips some <see cref="TimelineClipViewModel.TargetLayer"/>'s visibility -
@@ -140,10 +148,18 @@ namespace JolieCat.UI.ViewModels.Timeline
             ArgumentNullException.ThrowIfNull(scene);
 
             foreach (var track in Tracks)
+            {
                 foreach (var clip in track.Clips)
                     clip.TargetLayer = scene.Layers.FirstOrDefault(layer => layer.Name == clip.Name);
+                if (track.LayerName is { } name)
+                    track.TargetLayer = scene.Layers.FirstOrDefault(layer => layer.Name == name);
+                if (track.ParentLayerName is { } parentName)
+                    track.ParentLayerId = scene.Layers.FirstOrDefault(layer => layer.Name == parentName)?.Id;
+            }
 
             UpdateFrameLayerVisibility();
+            ApplyAnimation();
+            RefreshFrameStrip();
         }
 
         /// <summary>Starts auto-advancing <see cref="CurrentFrame"/> at <see cref="FrameRate"/>
@@ -155,6 +171,8 @@ namespace JolieCat.UI.ViewModels.Timeline
             if (IsPlaying) return;
 
             UpdatePlaybackInterval();
+            // Played to the end once already: start again from the beginning.
+            if (Math.Floor(CurrentFrame) < PlayStart || (LoopMode == PlaybackLoop.Once && Math.Floor(CurrentFrame) + 1 >= PlayEnd)) CurrentFrame = PlayStart;
             IsPlaying = true;
             _playbackTimer.Start();
         }
@@ -213,14 +231,37 @@ namespace JolieCat.UI.ViewModels.Timeline
         /// looping back to 0 rather than stopping once it passes <see cref="TotalFrames"/> -
         /// a clipbar animation's playhead is conventionally meant to preview on a loop,
         /// not play once and stall at the end.</summary>
-        private void AdvancePlayback()
+        internal void AdvancePlayback()
         {
-            var next = CurrentFrame + 1;
-            CurrentFrame = next > TotalFrames ? 0 : next;
+            StepPlayback();
         }
 
         [RelayCommand]
-        private void AddTrack() => Tracks.Add(new TimelineTrackViewModel(this, $"Track {Tracks.Count + 1}"));
+        private void AddTrack()
+        {
+            var before = Capture();
+            Tracks.Add(new TimelineTrackViewModel(this, $"Track {Tracks.Count + 1}"));
+            Record(before, "Add Track");
+        }
+
+        private State? _gestureBefore;
+
+        /// <summary>A clip drag starts: remember the timeline as it was.</summary>
+        internal void BeginGesture() => _gestureBefore = Capture();
+
+        /// <summary>The drag ended: record it as one undo step (frames snap to whole numbers).</summary>
+        internal void EndGesture(string name)
+        {
+            foreach (var clip in Tracks.SelectMany(t => t.Clips))
+            {
+                clip.StartFrame = Math.Round(clip.StartFrame);
+                clip.LengthFrames = Math.Max(1, Math.Round(clip.LengthFrames));
+            }
+            if (_gestureBefore is { } before) Record(before, name);
+            _gestureBefore = null;
+            UpdateFrameLayerVisibility();
+            FrameVisibilityChanged?.Invoke(this, EventArgs.Empty);
+        }
 
         /// <summary>Moves the playhead, from a scrub-drag gesture measured in pixels.</summary>
         public void ScrubPlayheadBy(double pixelDelta) =>
@@ -235,15 +276,42 @@ namespace JolieCat.UI.ViewModels.Timeline
             Pause();
             Tracks.Clear();
 
+            InPoint = null;
+            OutPoint = null;
             foreach (var trackData in tracks)
             {
-                var track = new TimelineTrackViewModel(this, trackData.Name);
+                // The saved work area travels as a hidden entry.
+                if (trackData.IsWorkArea)
+                {
+                    if (trackData.Clips.FirstOrDefault() is { } area)
+                    {
+                        InPoint = area.StartFrame > 0 ? area.StartFrame : null;
+                        OutPoint = area.LengthFrames > 0 ? area.StartFrame + area.LengthFrames - 1 : null;
+                    }
+                    continue;
+                }
+
+                var track = new TimelineTrackViewModel(this, trackData.Name) { AudioPath = trackData.AudioPath, Volume = trackData.Volume, IsMuted = trackData.Muted, IsCamera = trackData.IsCamera, IsMarkers = trackData.IsMarkers };
 
                 foreach (var clip in trackData.Clips)
                     track.AddClip(clip.Name, clip.StartFrame, clip.LengthFrames);
 
-                foreach (var frame in trackData.KeyframeFrames)
-                    track.Keyframes.Add(new KeyframeViewModel(this, frame));
+                if (trackData.Keys is { Count: > 0 } keys)
+                    foreach (var k in keys)
+                        track.Keyframes.Add(new KeyframeViewModel(this, k.Frame,
+                            new Core.Animation.LayerKey(k.Frame, k.X, k.Y, k.Scale, k.Rotation, k.Opacity, k.ToEasing())
+                            { CurveX1 = k.CurveX1, CurveY1 = k.CurveY1, CurveX2 = k.CurveX2, CurveY2 = k.CurveY2, Reveal = k.Reveal, Blur = k.Blur, Bend = k.Bend, Brightness = k.Brightness, Saturation = k.Saturation, Hue = k.Hue }));
+                else
+                    foreach (var frame in trackData.KeyframeFrames)
+                        track.Keyframes.Add(new KeyframeViewModel(this, frame));
+                track.LayerName = trackData.LayerName;
+                track.ParentLayerName = trackData.ParentLayerName;
+                if (trackData.PivotX is { } px && trackData.PivotY is { } py) track.Pivot = new SkiaSharp.SKPoint((float)px, (float)py);
+                if (trackData.BendX is { } bx && trackData.BendY is { } by) track.BendPoint = new SkiaSharp.SKPoint((float)bx, (float)by);
+                track.MotionBlur = trackData.MotionBlur;
+                track.WiggleAmount = trackData.WiggleAmount;
+                track.WiggleRotation = trackData.WiggleRotation;
+                track.WiggleSpeed = trackData.WiggleSpeed <= 0 ? 2 : trackData.WiggleSpeed;
 
                 Tracks.Add(track);
             }
@@ -251,6 +319,7 @@ namespace JolieCat.UI.ViewModels.Timeline
             TotalFrames = totalFrames;
             FrameRate = frameRate;
             CurrentFrame = 0;
+            RefreshWaveforms();
         }
 
         private List<TimelineRulerTick> BuildRulerTicks()
@@ -272,6 +341,7 @@ namespace JolieCat.UI.ViewModels.Timeline
             if (_disposed) return;
 
             _playbackTimer.Stop();
+            CloseAudio();
             _disposed = true;
         }
     }

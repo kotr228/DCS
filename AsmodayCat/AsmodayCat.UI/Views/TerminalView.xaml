@@ -1,143 +1,162 @@
 <UserControl x:Class="AsmodayCat.UI.Views.TerminalView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:AsmodayCat.UI.Localization"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
-    <Grid Margin="20" Background="{StaticResource BrushBackground}">
+    <UserControl.Resources>
+        <!-- Level filter chip: a pill with a colored dot (color comes from Tag) -->
+        <Style x:Key="FilterChip" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource BrushMuted}"/>
+            <Setter Property="FontSize" Value="12.5"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="15" Padding="12,5" BorderThickness="1"
+                                Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="Dot" Width="8" Height="8" Fill="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Opacity="0.35"
+                                         VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                <ContentPresenter VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource BrushAccentSoft}"/>
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#E6D6A8"/>
+                                <Setter TargetName="Dot" Property="Opacity" Value="1"/>
+                                <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource BrushAccent}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource BrushBackground}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>  <!-- title + controls -->
+            <RowDefinition Height="Auto"/>  <!-- header -->
             <RowDefinition Height="Auto"/>  <!-- filter chips -->
-            <RowDefinition Height="*"/>     <!-- log area -->
-            <RowDefinition Height="Auto"/>  <!-- CLI input -->
+            <RowDefinition Height="*"/>     <!-- console -->
         </Grid.RowDefinitions>
 
-        <!-- Title row + controls -->
-        <DockPanel Grid.Row="0" Margin="0,0,0,8">
-            <TextBlock Text="TERMINAL" FontSize="18" FontWeight="Bold"
-                       Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"
-                       DockPanel.Dock="Left"/>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="CLEAR"
-                        Command="{Binding ClearCommand}"
-                        Style="{StaticResource MaterialDesignOutlinedButton}"
-                        Foreground="{StaticResource BrushDark}"
-                        BorderBrush="{StaticResource BrushNav}"
-                        Height="28" Padding="10,0" Margin="0,0,6,0"/>
-                <Button Content="EXPORT"
-                        Command="{Binding ExportLogsCommand}"
-                        Style="{StaticResource MaterialDesignOutlinedButton}"
-                        Foreground="{StaticResource BrushDark}"
-                        BorderBrush="{StaticResource BrushNav}"
-                        Height="28" Padding="10,0" Margin="0,0,10,0"/>
-                <CheckBox Content="Auto-scroll"
-                          IsChecked="{Binding AutoScroll}"
-                          Foreground="{StaticResource BrushDark}"
-                          VerticalAlignment="Center"/>
+        <!-- Header -->
+        <DockPanel Grid.Row="0" Margin="32,8,32,16">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <CheckBox Content="{l:Tr term.autoscroll}" IsChecked="{Binding AutoScroll}"
+                          Foreground="{StaticResource BrushDark}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <Button Command="{Binding ExportLogsCommand}" Style="{StaticResource QuietButton}" Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Export" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{l:Tr term.export}"/>
+                    </StackPanel>
+                </Button>
+                <Button Command="{Binding ClearCommand}" Style="{StaticResource QuietButton}">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="NotificationClearAll" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{l:Tr term.clear}"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="{l:Tr term.title}" Style="{StaticResource PageTitle}"/>
+                <TextBlock Text="{l:Tr term.subtitle}" Style="{StaticResource PageSubtitle}"/>
             </StackPanel>
         </DockPanel>
 
-        <!-- Level filter chips -->
-        <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-            <ToggleButton Content="INFO"
-                          IsChecked="{Binding ShowInfo}"
-                          Style="{StaticResource MaterialDesignFlatToggleButton}"
-                          Foreground="#5E9D55" Padding="8,2" Margin="0,0,4,0" Height="24"/>
-            <ToggleButton Content="WARN"
-                          IsChecked="{Binding ShowWarning}"
-                          Style="{StaticResource MaterialDesignFlatToggleButton}"
-                          Foreground="#BC907E" Padding="8,2" Margin="0,0,4,0" Height="24"/>
-            <ToggleButton Content="ERROR"
-                          IsChecked="{Binding ShowError}"
-                          Style="{StaticResource MaterialDesignFlatToggleButton}"
-                          Foreground="#EF5350" Padding="8,2" Margin="0,0,4,0" Height="24"/>
-            <ToggleButton Content="AGENT"
-                          IsChecked="{Binding ShowAgent}"
-                          Style="{StaticResource MaterialDesignFlatToggleButton}"
-                          Foreground="#BC8F3C" Padding="8,2" Margin="0,0,4,0" Height="24"/>
-            <ToggleButton Content="SYSTEM"
-                          IsChecked="{Binding ShowSystem}"
-                          Style="{StaticResource MaterialDesignFlatToggleButton}"
-                          Foreground="#79644D" Padding="8,2" Margin="0,0,4,0" Height="24"/>
-            <ToggleButton Content="NET"
-                          IsChecked="{Binding ShowNetwork}"
-                          Style="{StaticResource MaterialDesignFlatToggleButton}"
-                          Foreground="#42A5F5" Padding="8,2" Height="24"/>
+        <!-- Level filters -->
+        <WrapPanel Grid.Row="1" Orientation="Horizontal" Margin="32,0,32,12">
+            <ToggleButton Content="{l:Tr term.info}"     IsChecked="{Binding ShowInfo}"    Style="{StaticResource FilterChip}" Tag="#4F8A4A"/>
+            <ToggleButton Content="{l:Tr term.warning}"    IsChecked="{Binding ShowWarning}" Style="{StaticResource FilterChip}" Tag="#C98A2E"/>
+            <ToggleButton Content="{l:Tr term.errors}"  IsChecked="{Binding ShowError}"   Style="{StaticResource FilterChip}" Tag="#B3362B"/>
+            <ToggleButton Content="{l:Tr term.agents}"   IsChecked="{Binding ShowAgent}"   Style="{StaticResource FilterChip}" Tag="#AE8530"/>
+            <ToggleButton Content="{l:Tr term.system}"  IsChecked="{Binding ShowSystem}"  Style="{StaticResource FilterChip}" Tag="#9C9270"/>
+            <ToggleButton Content="{l:Tr term.network}"   IsChecked="{Binding ShowNetwork}" Style="{StaticResource FilterChip}" Tag="#4A7FA8"/>
         </WrapPanel>
 
-        <!-- Log area -->
-        <Border Grid.Row="2" Background="#2A1F12" CornerRadius="4" Padding="6">
-            <ScrollViewer x:Name="Scroller"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Auto"
-                          CanContentScroll="False">
-                <ItemsControl ItemsSource="{Binding FilteredLogs}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock x:Name="Tb"
-                                       FontFamily="Consolas" FontSize="11"
-                                       TextWrapping="Wrap" Margin="0,1"
-                                       Foreground="#A5D6A7">
-                                <Run Text="{Binding Timestamp, StringFormat=HH:mm:ss}"/>
-                                <Run Text=" [" Foreground="#6B5B45"/>
-                                <Run Text="{Binding Level}" Foreground="#8C7254"/>
-                                <Run Text="] " Foreground="#6B5B45"/>
-                                <Run Text="{Binding Source}" Foreground="#BC8F3C"/>
-                                <Run Text=": "/>
-                                <Run Text="{Binding Message}"/>
-                            </TextBlock>
-                            <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding Level}" Value="Warning">
-                                    <Setter TargetName="Tb" Property="Foreground" Value="#BC907E"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Level}" Value="Error">
-                                    <Setter TargetName="Tb" Property="Foreground" Value="#EF5350"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Level}" Value="Agent">
-                                    <Setter TargetName="Tb" Property="Foreground" Value="#BC8F3C"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Level}" Value="System">
-                                    <Setter TargetName="Tb" Property="Foreground" Value="#79644D"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Level}" Value="Network">
-                                    <Setter TargetName="Tb" Property="Foreground" Value="#42A5F5"/>
-                                </DataTrigger>
-                            </DataTemplate.Triggers>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+        <!-- Console: log + command line in one dark panel -->
+        <Border Grid.Row="2" Margin="32,0,32,24" CornerRadius="10" Background="{StaticResource BrushTerminal}"
+                ClipToBounds="True">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <ScrollViewer x:Name="Scroller" Grid.Row="0" Padding="16,12"
+                              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                              CanContentScroll="False">
+                    <ItemsControl ItemsSource="{Binding FilteredLogs}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock x:Name="Tb" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
+                                           Margin="0,1" Foreground="#CFE3C8">
+                                    <Run Text="{Binding Timestamp, StringFormat=HH:mm:ss}" Foreground="#7D7660"/>
+                                    <Run Text=" "/>
+                                    <Run Text="{Binding Level}" Foreground="#9C937A"/>
+                                    <Run Text=" "/>
+                                    <Run Text="{Binding Source}" Foreground="#D9B45A"/>
+                                    <Run Text=" "/>
+                                    <Run Text="{Binding Message}"/>
+                                </TextBlock>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Level}" Value="Warning">
+                                        <Setter TargetName="Tb" Property="Foreground" Value="#E8B86A"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Level}" Value="Error">
+                                        <Setter TargetName="Tb" Property="Foreground" Value="#F08A7E"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Level}" Value="Agent">
+                                        <Setter TargetName="Tb" Property="Foreground" Value="#EEDDA8"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Level}" Value="System">
+                                        <Setter TargetName="Tb" Property="Foreground" Value="#B8AF95"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Level}" Value="Network">
+                                        <Setter TargetName="Tb" Property="Foreground" Value="#8FBCE0"/>
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <!-- Command line -->
+                <Border Grid.Row="1" Background="#201E14" BorderBrush="#454029" BorderThickness="0,1,0,0" Padding="12,6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <materialDesign:PackIcon Grid.Column="0" Kind="ChevronRight" Width="18" Height="18"
+                                                 Foreground="#D9B45A" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1" FontFamily="Consolas" FontSize="13"
+                                 Background="Transparent" Foreground="#F2EBD8" CaretBrush="#D9B45A" BorderThickness="0"
+                                 materialDesign:TextFieldAssist.DecorationVisibility="Hidden"
+                                 materialDesign:HintAssist.Foreground="#7D7660"
+                                 Text="{Binding CurrentCommand, UpdateSourceTrigger=PropertyChanged}"
+                                 VerticalAlignment="Center" Padding="6,6" Margin="4,0"
+                                 materialDesign:HintAssist.Hint="/help  /status  /memory  /rules  /kill_all">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Return" Command="{Binding SendCommandCommand}"/>
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <Button Grid.Column="2" Command="{Binding SendCommandCommand}" Style="{StaticResource AccentButton}"
+                                Height="30">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{l:Tr term.run}"/>
+                                <materialDesign:PackIcon Kind="KeyboardReturn" Width="15" Height="15" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
+            </Grid>
         </Border>
-
-        <!-- CLI input -->
-        <Grid Grid.Row="3" Background="#2A1F12" Margin="0,4,0,0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-
-            <TextBlock Grid.Column="0" Text="&gt;"
-                       FontFamily="Consolas" FontSize="13"
-                       Foreground="{StaticResource BrushAccent}" VerticalAlignment="Center"
-                       Margin="8,0,4,0"/>
-
-            <TextBox Grid.Column="1"
-                     FontFamily="Consolas" FontSize="12"
-                     Background="Transparent" Foreground="#F9F6F0"
-                     CaretBrush="{StaticResource BrushAccent}" BorderThickness="0"
-                     Text="{Binding CurrentCommand, UpdateSourceTrigger=PropertyChanged}"
-                     VerticalAlignment="Center" Padding="4,6"
-                     materialDesign:HintAssist.Hint="/ping  /status  /help  /kill_all">
-                <TextBox.InputBindings>
-                    <KeyBinding Key="Return" Command="{Binding SendCommandCommand}"/>
-                </TextBox.InputBindings>
-            </TextBox>
-
-            <Button Grid.Column="2" Content="EXECUTE"
-                    Command="{Binding SendCommandCommand}"
-                    Background="{StaticResource BrushAccent}"
-                    Foreground="{StaticResource BrushLight}"
-                    Height="32" Margin="4,4" Padding="10,0"/>
-        </Grid>
-
     </Grid>
 </UserControl>

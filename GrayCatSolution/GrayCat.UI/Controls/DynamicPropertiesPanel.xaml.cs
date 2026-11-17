@@ -1,607 +1,626 @@
-﻿namespace GrayCat.UI.Controls;
+namespace GrayCat.UI.Controls;
 
+using GrayCat.UI.Localization;
+using System.ComponentModel;
+using System.IO;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
-using GrayCat.Core.Models;
+using GrayCat.Core.Generation;
 using GrayCat.Core.Validation;
 using GrayCat.UI.ViewModels;
+using GrayCat.UI.Views;
 
+/// <summary>Right-hand panel that builds editors for the selected block.</summary>
 public partial class DynamicPropertiesPanel : UserControl
 {
-    private BlockViewModel? _currentBlock;
+    private static readonly Brush AccentBrush = new SolidColorBrush(Color.FromRgb(125, 95, 67)); // logo brown
+    private static readonly Brush MutedBrush = new SolidColorBrush(Color.FromRgb(108, 117, 125));
+    private static readonly Brush ErrorBrush = new SolidColorBrush(Color.FromRgb(179, 54, 43));
+
+    private MainViewModel? _viewModel;
+
+    /// <summary>Combo items keep their real values (stored in the project) but show translated text.</summary>
+    private static readonly DataTemplate ValueTemplate = CreateValueTemplate();
+
+    private static DataTemplate CreateValueTemplate()
+    {
+        var text = new FrameworkElementFactory(typeof(TextBlock));
+        text.SetBinding(TextBlock.TextProperty, new Binding { Converter = new TrValueConverter() });
+        var template = new DataTemplate { VisualTree = text };
+        template.Seal();
+        return template;
+    }
 
     public DynamicPropertiesPanel()
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        // Labels are built in code, so rebuild them in the new language. Only while on screen:
+        // Loc lives for the whole app, and a closed window must not stay subscribed (leak, wrong thread).
+        Loaded += (_, _) => Loc.LanguageChanged += OnLanguageChanged;
+        Unloaded += (_, _) => Loc.LanguageChanged -= OnLanguageChanged;
+        UpdatePropertiesPanel(null);
+    }
+
+    private void OnLanguageChanged()
+    {
+        if (Dispatcher.CheckAccess())
+            UpdatePropertiesPanel(_viewModel?.SelectedBlock);
     }
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (DataContext is MainViewModel viewModel)
-        {
-            viewModel.PropertyChanged += (s, args) =>
-            {
-                if (args.PropertyName == nameof(MainViewModel.SelectedBlock))
-                {
-                    UpdatePropertiesPanel(viewModel.SelectedBlock);
-                }
-            };
-        }
+        if (_viewModel != null)
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+
+        _viewModel = DataContext as MainViewModel;
+        if (_viewModel != null)
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+
+        UpdatePropertiesPanel(_viewModel?.SelectedBlock);
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MainViewModel.SelectedBlock))
+            UpdatePropertiesPanel(_viewModel?.SelectedBlock);
     }
 
     private void UpdatePropertiesPanel(BlockViewModel? block)
     {
-        _currentBlock = block;
         PropertiesContainer.Children.Clear();
 
         if (block == null)
         {
-            var noSelection = new TextBlock
+            PropertiesContainer.Children.Add(new TextBlock
             {
-                Text = "No block selected",
-                FontSize = 14,
-                Foreground = new SolidColorBrush(Color.FromRgb(108, 117, 125)),
+                Text = Loc.T("Select a block on the canvas to edit it,\nor drag a new one from the library."),
+                FontSize = 13,
+                Foreground = MutedBrush,
                 Margin = new Thickness(0, 20, 0, 0),
-                TextAlignment = TextAlignment.Center
-            };
-            PropertiesContainer.Children.Add(noSelection);
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap
+            });
             return;
         }
 
-        // Header
-        var header = new TextBlock
+        PropertiesContainer.Children.Add(new TextBlock
         {
-            Text = $"{block.Type} Properties",
+            Text = Loc.F("{0} block", Loc.Block(block.Type)),
             FontSize = 18,
             FontWeight = FontWeights.Bold,
-            Margin = new Thickness(0, 0, 0, 20)
-        };
-        PropertiesContainer.Children.Add(header);
+            Margin = new Thickness(0, 0, 0, 10)
+        });
 
-        // Common properties
-        AddCommonProperties(block);
-
-        // Type-specific properties
+        AddSection(Loc.T("Content"));
         AddTypeSpecificProperties(block);
 
-        // Validation button
-        AddValidationButton(block);
+        AddSection(Loc.T("On the page"));
+        AddPropertyField(Loc.T("Section id (menu links like #contact jump here)"), "anchor", block);
+        AddPropertyCheckBox(Loc.T("Hide on the published site"), "hidden", block);
 
-        // Actions
+        AddSection(Loc.T("Appearance"));
+        AddColorField(Loc.T("Text color"), block, nameof(BlockViewModel.Color));
+        AddColorField(Loc.T("Background"), block, nameof(BlockViewModel.Background));
+        AddBoundSlider(Loc.T("Font size"), block, nameof(BlockViewModel.FontSize), 8, 72);
+        AddBoundCombo(Loc.T("Text alignment"), block, nameof(BlockViewModel.TextAlignment), new[] { "Left", "Center", "Right", "Justify" });
+        AddBoundCombo(Loc.T("Font"), block, nameof(BlockViewModel.FontFamily),
+            new[] { "Arial", "Segoe UI", "Georgia", "Verdana", "Tahoma", "Trebuchet MS", "Times New Roman", "Courier New" });
+        AddBoundSlider(Loc.T("Corner radius"), block, nameof(BlockViewModel.BorderRadius), 0, 48);
+
+        AddSection(Loc.T("Canvas position (sets the order on the page)"));
+        AddNumberPair(block, ("X", nameof(BlockViewModel.PositionX)), ("Y", nameof(BlockViewModel.PositionY)));
+        AddNumberPair(block, (Loc.T("Width"), nameof(BlockViewModel.Width)), (Loc.T("Height"), nameof(BlockViewModel.Height)));
+
         AddActionButtons(block);
-    }
-
-    private void AddCommonProperties(BlockViewModel block)
-    {
-        var commonSection = CreateSectionHeader("Common Properties");
-        PropertiesContainer.Children.Add(commonSection);
-
-        // Content/Text
-        AddTextProperty("Content", block, nameof(block.Content), multiline: true);
-
-        // Font Size
-        AddSliderProperty("Font Size", block, nameof(block.FontSize), 8, 72, "px");
-
-        // Text Color
-        AddColorProperty("Text Color", block, nameof(block.Color));
-
-        // Background
-        AddColorProperty("Background", block, nameof(block.Background));
-
-        // Text Alignment
-        AddComboBoxProperty("Text Alignment", block, nameof(block.TextAlignment),
-            new[] { "Left", "Center", "Right", "Justify" });
-
-        // Position
-        AddPositionProperty(block);
-
-        // Size
-        AddSizeProperty(block);
     }
 
     private void AddTypeSpecificProperties(BlockViewModel block)
     {
-        var specificSection = CreateSectionHeader($"{block.Type}-Specific Properties");
-        PropertiesContainer.Children.Add(specificSection);
-
         switch (block.Type)
         {
-            case "Button":
-                AddButtonProperties(block);
+            case "Text":
+                AddBoundText(Loc.T("Text"), block, nameof(BlockViewModel.Content), multiline: true);
                 break;
-            case "ContactForm":
-                AddContactFormProperties(block);
+
+            case "Header":
+                AddPropertyField(Loc.T("Title"), "title", block);
+                AddPropertyField(Loc.T("Subtitle"), "subtitle", block, multiline: true);
+                AddPropertyCheckBox(Loc.T("Show navigation links"), "showNavigation", block);
+                AddPropertyCheckBox(Loc.T("List the site's pages in the menu"), "pagesInMenu", block, defaultValue: true);
+                AddListEditor(Loc.T("Edit navigation links"), "links", block);
                 break;
-            case "Hero":
-                AddHeroProperties(block);
-                break;
-            case "Card":
-                AddCardProperties(block);
-                break;
+
             case "Navbar":
-                AddNavbarProperties(block);
+                AddPropertyField(Loc.T("Brand name"), "brandName", block);
+                AddPropertyCheckBox(Loc.T("List the site's pages in the menu"), "pagesInMenu", block, defaultValue: true);
+                AddAssetField(Loc.T("Logo"), "logo", block);
+                AddPropertyComboBox(Loc.T("Position"), "position", block, new[] { "static", "fixed", "sticky" });
+                AddPropertyCheckBox(Loc.T("Transparent"), "transparent", block);
+                AddPropertyCheckBox(Loc.T("Show search"), "showSearch", block);
+                AddPropertyField(Loc.T("Button text (optional)"), "ctaText", block);
+                AddPropertyField(Loc.T("Button URL"), "ctaUrl", block);
+                AddListEditor(Loc.T("Edit menu items"), "menuItems", block);
                 break;
+
+            case "Hero":
+                AddPropertyField(Loc.T("Headline"), "headline", block);
+                AddPropertyField(Loc.T("Subheadline"), "subheadline", block, multiline: true);
+                AddPropertyField(Loc.T("Button text"), "ctaText", block);
+                AddPropertyField(Loc.T("Button URL"), "ctaUrl", block);
+                AddAssetField(Loc.T("Background image"), "backgroundImage", block);
+                AddPropertyCheckBox(Loc.T("Dark overlay on image"), "overlay", block);
+                AddPropertySlider(Loc.T("Overlay opacity"), "overlayOpacity", block, 0, 1, 0.1);
+                AddPropertyComboBox(Loc.T("Alignment"), "alignment", block, new[] { "left", "center", "right" });
+                AddPropertyComboBox(Loc.T("Height"), "height", block, new[] { "small", "medium", "large", "full" });
+                break;
+
+            case "Button":
+                AddPropertyField(Loc.T("Button text"), "text", block);
+                AddPropertyField("URL", "url", block);
+                AddPropertyComboBox(Loc.T("Variant"), "variant", block, new[] { "primary", "secondary", "success", "danger", "warning", "info" });
+                AddPropertyComboBox(Loc.T("Size"), "size", block, new[] { "small", "medium", "large" });
+                AddPropertyComboBox(Loc.T("Open in"), "target", block, new[] { "_self", "_blank" });
+                AddPropertyCheckBox(Loc.T("Full width"), "fullWidth", block);
+                AddPropertyCheckBox(Loc.T("Disabled"), "disabled", block);
+                break;
+
+            case "Card":
+                AddPropertyField(Loc.T("Title"), "title", block);
+                AddPropertyField(Loc.T("Description"), "description", block, multiline: true);
+                AddAssetField(Loc.T("Image"), "image", block);
+                AddPropertyComboBox(Loc.T("Image position"), "imagePosition", block, new[] { "top", "left", "right", "bottom" });
+                AddPropertyField(Loc.T("Link text"), "linkText", block);
+                AddPropertyField(Loc.T("Link URL"), "linkUrl", block);
+                AddPropertyCheckBox(Loc.T("Shadow"), "shadow", block);
+                AddPropertyCheckBox(Loc.T("Border"), "bordered", block);
+                AddPropertyCheckBox(Loc.T("Lift on hover"), "hoverable", block);
+                break;
+
+            case "Image":
+                AddAssetField(Loc.T("Image"), "src", block);
+                AddPropertyField(Loc.T("Alt text"), "alt", block);
+                AddPropertyField(Loc.T("Caption"), "caption", block);
+                break;
+
+            case "Gallery":
+                AddPropertyField(Loc.T("Title"), "title", block);
+                AddPropertySlider(Loc.T("Columns"), "columns", block, 1, 4, 1);
+                AddListEditor(Loc.T("Edit images"), "images", block);
+                break;
+
+            case "ProductGrid":
+                AddPropertyField(Loc.T("Title"), "title", block);
+                AddPropertyField(Loc.T("Currency"), "currency", block);
+                AddPropertyField(Loc.T("Button text"), "buttonText", block);
+                AddPropertySlider(Loc.T("Columns"), "columns", block, 1, 4, 1);
+                AddListEditor(Loc.T("Edit products"), "products", block);
+                break;
+
+            case "Form":
+            case "ContactForm":
+                AddPropertyField(Loc.T("Title"), "title", block);
+                AddPropertyField(Loc.T("Subtitle"), "subtitle", block);
+                AddPropertyField(Loc.T("Submit button text"), "submitText", block);
+                AddPropertyField(Loc.T("Submit URL"), "submitUrl", block);
+                AddPropertyField(Loc.T("Success message"), "successMessage", block, multiline: true);
+                AddPropertyField(Loc.T("Error message"), "errorMessage", block, multiline: true);
+                if (block.Type == "ContactForm")
+                {
+                    AddPropertyCheckBox(Loc.T("Add phone field"), "showPhoneField", block);
+                    AddPropertyCheckBox(Loc.T("Add subject field"), "showSubjectField", block);
+                }
+                AddListEditor(Loc.T("Edit form fields"), "fields", block);
+                break;
+
             case "Video":
-                AddVideoProperties(block);
+                AddAssetField(Loc.T("Video (YouTube, Vimeo link or a video file)"), "videoUrl", block, video: true);
+                AddPropertyComboBox(Loc.T("Aspect ratio"), "aspectRatio", block, new[] { "16:9", "4:3", "1:1", "9:16" });
+                AddPropertyCheckBox(Loc.T("Autoplay (muted)"), "autoplay", block);
+                AddPropertyCheckBox(Loc.T("Show controls"), "controls", block);
+                AddPropertyCheckBox(Loc.T("Loop"), "loop", block);
+                AddPropertyCheckBox(Loc.T("Muted"), "muted", block);
                 break;
+
             case "Testimonial":
-                AddTestimonialProperties(block);
+                AddPropertyField(Loc.T("Quote"), "quote", block, multiline: true);
+                AddPropertyField(Loc.T("Author"), "author", block);
+                AddPropertyField(Loc.T("Author role"), "role", block);
+                AddAssetField(Loc.T("Avatar"), "avatar", block);
+                AddPropertySlider(Loc.T("Rating"), "rating", block, 0, 5, 1);
+                AddPropertyCheckBox(Loc.T("Show rating"), "showRating", block);
+                AddPropertyComboBox(Loc.T("Layout"), "layout", block, new[] { "default", "card", "minimal" });
                 break;
+
             case "Pricing":
-                AddPricingProperties(block);
+                AddPropertyField(Loc.T("Plan name"), "planName", block);
+                AddPropertyField(Loc.T("Price"), "price", block);
+                AddPropertyField(Loc.T("Currency"), "currency", block);
+                AddPropertyField(Loc.T("Period"), "period", block);
+                AddPropertyField(Loc.T("Button text"), "ctaText", block);
+                AddPropertyField(Loc.T("Button URL"), "ctaUrl", block);
+                AddPropertyField(Loc.T("Badge (optional)"), "badge", block);
+                AddPropertyCheckBox(Loc.T("Highlighted"), "highlighted", block);
+                AddListEditor(Loc.T("Edit features"), "features", block);
                 break;
+
             case "Accordion":
-                AddAccordionProperties(block);
+                AddPropertyField(Loc.T("Title"), "title", block);
+                AddPropertyCheckBox(Loc.T("Allow several open at once"), "allowMultiple", block);
+                AddPropertySlider(Loc.T("Open by default (item #, 0 = first)"), "defaultOpen", block, -1, 10, 1);
+                AddListEditor(Loc.T("Edit questions"), "items", block);
                 break;
+
             case "Stats":
-                AddStatsProperties(block);
+                AddPropertyComboBox(Loc.T("Layout"), "layout", block, new[] { "horizontal", "vertical", "grid" });
+                AddListEditor(Loc.T("Edit statistics"), "stats", block);
                 break;
+
             case "SocialLinks":
-                AddSocialLinksProperties(block);
+                AddPropertyComboBox(Loc.T("Style"), "style", block, new[] { "icons", "buttons", "text" });
+                AddPropertyComboBox(Loc.T("Size"), "size", block, new[] { "small", "medium", "large" });
+                AddPropertyComboBox(Loc.T("Alignment"), "alignment", block, new[] { "left", "center", "right" });
+                AddListEditor(Loc.T("Edit links"), "links", block);
                 break;
+
             case "Divider":
-                AddDividerProperties(block);
+                AddPropertyComboBox(Loc.T("Line style"), "style", block, new[] { "solid", "dashed", "dotted", "double" });
+                AddPropertySlider(Loc.T("Thickness"), "thickness", block, 1, 10, 1);
+                AddPropertyField(Loc.T("Line color (#RRGGBB)"), "color", block);
+                AddPropertyComboBox(Loc.T("Spacing"), "spacing", block, new[] { "small", "medium", "large" });
+                AddPropertyCheckBox(Loc.T("Show icon in the middle"), "withIcon", block);
+                AddPropertyField(Loc.T("Icon"), "icon", block);
+                break;
+
+            case "Footer":
+                AddPropertyField(Loc.T("Copyright text (empty = automatic)"), "copyright", block);
+                AddListEditor(Loc.T("Edit footer links"), "links", block);
+                break;
+
+            default:
+                AddBoundText(Loc.T("Text"), block, nameof(BlockViewModel.Content), multiline: true);
                 break;
         }
     }
 
-    // ========== TYPE-SPECIFIC PROPERTY BUILDERS ==========
+    // ========== Editors for type-specific properties ==========
 
-    private void AddButtonProperties(BlockViewModel block)
+    private void AddPropertyField(string label, string key, BlockViewModel block, bool multiline = false)
     {
-        AddPropertyField("Button Text", "text", block);
-        AddPropertyField("URL", "url", block);
-        AddPropertyComboBox("Variant", "variant", block,
-            new[] { "primary", "secondary", "success", "danger", "warning", "info" });
-        AddPropertyComboBox("Size", "size", block,
-            new[] { "small", "medium", "large" });
-        AddPropertyCheckBox("Full Width", "fullWidth", block);
-        AddPropertyCheckBox("Disabled", "disabled", block);
-    }
-
-    private void AddContactFormProperties(BlockViewModel block)
-    {
-        AddPropertyField("Form Title", "title", block);
-        AddPropertyField("Subtitle", "subtitle", block);
-        AddPropertyField("Submit URL", "submitUrl", block);
-        AddPropertyField("Submit Button Text", "submitText", block);
-        AddPropertyField("Success Message", "successMessage", block, multiline: true);
-        AddPropertyField("Error Message", "errorMessage", block, multiline: true);
-        AddPropertyCheckBox("Show Phone Field", "showPhoneField", block);
-        AddPropertyCheckBox("Show Subject Field", "showSubjectField", block);
-    }
-
-    private void AddHeroProperties(BlockViewModel block)
-    {
-        AddPropertyField("Headline", "headline", block);
-        AddPropertyField("Subheadline", "subheadline", block, multiline: true);
-        AddPropertyField("CTA Text", "ctaText", block);
-        AddPropertyField("CTA URL", "ctaUrl", block);
-        AddPropertyField("Background Image", "backgroundImage", block);
-        AddPropertyCheckBox("Show Overlay", "overlay", block);
-        AddPropertySlider("Overlay Opacity", "overlayOpacity", block, 0, 1, 0.1);
-        AddPropertyComboBox("Alignment", "alignment", block,
-            new[] { "left", "center", "right" });
-        AddPropertyComboBox("Height", "height", block,
-            new[] { "small", "medium", "large", "full" });
-    }
-
-    private void AddCardProperties(BlockViewModel block)
-    {
-        AddPropertyField("Card Title", "title", block);
-        AddPropertyField("Description", "description", block, multiline: true);
-        AddPropertyField("Image URL", "image", block);
-        AddPropertyField("Link Text", "linkText", block);
-        AddPropertyField("Link URL", "linkUrl", block);
-        AddPropertyComboBox("Image Position", "imagePosition", block,
-            new[] { "top", "left", "right", "bottom" });
-        AddPropertyCheckBox("Show Shadow", "shadow", block);
-        AddPropertyCheckBox("Bordered", "bordered", block);
-        AddPropertyCheckBox("Hoverable", "hoverable", block);
-    }
-
-    private void AddNavbarProperties(BlockViewModel block)
-    {
-        AddPropertyField("Brand Name", "brandName", block);
-        AddPropertyField("Logo URL", "logo", block);
-        AddPropertyComboBox("Position", "position", block,
-            new[] { "static", "fixed", "sticky" });
-        AddPropertyCheckBox("Transparent", "transparent", block);
-        AddPropertyCheckBox("Show Search", "showSearch", block);
-        AddPropertyField("CTA Text", "ctaText", block);
-        AddPropertyField("CTA URL", "ctaUrl", block);
-
-        var menuButton = new Button
-        {
-            Content = "Edit Menu Items",
-            Margin = new Thickness(0, 5, 0, 15)
-        };
-        menuButton.Click += (s, e) => EditJsonProperty(block, "menuItems", "Menu Items");
-        PropertiesContainer.Children.Add(menuButton);
-    }
-
-    private void AddVideoProperties(BlockViewModel block)
-    {
-        AddPropertyField("Video URL", "videoUrl", block);
-        AddPropertyComboBox("Provider", "provider", block,
-            new[] { "youtube", "vimeo", "custom" });
-        AddPropertyComboBox("Aspect Ratio", "aspectRatio", block,
-            new[] { "16:9", "4:3", "1:1" });
-        AddPropertyCheckBox("Autoplay", "autoplay", block);
-        AddPropertyCheckBox("Show Controls", "controls", block);
-        AddPropertyCheckBox("Loop", "loop", block);
-        AddPropertyCheckBox("Muted", "muted", block);
-    }
-
-    private void AddTestimonialProperties(BlockViewModel block)
-    {
-        AddPropertyField("Quote", "quote", block, multiline: true);
-        AddPropertyField("Author Name", "author", block);
-        AddPropertyField("Author Role", "role", block);
-        AddPropertyField("Avatar URL", "avatar", block);
-        AddPropertySlider("Rating", "rating", block, 0, 5, 1);
-        AddPropertyCheckBox("Show Rating", "showRating", block);
-        AddPropertyComboBox("Layout", "layout", block,
-            new[] { "default", "card", "minimal" });
-    }
-
-    private void AddPricingProperties(BlockViewModel block)
-    {
-        AddPropertyField("Plan Name", "planName", block);
-        AddPropertyField("Price", "price", block);
-        AddPropertyField("Currency", "currency", block);
-        AddPropertyField("Period", "period", block);
-        AddPropertyField("CTA Text", "ctaText", block);
-        AddPropertyField("CTA URL", "ctaUrl", block);
-        AddPropertyField("Badge", "badge", block);
-        AddPropertyCheckBox("Highlighted", "highlighted", block);
-
-        var featuresButton = new Button
-        {
-            Content = "Edit Features",
-            Margin = new Thickness(0, 5, 0, 15)
-        };
-        featuresButton.Click += (s, e) => EditJsonProperty(block, "features", "Features List");
-        PropertiesContainer.Children.Add(featuresButton);
-    }
-
-    private void AddAccordionProperties(BlockViewModel block)
-    {
-        AddPropertyField("Section Title", "title", block);
-        AddPropertyCheckBox("Allow Multiple Open", "allowMultiple", block);
-        AddPropertyField("Default Open Index", "defaultOpen", block);
-
-        var itemsButton = new Button
-        {
-            Content = "Edit FAQ Items",
-            Margin = new Thickness(0, 5, 0, 15)
-        };
-        itemsButton.Click += (s, e) => EditJsonProperty(block, "items", "Accordion Items");
-        PropertiesContainer.Children.Add(itemsButton);
-    }
-
-    private void AddStatsProperties(BlockViewModel block)
-    {
-        AddPropertyComboBox("Layout", "layout", block,
-            new[] { "horizontal", "vertical", "grid" });
-        AddPropertyCheckBox("Animated", "animated", block);
-
-        var statsButton = new Button
-        {
-            Content = "Edit Statistics",
-            Margin = new Thickness(0, 5, 0, 15)
-        };
-        statsButton.Click += (s, e) => EditJsonProperty(block, "stats", "Statistics");
-        PropertiesContainer.Children.Add(statsButton);
-    }
-
-    private void AddSocialLinksProperties(BlockViewModel block)
-    {
-        AddPropertyComboBox("Style", "style", block,
-            new[] { "icons", "buttons", "text" });
-        AddPropertyComboBox("Size", "size", block,
-            new[] { "small", "medium", "large" });
-        AddPropertyComboBox("Alignment", "alignment", block,
-            new[] { "left", "center", "right" });
-
-        var linksButton = new Button
-        {
-            Content = "Edit Social Links",
-            Margin = new Thickness(0, 5, 0, 15)
-        };
-        linksButton.Click += (s, e) => EditJsonProperty(block, "links", "Social Links");
-        PropertiesContainer.Children.Add(linksButton);
-    }
-
-    private void AddDividerProperties(BlockViewModel block)
-    {
-        AddPropertyComboBox("Style", "style", block,
-            new[] { "solid", "dashed", "dotted", "double" });
-        AddPropertySlider("Thickness", "thickness", block, 1, 10, 1);
-        AddPropertyField("Color", "color", block);
-        AddPropertyComboBox("Spacing", "spacing", block,
-            new[] { "small", "medium", "large" });
-        AddPropertyCheckBox("With Icon", "withIcon", block);
-        AddPropertyField("Icon", "icon", block);
-    }
-
-    // ========== HELPER METHODS ==========
-
-    private TextBlock CreateSectionHeader(string text)
-    {
-        return new TextBlock
-        {
-            Text = text,
-            FontSize = 14,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 15, 0, 10),
-            Foreground = new SolidColorBrush(Color.FromRgb(0, 102, 204))
-        };
-    }
-
-    private void AddPropertyField(string label, string propertyKey, BlockViewModel block, bool multiline = false)
-    {
-        var labelBlock = new TextBlock
-        {
-            Text = label,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 5)
-        };
-        PropertiesContainer.Children.Add(labelBlock);
-
-        var textBox = multiline ? new TextBox
-        {
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.Wrap,
-            Height = 60,
-            Margin = new Thickness(0, 0, 0, 15)
-        } : new TextBox
-        {
-            Margin = new Thickness(0, 0, 0, 15)
-        };
-
-        if (block.Properties.TryGetValue(propertyKey, out var value))
-        {
-            textBox.Text = value?.ToString() ?? "";
-        }
-
-        textBox.TextChanged += (s, e) =>
-        {
-            block.Properties[propertyKey] = textBox.Text;
-        };
-
+        AddLabel(label);
+        var textBox = CreateTextBox(multiline);
+        textBox.Text = PropertyValues.AsString(block.GetBlockProperty(key));
+        textBox.TextChanged += (_, _) => block.SetBlockProperty(key, textBox.Text);
         PropertiesContainer.Children.Add(textBox);
     }
 
-    private void AddPropertyComboBox(string label, string propertyKey, BlockViewModel block, string[] options)
+    /// <summary>Text field for a URL plus a Browse button that copies a local file into the project's assets folder.</summary>
+    private void AddAssetField(string label, string key, BlockViewModel block, bool video = false)
     {
-        var labelBlock = new TextBlock
-        {
-            Text = label,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 5)
-        };
-        PropertiesContainer.Children.Add(labelBlock);
+        AddLabel(label);
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var comboBox = new ComboBox
-        {
-            Margin = new Thickness(0, 0, 0, 15)
-        };
+        var textBox = new TextBox { Text = PropertyValues.AsString(block.GetBlockProperty(key)), ToolTip = Loc.T("Web address (https://...) or a file from the project's assets folder") };
+        textBox.TextChanged += (_, _) => block.SetBlockProperty(key, textBox.Text);
 
-        foreach (var option in options)
+        var browse = new Button { Content = Loc.T("Browse…"), Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(8, 2, 8, 2) };
+        browse.Click += (_, _) =>
         {
-            comboBox.Items.Add(option);
-        }
-
-        if (block.Properties.TryGetValue(propertyKey, out var value))
-        {
-            comboBox.SelectedItem = value?.ToString();
-        }
-        else if (options.Length > 0)
-        {
-            comboBox.SelectedIndex = 0;
-        }
-
-        comboBox.SelectionChanged += (s, e) =>
-        {
-            if (comboBox.SelectedItem != null)
-            {
-                block.Properties[propertyKey] = comboBox.SelectedItem.ToString();
-            }
+            if (PickAsset(video) is { } path)
+                textBox.Text = path; // TextChanged stores it in the block
         };
 
+        Grid.SetColumn(browse, 1);
+        grid.Children.Add(textBox);
+        grid.Children.Add(browse);
+        PropertiesContainer.Children.Add(grid);
+    }
+
+    /// <summary>Lets the user pick a file and imports it; returns "assets/..." or null.</summary>
+    private string? PickAsset(bool video = false)
+    {
+        if (_viewModel?.WorkFolder == null)
+            return null;
+
+        var extensions = video ? ProjectAssets.VideoExtensions : ProjectAssets.ImageExtensions;
+        var pattern = string.Join(";", extensions.Select(e => "*" + e));
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = video ? Loc.T("Choose a video") : Loc.T("Choose an image"),
+            Filter = $"{Loc.T(video ? "Videos" : "Images")} ({pattern})|{pattern}|{Loc.T("All files")} (*.*)|*.*"
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
+            return null;
+
+        try
+        {
+            return _viewModel.ImportAsset(dialog.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ThemedMessageBox.Show(Loc.F("Could not copy the file into the project:\n\n{0}", ex.Message), "GrayCat Studio", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return null;
+        }
+    }
+
+    private void AddPropertyComboBox(string label, string key, BlockViewModel block, string[] options)
+    {
+        AddLabel(label);
+        var comboBox = new ComboBox { Margin = new Thickness(0, 0, 0, 12), ItemsSource = options, ItemTemplate = ValueTemplate };
+        var current = PropertyValues.AsString(block.GetBlockProperty(key));
+        comboBox.SelectedItem = options.FirstOrDefault(o => o.Equals(current, StringComparison.OrdinalIgnoreCase)) ?? options[0];
+        comboBox.SelectionChanged += (_, _) =>
+        {
+            if (comboBox.SelectedItem is string value)
+                block.SetBlockProperty(key, value);
+        };
         PropertiesContainer.Children.Add(comboBox);
     }
 
-    private void AddPropertyCheckBox(string label, string propertyKey, BlockViewModel block)
+    private void AddPropertyCheckBox(string label, string key, BlockViewModel block, bool defaultValue = false)
     {
         var checkBox = new CheckBox
         {
             Content = label,
-            Margin = new Thickness(0, 0, 0, 10)
+            Margin = new Thickness(0, 0, 0, 10),
+            IsChecked = PropertyValues.AsBool(block.GetBlockProperty(key), defaultValue)
         };
-
-        if (block.Properties.TryGetValue(propertyKey, out var value))
-        {
-            checkBox.IsChecked = value is bool b && b;
-        }
-
-        checkBox.Checked += (s, e) => block.Properties[propertyKey] = true;
-        checkBox.Unchecked += (s, e) => block.Properties[propertyKey] = false;
-
+        checkBox.Checked += (_, _) => block.SetBlockProperty(key, true);
+        checkBox.Unchecked += (_, _) => block.SetBlockProperty(key, false);
         PropertiesContainer.Children.Add(checkBox);
     }
 
-    private void AddPropertySlider(string label, string propertyKey, BlockViewModel block, double min, double max, double step)
+    private void AddPropertySlider(string label, string key, BlockViewModel block, double min, double max, double step)
     {
-        var labelBlock = new TextBlock
-        {
-            Text = label,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 5)
-        };
-        PropertiesContainer.Children.Add(labelBlock);
-
+        AddLabel(label);
         var slider = new Slider
         {
             Minimum = min,
             Maximum = max,
             TickFrequency = step,
             IsSnapToTickEnabled = true,
-            Margin = new Thickness(0, 0, 0, 5)
+            Value = Math.Clamp(PropertyValues.AsDouble(block.GetBlockProperty(key), min), min, max)
         };
-
-        if (block.Properties.TryGetValue(propertyKey, out var value))
-        {
-            if (double.TryParse(value?.ToString(), out var doubleValue))
-            {
-                slider.Value = doubleValue;
-            }
-        }
-
         var valueLabel = new TextBlock
         {
-            Text = slider.Value.ToString("F2"),
+            Text = FormatNumber(slider.Value, step),
             HorizontalAlignment = HorizontalAlignment.Right,
             FontSize = 11,
-            Foreground = new SolidColorBrush(Color.FromRgb(102, 102, 102)),
-            Margin = new Thickness(0, 0, 0, 15)
+            Foreground = MutedBrush,
+            Margin = new Thickness(0, 0, 0, 12)
         };
-
-        slider.ValueChanged += (s, e) =>
+        slider.ValueChanged += (_, _) =>
         {
-            block.Properties[propertyKey] = slider.Value;
-            valueLabel.Text = slider.Value.ToString("F2");
+            block.SetBlockProperty(key, Math.Round(slider.Value, 2));
+            valueLabel.Text = FormatNumber(slider.Value, step);
         };
-
         PropertiesContainer.Children.Add(slider);
         PropertiesContainer.Children.Add(valueLabel);
     }
 
-    private void AddValidationButton(BlockViewModel block)
+    private void AddListEditor(string buttonText, string key, BlockViewModel block)
     {
-        var validateButton = new Button
+        var count = PropertyValues.AsList(block.GetBlockProperty(key)).Count;
+        var button = new Button
         {
-            Content = "Validate Block",
-            Margin = new Thickness(0, 20, 0, 10),
-            Padding = new Thickness(15, 8, 15, 8)
+            Content = $"{buttonText} ({count})",
+            Margin = new Thickness(0, 4, 0, 12),
+            Padding = new Thickness(10, 6, 10, 6)
         };
-
-        validateButton.Click += (s, e) =>
+        button.Click += (_, _) =>
         {
-            var (isValid, errors) = BlockValidator.ValidateBlock(block.Model);
-
-            if (isValid)
+            var editor = new JsonListEditorWindow(buttonText, key, PropertyValues.AsString(block.GetBlockProperty(key)),
+                key is "images" or "products" ? () => PickAsset() : null)
             {
-                MessageBox.Show("✓ Block is valid!", "Validation Success",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            else
+                Owner = Window.GetWindow(this)
+            };
+            if (editor.ShowDialog() == true && editor.Result != null)
             {
-                var errorMessage = string.Join("\n• ", errors);
-                MessageBox.Show($"Validation errors:\n• {errorMessage}", "Validation Failed",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                block.SetBlockProperty(key, editor.Result);
+                button.Content = $"{buttonText} ({PropertyValues.AsList(editor.Result).Count})";
             }
         };
-
-        PropertiesContainer.Children.Add(validateButton);
+        PropertiesContainer.Children.Add(button);
     }
+
+    // ========== Editors bound to block view-model properties ==========
+
+    private void AddBoundText(string label, BlockViewModel block, string path, bool multiline)
+    {
+        AddLabel(label);
+        var textBox = CreateTextBox(multiline);
+        if (multiline) textBox.Height = 110;
+        textBox.SetBinding(TextBox.TextProperty, new Binding(path)
+        {
+            Source = block,
+            Mode = BindingMode.TwoWay,
+            UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+        });
+        PropertiesContainer.Children.Add(textBox);
+    }
+
+    private void AddColorField(string label, BlockViewModel block, string path)
+    {
+        AddLabel(label);
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var swatch = new Border
+        {
+            Width = 22,
+            Height = 22,
+            CornerRadius = new CornerRadius(4),
+            BorderBrush = Brushes.Gray,
+            BorderThickness = new Thickness(1),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        swatch.SetBinding(Border.BackgroundProperty, new Binding(path) { Source = block, Converter = new Converters.HexColorConverter() });
+
+        var textBox = new TextBox { Text = (string)typeof(BlockViewModel).GetProperty(path)!.GetValue(block)! };
+        textBox.TextChanged += (_, _) =>
+        {
+            var value = textBox.Text.Trim();
+            var valid = BlockViewModel.IsValidHexColor(value);
+            textBox.BorderBrush = valid ? SystemColors.ControlDarkBrush : ErrorBrush;
+            textBox.ToolTip = valid ? null : Loc.T("Use #RRGGBB, for example #1E293B");
+            if (valid)
+                typeof(BlockViewModel).GetProperty(path)!.SetValue(block, value);
+        };
+        Grid.SetColumn(swatch, 0);
+        Grid.SetColumn(textBox, 1);
+        grid.Children.Add(swatch);
+        grid.Children.Add(textBox);
+        PropertiesContainer.Children.Add(grid);
+    }
+
+    private void AddBoundSlider(string label, BlockViewModel block, string path, double min, double max)
+    {
+        AddLabel(label);
+        var slider = new Slider { Minimum = min, Maximum = max, TickFrequency = 1, IsSnapToTickEnabled = true };
+        slider.SetBinding(RangeBase.ValueProperty, new Binding(path) { Source = block, Mode = BindingMode.TwoWay });
+        var valueLabel = new TextBlock
+        {
+            HorizontalAlignment = HorizontalAlignment.Right,
+            FontSize = 11,
+            Foreground = MutedBrush,
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+        valueLabel.SetBinding(TextBlock.TextProperty, new Binding(path) { Source = block });
+        PropertiesContainer.Children.Add(slider);
+        PropertiesContainer.Children.Add(valueLabel);
+    }
+
+    private void AddBoundCombo(string label, BlockViewModel block, string path, string[] options)
+    {
+        AddLabel(label);
+        var current = typeof(BlockViewModel).GetProperty(path)!.GetValue(block) as string ?? options[0];
+        var items = options.Contains(current) ? options : options.Prepend(current).ToArray();
+        var comboBox = new ComboBox { Margin = new Thickness(0, 0, 0, 12), ItemsSource = items, ItemTemplate = ValueTemplate };
+        comboBox.SetBinding(Selector.SelectedItemProperty, new Binding(path) { Source = block, Mode = BindingMode.TwoWay });
+        PropertiesContainer.Children.Add(comboBox);
+    }
+
+    private void AddNumberPair(BlockViewModel block, (string Label, string Path) first, (string Label, string Path) second)
+    {
+        var grid = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+
+        var column = 0;
+        foreach (var (label, path) in new[] { first, second })
+        {
+            var panel = new StackPanel();
+            panel.Children.Add(new TextBlock { Text = label, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+            var box = new TextBox();
+            box.SetBinding(TextBox.TextProperty, new Binding(path)
+            {
+                Source = block,
+                Mode = BindingMode.TwoWay,
+                UpdateSourceTrigger = UpdateSourceTrigger.LostFocus,
+                StringFormat = "0",
+                ConverterCulture = CultureInfo.InvariantCulture
+            });
+            panel.Children.Add(box);
+            Grid.SetColumn(panel, column);
+            grid.Children.Add(panel);
+            column += 2;
+        }
+        PropertiesContainer.Children.Add(grid);
+    }
+
+    // ========== Validation and actions ==========
 
     private void AddActionButtons(BlockViewModel block)
     {
-        var actionsPanel = new StackPanel
+        var validate = new Button { Content = Loc.T("Validate block"), Margin = new Thickness(0, 16, 0, 8), Padding = new Thickness(12, 6, 12, 6) };
+        validate.Click += (_, _) =>
         {
-            Orientation = Orientation.Horizontal,
-            Margin = new Thickness(0, 10, 0, 0)
+            var (isValid, errors) = BlockValidator.ValidateBlock(block.Model);
+            if (isValid)
+                ThemedMessageBox.Show(Loc.T("✓ Block is valid!"), Loc.T("Validation"), MessageBoxButton.OK, MessageBoxImage.Information);
+            else
+                ThemedMessageBox.Show(Loc.F("Problems found:\n\n• {0}", string.Join("\n• ", errors)), Loc.T("Validation"), MessageBoxButton.OK, MessageBoxImage.Warning);
         };
+        PropertiesContainer.Children.Add(validate);
 
-        var resetButton = new Button
+        var actions = new StackPanel { Orientation = Orientation.Horizontal };
+        var reset = new Button { Content = Loc.T("Reset style"), Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 6, 10, 6) };
+        reset.Click += (_, _) =>
         {
-            Content = "Reset",
-            Width = 80,
-            Margin = new Thickness(0, 0, 10, 0)
+            block.ResetStyle();
+            UpdatePropertiesPanel(block);
         };
-        resetButton.Click += (s, e) => ResetBlock(block);
-
-        var deleteButton = new Button
+        var duplicate = new Button { Content = Loc.T("Duplicate"), Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 6, 10, 6) };
+        duplicate.Click += (_, _) => _viewModel?.DuplicateBlock(block);
+        var delete = new Button { Content = Loc.T("Delete"), Padding = new Thickness(10, 6, 10, 6), Background = ErrorBrush };
+        delete.Click += (_, _) =>
         {
-            Content = "Delete",
-            Width = 80
-        };
-        deleteButton.Click += (s, e) => DeleteBlock(block);
-
-        actionsPanel.Children.Add(resetButton);
-        actionsPanel.Children.Add(deleteButton);
-
-        PropertiesContainer.Children.Add(actionsPanel);
-    }
-
-    // Additional helper methods...
-    private void EditJsonProperty(BlockViewModel block, string propertyKey, string title)
-    {
-        // TODO: Implement JSON editor dialog
-        MessageBox.Show($"JSON editor for {title} coming soon!", "Feature",
-            MessageBoxButton.OK, MessageBoxImage.Information);
-    }
-
-    private void ResetBlock(BlockViewModel block)
-    {
-        // Reset to defaults
-        block.Color = "#000000";
-        block.Background = "#FFFFFF";
-        block.FontSize = 14;
-        UpdatePropertiesPanel(block);
-    }
-
-    private void DeleteBlock(BlockViewModel block)
-    {
-        if (DataContext is MainViewModel viewModel)
-        {
-            var result = MessageBox.Show($"Delete {block.Type} block?", "Confirm",
-                MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
+            if (_viewModel != null &&
+                ThemedMessageBox.Show(Loc.F("Delete {0} block?", Loc.Block(block.Type)), Loc.T("Confirm"), MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
-                viewModel.RemoveBlock(block);
+                _viewModel.RemoveBlock(block);
             }
+        };
+        actions.Children.Add(reset);
+        actions.Children.Add(duplicate);
+        actions.Children.Add(delete);
+        PropertiesContainer.Children.Add(actions);
+
+        var order = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
+        var up = new Button { Content = Loc.T("▲ Move up"), Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 6, 10, 6), ToolTip = Loc.T("Earlier on the page") };
+        up.Click += (_, _) => _viewModel?.MoveInOrder(block, -1);
+        var down = new Button { Content = Loc.T("▼ Move down"), Padding = new Thickness(10, 6, 10, 6), ToolTip = Loc.T("Later on the page") };
+        down.Click += (_, _) => _viewModel?.MoveInOrder(block, +1);
+        order.Children.Add(up);
+        order.Children.Add(down);
+        PropertiesContainer.Children.Add(order);
+    }
+
+    // ========== Helpers ==========
+
+    private void AddSection(string text)
+    {
+        PropertiesContainer.Children.Add(new TextBlock
+        {
+            Text = text,
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 14, 0, 8),
+            Foreground = AccentBrush,
+            TextWrapping = TextWrapping.Wrap
+        });
+    }
+
+    private void AddLabel(string text)
+    {
+        PropertiesContainer.Children.Add(new TextBlock
+        {
+            Text = text,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 4),
+            TextWrapping = TextWrapping.Wrap
+        });
+    }
+
+    private static TextBox CreateTextBox(bool multiline) => multiline
+        ? new TextBox
+        {
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            Height = 64,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Margin = new Thickness(0, 0, 0, 12)
         }
-    }
+        : new TextBox { Margin = new Thickness(0, 0, 0, 12) };
 
-    // === Compatibility wrappers for internal AddProperty* calls ===
-    private void AddTextProperty(string label, BlockViewModel block, string binding, bool multiline = false)
-    {
-        AddPropertyField(label, binding, block, multiline);
-    }
-
-    private void AddSliderProperty(string label, BlockViewModel block, string binding, double min, double max, string? unit = null)
-    {
-        // TickFrequency = 1 (default step)
-        AddPropertySlider(label, binding, block, min, max, 1);
-    }
-
-    private void AddColorProperty(string label, BlockViewModel block, string binding)
-    {
-        AddPropertyField(label, binding, block);
-    }
-
-    private void AddComboBoxProperty(string label, BlockViewModel block, string binding, string[] options)
-    {
-        AddPropertyComboBox(label, binding, block, options);
-    }
-
-    private void AddPositionProperty(BlockViewModel block)
-    {
-        AddPropertyField("X Position", nameof(block.PositionX), block);
-        AddPropertyField("Y Position", nameof(block.PositionY), block);
-    }
-
-    private void AddSizeProperty(BlockViewModel block)
-    {
-        AddPropertyField("Width", nameof(block.Width), block);
-        AddPropertyField("Height", nameof(block.Height), block);
-    }
-
+    private static string FormatNumber(double value, double step) =>
+        step < 1 ? value.ToString("0.0#", CultureInfo.InvariantCulture) : value.ToString("0", CultureInfo.InvariantCulture);
 }

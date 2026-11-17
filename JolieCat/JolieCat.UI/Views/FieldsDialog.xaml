@@ -6,33 +6,39 @@
         xmlns:vm="clr-namespace:JolieCat.UI.ViewModels"
         xmlns:controls="clr-namespace:JolieCat.UI.Controls"
         mc:Ignorable="d"
-        Title="{Binding Title}" Width="360" SizeToContent="Height"
+        Title="{Binding Title, Converter={StaticResource Tr}}" Width="360" SizeToContent="Height"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize" ShowInTaskbar="False"
         d:DataContext="{d:DesignInstance Type=vm:FieldsDialogViewModel, IsDesignTimeCreatable=False}">
     <StackPanel Margin="16">
         <ItemsControl ItemsSource="{Binding Fields}" Focusable="False">
             <ItemsControl.Resources>
                 <DataTemplate DataType="{x:Type vm:SliderDialogField}">
-                    <controls:LabeledSlider Label="{Binding Label}" Suffix="{Binding Suffix}" Minimum="{Binding Minimum}"
+                    <controls:LabeledSlider Label="{Binding Label, Converter={StaticResource Tr}}" Suffix="{Binding Suffix}" Minimum="{Binding Minimum}"
                                             Maximum="{Binding Maximum}" Value="{Binding Value, Mode=TwoWay}" />
                 </DataTemplate>
                 <DataTemplate DataType="{x:Type vm:ColorDialogField}">
                     <DockPanel Margin="0,0,0,10">
-                        <TextBlock DockPanel.Dock="Left" Text="{Binding Label}" Width="100" VerticalAlignment="Center"
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding Label, Converter={StaticResource Tr}}" Width="110" Margin="0,0,8,0" TextWrapping="Wrap" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextSecondaryBrush}" />
                         <controls:ColorField Hex="{Binding Hex, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{Binding Label}" />
                     </DockPanel>
                 </DataTemplate>
                 <DataTemplate DataType="{x:Type vm:ChoiceDialogField}">
                     <DockPanel Margin="0,0,0,10">
-                        <TextBlock DockPanel.Dock="Left" Text="{Binding Label}" Width="100" VerticalAlignment="Center"
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding Label, Converter={StaticResource Tr}}" Width="110" Margin="0,0,8,0" TextWrapping="Wrap" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextSecondaryBrush}" />
-                        <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" AutomationProperties.Name="{Binding Label}" />
+                        <ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" AutomationProperties.Name="{Binding Label}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Converter={StaticResource Tr}}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                     </DockPanel>
                 </DataTemplate>
                 <DataTemplate DataType="{x:Type vm:TextDialogField}">
                     <DockPanel Margin="0,0,0,10">
-                        <TextBlock DockPanel.Dock="Left" Text="{Binding Label}" Width="100" VerticalAlignment="Center"
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding Label, Converter={StaticResource Tr}}" Width="110" Margin="0,0,8,0" TextWrapping="Wrap" VerticalAlignment="Center"
                                    Foreground="{StaticResource TextSecondaryBrush}" />
                         <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="{Binding Label}" />
                     </DockPanel>
@@ -40,7 +46,7 @@
             </ItemsControl.Resources>
         </ItemsControl>
 
-        <TextBlock Text="{Binding Hint}" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
+        <TextBlock Text="{Binding Hint, Converter={StaticResource Tr}}" FontSize="11" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" />
         <TextBlock Text="{Binding Error}" FontSize="11" TextWrapping="Wrap" Foreground="#E57373" Margin="0,4,0,0" />
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">

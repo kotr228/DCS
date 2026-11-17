@@ -1,4 +1,6 @@
+using AsmodayCat.UI.Localization;
 using System.Collections.ObjectModel;
+using System.Windows;
 using System.Text.Json;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -32,13 +34,13 @@ public partial class ModelsManagerViewModel : ObservableObject
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        StatusMessage = "Refreshing…";
+        StatusMessage = Loc.T("models.refreshing");
         var resp = await _ipc.SendCommandAsync(
             new IpcCommand { Type = IpcCommandType.GetModelPool });
 
         if (resp?.Success != true || resp.Payload is null)
         {
-            StatusMessage = "Service offline";
+            StatusMessage = Loc.T("models.serviceDown");
             return;
         }
 
@@ -59,7 +61,7 @@ public partial class ModelsManagerViewModel : ObservableObject
             ModelPool.Add(dto);
         }
 
-        StatusMessage = $"{ModelPool.Count} models • {ModelPool.Count(m => m.Status == ModelPoolStatus.Ready || m.Status == ModelPoolStatus.Loaded)} ready";
+        StatusMessage = Loc.F("models.summary", ModelPool.Count, ModelPool.Count(m => m.Status == ModelPoolStatus.Ready || m.Status == ModelPoolStatus.Loaded));
     }
 
     // ── Action (FR-M3 / FR-M4) — pull or unload based on current status ─────
@@ -69,7 +71,7 @@ public partial class ModelsManagerViewModel : ObservableObject
     {
         switch (model.Status)
         {
-            case ModelPoolStatus.NotInstalled:
+            case ModelPoolStatus.NotInstalled when !model.IsExternal:
                 await BeginPullAsync(model);
                 break;
             case ModelPoolStatus.Loaded:
@@ -78,13 +80,33 @@ public partial class ModelsManagerViewModel : ObservableObject
         }
     }
 
+    // Remove an installed model from disk (asks first: models are several GB to download again)
+    [RelayCommand]
+    private async Task DeleteAsync(LlmModelDto model)
+    {
+        var answer = MessageBox.Show(
+            Loc.F("models.confirmDelete", model.Name),
+            Loc.T("models.confirmDeleteTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.Yes) return;
+
+        StatusMessage = Loc.F("models.deleting", model.Name);
+        var resp = await _ipc.SendCommandAsync(new IpcCommand
+        {
+            Type       = IpcCommandType.DeleteModel,
+            Parameters = { ["ModelId"] = model.Name }
+        });
+
+        StatusMessage = resp?.Success == true ? Loc.F("models.deleted", model.Name) : Loc.F("models.deleteFailed", resp?.Error ?? Loc.T("chat.serviceUnavailable"));
+        await RefreshAsync();
+    }
+
     // ── Pull (download model) ────────────────────────────────────────────────
 
     private async Task BeginPullAsync(LlmModelDto model)
     {
         model.Status          = ModelPoolStatus.Downloading;
         model.DownloadProgress = 0;
-        StatusMessage         = $"Downloading {model.Name}…";
+        StatusMessage         = Loc.F("models.downloading", model.Name);
 
         await _ipc.SendCommandAsync(new IpcCommand
         {
@@ -120,7 +142,7 @@ public partial class ModelsManagerViewModel : ObservableObject
 
     private async Task UnloadAsync(LlmModelDto model)
     {
-        StatusMessage = $"Unloading {model.Name}…";
+        StatusMessage = Loc.F("models.unloading", model.Name);
         var resp = await _ipc.SendCommandAsync(
             new IpcCommand { Type = IpcCommandType.UnloadModel });
 
@@ -128,24 +150,28 @@ public partial class ModelsManagerViewModel : ObservableObject
         {
             model.Status       = ModelPoolStatus.Ready;
             model.VramUsageBytes = 0;
-            StatusMessage      = "Model unloaded";
+            StatusMessage      = Loc.T("models.unloaded");
         }
         else
         {
-            StatusMessage = $"Unload failed: {resp?.Error}";
+            StatusMessage = Loc.F("models.unloadFailed", resp?.Error);
         }
     }
 
-    // ── Poll pull progress ────────────────────────────────────────────────────
+    // ── Poll pull progress (every model being downloaded, so several can run at once) ──
+
+    private readonly HashSet<string> _downloading = new(StringComparer.OrdinalIgnoreCase);
 
     private void StartPolling(string modelId)
     {
-        StopPolling();
-        _pollTimer = new DispatcherTimer(DispatcherPriority.Background)
+        _downloading.Add(modelId);
+        if (_pollTimer is not null) return;
+        _pollTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(800) };
+        _pollTimer.Tick += async (_, _) =>
         {
-            Interval = TimeSpan.FromMilliseconds(800)
+            foreach (var id in _downloading.ToList()) await PollAsync(id);
+            if (_downloading.Count == 0) StopPolling();
         };
-        _pollTimer.Tick += async (_, _) => await PollAsync(modelId);
         _pollTimer.Start();
     }
 
@@ -163,30 +189,59 @@ public partial class ModelsManagerViewModel : ObservableObject
             Parameters = { ["ModelId"] = modelId }
         });
 
-        if (resp?.Payload is null) return;
+        if (resp?.Payload is not { } payload || payload.ValueKind != JsonValueKind.Object) return;
 
-        var progress = resp.Payload.Value.Deserialize<ModelPullProgress>(_opts);
+        var progress = payload.Deserialize<ModelPullProgress>(_opts);
         if (progress is null) return;
 
-        var item = ModelPool.FirstOrDefault(
-            m => m.Name.Equals(modelId, StringComparison.OrdinalIgnoreCase));
+        var item = ModelPool.FirstOrDefault(m => m.Name.Equals(modelId, StringComparison.OrdinalIgnoreCase));
         if (item is null) return;
 
         item.DownloadProgress = progress.Percent;
-        StatusMessage         = $"{modelId}: {progress.Status} {progress.Percent:F0}%";
+        StatusMessage         = $"{modelId}: {progress.Percent:F0}%";
 
         if (progress.Status == "success")
         {
+            _downloading.Remove(modelId);
             item.Status           = ModelPoolStatus.Ready;
             item.DownloadProgress = 100;
-            StatusMessage         = $"{modelId} ready";
-            StopPolling();
+            if (_downloading.Count == 0) await RefreshAsync();
+            StatusMessage         = Loc.F("models.ready", modelId);
         }
-        else if (progress.Status is "error" or "cancelled")
+        else if (progress.Status.StartsWith("error", StringComparison.OrdinalIgnoreCase) || progress.Status == "cancelled")
         {
-            item.Status = ModelPoolStatus.NotInstalled;
-            StatusMessage = $"{modelId}: {progress.Status}";
-            StopPolling();
+            // The service reports "error: <reason>"
+            _downloading.Remove(modelId);
+            item.Status           = ModelPoolStatus.NotInstalled;
+            item.DownloadProgress = 0;
+            StatusMessage         = progress.Status == "cancelled"
+                ? Loc.F("models.cancelled", modelId)
+                : $"{modelId}: {progress.Status}";
         }
+    }
+
+    [RelayCommand]
+    private async Task CancelDownloadAsync(LlmModelDto model)
+    {
+        await _ipc.SendCommandAsync(new IpcCommand
+        {
+            Type = IpcCommandType.CancelPull, Parameters = { ["ModelId"] = model.Name }
+        });
+        StatusMessage = Loc.F("models.cancelling", model.Name);
+    }
+
+    // Every model of the recommended set that isn't installed yet (Stable Diffusion is separate)
+    [RelayCommand]
+    private async Task InstallRecommendedAsync()
+    {
+        var missing = ModelPool.Where(m => m.Status == ModelPoolStatus.NotInstalled && !m.IsExternal
+                                           && m.RecommendedTask != "Custom" && m.RecommendedTask != "FastAnalytics").ToList();
+        if (missing.Count == 0)
+        {
+            StatusMessage = Loc.T("models.allInstalled");
+            return;
+        }
+        foreach (var model in missing) await BeginPullAsync(model);
+        StatusMessage = Loc.F("models.downloadingList", string.Join(", ", missing.Select(m => m.Name)));
     }
 }

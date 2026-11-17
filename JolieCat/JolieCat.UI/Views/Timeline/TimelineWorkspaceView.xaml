@@ -20,6 +20,9 @@
              sizing on top. -->
         <Style x:Key="TransportButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
             <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Margin" Value="0,0,4,0" />
         </Style>
@@ -30,12 +33,19 @@
              same TargetType mismatch this style now avoids). -->
         <Style x:Key="TransportToggleButtonStyle" TargetType="ToggleButton" BasedOn="{StaticResource PanelToggleButtonStyle}">
             <Setter Property="Width" Value="34" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="FontSize" Value="14" />
             <Setter Property="Margin" Value="0,0,4,0" />
-            <Setter Property="Content" Value="&#x25B6;" />
+            <Setter Property="Content">
+                <Setter.Value><Path Data="M1,0 L11,6 L1,12 Z" Fill="{StaticResource TextPrimaryBrush}" Width="11" Height="12" Stretch="Uniform" /></Setter.Value>
+            </Setter>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsPlaying}" Value="True">
-                    <Setter Property="Content" Value="&#x23F8;" />
+                    <Setter Property="Content">
+                        <Setter.Value><Path Data="M0,0 H4 V12 H0 Z M7,0 H11 V12 H7 Z" Fill="{StaticResource TextPrimaryBrush}" Width="11" Height="12" Stretch="Uniform" /></Setter.Value>
+                    </Setter>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -48,24 +58,24 @@
              their own full-width row instead of squeezed next to a "+Track" button. -->
         <Border DockPanel.Dock="Top" Background="{StaticResource PanelAltBackgroundBrush}"
                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" Margin="10,8">
-                <Button Content="&#x23EE;" ToolTip="Go to start" Style="{StaticResource TransportButtonStyle}"
-                        Command="{Binding GoToStartCommand}" />
-                <Button Content="&#x23EA;" ToolTip="Previous frame" Style="{StaticResource TransportButtonStyle}"
-                        Command="{Binding StepBackwardCommand}" />
+            <WrapPanel Orientation="Horizontal" Margin="10,4">
+                <!-- Drawn icons (the Unicode media symbols render as colored emoji boxes). -->
+                <Button ToolTip="Go to start" Style="{StaticResource TransportButtonStyle}" AutomationProperties.Name="Go to start"
+                        Command="{Binding GoToStartCommand}"><Path Data="M0,0 H2 V12 H0 Z M8,0 V12 L2,6 Z M14,0 V12 L8,6 Z" Fill="{StaticResource TextPrimaryBrush}" Width="14" Height="12" Stretch="Uniform" /></Button>
+                <Button ToolTip="Previous frame" Style="{StaticResource TransportButtonStyle}" AutomationProperties.Name="Previous frame"
+                        Command="{Binding StepBackwardCommand}"><Path Data="M8,0 V12 L0,6 Z M9.5,0 H12 V12 H9.5 Z" Fill="{StaticResource TextPrimaryBrush}" Width="12" Height="12" Stretch="Uniform" /></Button>
                 <ToggleButton Style="{StaticResource TransportToggleButtonStyle}"
                               IsChecked="{Binding IsPlaying, Mode=OneWay}"
                               Command="{Binding TogglePlaybackCommand}" ToolTip="Play/Pause" />
-                <Button Content="&#x23E9;" ToolTip="Next frame" Style="{StaticResource TransportButtonStyle}"
-                        Command="{Binding StepForwardCommand}" />
-                <Button Content="&#x23ED;" ToolTip="Go to end" Style="{StaticResource TransportButtonStyle}"
-                        Command="{Binding GoToEndCommand}" />
+                <Button ToolTip="Next frame" Style="{StaticResource TransportButtonStyle}" AutomationProperties.Name="Next frame"
+                        Command="{Binding StepForwardCommand}"><Path Data="M0,0 H2.5 V12 H0 Z M4,0 V12 L12,6 Z" Fill="{StaticResource TextPrimaryBrush}" Width="12" Height="12" Stretch="Uniform" /></Button>
+                <Button ToolTip="Go to end" Style="{StaticResource TransportButtonStyle}" AutomationProperties.Name="Go to end"
+                        Command="{Binding GoToEndCommand}"><Path Data="M0,0 V12 L6,6 Z M6,0 V12 L12,6 Z M12,0 H14 V12 H12 Z" Fill="{StaticResource TextPrimaryBrush}" Width="14" Height="12" Stretch="Uniform" /></Button>
 
-                <Border Width="1" Margin="10,2" Background="{StaticResource BorderBrush}" />
+                <Border Width="1" Height="24" VerticalAlignment="Center" Margin="10,0" Background="{StaticResource BorderBrush}" />
 
                 <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12">
-                    <Run Text="Frame " /><Run Text="{Binding CurrentFrame, Mode=OneWay, StringFormat={}{0:0}}" />
-                    <Run Text=" / " /><Run Text="{Binding TotalFrames, Mode=OneWay, StringFormat={}{0:0}}" />
+                    <Run Text="{Binding FrameCounterText, Mode=OneWay}" />
                 </TextBlock>
 
                 <Border Width="1" Margin="10,2" Background="{StaticResource BorderBrush}" />
@@ -74,13 +84,189 @@
                                          Value="{Binding TotalFrames, Mode=TwoWay}" />
                 <controls:LabeledSlider Label="Frame Rate" Minimum="1" Maximum="120" Suffix=" fps" Width="200" Margin="12,0,0,0"
                                          Value="{Binding FrameRate, Mode=TwoWay}" />
-            </StackPanel>
+                <Button Content="In" MinWidth="34" Height="32" VerticalAlignment="Center" Padding="8,0" Margin="12,0,4,0" Command="{Binding SetInPointCommand}"
+                        ToolTip="Work area start: play and export from the playhead" />
+                <Button Content="Out" MinWidth="34" Height="32" VerticalAlignment="Center" Padding="8,0" Margin="0,0,4,0" Command="{Binding SetOutPointCommand}"
+                        ToolTip="Work area end: play and export up to the playhead" />
+                <Button Content="×" Width="32" Height="32" VerticalAlignment="Center" Padding="0" Margin="0" Command="{Binding ClearWorkAreaCommand}" ToolTip="Clear the work area (the whole animation again)" />
+                <ComboBox ItemsSource="{Binding LoopChoices}" SelectedItem="{Binding LoopMode}" Width="96" Height="32" Margin="12,0,0,0"
+                          VerticalAlignment="Center" AutomationProperties.Name="Repeat"
+                          ToolTip="Loop: repeat. Once: play once. PingPong: forward, then backward. Also used by exported GIFs." />
+                <controls:LabeledSlider Label="Zoom" Minimum="2" Maximum="48" Width="150" Margin="12,0,0,0"
+                                         Value="{Binding PixelsPerFrame, Mode=TwoWay}" />
+            </WrapPanel>
         </Border>
 
         <!-- Reuses the same ruler + track-lane visuals as the bottom-docked panel (see
              TimelinePanelView) - now given this workspace's own full height instead of
              a small fixed-height strip, with the transport bar above taking the place
              of clipping frame-by-frame navigation out of the layout entirely. -->
+        <!-- Frame strip: every frame as a picture; click one to go there. -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource PanelBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1"
+                Visibility="{Binding HasFrames, Converter={StaticResource BoolToVisibility}}">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding FrameStrip}" Margin="6,4">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><StackPanel Orientation="Horizontal" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:FrameThumbViewModel}">
+                            <Button Command="{Binding DataContext.GoToFrameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" Margin="0,0,4,0" Padding="2" Cursor="Hand"
+                                    ToolTip="Go to this frame (right-click for more)" AutomationProperties.Name="{Binding Label}">
+                                <Button.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Show For" ItemsSource="{Binding HoldOptions}">
+                                            <MenuItem.ItemContainerStyle>
+                                                <Style TargetType="MenuItem">
+                                                    <Setter Property="Header" Value="{Binding Header}" />
+                                                    <Setter Property="Command" Value="{Binding Command}" />
+                                                    <Setter Property="CommandParameter" Value="{Binding Frames}" />
+                                                </Style>
+                                            </MenuItem.ItemContainerStyle>
+                                        </MenuItem>
+                                        <Separator />
+                                        <MenuItem Header="Move Earlier" Command="{Binding MoveEarlierCommand}" />
+                                        <MenuItem Header="Move Later" Command="{Binding MoveLaterCommand}" />
+                                        <Separator />
+                                        <MenuItem Header="Duplicate Frame" Command="{Binding DuplicateCommand}" />
+                                        <MenuItem Header="Delete Frame" Command="{Binding DeleteCommand}" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Frame" BorderThickness="2" BorderBrush="Transparent" Background="#FF2A2624" Padding="2">
+                                            <StackPanel>
+                                                <Grid Width="64" Height="48">
+                                                    <Rectangle Fill="#FF4A4441" />
+                                                    <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                                </Grid>
+                                                <TextBlock Text="{Binding Label}" FontSize="10" HorizontalAlignment="Center" Margin="0,2,0,0"
+                                                           Foreground="{StaticResource TextSecondaryBrush}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                                <Setter TargetName="Frame" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                            </DataTrigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Frame" Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Keyframe panel: the selected layer track's pose at the playhead. Changing a
+             value adds a keyframe there (or updates the one already there). -->
+        <Border DockPanel.Dock="Right" Width="250" Background="{StaticResource PanelAltBackgroundBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1,0,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="10,8">
+                    <TextBlock Text="{Binding SelectedTrackTitle}" FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,6" />
+                    <!-- An audio track: its volume and mute. -->
+                    <StackPanel Visibility="{Binding IsAudioSelected, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,8">
+                        <controls:LabeledSlider Label="Volume" Suffix="%" Minimum="0" Maximum="100" Value="{Binding SelectedVolume, Mode=TwoWay}" />
+                        <CheckBox Content="Mute" IsChecked="{Binding SelectedMuted}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,0"
+                                  ToolTip="Silence this sound while playing and in exported videos" />
+                    </StackPanel>
+                    <StackPanel IsEnabled="{Binding CanEditPose}">
+                        <controls:LabeledSlider Label="Position X" Suffix="px" Minimum="-2000" Maximum="2000" Value="{Binding PoseX, Mode=TwoWay}" />
+                        <controls:LabeledSlider Label="Position Y" Suffix="px" Minimum="-2000" Maximum="2000" Value="{Binding PoseY, Mode=TwoWay}" />
+                        <controls:LabeledSlider Label="Scale" Suffix="%" Minimum="1" Maximum="500" Value="{Binding PoseScale, Mode=TwoWay}" />
+                        <controls:LabeledSlider Label="Rotation" Suffix="°" Minimum="-360" Maximum="360" Value="{Binding PoseRotation, Mode=TwoWay}" />
+                        <controls:LabeledSlider Label="Opacity" Suffix="%" Minimum="0" Maximum="100" Value="{Binding PoseOpacity, Mode=TwoWay}" />
+                        <controls:LabeledSlider Label="Brightness" Minimum="-100" Maximum="100" Value="{Binding PoseBrightness, Mode=TwoWay}"
+                                                ToolTip="Key -100 to fade to black, +100 to flash white" />
+                        <controls:LabeledSlider Label="Saturation" Suffix="%" Minimum="0" Maximum="200" Value="{Binding PoseSaturation, Mode=TwoWay}"
+                                                ToolTip="0% is black and white, 100% as drawn, 200% extra vivid" />
+                        <controls:LabeledSlider Label="Hue" Suffix="°" Minimum="-180" Maximum="180" Value="{Binding PoseHue, Mode=TwoWay}"
+                                                ToolTip="Turns every color around the color wheel" />
+                        <controls:LabeledSlider Label="Blur" Suffix="px" Minimum="0" Maximum="100" Value="{Binding PoseBlur, Mode=TwoWay}"
+                                                ToolTip="Blur at this key: 0 sharp. Key it up and down for a focus pull, or on a fast move for a smear" />
+                        <controls:LabeledSlider Label="Text Reveal" Suffix="%" Minimum="0" Maximum="100" Value="{Binding PoseReveal, Mode=TwoWay}"
+                                                Visibility="{Binding IsTextTrack, Converter={StaticResource BoolToVisibility}}"
+                                                ToolTip="How much of the text shows: 0% at one key, 100% at a later one types it out" />
+                        <!-- Bones: attach to another layer, and where this one turns. -->
+                        <StackPanel Visibility="{Binding IsLayerTrack, Converter={StaticResource BoolToVisibility}}" Margin="0,4,0,0">
+                            <DockPanel Margin="0,0,0,4">
+                                <TextBlock DockPanel.Dock="Left" Text="Attached to" Width="80" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" />
+                                <ComboBox ItemsSource="{Binding ParentChoices}" SelectedItem="{Binding SelectedParent}" AutomationProperties.Name="Attached to"
+                                          ToolTip="Bones: this layer moves, scales and turns with the one it's attached to (a forearm with the upper arm)" />
+                            </DockPanel>
+                            <controls:LabeledSlider Label="Joint X" Suffix="px" Minimum="-500" Maximum="5000" Value="{Binding PivotX, Mode=TwoWay}" />
+                            <controls:LabeledSlider Label="Joint Y" Suffix="px" Minimum="-500" Maximum="5000" Value="{Binding PivotY, Mode=TwoWay}" />
+                            <controls:LabeledSlider Label="Wiggle" Suffix="px" Minimum="0" Maximum="100" Value="{Binding WiggleAmount, Mode=TwoWay}"
+                                                    ToolTip="The layer jitters by itself, up to this far: shivers, flickering flames, a nervous character" />
+                            <controls:LabeledSlider Label="Wiggle Turn" Suffix="°" Minimum="0" Maximum="45" Value="{Binding WiggleRotation, Mode=TwoWay}" />
+                            <controls:LabeledSlider Label="Wiggle Speed" Suffix="/s" Minimum="0.1" Maximum="20" Value="{Binding WiggleSpeed, Mode=TwoWay}" />
+                            <CheckBox Content="Motion Blur" IsChecked="{Binding SelectedMotionBlur}" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,4"
+                                      ToolTip="Fast moves and turns smear along the motion, like a film camera (half-frame shutter)" />
+                            <Button Content="Joint to Middle" Command="{Binding ResetPivotCommand}" HorizontalAlignment="Left" Padding="8,2" Margin="0,2,0,4"
+                                    ToolTip="What the layer turns and scales around: back to the middle of its content" />
+                            <controls:LabeledSlider Label="Bend" Suffix="°" Minimum="-180" Maximum="180" Value="{Binding PoseBend, Mode=TwoWay}"
+                                                    ToolTip="Bends one drawing at its bend point (an arm at the elbow): the part past the point turns, smoothly. Keyed like the other values" />
+                            <controls:LabeledSlider Label="Bend Point X" Suffix="px" Minimum="-500" Maximum="5000" Value="{Binding BendX, Mode=TwoWay}"
+                                                    ToolTip="Where the layer bends (pink diamond on the canvas). The part farther from the joint than this point turns" />
+                            <controls:LabeledSlider Label="Bend Point Y" Suffix="px" Minimum="-500" Maximum="5000" Value="{Binding BendY, Mode=TwoWay}" />
+                        </StackPanel>
+                        <DockPanel Margin="0,4,0,6">
+                            <TextBlock DockPanel.Dock="Left" Text="To next key" Width="80" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" />
+                            <ComboBox ItemsSource="{Binding Easings}" SelectedItem="{Binding PoseEasing}" AutomationProperties.Name="Easing"
+                                      ToolTip="Linear: constant speed. EaseInOut: gentle start and end. EaseIn / EaseOut: gentle start / end only. Hold: no in-between, jump at the next key." />
+                        </DockPanel>
+                        <!-- Custom: the speed curve to the next key (time right, progress up). -->
+                        <StackPanel Visibility="{Binding IsCustomCurve, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,6">
+                            <Border Width="120" Height="120" HorizontalAlignment="Left" Background="#FF1E1B1A"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,4">
+                                <Viewbox Stretch="Fill" Margin="10">
+                                    <Canvas Width="100" Height="100">
+                                        <Line X1="0" Y1="100" X2="100" Y2="0" Stroke="#44FFFFFF" StrokeDashArray="3,3" StrokeThickness="0.8" />
+                                        <Polyline Points="{Binding CurvePoints}" Stroke="{StaticResource AccentBrush}" StrokeThickness="2.5" />
+                                    </Canvas>
+                                </Viewbox>
+                            </Border>
+                            <ComboBox ItemsSource="{Binding CurvePresets}" Margin="0,0,0,4" AutomationProperties.Name="Curve preset"
+                                      ToolTip="Ready-made curves"
+                                      SelectionChanged="CurvePreset_SelectionChanged" />
+                            <controls:LabeledSlider Label="Handle 1 time" Minimum="0" Maximum="1" Value="{Binding CurveX1, Mode=TwoWay}" />
+                            <controls:LabeledSlider Label="Handle 1 progress" Minimum="-1" Maximum="2" Value="{Binding CurveY1, Mode=TwoWay}" />
+                            <controls:LabeledSlider Label="Handle 2 time" Minimum="0" Maximum="1" Value="{Binding CurveX2, Mode=TwoWay}" />
+                            <controls:LabeledSlider Label="Handle 2 progress" Minimum="-1" Maximum="2" Value="{Binding CurveY2, Mode=TwoWay}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <Button Content="Copy Pose" Command="{Binding CopyPoseCommand}" Padding="8,2" Margin="0,0,6,0"
+                                    ToolTip="Remember the pose at the playhead" />
+                            <Button Content="Paste Pose" Command="{Binding PastePoseCommand}" Padding="8,2"
+                                    ToolTip="Put the remembered pose at the playhead (a keyframe)" />
+                        </StackPanel>
+                        <Button Content="Delete Key at Playhead" Command="{Binding DeleteKeyAtPlayheadCommand}"
+                                IsEnabled="{Binding HasKeyAtPlayhead}" HorizontalAlignment="Left" Padding="8,2" />
+                        <TextBlock Text="SELECTED KEYS (Shift+click diamonds)" FontSize="10" Margin="0,10,0,4"
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                        <WrapPanel>
+                            <Button Content="Copy" Command="{Binding CopyKeysCommand}" Padding="8,2" Margin="0,0,4,4"
+                                    ToolTip="Remember the selected keys (with their timing)" />
+                            <Button Content="Paste at Playhead" Command="{Binding PasteKeysCommand}" Padding="8,2" Margin="0,0,4,4"
+                                    ToolTip="Put the copied keys on this track, the first at the playhead" />
+                            <Button Content="Delete" Command="{Binding DeleteSelectedKeysCommand}" Padding="8,2" Margin="0,0,4,4" />
+                        </WrapPanel>
+                    </StackPanel>
+                    <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0" Foreground="{StaticResource TextSecondaryBrush}"
+                               Text="Animate Layer adds a track for the active layer. Move the playhead, change a value: a keyframe is set there. Between keyframes the layer moves smoothly." />
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
         <views:TimelinePanelView />
     </DockPanel>
 </UserControl>

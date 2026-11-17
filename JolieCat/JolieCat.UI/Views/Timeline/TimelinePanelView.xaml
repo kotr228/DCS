@@ -14,8 +14,10 @@
         <converters:FramesToPixelsConverter x:Key="FramesToPixels" />
 
         <Style x:Key="TimelineToolButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Padding" Value="6,2" />
-            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Padding" Value="9,0" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Margin" Value="0,0,4,0" />
         </Style>
     </UserControl.Resources>
@@ -23,10 +25,35 @@
     <DockPanel>
         <!-- Toolbar -->
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="6,4">
+            <!-- Frame-by-frame animation: each frame is a layer, shown by its clip on the Frames track. -->
+            <Button Content="+ New Frame" Command="{Binding NewFrameCommand}" Style="{StaticResource TimelineToolButtonStyle}"
+                    ToolTip="Add a blank frame after the current one (a new layer to draw on)" />
+            <Button Content="Duplicate Frame" Command="{Binding DuplicateFrameCommand}" Style="{StaticResource TimelineToolButtonStyle}"
+                    ToolTip="Add a copy of the current frame after it" />
+            <Button Content="Delete Frame" Command="{Binding DeleteFrameCommand}" Style="{StaticResource TimelineToolButtonStyle}"
+                    ToolTip="Delete the current frame and its layer" />
+            <CheckBox Content="Onion Skin" IsChecked="{Binding OnionSkin}" VerticalAlignment="Center" Margin="8,0,4,0"
+                      Foreground="{StaticResource TextPrimaryBrush}" FontSize="11"
+                      ToolTip="Show the frames before (red) and after (green) faintly while drawing" />
+            <ComboBox Width="44" FontSize="11" Margin="0,0,8,0" SelectedValue="{Binding OnionSkinFrames}"
+                      SelectedValuePath="Tag" ToolTip="How many frames before and after">
+                <ComboBoxItem Content="1" Tag="{x:Static vm:TimelineViewModel.OnionOne}" />
+                <ComboBoxItem Content="2" Tag="{x:Static vm:TimelineViewModel.OnionTwo}" />
+                <ComboBoxItem Content="3" Tag="{x:Static vm:TimelineViewModel.OnionThree}" />
+            </ComboBox>
+            <Button Content="Export Animation..." Style="{StaticResource TimelineToolButtonStyle}"
+                    Command="{Binding DataContext.ExportAnimationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                    ToolTip="Save the animation as a GIF, PNG files or a sprite sheet" />
+            <Border Width="1" Margin="4,2,8,2" Background="{StaticResource BorderBrush}" />
+            <Button Content="Animate Layer" Command="{Binding AnimateActiveLayerCommand}" Style="{StaticResource TimelineToolButtonStyle}"
+                    ToolTip="Add a track that moves, scales, turns and fades the active layer with keyframes" />
+            <Button Content="Camera" Command="{Binding AddCameraCommand}" Style="{StaticResource TimelineToolButtonStyle}"
+                    ToolTip="A camera track: zoom, pan and turn the whole picture with keyframes" />
             <Button Content="+ Track" Command="{Binding AddTrackCommand}" Style="{StaticResource TimelineToolButtonStyle}" />
+            <Button Content="Add Audio..." Command="{Binding AddAudioCommand}" Style="{StaticResource TimelineToolButtonStyle}"
+                    ToolTip="Add a sound (WAV, MP3, M4A) that plays from the playhead; drag its clip to move it" />
             <TextBlock VerticalAlignment="Center" Margin="10,0,0,0" Foreground="{StaticResource TextSecondaryBrush}">
-                <Run Text="Frame " /><Run Text="{Binding CurrentFrame, Mode=OneWay, StringFormat={}{0:0}}" />
-                <Run Text=" / " /><Run Text="{Binding TotalFrames, Mode=OneWay, StringFormat={}{0:0}}" />
+                <Run Text="{Binding FrameCounterText, Mode=OneWay}" />
             </TextBlock>
         </StackPanel>
 
@@ -49,6 +76,9 @@
                     <Border Grid.Column="1" Background="{StaticResource PanelAltBackgroundBrush}"
                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
                         <Canvas Width="{Binding TimelineWidth}">
+                            <!-- The work area (In / Out): only this part plays and is exported. -->
+                            <Rectangle Canvas.Left="{Binding WorkAreaLeft}" Width="{Binding WorkAreaWidth}" Height="24" Fill="#335B7FC2"
+                                       Visibility="{Binding HasWorkArea, Converter={StaticResource BoolToVisibility}}" IsHitTestVisible="False" />
                             <ItemsControl ItemsSource="{Binding RulerTicks}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
@@ -100,9 +130,23 @@
                                 </Grid.ColumnDefinitions>
 
                                 <!-- Track header: name + per-track "add" actions. -->
-                                <Border Grid.Column="0" MinWidth="140" Background="{StaticResource PanelBackgroundBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,1">
-                                    <DockPanel Margin="6,0">
+                                <Border Grid.Column="0" MinWidth="140" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,1">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                    <Setter Property="Background" Value="{StaticResource HoverBackgroundBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Border.InputBindings>
+                                        <MouseBinding MouseAction="LeftClick"
+                                                      Command="{Binding DataContext.SelectTrackCommand, RelativeSource={RelativeSource AncestorType=views:TimelinePanelView}}"
+                                                      CommandParameter="{Binding}" />
+                                    </Border.InputBindings>
+                                    <DockPanel Margin="6,0" Background="Transparent">
                                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
                                             <Button Content="+K" ToolTip="Add keyframe at playhead"
                                                     Command="{Binding AddKeyframeAtPlayheadCommand}"
@@ -175,9 +219,21 @@
                                             </ItemsControl.ItemContainerStyle>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="{x:Type vm:KeyframeViewModel}">
-                                                    <Path Data="M4,0 L8,4 L4,8 L0,4 Z" Fill="{StaticResource AccentBrush}"
-                                                          Stroke="{StaticResource WindowBackgroundBrush}" StrokeThickness="0.5"
-                                                          ToolTip="Keyframe" />
+                                                    <!-- Drag a keyframe to move it in time; click it to jump there. -->
+                                                    <Thumb Width="12" Height="12" Margin="-6,-2,0,0" Cursor="SizeWE" ToolTip="Keyframe - drag to move it; Shift+click to select several"
+                                                           DragStarted="KeyThumb_DragStarted" DragDelta="KeyThumb_DragDelta" DragCompleted="KeyThumb_DragCompleted">
+                                                        <Thumb.Template>
+                                                            <ControlTemplate TargetType="Thumb">
+                                                                <Path x:Name="Diamond" Data="M6,0 L12,6 L6,12 L0,6 Z" Fill="{StaticResource AccentBrush}"
+                                                                      Stroke="{StaticResource WindowBackgroundBrush}" StrokeThickness="0.8" />
+                                                                <ControlTemplate.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                        <Setter TargetName="Diamond" Property="Fill" Value="White" />
+                                                                    </DataTrigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Thumb.Template>
+                                                    </Thumb>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>

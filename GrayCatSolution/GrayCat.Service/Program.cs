@@ -1,14 +1,16 @@
 ﻿using GrayCat.Core.Constants;
-using GrayCat.Core.Data;
-using GrayCat.Core.Data.Migrations;
 using GrayCat.Core.Interfaces;
+using GrayCat.Core.Serialization;
 using GrayCat.Service;
 using GrayCat.Service.Services;
-using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
     .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft.AspNetCore", Serilog.Events.LogEventLevel.Warning)
+    // Startup failures are reported once, in plain words, by the catch blocks below.
+    .MinimumLevel.Override("Microsoft.Extensions.Hosting.Internal.Host", Serilog.Events.LogEventLevel.Fatal)
     .Enrich.FromLogContext()
     .WriteTo.Console()
     .WriteTo.File(
@@ -17,60 +19,52 @@ Log.Logger = new LoggerConfiguration()
         retainedFileCountLimit: 30)
     .CreateLogger();
 
+var baseUrl = AppConstants.ServiceEndpoints.BaseUrl;
+
 try
 {
     Log.Information("=== GrayCat Service Starting ===");
 
-    var builder = WebApplication.CreateBuilder(args);
-
-    // Add Serilog
-    builder.Host.UseSerilog();
-
-    // Configure Windows Service
-    builder.Host.UseWindowsService(options =>
+    // A second copy cannot bind the port; tell the user clearly instead of crashing.
+    if (await ServiceProbe.IsGrayCatServiceRunningAsync(baseUrl))
     {
-        options.ServiceName = AppConstants.ServiceName;
-    });
-
-    // Register services
-    builder.Services.AddSingleton<ITemplateEngine, TemplateEngine>();
-    builder.Services.AddSingleton<ICodeGenerator, CodeGenerator>();
-    builder.Services.AddSingleton<IProjectValidator, ValidationService>();
-    builder.Services.AddSingleton<IGenerationService, ProjectGenerationService>();
-
-    // Add Worker
-    builder.Services.AddHostedService<Worker>();
-
-    // Add Web API
-    builder.Services.AddControllers();
-
-    var app = builder.Build();
-
-    using (var scope = app.Services.CreateScope())
-    {
-        var services = scope.ServiceProvider;
-        try
-        {
-            var context = services.GetRequiredService<GrayCatDbContext>();
-            await MigrationRunner.RunMigrationsAsync(context);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Database migration failed");
-        }
+        Log.Warning("GrayCat Service is already running on {Url}. This copy will exit.", baseUrl);
+        return 0;
     }
 
+    var builder = WebApplication.CreateBuilder(args);
+
+    builder.Host.UseSerilog();
+    builder.Host.UseWindowsService(options => options.ServiceName = AppConstants.ServiceName);
+
+    builder.Services.AddSingleton<IProjectValidator, ValidationService>();
+    builder.Services.AddSingleton<IGenerationService, ProjectGenerationService>();
+    builder.Services.AddHostedService<Worker>();
+
+    builder.Services
+        .AddControllers()
+        .AddJsonOptions(options => GrayCatJson.ApplyTo(options.JsonSerializerOptions));
+
+    // Loopback only: the service writes files, so it must not be reachable from the network.
+    builder.WebHost.UseUrls(baseUrl);
+
+    var app = builder.Build();
     app.MapControllers();
 
-    app.Urls.Add("http://localhost:5123");
-
-    Log.Information("Service listening on http://localhost:5123");
-
+    app.Lifetime.ApplicationStarted.Register(() => Log.Information("Service listening on {Url}", baseUrl));
     await app.RunAsync();
+    return 0;
+}
+catch (IOException ex) when (ex.InnerException is AddressInUseException)
+{
+    Log.Fatal("Port {Port} is already used by another program, so GrayCat Service cannot start. " +
+              "Close that program or free the port, then start the service again.", new Uri(baseUrl).Port);
+    return 1;
 }
 catch (Exception ex)
 {
     Log.Fatal(ex, "Service failed to start");
+    return 1;
 }
 finally
 {

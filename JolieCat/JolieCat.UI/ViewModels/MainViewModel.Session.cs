@@ -12,7 +12,7 @@ namespace JolieCat.UI.ViewModels
     public partial class MainViewModel
     {
         /// <summary>How often unsaved documents are copied to the recovery folder.</summary>
-        public static readonly TimeSpan AutosaveInterval = TimeSpan.FromMinutes(2);
+        public static TimeSpan AutosaveInterval => TimeSpan.FromMinutes(Math.Max(1, Preferences.Current.AutosaveMinutes));
 
         internal DocumentRecovery Recovery { get; } = new();
 
@@ -22,11 +22,12 @@ namespace JolieCat.UI.ViewModels
         /// left behind by a crash, then starts the autosave timer.</summary>
         public void StartSession()
         {
-            RestoreAfterCrash();
-
+            // Preferences first: the restore question below waits for an answer.
             _autosaveTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = AutosaveInterval };
             _autosaveTimer.Tick += async (_, _) => await AutosaveNowAsync();
-            _autosaveTimer.Start();
+            ApplyPreferences();
+
+            RestoreAfterCrash();
         }
 
         /// <summary>Writes recovery copies of unsaved documents (skipped while a real

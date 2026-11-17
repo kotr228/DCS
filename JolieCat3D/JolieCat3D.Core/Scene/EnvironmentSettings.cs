@@ -22,5 +22,17 @@ namespace JolieCat3D.Core.Scene
         /// own remarks cover how this project independently re-derives the same 6 paths
         /// for its own average-color sampling.</summary>
         public string? SkyboxSource { get; set; }
+
+        /// <summary>Turn of an equirectangular .hdr panorama about +Y, in degrees
+        /// (Blender's environment Mapping rotation Z). Ignored by 6-face skyboxes.</summary>
+        public float SkyboxRotation { get; set; }
+
+        /// <summary>Multiplier on the world texture's light and background (Blender's
+        /// World > Strength). 1 = the image's own values.</summary>
+        public float SkyboxStrength { get; set; } = 1f;
+
+        /// <summary>True when <see cref="SkyboxSource"/> is a single equirectangular HDR image.</summary>
+        public static bool IsPanorama(string? source) =>
+            source is not null && source.EndsWith(".hdr", StringComparison.OrdinalIgnoreCase);
     }
 }

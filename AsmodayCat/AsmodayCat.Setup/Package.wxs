@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AsmodayCat installer (per-user, no admin rights).
+  Installs into %LOCALAPPDATA%\Programs\CatSuite\AsmodayCat, adds Start menu and desktop shortcuts,
+  and starts the background service at sign-in (can be turned off in the app's Settings).
+  Build with publish.ps1, which first publishes the app into ..\publish\AsmodayCat.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="AsmodayCat"
+           Manufacturer="CatSuite"
+           Version="$(ProductVersion)"
+           UpgradeCode="26a6b2d2-2b90-56c5-9454-a5e9c38dd1a4"
+           Scope="perUser"
+           Language="1058"
+           Codepage="65001">
+
+    <SummaryInformation Description="AsmodayCat — локальний ШІ-помічник" />
+    <MajorUpgrade DowngradeErrorMessage="Уже встановлено новішу версію AsmodayCat." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="AppIcon" SourceFile="$(PublishDir)\AsmodayCat.UI.exe" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsDir" Name="Programs">
+        <Directory Id="CatSuiteDir" Name="CatSuite">
+          <Directory Id="INSTALLFOLDER" Name="AsmodayCat" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="MenuDir" Name="CatSuite" />
+    </StandardDirectory>
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="Main" Title="AsmodayCat">
+      <!-- Every published file, folders included -->
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="Shortcuts" />
+      <ComponentRef Id="Autostart" />
+    </Feature>
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(PublishDir)\**" />
+    </ComponentGroup>
+
+    <!-- Per-user components need a registry key path -->
+    <Component Id="Shortcuts" Directory="MenuDir" Guid="9c2a6f1e-3c1d-4f4e-9a57-6f7d7b2f3a11">
+      <Shortcut Id="MenuShortcut" Name="AsmodayCat" Description="Локальний ШІ-помічник"
+                Target="[INSTALLFOLDER]AsmodayCat.UI.exe" WorkingDirectory="INSTALLFOLDER" />
+      <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="AsmodayCat" Description="Локальний ШІ-помічник"
+                Target="[INSTALLFOLDER]AsmodayCat.UI.exe" WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveMenuDir" On="uninstall" />
+      <RegistryValue Root="HKCU" Key="Software\CatSuite\AsmodayCat" Name="Shortcuts" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!-- Same value the app's "Start with Windows" switch writes; removed on uninstall -->
+    <Component Id="Autostart" Directory="INSTALLFOLDER" Guid="5b7e2d44-8f0a-4f3b-b1c2-2e6c9d1a7f20">
+      <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="AsmodayCat"
+                     Type="string" Value="&quot;[INSTALLFOLDER]AsmodayCat.UI.exe&quot; --tray" KeyPath="yes" />
+    </Component>
+
+    <!-- Start the app when the installer finishes -->
+    <CustomAction Id="LaunchApp" Directory="INSTALLFOLDER" ExeCommand="&quot;[INSTALLFOLDER]AsmodayCat.UI.exe&quot;" Return="asyncNoWait" />
+    <InstallExecuteSequence>
+      <Custom Action="LaunchApp" After="InstallFinalize" Condition="NOT Installed AND NOT REMOVE AND UILevel &gt;= 5" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

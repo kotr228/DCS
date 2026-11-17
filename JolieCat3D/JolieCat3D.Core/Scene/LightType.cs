@@ -20,5 +20,11 @@ namespace JolieCat3D.Core.Scene
         /// the node's own forward direction, per <see cref="LightData.SpotAngle"/> - a
         /// flashlight/stage spotlight.</summary>
         Spot,
+
+        /// <summary>A rectangle (<see cref="LightData.Width"/> x <see cref="LightData.Height"/>
+        /// in the node's local XY plane) shining along the node's forward (+Z) side - soft
+        /// shadows in the final render; approximated as a wide spot in the viewport and as
+        /// a point light in glTF (which has no area lights).</summary>
+        Area,
     }
 }

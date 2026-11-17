@@ -69,11 +69,9 @@ namespace JolieCat3D.Service.Commands
             {
                 foreach (var (source, clone) in _animatedPairs)
                 {
-                    if (!_timeline.TryGetTrack(source, out var sourceTrack) || sourceTrack is null) continue;
-
-                    var cloneTrack = _timeline.GetOrCreateTrack(clone);
-                    foreach (var keyframe in sourceTrack.Keyframes)
-                        cloneTrack.AddKeyframe(keyframe.Time, keyframe.Position, keyframe.Rotation, keyframe.Scale, keyframe.Interpolation);
+                    foreach (var action in _timeline.Actions)
+                        if (action.TryGetTrack(source, out var sourceTrack) && sourceTrack is not null)
+                            action.SetTrack(sourceTrack.Clone(clone));
                 }
             }
 
@@ -88,7 +86,7 @@ namespace JolieCat3D.Service.Commands
         {
             if (_timeline is not null)
                 foreach (var (_, clone) in _animatedPairs)
-                    _timeline.RemoveTrack(clone);
+                    foreach (var action in _timeline.Actions) action.RemoveTrack(clone);
 
             if (_parent is null) _scene.RemoveRootNode(_clone);
             else _parent.RemoveChild(_clone);

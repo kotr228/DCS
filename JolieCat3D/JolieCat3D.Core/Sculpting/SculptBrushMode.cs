@@ -8,5 +8,10 @@ namespace JolieCat3D.Core.Sculpting
         Draw,
         Smooth,
         Grab,
+        Inflate,
+        Flatten,
+        Pinch,
+        Crease,
+        Clay,
     }
 }

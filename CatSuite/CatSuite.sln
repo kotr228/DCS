@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.7.11822.327 insiders
+VisualStudioVersion = 18.7.11822.327
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DocControlUI", "..\Geocadastr_0_1\DocControlSolution\DocControlUI\DocControlUI.csproj", "{B1080DDF-1155-F142-F323-EB755C8AB4CE}"
 EndProject
@@ -52,6 +52,16 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AsmodayCat.UI", "..\AsmodayCat\AsmodayCat.UI\AsmodayCat.UI.csproj", "{D2D00482-2E89-65EB-81A3-D9EA4C0BD529}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AsmodayCat.Shared", "..\AsmodayCat\ClassLibrary1\AsmodayCat.Shared.csproj", "{FCBD7390-92C3-469C-CCE8-154A38DC3B48}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "JolieCat", "JolieCat", "{0EFB14A8-FEE9-4118-B0F1-450D1C818974}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JolieCat.Core", "..\JolieCat\JolieCat.Core\JolieCat.Core.csproj", "{37A4ABFF-56BA-7169-CF23-B6A3945D892C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JolieCat.Service", "..\JolieCat\JolieCat.Service\JolieCat.Service.csproj", "{145EE13B-78AE-90DB-151D-61452F943576}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JolieCat.Shared", "..\JolieCat\JolieCat.Shared\JolieCat.Shared.csproj", "{764A53E3-8188-6B01-8141-74B3355EF095}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JolieCat.UI", "..\JolieCat\JolieCat.UI\JolieCat.UI.csproj", "{F249A857-9145-B406-D8B3-7D26B4B1498F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -143,6 +153,22 @@ Global
 		{FCBD7390-92C3-469C-CCE8-154A38DC3B48}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FCBD7390-92C3-469C-CCE8-154A38DC3B48}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FCBD7390-92C3-469C-CCE8-154A38DC3B48}.Release|Any CPU.Build.0 = Release|Any CPU
+		{37A4ABFF-56BA-7169-CF23-B6A3945D892C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{37A4ABFF-56BA-7169-CF23-B6A3945D892C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{37A4ABFF-56BA-7169-CF23-B6A3945D892C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{37A4ABFF-56BA-7169-CF23-B6A3945D892C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{145EE13B-78AE-90DB-151D-61452F943576}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{145EE13B-78AE-90DB-151D-61452F943576}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{145EE13B-78AE-90DB-151D-61452F943576}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{145EE13B-78AE-90DB-151D-61452F943576}.Release|Any CPU.Build.0 = Release|Any CPU
+		{764A53E3-8188-6B01-8141-74B3355EF095}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{764A53E3-8188-6B01-8141-74B3355EF095}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{764A53E3-8188-6B01-8141-74B3355EF095}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{764A53E3-8188-6B01-8141-74B3355EF095}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F249A857-9145-B406-D8B3-7D26B4B1498F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F249A857-9145-B406-D8B3-7D26B4B1498F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F249A857-9145-B406-D8B3-7D26B4B1498F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F249A857-9145-B406-D8B3-7D26B4B1498F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -169,6 +195,10 @@ Global
 		{D049FCC5-24CB-9981-7626-EBBBFDC5A9AF} = {9431A55B-BF18-442A-B4CF-5AE1F8E610DB}
 		{D2D00482-2E89-65EB-81A3-D9EA4C0BD529} = {9431A55B-BF18-442A-B4CF-5AE1F8E610DB}
 		{FCBD7390-92C3-469C-CCE8-154A38DC3B48} = {9431A55B-BF18-442A-B4CF-5AE1F8E610DB}
+		{37A4ABFF-56BA-7169-CF23-B6A3945D892C} = {0EFB14A8-FEE9-4118-B0F1-450D1C818974}
+		{145EE13B-78AE-90DB-151D-61452F943576} = {0EFB14A8-FEE9-4118-B0F1-450D1C818974}
+		{764A53E3-8188-6B01-8141-74B3355EF095} = {0EFB14A8-FEE9-4118-B0F1-450D1C818974}
+		{F249A857-9145-B406-D8B3-7D26B4B1498F} = {0EFB14A8-FEE9-4118-B0F1-450D1C818974}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F9C45ABD-965C-4A67-AAD1-2DBF1388EA8D}

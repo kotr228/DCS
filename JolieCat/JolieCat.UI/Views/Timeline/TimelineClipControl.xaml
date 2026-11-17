@@ -22,21 +22,39 @@
     </UserControl.Resources>
 
     <Grid>
-        <Border Background="{StaticResource AccentBrush}"
-                BorderBrush="{StaticResource WindowBackgroundBrush}" BorderThickness="1">
-            <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="10"
-                       VerticalAlignment="Center" Margin="6,0" TextTrimming="CharacterEllipsis" />
+        <Border BorderBrush="{StaticResource WindowBackgroundBrush}" BorderThickness="1">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsAudio}" Value="True">
+                            <Setter Property="Background" Value="#FF4E8A5C" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsMarker}" Value="True">
+                            <Setter Property="Background" Value="#FF5B7FC2" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <Grid>
+                <!-- A sound clip shows its waveform (stretched to the clip's length). -->
+                <Path Data="{Binding Waveform}" Stretch="Fill" Fill="#99D6F5DC" Margin="0,2" IsHitTestVisible="False" />
+                <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextPrimaryBrush}" FontSize="10"
+                           VerticalAlignment="Center" Margin="6,0" TextTrimming="CharacterEllipsis" />
+            </Grid>
         </Border>
 
         <!-- Body: drag anywhere on the clip to move it. -->
         <Thumb x:Name="BodyThumb" Cursor="SizeAll" Style="{StaticResource InvisibleThumbStyle}"
-               DragDelta="BodyThumb_DragDelta" />
+               DragDelta="BodyThumb_DragDelta" DragStarted="Thumb_DragStarted" DragCompleted="Thumb_DragCompleted" />
 
         <!-- Edges: drag to trim the start/end without moving the other side. Declared
              after BodyThumb so they win hit-testing over the narrow strips they cover. -->
         <Thumb x:Name="LeftEdgeThumb" Width="5" HorizontalAlignment="Left" Cursor="SizeWE"
-               Style="{StaticResource InvisibleThumbStyle}" DragDelta="LeftEdgeThumb_DragDelta" />
+               Style="{StaticResource InvisibleThumbStyle}" DragDelta="LeftEdgeThumb_DragDelta"
+               DragStarted="Thumb_DragStarted" DragCompleted="Thumb_DragCompleted" />
         <Thumb x:Name="RightEdgeThumb" Width="5" HorizontalAlignment="Right" Cursor="SizeWE"
-               Style="{StaticResource InvisibleThumbStyle}" DragDelta="RightEdgeThumb_DragDelta" />
+               Style="{StaticResource InvisibleThumbStyle}" DragDelta="RightEdgeThumb_DragDelta"
+               DragStarted="Thumb_DragStarted" DragCompleted="Thumb_DragCompleted" />
     </Grid>
 </UserControl>

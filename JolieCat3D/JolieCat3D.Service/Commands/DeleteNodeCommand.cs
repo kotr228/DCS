@@ -42,7 +42,7 @@ namespace JolieCat3D.Service.Commands
         private readonly Node? _parent;
         private readonly Node _target;
         private readonly AnimationTimeline? _timeline;
-        private readonly IReadOnlyList<(Node Node, IReadOnlyList<Keyframe> Keyframes)> _capturedTracks;
+        private readonly IReadOnlyList<(Node Node, AnimationTrack Track, AnimationAction Action)> _capturedTracks;
         private readonly Node? _activeCameraInSubtree;
         private readonly Action? _onChanged;
 
@@ -60,7 +60,7 @@ namespace JolieCat3D.Service.Commands
             Node? parent,
             Node target,
             AnimationTimeline? timeline,
-            IReadOnlyList<(Node Node, IReadOnlyList<Keyframe> Keyframes)> capturedTracks,
+            IReadOnlyList<(Node Node, AnimationTrack Track, AnimationAction Action)> capturedTracks,
             Node? activeCameraInSubtree,
             string description,
             Action? onChanged = null)
@@ -69,7 +69,7 @@ namespace JolieCat3D.Service.Commands
             _parent = parent;
             _target = target ?? throw new ArgumentNullException(nameof(target));
             _timeline = timeline;
-            _capturedTracks = capturedTracks ?? Array.Empty<(Node, IReadOnlyList<Keyframe>)>();
+            _capturedTracks = capturedTracks ?? Array.Empty<(Node, AnimationTrack, AnimationAction)>();
             _activeCameraInSubtree = activeCameraInSubtree;
             Description = description ?? throw new ArgumentNullException(nameof(description));
             _onChanged = onChanged;
@@ -78,8 +78,8 @@ namespace JolieCat3D.Service.Commands
         public void Execute()
         {
             if (_timeline is not null)
-                foreach (var (node, _) in _capturedTracks)
-                    _timeline.RemoveTrack(node);
+                foreach (var (node, _, action) in _capturedTracks)
+                    action.RemoveTrack(node);
 
             if (_parent is null) _scene.RemoveRootNode(_target);
             else _parent.RemoveChild(_target);
@@ -101,12 +101,8 @@ namespace JolieCat3D.Service.Commands
 
             if (_timeline is not null)
             {
-                foreach (var (node, keyframes) in _capturedTracks)
-                {
-                    var track = _timeline.GetOrCreateTrack(node);
-                    foreach (var keyframe in keyframes)
-                        track.AddKeyframe(keyframe.Time, keyframe.Position, keyframe.Rotation, keyframe.Scale, keyframe.Interpolation);
-                }
+                foreach (var (_, track, action) in _capturedTracks)
+                    action.SetTrack(track.Clone());
             }
 
             if (_activeCameraInSubtree is not null) _scene.ActiveCamera = _activeCameraInSubtree;
@@ -130,13 +126,15 @@ namespace JolieCat3D.Service.Commands
             ArgumentNullException.ThrowIfNull(scene);
             ArgumentNullException.ThrowIfNull(target);
 
-            var capturedTracks = new List<(Node, IReadOnlyList<Keyframe>)>();
+            var capturedTracks = new List<(Node, AnimationTrack, AnimationAction)>();
             Node? activeCameraInSubtree = null;
 
             foreach (var node in target.Traverse())
             {
-                if (timeline is not null && timeline.TryGetTrack(node, out var track) && track is not null)
-                    capturedTracks.Add((node, track.Keyframes.ToList()));
+                if (timeline is not null)
+                    foreach (var action in timeline.Actions)
+                        if (action.TryGetTrack(node, out var track) && track is not null)
+                            capturedTracks.Add((node, track.Clone(), action));
 
                 if (node == scene.ActiveCamera) activeCameraInSubtree = node;
             }

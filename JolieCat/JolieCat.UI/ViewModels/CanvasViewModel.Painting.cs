@@ -137,6 +137,24 @@ namespace JolieCat.UI.ViewModels
                                      center.Y + ((float)random.NextDouble() * 2 - 1) * reach);
             }
 
+            // A picture tip (Define Brush Preset): stamped in the paint's color, as big as the brush.
+            if (options?.Tip is { } tip)
+            {
+                // The color comes from the brush itself (a soft dab keeps it in its gradient, not its paint).
+                var tipColor = (_toolbox.ActiveTool.Type == ToolType.Eraser ? SKColors.Black : BrushColor).WithAlpha(dabPaint.Color.Alpha);
+                using var tipPaint = new SKPaint { Color = tipColor, BlendMode = dabPaint.BlendMode, IsAntialias = true };
+                var longest = Math.Max(tip.Width, tip.Height);
+                var tipScale = radius * 2 / longest * sizeScale;
+                canvas.Save();
+                canvas.Translate(center.X, center.Y);
+                if (options.Angle != 0) canvas.RotateDegrees(-(float)options.Angle);
+                canvas.Scale(tipScale, tipScale * (float)Math.Clamp(options.Roundness / 100.0, 0.02, 1));
+                using (var image = SKImage.FromBitmap(tip))
+                    canvas.DrawImage(image, -tip.Width / 2f, -tip.Height / 2f, new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear), tipPaint);
+                canvas.Restore();
+                return;
+            }
+
             // Tip shape: an ellipse (Roundness) turned by Angle.
             var roundness = (float)Math.Clamp((options?.Roundness ?? 100) / 100.0, 0.02, 1);
             canvas.Save();

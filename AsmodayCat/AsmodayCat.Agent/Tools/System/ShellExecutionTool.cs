@@ -1,76 +1,116 @@
+using AsmodayCat.Shared.Text;
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
-using AsmodayCat.Shared.Interfaces;
+using System.Text.RegularExpressions;
 
 namespace AsmodayCat.Agent.Tools.System;
 
-// FR7.2: виконання команд у cmd/powershell з валідацією безпеки
+// FR7.2: run a cmd.exe command. Every command needs the user's approval.
 public class ShellExecutionTool : IAgentTool
 {
-    // Заблоковані команди — жорсткий список для безпеки
-    private static readonly HashSet<string> BlockedCommands = new(StringComparer.OrdinalIgnoreCase)
+    private const int DefaultTimeoutSeconds = 120;
+    private const int MaxTimeoutSeconds     = 600;
+    private const int MaxOutputChars        = 8000;
+
+    // Never run these, even if approved: they can wreck the machine in one call
+    private static readonly Regex HardBlocked = new(
+        @"\b(format|diskpart|bcdedit|vssadmin|cipher\s+/w)\b",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public string Name => "shell_exec";
+
+    public string Description =>
+        "Run a Windows cmd.exe command (e.g. git, dotnet build, python script.py) and get its output. " +
+        "The user must approve every command.";
+
+    public object Parameters => new
     {
-        "rm", "del", "rmdir", "rd", "format", "shutdown", "reboot",
-        "reg", "regedit", "netsh", "sc", "taskkill", "cipher"
+        type = "object",
+        properties = new
+        {
+            command         = new { type = "string",  description = "The command line to run" },
+            working_dir     = new { type = "string",  description = "Folder to run in (optional)" },
+            timeout_seconds = new { type = "integer", description = $"Max run time, default {DefaultTimeoutSeconds}" }
+        },
+        required = new[] { "command" }
     };
 
-    public string GetName() => "shell_exec";
-    public string GetDescription() =>
-        "Execute a shell command (cmd/powershell). Args: {\"command\": \"dotnet build\", \"working_dir\": \"C:\\\\project\"}";
+    public bool IsEnabled(ToolContext context) => context.AllowShell;
 
-    public async Task<string> ExecuteAsync(string jsonArguments, CancellationToken cancellationToken = default)
+    public async Task<string> ExecuteAsync(JsonElement args, ToolContext ctx, CancellationToken ct)
     {
-        using var doc = JsonDocument.Parse(jsonArguments);
-        var command    = doc.RootElement.GetProperty("command").GetString() ?? string.Empty;
-        var workingDir = doc.RootElement.TryGetProperty("working_dir", out var wd)
-            ? wd.GetString() ?? Environment.CurrentDirectory
-            : Environment.CurrentDirectory;
+        var command = args.Str("command")?.Trim() ?? string.Empty;
+        if (command.Length == 0)
+            return ToolRegistry.Error("'command' is required.");
 
-        if (!ValidateCommand(command, out var reason))
-            return JsonSerializer.Serialize(new { error = $"Blocked: {reason}" });
+        if (HardBlocked.IsMatch(command))
+            return ToolRegistry.Error("This command is blocked for safety.");
 
-        var psi = new ProcessStartInfo("cmd.exe", $"/c {command}")
+        var workingDir = args.Str("working_dir") is { Length: > 0 } wd
+            ? ctx.ResolvePath(wd)
+            : ctx.WorkingDirectory;
+
+        if (!Directory.Exists(workingDir))
+            return ToolRegistry.Error($"Working folder not found: {workingDir}");
+
+        var timeout = Math.Clamp(args.Int("timeout_seconds", DefaultTimeoutSeconds), 5, MaxTimeoutSeconds);
+
+        if (!await ctx.ConfirmAsync(L.T("Помічник хоче виконати команду", "The assistant wants to run a command", "Помощник хочет выполнить команду"), $"{workingDir}> {command}", ct))
+            return ToolRegistry.Denied($"run `{command}`");
+
+        // chcp 65001 makes most tools print UTF-8, so Cyrillic output survives
+        var psi = new ProcessStartInfo("cmd.exe", $"/d /s /c \"chcp 65001>nul & {command}\"")
         {
             WorkingDirectory       = workingDir,
             RedirectStandardOutput = true,
             RedirectStandardError  = true,
+            RedirectStandardInput  = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding  = Encoding.UTF8,
             UseShellExecute        = false,
             CreateNoWindow         = true
         };
 
         using var process = new Process { StartInfo = psi };
         process.Start();
+        process.StandardInput.Close();   // commands waiting for input get EOF instead of hanging
 
-        var stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(CancellationToken.None);
+        var stderrTask = process.StandardError.ReadToEndAsync(CancellationToken.None);
 
-        await process.WaitForExitAsync(cancellationToken);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(timeout));
 
-        return JsonSerializer.Serialize(new
+        var timedOut = false;
+        try
         {
-            exit_code = process.ExitCode,
-            stdout    = stdout.Trim(),
-            stderr    = stderr.Trim()
+            await process.WaitForExitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            ct.ThrowIfCancellationRequested();
+            timedOut = true;
+        }
+
+        ctx.RecordAction($"Ran command `{command}` in {workingDir} → {(timedOut ? "timed out" : $"exit {process.ExitCode}")}");
+
+        var stdout = Trim(await stdoutTask);
+        var stderr = Trim(await stderrTask);
+
+        return ToolJson.Serialize(new
+        {
+            exit_code = timedOut ? (int?)null : process.ExitCode,
+            timed_out = timedOut,
+            stdout,
+            stderr
         });
     }
 
-    private static bool ValidateCommand(string command, out string reason)
+    private static string Trim(string s)
     {
-        var firstWord = command.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
-        if (BlockedCommands.Contains(firstWord))
-        {
-            reason = $"Command '{firstWord}' is not allowed.";
-            return false;
-        }
-
-        // Блокуємо спроби escap'у через & ; |
-        if (command.Contains("&&") || command.Contains("||") || command.Contains(";"))
-        {
-            reason = "Command chaining is not allowed.";
-            return false;
-        }
-
-        reason = string.Empty;
-        return true;
+        s = s.Trim();
+        return s.Length > MaxOutputChars ? "…" + s[^MaxOutputChars..] : s;
     }
 }

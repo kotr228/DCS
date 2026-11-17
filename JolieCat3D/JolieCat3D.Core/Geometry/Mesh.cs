@@ -36,6 +36,9 @@ namespace JolieCat3D.Core.Geometry
         /// advance of other edits.</summary>
         private readonly HashSet<(int A, int B)> _seamEdges = new();
 
+        /// <summary>Edges kept sharp by Subdivision Surface (Blender's full edge crease).</summary>
+        private readonly HashSet<(int A, int B)> _creaseEdges = new();
+
         public string Name { get; set; }
 
         /// <summary>Optional - a mesh with no material renders with <see cref="Material.CreateDefault"/> instead.
@@ -118,9 +121,16 @@ namespace JolieCat3D.Core.Geometry
         /// mesh in place - a full independent copy is what makes "restore the exact
         /// pre-edit geometry" possible without <see cref="Mesh"/> needing any kind of
         /// "undo log"/inverse-operation of its own.</summary>
+        /// <summary>Shape keys (morph targets) of this mesh - see <see cref="Geometry.ShapeKeys"/>.</summary>
+        public List<ShapeKey> ShapeKeys { get; } = new();
+
+        /// <summary>The rest shape the keys are relative to (null until a basis is added).</summary>
+        public Vector3[]? ShapeBasis { get; set; }
+
         public Mesh Clone()
         {
-            var clone = new Mesh(Name) { Material = Material };
+            var clone = new Mesh(Name) { Material = Material, ShapeBasis = ShapeBasis };
+            foreach (var key in ShapeKeys) clone.ShapeKeys.Add(key.Clone());
 
             foreach (var vertex in _vertices) clone.AddVertex(vertex);
             foreach (var face in _faces) clone.AddFace(face);
@@ -128,8 +138,36 @@ namespace JolieCat3D.Core.Geometry
                 clone.AddPolygon(new Polygon(polygon.Indices) { MaterialSlotIndex = polygon.MaterialSlotIndex });
             foreach (var material in _materialSlots) clone._materialSlots.Add(material);
             foreach (var seam in _seamEdges) clone._seamEdges.Add(seam);
+            foreach (var crease in _creaseEdges) clone._creaseEdges.Add(crease);
 
             return clone;
+        }
+
+        /// <summary>Replaces this mesh's whole contents with an independent copy of
+        /// <paramref name="source"/>, keeping this object's identity - so every node
+        /// sharing it (linked duplicates, scatter instances) sees the change.</summary>
+        public void CopyFrom(Mesh source)
+        {
+            ArgumentNullException.ThrowIfNull(source);
+            if (ReferenceEquals(source, this)) return;
+            var copy = source.Clone();
+            Name = copy.Name;
+            Material = copy.Material;
+            ShapeBasis = copy.ShapeBasis;
+            ShapeKeys.Clear();
+            ShapeKeys.AddRange(copy.ShapeKeys);
+            _vertices.Clear();
+            _vertices.AddRange(copy._vertices);
+            _faces.Clear();
+            _faces.AddRange(copy._faces);
+            _polygons.Clear();
+            _polygons.AddRange(copy._polygons);
+            _materialSlots.Clear();
+            _materialSlots.AddRange(copy._materialSlots);
+            _seamEdges.Clear();
+            _seamEdges.UnionWith(copy._seamEdges);
+            _creaseEdges.Clear();
+            _creaseEdges.UnionWith(copy._creaseEdges);
         }
 
         /// <summary>Adds <paramref name="material"/> as a new <see cref="MaterialSlots"/>
@@ -240,6 +278,63 @@ namespace JolieCat3D.Core.Geometry
             _vertices[index] = _vertices[index].WithBoneIndices(boneIndices).WithBoneWeights(boneWeights);
         }
 
+        /// <summary>Replaces every triangle and polygon at once (vertices are kept).
+        /// Used by modelling operators that rebuild topology.</summary>
+        public void SetTopology(IEnumerable<Face> faces, IEnumerable<Polygon> polygons)
+        {
+            ArgumentNullException.ThrowIfNull(faces);
+            ArgumentNullException.ThrowIfNull(polygons);
+            var newFaces = faces.ToList();
+            var newPolygons = polygons.ToList();
+            _faces.Clear();
+            _faces.AddRange(newFaces);
+            _polygons.Clear();
+            _polygons.AddRange(newPolygons);
+        }
+
+        /// <summary>Removes vertices no face/polygon references any more. Returns the old→new
+        /// index map (-1 = removed), or null when nothing was removed.</summary>
+        public int[]? RemoveUnusedVertices()
+        {
+            var used = new HashSet<int>();
+            foreach (var f in _faces) { used.Add(f.A); used.Add(f.B); used.Add(f.C); }
+            foreach (var p in _polygons) foreach (var i in p.Indices) used.Add(i);
+            if (used.Count == _vertices.Count) return null;
+
+            var remap = new int[_vertices.Count];
+            var next = 0;
+            for (var i = 0; i < remap.Length; i++) remap[i] = used.Contains(i) ? next++ : -1;
+            var seams = _seamEdges.Where(e => remap[e.A] >= 0 && remap[e.B] >= 0).Select(e => (remap[e.A], remap[e.B])).ToList();
+            var creases = _creaseEdges.Where(e => remap[e.A] >= 0 && remap[e.B] >= 0).Select(e => (remap[e.A], remap[e.B])).ToList();
+
+            var normals = _vertices.Select(v => v.Normal).ToArray();
+            RemoveVertices(Enumerable.Range(0, remap.Length).Where(i => remap[i] < 0).ToList());
+            // RemoveVertices recalculates normals; keep the authored ones instead.
+            for (var i = 0; i < remap.Length; i++)
+                if (remap[i] >= 0) _vertices[remap[i]] = _vertices[remap[i]].WithNormal(normals[i]);
+
+            _seamEdges.Clear();
+            foreach (var (a, b) in seams) _seamEdges.Add(NormalizeEdge(a, b));
+            _creaseEdges.Clear();
+            foreach (var (a, b) in creases) _creaseEdges.Add(NormalizeEdge(a, b));
+            return remap;
+        }
+
+        public void SetVertexNormal(int index, Vector3 normal)
+        {
+            if ((uint)index >= (uint)_vertices.Count) throw new ArgumentOutOfRangeException(nameof(index));
+            _vertices[index] = _vertices[index].WithNormal(normal);
+        }
+
+        /// <summary>Reverses the winding of every triangle and polygon (and flips normals).</summary>
+        public void FlipWinding()
+        {
+            for (var i = 0; i < _faces.Count; i++) _faces[i] = new Face(_faces[i].A, _faces[i].C, _faces[i].B);
+            for (var i = 0; i < _polygons.Count; i++)
+                _polygons[i] = new Polygon(_polygons[i].Indices.Reverse()) { MaterialSlotIndex = _polygons[i].MaterialSlotIndex };
+            for (var i = 0; i < _vertices.Count; i++) _vertices[i] = _vertices[i].WithNormal(-_vertices[i].Normal);
+        }
+
         /// <summary>
         /// Removes every vertex index in <paramref name="indices"/> from this mesh, along
         /// with any <see cref="Face"/>/<see cref="Polygon"/> that references ANY of them -
@@ -299,7 +394,7 @@ namespace JolieCat3D.Core.Geometry
             for (var i = 0; i < _polygons.Count; i++)
             {
                 var polygon = _polygons[i];
-                _polygons[i] = new Polygon(polygon.Indices.Select(index => remap[index]));
+                _polygons[i] = new Polygon(polygon.Indices.Select(index => remap[index])) { MaterialSlotIndex = polygon.MaterialSlotIndex };
             }
 
             var survivors = new List<Vertex>(_vertices.Count - toRemove.Count);
@@ -428,6 +523,15 @@ namespace JolieCat3D.Core.Geometry
         public void ClearSeam(int a, int b) => _seamEdges.Remove(NormalizeEdge(a, b));
 
         public bool IsSeam(int a, int b) => _seamEdges.Contains(NormalizeEdge(a, b));
+
+        /// <summary>Edges marked as creases (kept sharp by Subdivision Surface).</summary>
+        public IReadOnlyCollection<(int A, int B)> CreaseEdges => _creaseEdges;
+
+        public void MarkCrease(int a, int b) => _creaseEdges.Add(NormalizeEdge(a, b));
+
+        public void ClearCrease(int a, int b) => _creaseEdges.Remove(NormalizeEdge(a, b));
+
+        public bool IsCrease(int a, int b) => _creaseEdges.Contains(NormalizeEdge(a, b));
 
         /// <summary>Every triangle this mesh should render as: <see cref="Faces"/>
         /// verbatim, plus every <see cref="Polygon"/> in <see cref="Polygons"/>
@@ -1004,227 +1108,10 @@ namespace JolieCat3D.Core.Geometry
             _polygons.AddRange(newPolygons);
         }
 
-        /// <summary>
-        /// The standard "UV Unwrap": splits this mesh's own geometry along every edge
-        /// currently marked as a UV Seam (see <see cref="MarkSeam"/>) into separate UV
-        /// islands, then projects each island independently. Two steps:
-        ///
-        /// 1. Partition every <see cref="Faces"/>/<see cref="Polygons"/> entry into
-        /// islands via a flood fill across shared edges, EXCEPT any edge currently
-        /// <see cref="IsSeam"/> - the task's own "traverse mesh faces, stopping at
-        /// seams" wording, exactly.
-        ///
-        /// 2. Actually TEAR the geometry apart at every seam - the same per-vertex
-        /// union-find grouping <see cref="EdgeSplitter"/> already established for hard
-        /// shading edges (union a vertex's own incident faces across a shared edge
-        /// exactly when that edge does NOT block them - there, "smooth enough"; here,
-        /// "not a seam"), so a vertex whose own incident faces span two different
-        /// islands gets ONE independent output vertex per island instead of a single
-        /// shared one - the actual "data structure separation" the task asks for.
-        /// Position/normal/color/skinning data is copied VERBATIM to every duplicate (no
-        /// averaging - these are the same physical point, just no longer sharing a
-        /// single UV slot); only <see cref="Vertex.UV"/> ends up different per copy,
-        /// once each island is projected below.
-        ///
-        /// Each island is then projected with <see cref="UVProjectionMode.Box"/>'s own
-        /// per-vertex dominant-axis logic, scoped to just that island's OWN local bounds
-        /// (not the whole mesh's) so a small island doesn't end up squeezed into a tiny
-        /// sliver of UV space - then offset along U by its own island index, a basic
-        /// side-by-side layout so islands don't visually overlap (real space-efficient
-        /// packing is out of scope - the task's own wording explicitly allows "a basic
-        /// projection per island for the initial MVP"). A mesh with no seams marked at
-        /// all ends up as exactly one island, offset by 0 - i.e. identical to a plain
-        /// whole-mesh <see cref="UVProjector"/>/<see cref="UVProjectionMode.Box"/> call.
-        ///
-        /// Returns the number of islands found (at least 1 for any mesh with at least
-        /// one face; 0 for a completely faceless mesh, left entirely untouched).
-        /// </summary>
-        public int Unwrap()
-        {
-            // Faces and Polygons are walked together as one list of "arbitrary-length
-            // corner lists" (matching Subdivide's own "handle both in parallel" shape)
-            // so an n-gon's own seam/island behavior is exactly the same as a triangle's.
-            var cornerLists = new List<int[]>();
-            foreach (var face in _faces) cornerLists.Add(new[] { face.A, face.B, face.C });
-            foreach (var polygon in _polygons) cornerLists.Add(polygon.Indices.ToArray());
-            if (cornerLists.Count == 0) return 0;
+        /// <summary>UV Unwrap: cuts islands along seams and flattens each with LSCM
+        /// (see <see cref="LscmUnwrapper"/>), then packs them into 0..1. Returns the island count.</summary>
+        public int Unwrap() => LscmUnwrapper.Unwrap(this);
 
-            static IEnumerable<(int A, int B)> EdgesOf(int[] corners)
-            {
-                for (var i = 0; i < corners.Length; i++)
-                {
-                    var a = corners[i];
-                    var b = corners[(i + 1) % corners.Length];
-                    yield return a < b ? (a, b) : (b, a);
-                }
-            }
-
-            // ---- Step 1: flood-fill islands, never crossing a seam edge. ----
-            var edgeToCornerLists = new Dictionary<(int, int), List<int>>();
-            for (var i = 0; i < cornerLists.Count; i++)
-                foreach (var edge in EdgesOf(cornerLists[i]))
-                {
-                    if (!edgeToCornerLists.TryGetValue(edge, out var owners)) edgeToCornerLists[edge] = owners = new List<int>();
-                    owners.Add(i);
-                }
-
-            var islandOf = new int[cornerLists.Count];
-            Array.Fill(islandOf, -1);
-            var islandCount = 0;
-
-            for (var start = 0; start < cornerLists.Count; start++)
-            {
-                if (islandOf[start] != -1) continue;
-
-                var queue = new Queue<int>();
-                queue.Enqueue(start);
-                islandOf[start] = islandCount;
-
-                while (queue.Count > 0)
-                {
-                    var current = queue.Dequeue();
-                    foreach (var edge in EdgesOf(cornerLists[current]))
-                    {
-                        if (_seamEdges.Contains(edge)) continue;
-                        foreach (var neighbor in edgeToCornerLists[edge])
-                        {
-                            if (islandOf[neighbor] != -1) continue;
-                            islandOf[neighbor] = islandCount;
-                            queue.Enqueue(neighbor);
-                        }
-                    }
-                }
-
-                islandCount++;
-            }
-
-            // ---- Step 2: split vertices at seams (per-vertex union-find over incident
-            // corner-lists, unioning across a shared edge exactly when it's NOT a seam -
-            // the same shape EdgeSplitter uses for its own "smooth enough" test). ----
-            var incidentLists = new List<int>[_vertices.Count];
-            for (var v = 0; v < incidentLists.Length; v++) incidentLists[v] = new List<int>();
-            for (var i = 0; i < cornerLists.Count; i++)
-                foreach (var corner in cornerLists[i])
-                    incidentLists[corner].Add(i);
-
-            var newVertices = new List<Vertex>();
-            var newVertexIsland = new List<int>();
-            var cornerToNewIndex = new Dictionary<(int Vertex, int CornerList), int>();
-
-            for (var v = 0; v < _vertices.Count; v++)
-            {
-                var incident = incidentLists[v];
-                if (incident.Count == 0) continue;
-
-                var parent = new Dictionary<int, int>();
-                foreach (var c in incident) parent[c] = c;
-                int Find(int x) { while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
-                void Union(int x, int y) { var rx = Find(x); var ry = Find(y); if (rx != ry) parent[rx] = ry; }
-
-                foreach (var c in incident)
-                    foreach (var edge in EdgesOf(cornerLists[c]))
-                    {
-                        if (edge.A != v && edge.B != v) continue;
-                        if (_seamEdges.Contains(edge)) continue;
-                        foreach (var other in edgeToCornerLists[edge])
-                            if (other != c && incident.Contains(other)) Union(c, other);
-                    }
-
-                var rootToNewIndex = new Dictionary<int, int>();
-                foreach (var c in incident)
-                {
-                    var root = Find(c);
-                    if (!rootToNewIndex.TryGetValue(root, out var newIndex))
-                    {
-                        newIndex = newVertices.Count;
-                        newVertices.Add(_vertices[v]);
-                        newVertexIsland.Add(islandOf[c]);
-                        rootToNewIndex[root] = newIndex;
-                    }
-                    cornerToNewIndex[(v, c)] = newIndex;
-                }
-            }
-
-            var newFaces = new List<Face>();
-            var newPolygons = new List<Polygon>();
-            for (var i = 0; i < cornerLists.Count; i++)
-            {
-                var remapped = cornerLists[i].Select(corner => cornerToNewIndex[(corner, i)]).ToArray();
-                if (i < _faces.Count) newFaces.Add(new Face(remapped[0], remapped[1], remapped[2]));
-                else newPolygons.Add(new Polygon(remapped) { MaterialSlotIndex = _polygons[i - _faces.Count].MaterialSlotIndex });
-            }
-
-            _vertices.Clear();
-            _vertices.AddRange(newVertices);
-            _faces.Clear();
-            _faces.AddRange(newFaces);
-            _polygons.Clear();
-            _polygons.AddRange(newPolygons);
-            _seamEdges.Clear();
-
-            // ---- Step 3: project each island independently (Box projection, scoped to
-            // that island's OWN local bounds), packed side by side along U. ----
-            var islandVertexIndices = new List<List<int>>();
-            for (var i = 0; i < islandCount; i++) islandVertexIndices.Add(new List<int>());
-            for (var i = 0; i < newVertexIsland.Count; i++) islandVertexIndices[newVertexIsland[i]].Add(i);
-
-            for (var island = 0; island < islandCount; island++)
-            {
-                var indices = islandVertexIndices[island];
-                if (indices.Count == 0) continue;
-
-                var min = _vertices[indices[0]].Position;
-                var max = min;
-                foreach (var index in indices)
-                {
-                    min = Vector3.Min(min, _vertices[index].Position);
-                    max = Vector3.Max(max, _vertices[index].Position);
-                }
-                var size = Vector3.Max(max - min, new Vector3(float.Epsilon));
-
-                foreach (var index in indices)
-                {
-                    var vertex = _vertices[index];
-                    var position = vertex.Position;
-                    var normal = vertex.Normal;
-                    var absNormal = new Vector3(MathF.Abs(normal.X), MathF.Abs(normal.Y), MathF.Abs(normal.Z));
-
-                    float u, v;
-                    if (absNormal.X >= absNormal.Y && absNormal.X >= absNormal.Z && absNormal.X > 0f)
-                    {
-                        u = (position.Z - min.Z) / size.Z;
-                        v = (position.Y - min.Y) / size.Y;
-                    }
-                    else if (absNormal.Z >= absNormal.Y && absNormal.Z > 0f)
-                    {
-                        u = (position.X - min.X) / size.X;
-                        v = (position.Y - min.Y) / size.Y;
-                    }
-                    else
-                    {
-                        u = (position.X - min.X) / size.X;
-                        v = (position.Z - min.Z) / size.Z;
-                    }
-
-                    SetVertexUV(index, new Vector2(u + island, v));
-                }
-            }
-
-            return islandCount;
-        }
-
-        /// <summary>
-        /// "Shade Smooth" - welds every vertex sitting at the same position (within
-        /// <paramref name="weldTolerance"/>) into one shared entry via
-        /// <see cref="WeldVertices"/>, then <see cref="RecalculateNormals"/> so each
-        /// now-shared vertex's own normal averages across every face touching it,
-        /// producing the smooth, continuously-curving look most organic (non-hard-
-        /// surface) meshes want. A destructive, immediate authoring choice (mirroring
-        /// Blender's own Shade Smooth - not a non-destructive <see cref="Modifiers.Modifier"/>
-        /// step, unlike <see cref="Modifiers.EdgeSplitModifier"/>'s own middle-ground
-        /// "Auto Smooth" - see that class's own remarks on why THAT one belongs in the
-        /// stack instead).
-        /// </summary>
         public void ShadeSmooth(float weldTolerance = 1e-4f)
         {
             WeldVertices(weldTolerance);

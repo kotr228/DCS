@@ -22,7 +22,174 @@ namespace JolieCat3D.Service.Animation
     /// </summary>
     public sealed class AnimationTimeline
     {
-        private readonly Dictionary<Node, AnimationTrack> _tracks = new();
+        private readonly List<AnimationAction> _actions = new() { new AnimationAction("Action") };
+        private AnimationAction _active;
+
+        /// <summary>The active action's tracks - everything below edits/plays the active action.</summary>
+        private Dictionary<Node, AnimationTrack> _tracks => _active.TrackMap;
+
+        public AnimationTimeline() => _active = _actions[0];
+
+        /// <summary>Every animation clip; there is always at least one.</summary>
+        public IReadOnlyList<AnimationAction> Actions => _actions;
+
+        /// <summary>The clip being played and edited.</summary>
+        public AnimationAction ActiveAction
+        {
+            get => _active;
+            set
+            {
+                ArgumentNullException.ThrowIfNull(value);
+                if (!_actions.Contains(value)) throw new ArgumentException("Not an action of this timeline.", nameof(value));
+                _active = value;
+            }
+        }
+
+        /// <summary>Adds a new action (empty, or a copy of the active one). Does not activate it.</summary>
+        public AnimationAction AddAction(string name, bool copyActive = false)
+        {
+            var action = copyActive ? _active.Clone(UniqueActionName(name)) : new AnimationAction(UniqueActionName(name));
+            _actions.Add(action);
+            return action;
+        }
+
+        /// <summary>Re-adds a removed action (undo).</summary>
+        public void InsertAction(int index, AnimationAction action)
+        {
+            if (_actions.Contains(action)) return;
+            _actions.Insert(Math.Clamp(index, 0, _actions.Count), action);
+        }
+
+        /// <summary>Removes an action; the last one can't be removed.</summary>
+        public bool RemoveAction(AnimationAction action)
+        {
+            if (_actions.Count <= 1 || !_actions.Remove(action)) return false;
+            if (ReferenceEquals(_active, action)) _active = _actions[0];
+            return true;
+        }
+
+        /// <summary>Back to a single empty action.</summary>
+        public void ClearActions(string firstName = "Action")
+        {
+            _actions.Clear();
+            _actions.Add(new AnimationAction(firstName));
+            _nlaTracks.Clear();
+            _active = _actions[0];
+        }
+
+        /// <summary>Puts back a whole action list and active action (NLA undo).</summary>
+        public void RestoreActions(IEnumerable<AnimationAction> actions, AnimationAction active)
+        {
+            var list = actions.ToList();
+            if (list.Count == 0) return;
+            _actions.Clear();
+            _actions.AddRange(list);
+            _active = list.Contains(active) ? active : list[0];
+        }
+
+        // ================= NLA =================
+
+        private readonly List<NlaTrack> _nlaTracks = new();
+
+        /// <summary>The NLA stack, bottom (index 0) to top. The active action always plays
+        /// above it (like Blender's action "tweak" layer).</summary>
+        public List<NlaTrack> NlaTracks => _nlaTracks;
+
+        /// <summary>True when some unmuted NLA strip can affect the scene.</summary>
+        public bool HasNla => _nlaTracks.Any(t => !t.Muted && t.Strips.Any(s => !s.Muted));
+
+        public string UniqueNlaTrackName(string baseName = "NlaTrack")
+        {
+            var name = baseName;
+            var n = 1;
+            while (_nlaTracks.Any(t => t.Name == name)) name = $"{baseName}.{n++:000}";
+            return name;
+        }
+
+        /// <summary>Blender's "Push Down": the active action becomes a strip on a new top
+        /// track (starting at its first key, so it keeps its timing) and a fresh empty
+        /// action becomes active. Returns the new strip, or null when the action is empty.</summary>
+        public NlaStrip? PushDownActiveAction()
+        {
+            var action = _active;
+            var strip = new NlaStrip(action);
+            if (action.Tracks.All(t => t.IsEmpty)) return null;
+            strip.Start = strip.ActionRange.First;
+            var track = new NlaTrack(UniqueNlaTrackName());
+            track.Strips.Add(strip);
+            _nlaTracks.Add(track);
+            var fresh = new AnimationAction(UniqueActionName("Action"));
+            _actions.Add(fresh);
+            _active = fresh;
+            return strip;
+        }
+
+        /// <summary>Deep copy of the NLA stack (strips keep pointing at the same actions).</summary>
+        public List<NlaTrack> CloneNla() => _nlaTracks.Select(t => t.Clone()).ToList();
+
+        public void RestoreNla(IEnumerable<NlaTrack> tracks)
+        {
+            _nlaTracks.Clear();
+            _nlaTracks.AddRange(tracks.Select(t => t.Clone()));
+        }
+
+        /// <summary>Evaluates the whole NLA stack plus the active action over the timeline,
+        /// one key per frame, into a new action (not added to the timeline) - what a game
+        /// engine imports. The scene is restored to its pose at <see cref="CurrentTime"/>.</summary>
+        public AnimationAction BakeNla(string name)
+        {
+            var baked = new AnimationAction(name);
+            var nodes = _nlaTracks.SelectMany(t => t.Strips).Select(s => s.Action).Append(_active)
+                .Distinct().SelectMany(a => a.Tracks).Where(t => !t.IsEmpty).Select(t => t.Target)
+                .Distinct(ReferenceEqualityComparer.Instance).Cast<Node>().ToList();
+            var properties = new Dictionary<Node, List<string>>(ReferenceEqualityComparer.Instance);
+            foreach (var n in nodes)
+                properties[n] = _nlaTracks.SelectMany(t => t.Strips).Select(s => s.Action).Append(_active)
+                    .SelectMany(a => a.Tracks).Where(t => ReferenceEquals(t.Target, n)).SelectMany(t => t.PropertyCurves.Keys).Distinct().ToList();
+            var saved = nodes.Select(n => (Node: n, n.LocalPosition, n.LocalRotation, n.LocalScale,
+                Shapes: n.Mesh?.ShapeKeys.Select(k => k.Value).ToArray())).ToList();
+            var time = CurrentTime;
+            try
+            {
+                for (var frame = 0; frame <= TotalFrames; frame++)
+                {
+                    var t = frame / FrameRate;
+                    CurrentTime = t;
+                    Apply();
+                    foreach (var node in nodes)
+                    {
+                        if (!baked.TryGetTrack(node, out var track) || track is null) { track = new AnimationTrack(node); baked.TrackMap[node] = track; }
+                        track.AddKeyframeFromCurrentTransform(t, InterpolationMode.Linear);
+                        foreach (var path in properties[node])
+                        {
+                            if (!path.StartsWith(AnimationTrack.ShapeKeyPrefix, StringComparison.Ordinal) || node.Mesh is not { } mesh) continue;
+                            if (mesh.ShapeKeys.FirstOrDefault(k => k.Name == path[AnimationTrack.ShapeKeyPrefix.Length..]) is { } key)
+                                track.PropertyCurve(path).Insert(t, key.Value, InterpolationMode.Linear);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                foreach (var (node, p, r, s, shapes) in saved)
+                {
+                    node.LocalPosition = p; node.LocalRotation = r; node.LocalScale = s;
+                    if (shapes is not null && node.Mesh is { } mesh)
+                        for (var i = 0; i < shapes.Length && i < mesh.ShapeKeys.Count; i++) mesh.ShapeKeys[i].Value = shapes[i];
+                }
+                CurrentTime = time;
+                Apply();
+            }
+            return baked;
+        }
+
+        public string UniqueActionName(string baseName)
+        {
+            var name = baseName;
+            var n = 1;
+            while (_actions.Any(a => a.Name == name)) name = $"{baseName}.{n++:000}";
+            return name;
+        }
         private readonly Dictionary<Material, TextureAnimationTrack> _textureTracks = new();
 
         private double _frameRate = 24.0;
@@ -102,6 +269,15 @@ namespace JolieCat3D.Service.Animation
         /// no longer in it.</summary>
         public void RemoveTrack(Node node) => _tracks.Remove(node);
 
+        /// <summary>Puts <paramref name="track"/> in place of whatever track its target had
+        /// (an empty track removes it).</summary>
+        public void SetTrack(AnimationTrack track)
+        {
+            ArgumentNullException.ThrowIfNull(track);
+            if (track.IsEmpty) _tracks.Remove(track.Target);
+            else _tracks[track.Target] = track;
+        }
+
         /// <summary>The <see cref="TextureAnimationTrack"/> already recording
         /// <paramref name="material"/>'s own frame sequence, or a brand new (empty) one
         /// added and returned if none exists yet.</summary>
@@ -170,6 +346,8 @@ namespace JolieCat3D.Service.Animation
         /// snapping it to some default.</summary>
         public void Apply()
         {
+            if (HasNla) NlaEvaluator.Apply(this, _nlaTracks, _active, CurrentTime);
+            else
             foreach (var track in _tracks.Values)
             {
                 if (track.Evaluate(CurrentTime) is not { } result) continue;
@@ -177,6 +355,7 @@ namespace JolieCat3D.Service.Animation
                 track.Target.LocalPosition = result.Position;
                 track.Target.LocalRotation = result.Rotation;
                 track.Target.LocalScale = result.Scale;
+                track.ApplyProperties(CurrentTime);
             }
 
             foreach (var track in _textureTracks.Values)

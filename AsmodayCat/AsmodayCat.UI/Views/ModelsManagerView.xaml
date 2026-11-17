@@ -1,169 +1,223 @@
 <UserControl x:Class="AsmodayCat.UI.Views.ModelsManagerView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:l="clr-namespace:AsmodayCat.UI.Localization"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
-    <Grid Margin="20" Background="{StaticResource BrushBackground}">
+    <UserControl.Resources>
+        <Style x:Key="RowAction" TargetType="Button" BasedOn="{StaticResource MaterialDesignIconButton}">
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Visibility" Value="Collapsed"/>
+        </Style>
+        <Style x:Key="CellText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushDark}"/>
+        </Style>
+        <Style x:Key="HeaderStyle" TargetType="DataGridColumnHeader" BasedOn="{StaticResource MaterialDesignDataGridColumnHeader}">
+            <Setter Property="Foreground" Value="{StaticResource BrushMuted}"/>
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="12,0"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="{StaticResource BrushBackground}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>  <!-- header + custom pull -->
-            <RowDefinition Height="Auto"/>  <!-- status bar -->
-            <RowDefinition Height="*"/>     <!-- data grid -->
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header row -->
-        <Grid Grid.Row="0" Margin="0,0,0,12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
+        <!-- Header -->
+        <DockPanel Grid.Row="0" Margin="32,8,32,18">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Command="{Binding RefreshCommand}" Style="{StaticResource QuietButton}">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="Refresh" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{l:Tr common.refresh}"/>
+                    </StackPanel>
+                </Button>
+                <Button Command="{Binding InstallRecommendedCommand}" Style="{StaticResource AccentButton}" Margin="10,0,0,0"
+                        ToolTip="{l:Tr models.installRecTip}">
+                    <StackPanel Orientation="Horizontal">
+                        <materialDesign:PackIcon Kind="DownloadMultiple" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="{l:Tr models.installRec}"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <StackPanel>
+                <TextBlock Text="{l:Tr models.title}" Style="{StaticResource PageTitle}"/>
+                <TextBlock Text="{l:Tr models.subtitle}"
+                           Style="{StaticResource PageSubtitle}"/>
+            </StackPanel>
+        </DockPanel>
 
-            <TextBlock Grid.Column="0" Text="MODEL POOL" FontSize="18" FontWeight="Bold"
-                       Foreground="{StaticResource BrushNav}" VerticalAlignment="Center"/>
+        <materialDesign:Card Grid.Row="1" Margin="32,0,32,24" Padding="0" VerticalAlignment="Stretch">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-            <Button Grid.Column="1" Content="REFRESH"
-                    Command="{Binding RefreshCommand}"
-                    Style="{StaticResource MaterialDesignOutlinedButton}"
-                    Foreground="{StaticResource BrushDark}"
-                    BorderBrush="{StaticResource BrushNav}"
-                    Margin="12,0,0,0" Height="32" Padding="10,0"/>
+                <!-- Add any model by name + status line -->
+                <Border Grid.Row="0" Padding="20,16" BorderBrush="{StaticResource BrushBorder}" BorderThickness="0,0,0,1">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBox materialDesign:HintAssist.Hint="{l:Tr models.customHint}"
+                                     Text="{Binding CustomModelInput, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="260" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <Button Command="{Binding PullCustomModelCommand}" Style="{StaticResource QuietButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="Download" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{l:Tr models.download}"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{l:Tr models.pool}" Style="{StaticResource SectionTitle}" Margin="0"/>
+                            <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource Caption}" Margin="0,2,16,0"/>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
 
-            <TextBox Grid.Column="3"
-                     materialDesign:HintAssist.Hint="custom-model-name:tag"
-                     Text="{Binding CustomModelInput, UpdateSourceTrigger=PropertyChanged}"
-                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                     Width="220" Height="32" Margin="0,0,8,0"
-                     VerticalAlignment="Center"/>
+                <DataGrid Grid.Row="1"
+                          ItemsSource="{Binding ModelPool}"
+                          AutoGenerateColumns="False" CanUserAddRows="False" CanUserResizeRows="False"
+                          IsReadOnly="True" HeadersVisibility="Column"
+                          Background="Transparent" BorderThickness="0"
+                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{StaticResource BrushBorder}"
+                          RowBackground="Transparent" AlternatingRowBackground="Transparent"
+                          ColumnHeaderStyle="{StaticResource HeaderStyle}"
+                          ColumnHeaderHeight="40" MinRowHeight="48" Margin="8,0,8,8"
+                          materialDesign:DataGridAssist.CellPadding="12,8">
+                    <DataGrid.Columns>
+                        <DataGridTemplateColumn Header="{l:Tr models.colModel}" Width="2*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Width="30" Height="30" CornerRadius="8" Background="{StaticResource BrushAccentSoft}">
+                                            <materialDesign:PackIcon Kind="CubeOutline" Width="16" Height="16"
+                                                                     Foreground="{StaticResource BrushAccent}"
+                                                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <TextBlock Text="{Binding Name}" FontFamily="Consolas" FontSize="13"
+                                                   Foreground="{StaticResource BrushDark}" Margin="10,0,0,0"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
 
-            <Button Grid.Column="4" Content="PULL CUSTOM"
-                    Command="{Binding PullCustomModelCommand}"
-                    Background="{StaticResource BrushAccent}"
-                    Foreground="{StaticResource BrushLight}"
-                    Height="32" Padding="10,0"/>
-        </Grid>
+                        <DataGridTextColumn Header="{l:Tr models.colTask}" Binding="{l:TrLabel RecommendedTask}"
+                                            Width="1.2*" FontSize="12.5" ElementStyle="{StaticResource CellText}"/>
 
-        <!-- Status bar -->
-        <TextBlock Grid.Row="1" Text="{Binding StatusMessage}"
-                   FontSize="11" Foreground="#888" Margin="0,0,0,8"/>
+                        <DataGridTextColumn Header="VRAM" Binding="{Binding VramDisplayText}" Width="90" FontSize="12.5"
+                                            ElementStyle="{StaticResource CellText}"/>
 
-        <!-- Model pool DataGrid -->
-        <DataGrid Grid.Row="2"
-                  ItemsSource="{Binding ModelPool}"
-                  AutoGenerateColumns="False"
-                  CanUserAddRows="False"
-                  CanUserResizeRows="False"
-                  IsReadOnly="True"
-                  Background="Transparent"
-                  BorderThickness="0"
-                  GridLinesVisibility="Horizontal"
-                  HorizontalGridLinesBrush="#C8B89A"
-                  RowBackground="Transparent"
-                  AlternatingRowBackground="#F5EDD9"
-                  ColumnHeaderHeight="36">
+                        <DataGridTemplateColumn Header="{l:Tr models.colState}" Width="150">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <Border x:Name="Pill" CornerRadius="10" Padding="10,2" HorizontalAlignment="Left"
+                                                Background="{StaticResource BrushSurfaceAlt}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <Ellipse x:Name="Dot" Width="7" Height="7" Fill="{StaticResource BrushMuted}"
+                                                         VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock x:Name="StatusLabel" Text="{l:TrLabel Status}"
+                                                           FontSize="11.5" Foreground="{StaticResource BrushNav}"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Grid x:Name="Progress" Visibility="Collapsed" Margin="0,6,0,0">
+                                            <ProgressBar Value="{Binding DownloadProgress}" Maximum="100" Height="5"
+                                                         Foreground="{StaticResource BrushAccent}" Background="{StaticResource BrushSurfaceAlt}"
+                                                         BorderThickness="0" Margin="0,0,40,0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding DownloadProgress, StringFormat={}{0:F0}%}" FontSize="11"
+                                                       Foreground="{StaticResource BrushAccent}" HorizontalAlignment="Right"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Status}" Value="Downloading">
+                                            <Setter TargetName="Dot" Property="Fill" Value="{StaticResource BrushAccent}"/>
+                                            <Setter TargetName="Pill" Property="Background" Value="{StaticResource BrushAccentSoft}"/>
+                                            <Setter TargetName="Progress" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Status}" Value="Ready">
+                                            <Setter TargetName="Dot" Property="Fill" Value="{StaticResource BrushSuccess}"/>
+                                            <Setter TargetName="Pill" Property="Background" Value="#E6F0E3"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Status}" Value="Loaded">
+                                            <Setter TargetName="Dot" Property="Fill" Value="{StaticResource BrushAccent}"/>
+                                            <Setter TargetName="Pill" Property="Background" Value="{StaticResource BrushAccentSoft}"/>
+                                            <Setter TargetName="StatusLabel" Property="FontWeight" Value="SemiBold"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
 
-            <DataGrid.Columns>
-
-                <DataGridTextColumn Header="MODEL" Binding="{Binding Name}"
-                                    Width="200" FontFamily="Consolas" FontSize="12"/>
-
-                <DataGridTextColumn Header="TASK" Binding="{Binding RecommendedTask}"
-                                    Width="130" FontSize="11"/>
-
-                <DataGridTextColumn Header="VRAM" Binding="{Binding VramDisplayText}"
-                                    Width="80" FontSize="11"/>
-
-                <DataGridTemplateColumn Header="STATUS" Width="110">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <TextBlock x:Name="StatusLabel"
-                                       Text="{Binding Status}"
-                                       FontSize="11" FontWeight="SemiBold"
-                                       VerticalAlignment="Center" Margin="4,0"/>
-                            <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding Status}" Value="NotInstalled">
-                                    <Setter TargetName="StatusLabel" Property="Foreground" Value="#888"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Status}" Value="Downloading">
-                                    <Setter TargetName="StatusLabel" Property="Foreground" Value="#BC8F3C"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Status}" Value="Ready">
-                                    <Setter TargetName="StatusLabel" Property="Foreground" Value="#5E9D55"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Status}" Value="Loaded">
-                                    <Setter TargetName="StatusLabel" Property="Foreground" Value="#79644D"/>
-                                </DataTrigger>
-                            </DataTemplate.Triggers>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-
-                <DataGridTemplateColumn Header="PROGRESS" Width="130">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="4,0">
-                                <ProgressBar x:Name="PBar"
-                                             Value="{Binding DownloadProgress}"
-                                             Maximum="100" Height="6"
-                                             Foreground="#BC8F3C"
-                                             Visibility="Collapsed"/>
-                                <TextBlock x:Name="PText"
-                                           Text="{Binding DownloadProgress, StringFormat={}{0:F0}%}"
-                                           FontSize="10" Foreground="#BC8F3C"
-                                           Margin="0,2,0,0" Visibility="Collapsed"/>
-                            </StackPanel>
-                            <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding Status}" Value="Downloading">
-                                    <Setter TargetName="PBar"  Property="Visibility" Value="Visible"/>
-                                    <Setter TargetName="PText" Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </DataTemplate.Triggers>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-
-                <DataGridTemplateColumn Header="ACTION" Width="90">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal" Margin="2,0">
-                                <Button x:Name="BtnDownload"
-                                        Visibility="Collapsed"
-                                        ToolTip="Download"
-                                        Style="{StaticResource MaterialDesignIconButton}"
-                                        Width="28" Height="28"
-                                        Foreground="{StaticResource BrushAccent}"
-                                        Command="{Binding DataContext.ActionCommand,
-                                            RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                        CommandParameter="{Binding}">
-                                    <materialDesign:PackIcon Kind="Download" Width="16" Height="16"/>
-                                </Button>
-
-                                <Button x:Name="BtnUnload"
-                                        Visibility="Collapsed"
-                                        ToolTip="Unload from VRAM"
-                                        Style="{StaticResource MaterialDesignIconButton}"
-                                        Width="28" Height="28"
-                                        Foreground="{StaticResource BrushWarning}"
-                                        Command="{Binding DataContext.ActionCommand,
-                                            RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                        CommandParameter="{Binding}">
-                                    <materialDesign:PackIcon Kind="Stop" Width="16" Height="16"/>
-                                </Button>
-                            </StackPanel>
-
-                            <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding Status}" Value="NotInstalled">
-                                    <Setter TargetName="BtnDownload" Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Status}" Value="Loaded">
-                                    <Setter TargetName="BtnUnload" Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
-                            </DataTemplate.Triggers>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-
-            </DataGrid.Columns>
-        </DataGrid>
+                        <DataGridTemplateColumn Header="{l:Tr models.colActions}" Width="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button x:Name="BtnCancel" Style="{StaticResource RowAction}"
+                                                Foreground="{StaticResource BrushWarning}"
+                                                ToolTip="{l:Tr models.cancelTip}"
+                                                Command="{Binding DataContext.CancelDownloadCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}">
+                                            <materialDesign:PackIcon Kind="Close" Width="17" Height="17"/>
+                                        </Button>
+                                        <Button x:Name="BtnDownload" Style="{StaticResource RowAction}"
+                                                Foreground="{StaticResource BrushAccent}" ToolTip="{l:Tr models.download}"
+                                                Command="{Binding DataContext.ActionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}">
+                                            <materialDesign:PackIcon Kind="Download" Width="17" Height="17"/>
+                                        </Button>
+                                        <Button x:Name="BtnUnload" Style="{StaticResource RowAction}"
+                                                Foreground="{StaticResource BrushWarning}" ToolTip="{l:Tr models.unloadTip}"
+                                                Command="{Binding DataContext.ActionCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}">
+                                            <materialDesign:PackIcon Kind="EjectOutline" Width="17" Height="17"/>
+                                        </Button>
+                                        <Button x:Name="BtnDelete" Style="{StaticResource RowAction}"
+                                                Foreground="{StaticResource BrushNav}" ToolTip="{l:Tr models.deleteTip}"
+                                                Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}">
+                                            <materialDesign:PackIcon Kind="DeleteOutline" Width="17" Height="17"/>
+                                        </Button>
+                                        <Border x:Name="ExternalNote" Visibility="Collapsed" CornerRadius="10" Padding="8,2"
+                                                Background="{StaticResource BrushSurfaceAlt}"
+                                                ToolTip="{l:Tr models.sdTip}">
+                                            <TextBlock Text="{l:Tr models.viaWebUi}" FontSize="11" Foreground="{StaticResource BrushNav}"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Status}" Value="NotInstalled">
+                                            <Setter TargetName="BtnDownload" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Status}" Value="Downloading">
+                                            <Setter TargetName="BtnCancel" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Status}" Value="Ready">
+                                            <Setter TargetName="BtnDelete" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Status}" Value="Loaded">
+                                            <Setter TargetName="BtnUnload" Property="Visibility" Value="Visible"/>
+                                            <Setter TargetName="BtnDelete" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <!-- External (Stable Diffusion): no download/delete, just a note -->
+                                        <DataTrigger Binding="{Binding IsExternal}" Value="True">
+                                            <Setter TargetName="BtnDownload" Property="Visibility" Value="Collapsed"/>
+                                            <Setter TargetName="BtnDelete" Property="Visibility" Value="Collapsed"/>
+                                            <Setter TargetName="ExternalNote" Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </materialDesign:Card>
     </Grid>
 </UserControl>

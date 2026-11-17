@@ -235,6 +235,114 @@ namespace JolieCat.UI.ViewModels
             }
         }
 
+        /// <summary>Select &gt; Transform Selection: scale, turn and move the selection's outline.</summary>
+        [RelayCommand]
+        private void TransformSelectionDialog()
+        {
+            if (!Layers.Scene.Selection.HasSelection)
+            {
+                MessageBox.Show("Make a selection first.", "Transform Selection", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var options = new FieldsDialogViewModel("Transform Selection",
+                "Changes only the selection's outline, not the pixels. Width, Height and Angle work around its middle. The outline previews live.");
+            var width = options.Add(new SliderDialogField("Width", 1, 500, 100, "%"));
+            var height = options.Add(new SliderDialogField("Height", 1, 500, 100, "%"));
+            var angle = options.Add(new SliderDialogField("Angle", -180, 180, 0, "°"));
+            var dx = options.Add(new SliderDialogField("Move X", -Layers.DocumentWidth, Layers.DocumentWidth, 0, "px"));
+            var dy = options.Add(new SliderDialogField("Move Y", -Layers.DocumentHeight, Layers.DocumentHeight, 0, "px"));
+            void Preview() => Canvas.PreviewTransformSelection(width.Value, height.Value, angle.Value, dx.Value, dy.Value);
+            options.Changed += Preview;
+            if (FieldsDialog.Show(options)) Canvas.TransformSelection(width.Value, height.Value, angle.Value, dx.Value, dy.Value);
+            else Canvas.CancelRefineSelection();
+        }
+
+        /// <summary>The languages the switcher offers.</summary>
+        public System.Collections.Generic.IReadOnlyList<LanguageChoice> InterfaceLanguages { get; } = new[]
+        {
+            new LanguageChoice("en", "EN", "English"),
+            new LanguageChoice("uk", "УКР", "Українська"),
+            new LanguageChoice("ru", "РУС", "Русский"),
+        };
+
+        /// <summary>The interface language ("en", "uk", "ru"): applied at once and kept.</summary>
+        public string InterfaceLanguage
+        {
+            get => Localization.Loc.Language;
+            set
+            {
+                if (value == Localization.Loc.Language) return;
+                Localization.Loc.SetLanguage(value);
+                var p = Media.Preferences.Current;
+                Media.Preferences.Current = new Media.Preferences
+                {
+                    HistoryStates = p.HistoryStates, HistoryMemoryMb = p.HistoryMemoryMb, AutosaveMinutes = p.AutosaveMinutes,
+                    RecentFiles = p.RecentFiles, RulerUnits = p.RulerUnits, Resolution = p.Resolution,
+                    GridSize = p.GridSize, GridColors = p.GridColors, Language = Localization.Loc.Language,
+                }.Clamped();
+                Media.Preferences.Current.Save();
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>Edit &gt; Preferences.</summary>
+        [RelayCommand]
+        private void EditPreferences()
+        {
+            var current = Media.Preferences.Current;
+            var options = new FieldsDialogViewModel("Preferences", "Kept for next time.");
+            var states = options.Add(new SliderDialogField("History States (undo steps)", 5, 1000, current.HistoryStates));
+            var memory = options.Add(new SliderDialogField("Undo Memory Limit", 64, 16384, current.HistoryMemoryMb, "MB"));
+            var autosave = options.Add(new SliderDialogField("Recovery Copy Every (0 = off)", 0, 60, current.AutosaveMinutes, "min"));
+            var recent = options.Add(new SliderDialogField("Open Recent Lists", 1, 30, current.RecentFiles, "files"));
+            var units = options.Add(new ChoiceDialogField("Ruler Units", new[] { "Pixels", "Inches", "Centimeters", "Percent" }, current.RulerUnits));
+            var ppi = options.Add(new SliderDialogField("Resolution (for inches / cm)", 1, 600, current.Resolution, "ppi"));
+            var gridSize = options.Add(new ChoiceDialogField("Transparency Grid Size", new[] { "Small", "Medium", "Large" }, current.GridSize));
+            var gridColors = options.Add(new ChoiceDialogField("Transparency Grid Colors", new[] { "Dark", "Medium", "Light" }, current.GridColors));
+            var language = options.Add(new ChoiceDialogField("Language", InterfaceLanguages.Select(l => l.Name).ToList(),
+                InterfaceLanguages.First(l => l.Code == current.Language).Name));
+            if (!FieldsDialog.Show(options)) return;
+            Media.Preferences.Current = new Media.Preferences
+            {
+                HistoryStates = (int)Math.Round(states.Value),
+                HistoryMemoryMb = (int)Math.Round(memory.Value),
+                AutosaveMinutes = (int)Math.Round(autosave.Value),
+                RecentFiles = (int)Math.Round(recent.Value),
+                RulerUnits = units.Selected,
+                Resolution = (int)Math.Round(ppi.Value),
+                GridSize = gridSize.Selected,
+                GridColors = gridColors.Selected,
+                Language = InterfaceLanguages.First(l => l.Name == language.Selected).Code,
+            }.Clamped();
+            Localization.Loc.SetLanguage(Media.Preferences.Current.Language);
+            OnPropertyChanged(nameof(InterfaceLanguage));
+            Media.Preferences.Current.Save();
+            ApplyPreferences();
+        }
+
+        /// <summary>Puts the preferences into effect.</summary>
+        internal void ApplyPreferences()
+        {
+            var p = Media.Preferences.Current;
+            Core.History.HistoryManager.MaxDepth = p.HistoryStates;
+            Core.History.HistoryManager.MaxBytes = (long)p.HistoryMemoryMb * 1024 * 1024;
+            Media.RecentFilesStore.MaxEntries = p.RecentFiles;
+            Rendering.CanvasRenderer.RulerUnits = Enum.TryParse<Rendering.CanvasRenderer.RulerUnit>(p.RulerUnits, out var unit) ? unit : Rendering.CanvasRenderer.RulerUnit.Pixels;
+            Rendering.CanvasRenderer.RulerPpi = p.Resolution;
+            Rendering.CanvasRenderer.SetTransparencyGrid(p.GridSize, p.GridColors);
+            foreach (var document in Documents) document.Layers.NotifyContentChanged();
+            while (RecentFiles.Count > p.RecentFiles) RecentFiles.RemoveAt(RecentFiles.Count - 1);
+            if (_autosaveTimer is { } timer)
+            {
+                timer.Stop();
+                if (p.AutosaveMinutes > 0)
+                {
+                    timer.Interval = TimeSpan.FromMinutes(p.AutosaveMinutes);
+                    timer.Start();
+                }
+            }
+        }
+
         /// <summary>Select > Select and Mask (Alt+Ctrl+R): smooth, shift and feather the selection's edge.</summary>
         [RelayCommand]
         private void SelectAndMask()
@@ -269,7 +377,9 @@ namespace JolieCat.UI.ViewModels
             var scene = new Scene(name);
             scene.RestoreLayers(source.Layers.Scene.CaptureLayers(), source.Layers.Scene.IndexOf(source.Layers.Scene.ActiveLayer!));
             scene.RestoreGuides(source.Layers.Scene.Guides);
+            scene.RestoreArtboards(source.Layers.Scene.Artboards);
             foreach (var (key, value) in source.Layers.Scene.SavedSelections) scene.SavedSelections[key] = value;
+            foreach (var (key, value) in source.Layers.Scene.SavedPaths) scene.SavedPaths[key] = value;
 
             var document = new DocumentViewModel(Toolbox, name, source.ProjectType);
             RegisterDocument(document);
@@ -279,4 +389,7 @@ namespace JolieCat.UI.ViewModels
             Canvas.ResetView();
         }
     }
+
+    /// <summary>One language in the switcher: code, short label, full name.</summary>
+    public sealed record LanguageChoice(string Code, string Short, string Name);
 }

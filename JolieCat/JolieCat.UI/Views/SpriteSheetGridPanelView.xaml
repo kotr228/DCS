@@ -23,6 +23,23 @@
         <controls:LabeledSlider Label="Margin X" Minimum="0" Maximum="100" Suffix="px" Value="{Binding SpriteSheetMarginX, Mode=TwoWay}" />
         <controls:LabeledSlider Label="Margin Y" Minimum="0" Maximum="100" Suffix="px" Value="{Binding SpriteSheetMarginY, Mode=TwoWay}" />
 
+        <controls:LabeledSlider Label="Pivot X" Minimum="0" Maximum="100" Suffix="%" Value="{Binding SpriteSheetPivotX, Mode=TwoWay}"
+                                ToolTip="Where each sprite's pivot sits across its cell (50% = the middle). Shown as an orange cross, written in the engine export" />
+        <controls:LabeledSlider Label="Pivot Y" Minimum="0" Maximum="100" Suffix="%" Value="{Binding SpriteSheetPivotY, Mode=TwoWay}"
+                                ToolTip="Where each sprite's pivot sits down its cell (100% = the bottom edge, where a character stands)" />
+
+        <TextBlock Text="Row Names (animations)" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,6,0,2" />
+        <TextBox Text="{Binding SpriteSheetRowNames, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Row Names"
+                 ToolTip="Top row first, separated by commas: walk, jump, attack. Each named row is exported as an animation in the .json" />
+
+        <Button Content="Cells..." Padding="4" Margin="0,6,0,0"
+                ToolTip="Swap, copy, clear or mirror cells of the active layer, or give a cell its own pivot"
+                Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.SpriteSheetCellsCommand}" />
+
+        <Button Content="Detect Grid" Padding="4" Margin="0,6,0,0"
+                ToolTip="Sets columns, rows, padding and margins from the empty space between the sprites"
+                Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.DetectSpriteSheetGridCommand}" />
+
         <CheckBox Content="Snap Marquee to Grid" Foreground="{StaticResource TextPrimaryBrush}"
                   IsChecked="{Binding SnapToSpriteSheetGrid, Mode=TwoWay}" Margin="0,8,0,10" />
 
@@ -31,9 +48,31 @@
                 ToolTip="Flattens the document and writes one image file per grid cell into a folder you choose"
                 Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.SliceSpriteSheetCommand}" />
 
+        <Button Content="Export for Game Engines..." Padding="4" Margin="0,0,0,6"
+                Style="{StaticResource PrimaryButtonStyle}"
+                ToolTip="The sheet as a PNG plus a .json frame list (TexturePacker layout: Phaser, PixiJS, Godot, Unity importers), empty cells left out, each sprite's used area noted"
+                Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.ExportSpriteSheetForEnginesCommand}" />
+
+        <Button Content="Export Packed Atlas..." Padding="4" Margin="0,0,0,6"
+                Style="{StaticResource PrimaryButtonStyle}"
+                ToolTip="Each sprite trimmed to its pixels and packed tight into a smaller PNG, plus the .json that puts every sprite back where it stood in its cell"
+                Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.ExportPackedAtlasCommand}" />
+
         <Button Content="Derive Clipbar Animation..." Padding="4"
                 Style="{StaticResource PrimaryButtonStyle}"
                 ToolTip="Opens a new Clipbar Animation project as its own tab, with each grid cell already placed as its own frame layer and Timeline clip"
                 Command="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext.DeriveClipbarFromSpriteSheetCommand}" />
+
+        <TextBlock Text="PREVIEW" Style="{StaticResource PanelHeaderStyle}" Margin="0,14,0,6" />
+        <CheckBox Content="Play Cells" Foreground="{StaticResource TextPrimaryBrush}"
+                  ToolTip="Plays the grid cells one after another, like the animation they make"
+                  IsChecked="{Binding IsPreviewingSprites, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="FPS" Minimum="1" Maximum="60" Value="{Binding SpritePreviewFps, Mode=TwoWay}" />
+        <controls:LabeledSlider Label="Row (0 = all)" Minimum="0" Maximum="64" Value="{Binding SpritePreviewRow, Mode=TwoWay}"
+                                ToolTip="Play only one row - sheets often keep one move (walk, jump) per row" />
+        <Border Background="{StaticResource PanelAltBackgroundBrush}" Height="160" Margin="0,6,0,0"
+                Visibility="{Binding IsPreviewingSprites, Converter={StaticResource BoolToVisibility}}">
+            <Image Source="{Binding SpritePreviewFrame}" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+        </Border>
     </StackPanel>
 </UserControl>

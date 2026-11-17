@@ -10,4 +10,5 @@ public class AgentRuleDto
     public string AllowedExtensions   { get; set; } = "*.*";
     public bool   AllowInternetAccess { get; set; }
     public bool   IsActive            { get; set; }
+    public DateTime CreatedAt         { get; set; }
 }

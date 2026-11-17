@@ -104,6 +104,9 @@ namespace JolieCat.UI.ViewModels.Layers
         /// <summary>An editable text layer - the thumbnail shows a "T".</summary>
         public bool IsText => Model.IsText;
 
+        /// <summary>A Smart Object layer - the thumbnail shows a small page badge.</summary>
+        public bool IsSmartObject => Model.SmartObject is not null;
+
         /// <summary>True if the layer has layer style effects - shows the "fx" badge.</summary>
         public bool HasStyle => Model.Style is { HasAnyEffect: true };
 
@@ -219,6 +222,20 @@ namespace JolieCat.UI.ViewModels.Layers
                 var clamped = Math.Clamp(value, 0.0, 100.0) / 100.0;
                 if (Math.Abs(Model.Opacity - clamped) < 0.0001) return;
                 Model.Opacity = clamped;
+                OnPropertyChanged();
+                VisualStateChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        /// <summary>0-100: the Layers panel's Fill slider (<see cref="Layer.FillOpacity"/>).</summary>
+        public double FillPercent
+        {
+            get => Model.FillOpacity * 100.0;
+            set
+            {
+                var clamped = Math.Clamp(value, 0.0, 100.0) / 100.0;
+                if (Math.Abs(Model.FillOpacity - clamped) < 0.0001) return;
+                Model.FillOpacity = clamped;
                 OnPropertyChanged();
                 VisualStateChanged?.Invoke(this, EventArgs.Empty);
             }

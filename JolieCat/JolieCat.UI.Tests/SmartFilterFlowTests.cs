@@ -77,7 +77,7 @@ namespace JolieCat.UI.Tests
             doc.Canvas.OnPointerPressed(new SKPoint(5, 5));
             doc.Canvas.OnPointerReleased(new SKPoint(5, 5));
             Assert.Contains("Smart Filters", doc.Canvas.ToolHintText);
-            Assert.Empty(doc.Layers.History.UndoNames.Where(n => n == "Brush"));
+            Assert.DoesNotContain("Brush", doc.Layers.History.UndoNames);
 
             doc.Layers.RasterizeSmartFiltersCommand.Execute(null);
             var layer = doc.Layers.ActiveLayer!.Model;

@@ -4,24 +4,29 @@ using System.Windows.Interop;
 
 namespace AsmodayCat.UI.Hotkey;
 
-// Global hotkey (Ctrl+Space) via Win32 RegisterHotKey
+// Global hotkey via Win32 RegisterHotKey (default Ctrl+Space)
 public class GlobalHotkeyManager : IDisposable
 {
     private const int WM_HOTKEY = 0x0312;
-    private const int HotkeyId  = 9001;
 
-    // MOD_CONTROL = 0x0002, VK_SPACE = 0x20
-    private const uint MOD_CONTROL = 0x0002;
-    private const uint VK_SPACE    = 0x20;
+    public const uint MOD_CONTROL = 0x0002;
+    public const uint MOD_SHIFT   = 0x0004;
+    public const uint VK_SPACE    = 0x20;
 
     private HwndSource? _source;
     private readonly Window _owner;
+    private readonly int    HotkeyId;
+    private readonly uint   _modifiers;
+    private readonly uint   _key;
 
     public event Action? HotkeyPressed;
 
-    public GlobalHotkeyManager(Window owner)
+    public GlobalHotkeyManager(Window owner, int id = 9001, uint modifiers = MOD_CONTROL, uint key = VK_SPACE)
     {
-        _owner = owner;
+        _owner     = owner;
+        HotkeyId   = id;
+        _modifiers = modifiers;
+        _key       = key;
     }
 
     public void Register()
@@ -29,7 +34,7 @@ public class GlobalHotkeyManager : IDisposable
         var helper = new WindowInteropHelper(_owner);
         _source = HwndSource.FromHwnd(helper.EnsureHandle());
         _source?.AddHook(WndProc);
-        RegisterHotKey(_source!.Handle, HotkeyId, MOD_CONTROL, VK_SPACE);
+        RegisterHotKey(_source!.Handle, HotkeyId, _modifiers, _key);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)

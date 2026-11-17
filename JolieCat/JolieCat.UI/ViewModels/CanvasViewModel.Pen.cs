@@ -147,6 +147,28 @@ namespace JolieCat.UI.ViewModels
         /// <see cref="CancelTransform"/>/<see cref="CancelWarp"/>.</summary>
         public void CancelPenPath() => ClearPenPath();
 
+        /// <summary>Paths panel: keeps the working path under <paramref name="name"/> (a used
+        /// name is replaced). False without a path.</summary>
+        public bool SavePenPath(string name)
+        {
+            if (_penPath is not { Anchors.Count: > 1 } path || string.IsNullOrWhiteSpace(name)) return false;
+            Layers.Scene.SavedPaths[name.Trim()] = path.ToText();
+            Layers.History.MarkModified();
+            return true;
+        }
+
+        /// <summary>Paths panel: a saved path becomes the working path again, ready to edit,
+        /// stroke, fill or turn into a selection.</summary>
+        public bool LoadPenPath(string name)
+        {
+            if (!Layers.Scene.SavedPaths.TryGetValue(name, out var text) || VectorPath.FromText(text) is not { } path) return false;
+            ClearPenPath();
+            _penPath = path;
+            RaiseInvalidate();
+            OnPropertyChanged(nameof(PenPath));
+            return true;
+        }
+
         private void ClearPenPath()
         {
             _penPath = null;

@@ -11,6 +11,9 @@ public class LlmModelDto : INotifyPropertyChanged
     public string RecommendedTask { get; set; } = string.Empty;
     public long   VramUsageBytes  { get; set; }
 
+    // Not an Ollama model (e.g. Stable Diffusion runs in its own WebUI): can't be pulled here
+    public bool   IsExternal      { get; set; }
+
     private ModelPoolStatus _status;
     public ModelPoolStatus Status
     {

@@ -1,5 +1,5 @@
 using System.Windows;
-using HelixToolkit.Wpf;
+using JolieCat3D.Engine.Viewport;
 using System.Numerics;
 using JolieCat3D.Core.Geometry;
 using JolieCat3D.Core.Modifiers;
@@ -64,7 +64,7 @@ namespace JolieCat3D.Engine.Editing
         /// already uses, exposed here too so <c>JolieCat3D.UI</c> can preview the
         /// brush's own position (e.g. a radius ring cursor) without starting a
         /// stroke.</summary>
-        public Vector3? RaycastWorldHitPoint(HelixViewport3D viewport, Point position) =>
+        public Vector3? RaycastWorldHitPoint(IViewportProjector viewport, Point position) =>
             TryRaycast(viewport, position, out _, out var worldHitPoint) ? worldHitPoint : null;
 
         /// <summary>Starts a new stroke at <paramref name="position"/> - for Draw/Smooth
@@ -77,7 +77,7 @@ namespace JolieCat3D.Engine.Editing
         /// every subsequent <see cref="UpdateStroke"/> call intersects a FRESH ray
         /// against (rather than re-raycasting the mesh itself, which would be unstable
         /// once the mesh starts deforming mid-drag).</summary>
-        public void BeginStroke(HelixViewport3D viewport, Point position)
+        public void BeginStroke(IViewportProjector viewport, Point position)
         {
             if (Target?.Mesh is not { } mesh) return;
             if (!TryRaycast(viewport, position, out var ray, out var worldHitPoint)) return;
@@ -110,7 +110,7 @@ namespace JolieCat3D.Engine.Editing
         /// original positions - never the mesh's own already-moved current state. A
         /// no-op if no stroke is active (no matching <see cref="BeginStroke"/> call) or
         /// <see cref="Target"/> has no mesh.</summary>
-        public void UpdateStroke(HelixViewport3D viewport, Point position)
+        public void UpdateStroke(IViewportProjector viewport, Point position)
         {
             if (!_strokeActive) return;
             if (Target?.Mesh is not { } mesh) return;
@@ -153,18 +153,30 @@ namespace JolieCat3D.Engine.Editing
                 case SculptBrushMode.Smooth:
                     SculptBrush.ApplySmooth(mesh, worldTransform, worldHitPoint, BrushRadius, Strength);
                     break;
+                case SculptBrushMode.Inflate:
+                    SculptBrushExtras.ApplyInflate(mesh, worldTransform, worldHitPoint, BrushRadius, Strength, Invert);
+                    break;
+                case SculptBrushMode.Flatten:
+                    SculptBrushExtras.ApplyFlatten(mesh, worldTransform, worldHitPoint, BrushRadius, Strength, Invert);
+                    break;
+                case SculptBrushMode.Pinch:
+                    SculptBrushExtras.ApplyPinch(mesh, worldTransform, worldHitPoint, BrushRadius, Strength, Invert);
+                    break;
+                case SculptBrushMode.Crease:
+                    SculptBrushExtras.ApplyCrease(mesh, worldTransform, worldHitPoint, BrushRadius, Strength, Invert);
+                    break;
+                case SculptBrushMode.Clay:
+                    SculptBrushExtras.ApplyClay(mesh, worldTransform, worldHitPoint, BrushRadius, Strength, Invert);
+                    break;
             }
         }
 
-        private static CoreRay BuildRay(HelixViewport3D viewport, Point position)
+        private static CoreRay BuildRay(IViewportProjector viewport, Point position)
         {
-            var ray3D = Viewport3DHelper.Point2DtoRay3D(viewport.Viewport, position);
-            return new CoreRay(
-                new Vector3((float)ray3D.Origin.X, (float)ray3D.Origin.Y, (float)ray3D.Origin.Z),
-                new Vector3((float)ray3D.Direction.X, (float)ray3D.Direction.Y, (float)ray3D.Direction.Z));
+            return viewport.ScreenToRay(position);
         }
 
-        private bool TryRaycast(HelixViewport3D viewport, Point position, out CoreRay ray, out Vector3 worldHitPoint)
+        private bool TryRaycast(IViewportProjector viewport, Point position, out CoreRay ray, out Vector3 worldHitPoint)
         {
             ArgumentNullException.ThrowIfNull(viewport);
             ray = default;

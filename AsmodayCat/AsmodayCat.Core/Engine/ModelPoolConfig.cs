@@ -10,10 +10,10 @@ public static class ModelPoolConfig
     {
         new()
         {
-            ModelId       = "mistral:7b",
+            ModelId       = "qwen2.5:7b",
             TaskType      = ModelTaskType.General,
-            RequiredVramMb = 5000,
-            Description   = "Main orchestration agent with function calling support"
+            RequiredVramMb = 5500,
+            Description   = "Main assistant: multilingual (incl. Ukrainian), reliable function calling"
         },
         new()
         {
@@ -24,17 +24,11 @@ public static class ModelPoolConfig
         },
         new()
         {
-            ModelId       = "phi3:3.8b",
-            TaskType      = ModelTaskType.FastAnalytics,
-            RequiredVramMb = 2500,
-            Description   = "Lightweight model for fast file/log parsing in sandboxes"
-        },
-        new()
-        {
-            ModelId       = "llava:7b",
+            // Reads text in images far better than llava:7b and fits 8 GB of VRAM
+            ModelId       = "qwen2.5vl:7b",
             TaskType      = ModelTaskType.Vision,
-            RequiredVramMb = 5500,
-            Description   = "Multimodal model for screenshot OCR and diagram analysis"
+            RequiredVramMb = 6000,
+            Description   = "Vision model: reads text in images, screenshots, documents and diagrams"
         },
         new()
         {

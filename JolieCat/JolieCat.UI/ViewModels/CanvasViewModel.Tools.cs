@@ -83,6 +83,12 @@ namespace JolieCat.UI.ViewModels
                     PressColorSampler(doc);
                     return true;
 
+                case ToolType.Ruler:
+                    return PressRuler(doc);
+
+                case ToolType.ObjectSelection:
+                    return PressObjectSelection(doc);
+
                 case ToolType.PuppetWarp:
                     return PressPuppetWarp(doc);
 
@@ -98,6 +104,12 @@ namespace JolieCat.UI.ViewModels
 
                 case ToolType.Move:
                     if (activeLayer is null) return true;
+                    if (AnimatedMove?.BeginAnimatedMove(activeLayer) == true)
+                    {
+                        _animatedMoveStart = doc;
+                        ToolHintText = "Dragging sets the layer's position at this frame (a keyframe)";
+                        return true;
+                    }
                     if (LayersToMoveTogether(activeLayer) is { } many)
                     {
                         if (many.Count > 0) BeginMoveMany(many, doc);
@@ -172,6 +184,14 @@ namespace JolieCat.UI.ViewModels
         private bool TryHandleExtendedToolMove(SKPoint doc)
         {
             if (MoveColorSampler(doc)) return true;
+            if (MoveRuler(doc)) return true;
+            if (MoveObjectSelection(doc)) return true;
+            if (UpdateTextDrag(doc)) return true;
+            if (_animatedMoveStart is { } moveStart && AnimatedMove is { } animated)
+            {
+                animated.UpdateAnimatedMove(doc.X - moveStart.X, doc.Y - moveStart.Y);
+                return true;
+            }
             if (MovePuppetPin(doc)) return true;
             if (UpdatePatch(doc)) return true;
             if (UpdatePerspectiveDrag(doc)) return true;
@@ -219,6 +239,10 @@ namespace JolieCat.UI.ViewModels
         private void HandleExtendedToolRelease()
         {
             ReleaseColorSampler();
+            ReleaseRuler();
+            ReleaseObjectSelection();
+            EndTextDrag();
+            _animatedMoveStart = null;
             ReleasePuppetPin();
             if (_isDraggingGradient)
                 CommitGradient();

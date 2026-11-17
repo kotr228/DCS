@@ -55,8 +55,26 @@ namespace JolieCat3D.Core.Scene
         /// <summary>A complete, independent copy - every property is a plain value type
         /// (see <see cref="CameraData.Clone"/>'s own matching remarks). Used by
         /// <see cref="Node.Clone"/>.</summary>
+        /// <summary>Area light size along the node's local X (world units).</summary>
+        public float Width
+        {
+            get => _width;
+            set => _width = MathF.Max(0.001f, value);
+        }
+        private float _width = 1f;
+
+        /// <summary>Area light size along the node's local Y (world units).</summary>
+        public float Height
+        {
+            get => _height;
+            set => _height = MathF.Max(0.001f, value);
+        }
+        private float _height = 1f;
+
         public LightData Clone() => new()
         {
+            Width = Width,
+            Height = Height,
             Type = Type,
             Color = Color,
             Intensity = Intensity,

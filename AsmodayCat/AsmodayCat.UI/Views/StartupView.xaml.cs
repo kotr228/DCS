@@ -19,10 +19,16 @@ public partial class StartupView : Window
         _vm.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(StartupViewModel.ServiceStatus))
-                ServiceIcon.Text = _vm.ServiceStatus.Contains("Running") ? "✅" : "⚠";
+                SetIcon(ServiceIcon, _vm.ServiceOk);
             if (e.PropertyName == nameof(StartupViewModel.LlmStatus))
-                LlmIcon.Text = _vm.LlmStatus == "Ready" ? "✅" : "⚠";
+                SetIcon(LlmIcon, _vm.LlmOk);
         };
+    }
+
+    private static void SetIcon(MaterialDesignThemes.Wpf.PackIcon icon, bool ok)
+    {
+        icon.Kind = ok ? MaterialDesignThemes.Wpf.PackIconKind.CheckCircle : MaterialDesignThemes.Wpf.PackIconKind.AlertCircleOutline;
+        icon.Foreground = (System.Windows.Media.Brush)Application.Current.Resources[ok ? "BrushSuccess" : "BrushWarning"];
     }
 
     private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -32,12 +38,13 @@ public partial class StartupView : Window
         => WindowState = WindowState.Minimized;
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)
-        => Application.Current.Shutdown();
+        => App.Services.GetRequiredService<AsmodayCat.UI.Services.TrayService>().Exit();
 
     private void ContinueButton_Click(object sender, RoutedEventArgs e)
     {
         var mainWindow = App.Services.GetRequiredService<MainWindow>();
         mainWindow.Show();
+        _vm.Detach();
         Close();
     }
 }

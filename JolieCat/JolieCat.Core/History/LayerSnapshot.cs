@@ -36,7 +36,8 @@ namespace JolieCat.Core.History
         SKColor[]? SmartFilterSource = null,
         IReadOnlyList<Effects.SmartFilter>? SmartFilters = null,
         Documents.ShapeContent? Shape = null,
-        Documents.FillContent? Fill = null)
+        Documents.FillContent? Fill = null,
+        double FillOpacity = 1)
     {
         /// <summary>Approximate memory held by this snapshot.</summary>
         public long ByteSize => (Pixels.LongLength + (MaskPixels?.LongLength ?? 0) + (SmartFilterSource?.LongLength ?? 0)) * 4;

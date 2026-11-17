@@ -6,21 +6,34 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <!-- Only for the tray icon (NotifyIcon) -->
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>AsmodayCat.UI</RootNamespace>
     <ApplicationIcon>Assets\AC.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.3.2" />
     <PackageReference Include="MaterialDesignThemes" Version="5.1.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
     <PackageReference Include="Markdig.Wpf" Version="0.5.0.1" />
-    <PackageReference Include="LiveCharts.Wpf" Version="0.9.7" />
+    <!-- Built for .NET Framework but works on .NET 8 (charts on the dashboard) -->
+    <PackageReference Include="LiveCharts.Wpf" Version="0.9.7" NoWarn="NU1701" />
+    <PackageReference Include="LiveCharts" Version="0.9.7" NoWarn="NU1701" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+    <PackageReference Include="System.Speech" Version="8.0.0" />
+    <PackageReference Include="Whisper.net" Version="1.7.4" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.7.4" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Explicitly mark the icon as a WPF Resource so pack URIs resolve in XAML -->
-    <Resource Include="Assets\AC.ico"/>
+    <Resource Include="Assets\AC.ico" />
   </ItemGroup>
 
   <ItemGroup>

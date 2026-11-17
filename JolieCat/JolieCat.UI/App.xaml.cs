@@ -45,6 +45,11 @@ namespace JolieCat.UI
             // theme background and a dark OS title bar instead.
             EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler(OnAnyWindowLoaded));
 
+            // The interface language (Edit > Preferences, or the switcher on the menu bar):
+            // every element is translated as it appears.
+            Localization.LocalizationAgent.Attach();
+            Localization.Loc.SetLanguage(Media.Preferences.Current.Language);
+
             // The user's own patterns, so layer styles that use them draw right away.
             Media.PatternLibrary.EnsureLoaded();
 

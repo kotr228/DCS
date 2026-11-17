@@ -10,7 +10,8 @@ namespace JolieCat.UI.Media
     /// is a convenience, never worth an error dialog.</summary>
     public static class RecentFilesStore
     {
-        public const int MaxEntries = 10;
+        /// <summary>How many are kept (Edit &gt; Preferences).</summary>
+        public static int MaxEntries { get; set; } = Preferences.Current.RecentFiles;
 
         private static string StorePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "JolieCat", "recent.txt");

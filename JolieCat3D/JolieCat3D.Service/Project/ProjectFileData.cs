@@ -20,10 +20,15 @@ namespace JolieCat3D.Service.Project
     public sealed class ProjectFileData
     {
         /// <summary>Bumped only if a future change to this shape would break an older
-        /// reader - <see cref="Jolie3DProjectSerializer.Load"/> is the one place that
-        /// would ever need to branch on it, and doesn't yet, since this is the format's
-        /// first version.</summary>
-        public int FormatVersion { get; set; } = 1;
+        /// reader. Version 2 added node ids, curves, armatures/bones, skinning,
+        /// constraints, material slots, seams and every modifier type; version-1 files
+        /// still load (the new fields are simply absent).</summary>
+        public int FormatVersion { get; set; } = Jolie3DProjectSerializer.CurrentFormatVersion;
+
+        /// <summary>Id of the active camera node (see <see cref="ProjectNodeData.Id"/>).
+        /// Preferred over <see cref="ActiveCameraNodePath"/>, which breaks when two
+        /// nodes share a name.</summary>
+        public int? ActiveCameraNodeId { get; set; }
 
         public string SceneName { get; set; } = string.Empty;
 
@@ -51,6 +56,12 @@ namespace JolieCat3D.Service.Project
         /// same "don't nest a whole object for one value" simplicity
         /// <see cref="ActiveCameraNodePath"/> itself already follows.</summary>
         public string? EnvironmentSkyboxSource { get; set; }
+
+        /// <summary>Mirrors <see cref="Core.Scene.EnvironmentSettings.SkyboxRotation"/>.</summary>
+        public float EnvironmentSkyboxRotation { get; set; }
+
+        /// <summary>Mirrors <see cref="Core.Scene.EnvironmentSettings.SkyboxStrength"/> (1 when absent).</summary>
+        public float EnvironmentSkyboxStrength { get; set; } = 1f;
     }
 
     /// <summary>One <see cref="Core.Scene.Node"/>: its own local transform, optional
@@ -61,6 +72,9 @@ namespace JolieCat3D.Service.Project
     public sealed class ProjectNodeData
     {
         public string Name { get; set; } = string.Empty;
+
+        /// <summary>Hidden in the viewport (Node.IsHidden).</summary>
+        public bool IsHidden { get; set; }
 
         public float PositionX { get; set; }
         public float PositionY { get; set; }
@@ -79,6 +93,9 @@ namespace JolieCat3D.Service.Project
         /// being optional.</summary>
         public ProjectMeshData? Mesh { get; set; }
 
+        /// <summary>Linked duplicate: uses the mesh stored on the node with this id.</summary>
+        public int? SharedMeshNodeId { get; set; }
+
         /// <summary>Null unless this node is a camera - mirrors <see cref="Core.Scene.Node.Camera"/>
         /// being optional.</summary>
         public ProjectCameraData? Camera { get; set; }
@@ -90,6 +107,86 @@ namespace JolieCat3D.Service.Project
         public List<ProjectModifierData> Modifiers { get; set; } = new();
 
         public List<ProjectNodeData> Children { get; set; } = new();
+
+        /// <summary>Unique within one file (pre-order index). Other records refer to a
+        /// node by this id rather than by name.</summary>
+        public int Id { get; set; } = -1;
+
+        public ProjectCurveData? Curve { get; set; }
+
+        /// <summary>True when this node is an armature root.</summary>
+        public bool IsArmature { get; set; }
+
+        public ProjectBoneData? Bone { get; set; }
+
+        public ProjectSkinData? Skin { get; set; }
+
+        public List<ProjectConstraintData> Constraints { get; set; } = new();
+    }
+
+    public sealed class ProjectShapeKeyData
+    {
+        public string Name { get; set; } = string.Empty;
+        public float Value { get; set; }
+        /// <summary>Absolute positions, flat xyz.</summary>
+        public List<float> Positions { get; set; } = new();
+    }
+
+    public sealed class ProjectCurveData
+    {
+        public List<ProjectCurvePointData> Points { get; set; } = new();
+        public bool Closed { get; set; }
+        public float BevelDepth { get; set; } = 0.05f;
+        public int SegmentsPerSpan { get; set; } = 12;
+        public int RadialSegments { get; set; } = 8;
+    }
+
+    public sealed class ProjectCurvePointData
+    {
+        public float[] Position { get; set; } = new float[3];
+        public float[] HandleIn { get; set; } = new float[3];
+        public float[] HandleOut { get; set; } = new float[3];
+    }
+
+    public sealed class ProjectBoneData
+    {
+        public float[] Head { get; set; } = new float[3];
+        public float[] Tail { get; set; } = { 0f, 1f, 0f };
+
+        /// <summary>Row-major 4x4 rest-pose world matrix (16 floats).</summary>
+        public float[] RestPoseWorldMatrix { get; set; } = Array.Empty<float>();
+    }
+
+    public sealed class ProjectSkinData
+    {
+        public int? ArmatureNodeId { get; set; }
+        public List<int> BoneNodeIds { get; set; } = new();
+    }
+
+    public sealed class ProjectConstraintData
+    {
+        /// <summary>"TrackTo".</summary>
+        public string Type { get; set; } = string.Empty;
+        public bool IsEnabled { get; set; } = true;
+        public int? TargetNodeId { get; set; }
+        public string? ForwardAxis { get; set; }
+
+        // ---- Inverse Kinematics ----
+        public int? PoleNodeId { get; set; }
+        public int? ChainLength { get; set; }
+        public int? Iterations { get; set; }
+
+        /// <summary>Settings of a parameterized constraint (Copy/Limit ...) by label.</summary>
+        public Dictionary<string, float>? Parameters { get; set; }
+    }
+
+    /// <summary>A texture painted inside the editor that has no file on disk yet,
+    /// stored inline as base64 RGBA8.</summary>
+    public sealed class ProjectTextureData
+    {
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public string RgbaBase64 { get; set; } = string.Empty;
     }
 
     /// <summary>One <see cref="Core.Scene.CameraData"/> - field-for-field matching that
@@ -106,6 +203,10 @@ namespace JolieCat3D.Service.Project
         public float OrthographicWidth { get; set; } = 10f;
         public float NearPlaneDistance { get; set; } = 0.1f;
         public float FarPlaneDistance { get; set; } = 1000f;
+
+        public bool DepthOfField { get; set; }
+        public float FocusDistance { get; set; } = 5f;
+        public float FStop { get; set; } = 2.8f;
     }
 
     /// <summary>One <see cref="Core.Scene.LightData"/> - field-for-field matching that
@@ -125,6 +226,8 @@ namespace JolieCat3D.Service.Project
         public float Intensity { get; set; } = 1f;
         public float Range { get; set; } = 10f;
         public float SpotAngle { get; set; } = 45f;
+        public float Width { get; set; } = 1f;
+        public float Height { get; set; } = 1f;
     }
 
     /// <summary>One <see cref="Core.Geometry.Mesh"/>'s complete geometry - every
@@ -150,6 +253,30 @@ namespace JolieCat3D.Service.Project
         public List<List<int>> Polygons { get; set; } = new();
 
         public ProjectMaterialData? Material { get; set; }
+
+        /// <summary>Extra materials polygons can reference via <see cref="PolygonMaterialSlots"/>.</summary>
+        public List<ProjectMaterialData> MaterialSlots { get; set; } = new();
+
+        /// <summary>Parallel to <see cref="Polygons"/>; -1 = plain <see cref="Material"/>.
+        /// Null when every polygon uses the plain material.</summary>
+        public List<int>? PolygonMaterialSlots { get; set; }
+
+        /// <summary>UV seam edges as flat pairs [a0, b0, a1, b1, ...].</summary>
+        public List<int>? SeamEdges { get; set; }
+
+        /// <summary>Crease edges as flattened index pairs (null = none).</summary>
+        public List<int>? CreaseEdges { get; set; }
+
+        /// <summary>Shape key basis positions, flat xyz. Null when the mesh has no basis.</summary>
+        public List<float>? ShapeBasis { get; set; }
+
+        public List<ProjectShapeKeyData>? ShapeKeys { get; set; }
+
+        /// <summary>4 bone indices per vertex, flat. Null when the mesh isn't skinned.</summary>
+        public List<int>? BoneIndices { get; set; }
+
+        /// <summary>4 bone weights per vertex, flat. Null when the mesh isn't skinned.</summary>
+        public List<float>? BoneWeights { get; set; }
     }
 
     /// <summary>One <see cref="Core.Geometry.Vertex"/>, flattened to plain floats -
@@ -229,6 +356,24 @@ namespace JolieCat3D.Service.Project
         /// <summary>Mirrors <see cref="Core.Materials.Material.MetallicRoughnessTexturePath"/> -
         /// see that property's own remarks on its packed glTF-convention channel layout.</summary>
         public string? MetallicRoughnessTexturePath { get; set; }
+
+        public string? OcclusionTexturePath { get; set; }
+
+        /// <summary>Emission (sRGB rgb); null = none (older files).</summary>
+        public float[]? Emissive { get; set; }
+        public float EmissiveStrength { get; set; } = 1f;
+        public string? EmissiveTexturePath { get; set; }
+
+        /// <summary>"Opaque" / "Blend" / "Clip"; null = Opaque (older files).</summary>
+        public string? AlphaMode { get; set; }
+        public float AlphaCutoff { get; set; } = 0.5f;
+        public bool DoubleSided { get; set; }
+
+        /// <summary>Texture-paint result that only exists in memory.</summary>
+        public ProjectTextureData? PaintedTexture { get; set; }
+
+        /// <summary>The material's node tree (plain data: nodes, links, options).</summary>
+        public Core.Materials.Nodes.ShaderGraph? NodeGraph { get; set; }
     }
 
     /// <summary>One <see cref="Core.Modifiers.Modifier"/>'s configuration - a small,
@@ -248,6 +393,9 @@ namespace JolieCat3D.Service.Project
 
         public bool IsEnabled { get; set; } = true;
 
+        /// <summary>Settings of a parameterized modifier (Displace, Smooth, ...) by label.</summary>
+        public Dictionary<string, float>? Parameters { get; set; }
+
         // ---- Mirror-only (Core.Modifiers.MirrorModifier) ----
         /// <summary><see cref="Core.Modifiers.MirrorAxis"/>'s own name ("X"/"Y"/"Z") -
         /// only meaningful when <see cref="Type"/> is "Mirror".</summary>
@@ -259,5 +407,35 @@ namespace JolieCat3D.Service.Project
         // ---- SubdivisionSurface-only (Core.Modifiers.SubdivisionSurfaceModifier) ----
         /// <summary>Only meaningful when <see cref="Type"/> is "SubdivisionSurface".</summary>
         public int? Iterations { get; set; }
+
+        // ---- Boolean ----
+        public string? Operation { get; set; }
+        public int? TargetNodeId { get; set; }
+
+        // ---- Array ----
+        public int? Count { get; set; }
+        public float[]? RelativeOffset { get; set; }
+
+        /// <summary>Array: constant offset per copy (null = none).</summary>
+        public float[]? ConstantOffset { get; set; }
+
+        /// <summary>Array: merge distance when Merge is on (null = off).</summary>
+        public float? MergeDistance { get; set; }
+
+        // ---- Solidify ----
+        public float? Thickness { get; set; }
+
+        // ---- Decimate ----
+        public float? Ratio { get; set; }
+
+        // ---- Bevel (also uses Iterations for segments, AngleThresholdDegrees) ----
+        public float? Width { get; set; }
+
+        // ---- Shrinkwrap (TargetNodeId shared with Boolean) ----
+        public string? ShrinkwrapMode { get; set; }
+        public float? Offset { get; set; }
+
+        // ---- EdgeSplit ----
+        public float? AngleThresholdDegrees { get; set; }
     }
 }

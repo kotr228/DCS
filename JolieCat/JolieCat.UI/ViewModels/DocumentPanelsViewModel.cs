@@ -149,6 +149,8 @@ namespace JolieCat.UI.ViewModels
 
             UpdateViewBox(doc.Canvas);
             UpdateInfo(doc, w, h);
+            UpdateChannels(doc);
+            UpdatePaths(doc);
         }
 
         private void UpdateViewBox(CanvasViewModel canvas)

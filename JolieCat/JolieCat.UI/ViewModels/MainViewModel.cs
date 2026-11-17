@@ -230,6 +230,7 @@ namespace JolieCat.UI.ViewModels
             PasteCommand.NotifyCanExecuteChanged();
             UpdateDimensionDebugText();
             RefreshHistorySteps();
+            RefreshAnimationCommands();
         }
 
         /// <summary>Refreshes <see cref="DimensionDebugText"/> from the live scene -
@@ -849,7 +850,8 @@ namespace JolieCat.UI.ViewModels
         [RelayCommand]
         private void SetWorkspaceMode(WorkspaceMode mode)
         {
-            if (ActiveDocument is { } document) document.WorkspaceMode = mode;
+            // The Timeline belongs to Clipbar Animation projects.
+            if (ActiveDocument is { } document && (mode == WorkspaceMode.Design || IsAnimationDocument)) document.WorkspaceMode = mode;
         }
 
         /// <summary>"Slice &amp; Export Frames": prompts for a destination folder and
@@ -1097,6 +1099,10 @@ namespace JolieCat.UI.ViewModels
                 PaddingY = grid.PaddingY,
                 MarginX = grid.MarginX,
                 MarginY = grid.MarginY,
+                PivotX = grid.PivotX,
+                PivotY = grid.PivotY,
+                RowNames = grid.RowNames,
+                CellPivotsText = grid.CellPivotsText,
             };
 
             var result = SpriteSheetToClipbarConverter.Convert(Layers.Scene, Layers.DocumentWidth, Layers.DocumentHeight, gridSnapshot, Timeline.FrameRate);
@@ -1187,7 +1193,11 @@ namespace JolieCat.UI.ViewModels
 
             Canvas.BeginAdjustment(FilterOptionsViewModel.TitleOf(kind));
 
-            var options = new FilterOptionsViewModel(kind);
+            var options = new FilterOptionsViewModel(kind)
+            {
+                Foreground = Canvas.BrushColor,
+                Background = Canvas.SecondaryBrushColor,
+            };
             if (kind == FilterKind.Clouds)
             {
                 // Clouds are drawn from the foreground to the background color.
@@ -1413,7 +1423,22 @@ namespace JolieCat.UI.ViewModels
         /// UI-agnostic data <see cref="ProjectSerializer"/> actually writes - this
         /// mapping (not the Core serializer) is what keeps <c>JolieCat.Core</c> from
         /// needing to reference <c>JolieCat.UI</c>'s timeline view models at all.</summary>
-        private static TimelineTrackData[] BuildTimelineData(DocumentViewModel document) => document.Timeline.Tracks.Select(track => new TimelineTrackData
+        private static TimelineTrackData[] BuildTimelineData(DocumentViewModel document) =>
+            BuildTrackData(document).Concat(WorkAreaData(document.Timeline)).ToArray();
+
+        /// <summary>The work area, saved as a hidden timeline entry (none if not set).</summary>
+        private static IEnumerable<TimelineTrackData> WorkAreaData(ViewModels.Timeline.TimelineViewModel timeline)
+        {
+            if (!timeline.HasWorkArea) yield break;
+            yield return new TimelineTrackData
+            {
+                Name = "Work Area",
+                IsWorkArea = true,
+                Clips = { new TimelineClipData { Name = "Work Area", StartFrame = timeline.PlayStart, LengthFrames = timeline.OutPoint is null ? 0 : timeline.PlayEnd - timeline.PlayStart } },
+            };
+        }
+
+        private static IEnumerable<TimelineTrackData> BuildTrackData(DocumentViewModel document) => document.Timeline.Tracks.Select(track => new TimelineTrackData
         {
             Name = track.Name,
             Clips = track.Clips.Select(clip => new TimelineClipData
@@ -1423,6 +1448,34 @@ namespace JolieCat.UI.ViewModels
                 LengthFrames = clip.LengthFrames,
             }).ToList(),
             KeyframeFrames = track.Keyframes.Select(keyframe => keyframe.Frame).ToList(),
-        }).ToArray();
+            LayerName = track.TargetLayer?.Name,
+            AudioPath = track.AudioPath,
+            Volume = track.Volume,
+            Muted = track.IsMuted,
+            IsCamera = track.IsCamera,
+            IsMarkers = track.IsMarkers,
+            ParentLayerName = document.Timeline.ParentOf(track)?.TargetLayer?.Name,
+            PivotX = track.Pivot?.X,
+            PivotY = track.Pivot?.Y,
+            BendX = track.BendPoint?.X,
+            BendY = track.BendPoint?.Y,
+            MotionBlur = track.MotionBlur,
+            WiggleAmount = track.WiggleAmount,
+            WiggleRotation = track.WiggleRotation,
+            WiggleSpeed = track.WiggleSpeed,
+            Keys = !track.IsAnimated ? null : track.Keyframes.Select(k => new KeyframeData
+            {
+                Frame = k.Frame, X = k.Pose.X, Y = k.Pose.Y, Scale = k.Pose.Scale,
+                Rotation = k.Pose.Rotation, Opacity = k.Pose.Opacity,
+                Ease = k.Pose.Easing != Core.Animation.KeyEasing.Linear, Easing = k.Pose.Easing.ToString(),
+                CurveX1 = k.Pose.CurveX1, CurveY1 = k.Pose.CurveY1, CurveX2 = k.Pose.CurveX2, CurveY2 = k.Pose.CurveY2,
+                Reveal = k.Pose.Reveal,
+                Blur = k.Pose.Blur,
+                Bend = k.Pose.Bend,
+                Brightness = k.Pose.Brightness,
+                Saturation = k.Pose.Saturation,
+                Hue = k.Pose.Hue,
+            }).ToList(),
+        });
     }
 }

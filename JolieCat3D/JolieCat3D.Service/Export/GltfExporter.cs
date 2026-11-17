@@ -69,19 +69,28 @@ namespace JolieCat3D.Service.Export
         /// the scene's static pose only, no animation at all) since not every caller
         /// necessarily has one in hand.
         /// </summary>
-        public static void Export(CoreScene scene, AnimationTimeline? timeline, string filePath)
+        public static void Export(CoreScene scene, AnimationTimeline? timeline, string filePath) =>
+            Export(scene, timeline, filePath, null);
+
+        /// <summary>Export with <paramref name="options"/> (selection only, hidden objects, animation).</summary>
+        public static void Export(CoreScene scene, AnimationTimeline? timeline, string filePath, GltfExportOptions? options)
         {
             ArgumentNullException.ThrowIfNull(scene);
             ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+            options ??= new GltfExportOptions();
+            if (!options.IncludeAnimation) timeline = null;
+            var mode = BuildExportModes(scene, options);
 
             var sceneBuilder = new SceneBuilder(scene.Name);
             var materialCache = new Dictionary<CoreMaterial, MaterialBuilder>();
             var imageCache = new Dictionary<string, ImageBuilder>();
             var nodeBuilders = new Dictionary<CoreNode, NodeBuilder>();
             var pendingSkins = new List<(CoreNode Node, CoreMesh EvaluatedMesh, SkinBinding Binding)>();
+            var morphInstances = new Dictionary<CoreNode, (InstanceBuilder Instance, List<ShapeKey> Keys)>();
 
             foreach (var root in scene.RootNodes)
-                BuildNode(root, parent: null, sceneBuilder, nodeBuilders, materialCache, imageCache, pendingSkins);
+                if (mode(root) != ExportMode.Skip)
+                    BuildNode(root, parent: null, sceneBuilder, nodeBuilders, materialCache, imageCache, pendingSkins, morphInstances, mode);
 
             // Attached only NOW, in a second pass over the whole tree - a SkinBinding's
             // own Bones can reference a node ANYWHERE in the scene (an armature parented
@@ -91,12 +100,18 @@ namespace JolieCat3D.Service.Export
             // "build the whole tree first, THEN attach whatever needs to look another
             // node up by reference" shape the animation pass below already uses.
             foreach (var (node, evaluatedMesh, binding) in pendingSkins)
-                AttachSkinnedMesh(node, evaluatedMesh, binding, sceneBuilder, nodeBuilders, materialCache, imageCache);
+                AttachSkinnedMesh(node, evaluatedMesh, binding, sceneBuilder, nodeBuilders, materialCache, imageCache, morphInstances);
 
+            // Every action becomes its own named glTF animation (clips a game engine can play).
             if (timeline is not null)
-                foreach (var track in timeline.Tracks)
-                    if (nodeBuilders.TryGetValue(track.Target, out var builder))
-                        AddAnimation(builder, track);
+                foreach (var action in timeline.Actions)
+                    foreach (var track in action.Tracks)
+                    {
+                        if (nodeBuilders.TryGetValue(track.Target, out var builder))
+                            AddAnimation(builder, track, action.Name);
+                        if (morphInstances.TryGetValue(track.Target, out var morph))
+                            AddMorphAnimation(morph.Instance, morph.Keys, track, action.Name);
+                    }
 
             var model = sceneBuilder.ToGltf2();
 
@@ -162,9 +177,12 @@ namespace JolieCat3D.Service.Export
             Dictionary<CoreNode, NodeBuilder> nodeBuilders,
             Dictionary<CoreMaterial, MaterialBuilder> materialCache,
             Dictionary<string, ImageBuilder> imageCache,
-            List<(CoreNode Node, CoreMesh EvaluatedMesh, SkinBinding Binding)> pendingSkins)
+            List<(CoreNode Node, CoreMesh EvaluatedMesh, SkinBinding Binding)> pendingSkins,
+            Dictionary<CoreNode, (InstanceBuilder Instance, List<ShapeKey> Keys)> morphInstances,
+            Func<CoreNode, ExportMode> mode)
         {
             var builder = parent is null ? new NodeBuilder(node.Name) : parent.CreateNode(node.Name);
+            var withContent = mode(node) == ExportMode.Full;
             builder.WithLocalTranslation(node.LocalPosition);
             builder.WithLocalRotation(node.LocalRotation);
             builder.WithLocalScale(node.LocalScale);
@@ -172,24 +190,73 @@ namespace JolieCat3D.Service.Export
             nodeBuilders[node] = builder;
             sceneBuilder.AddNode(builder);
 
-            if (node.Bone is null && node.Light is null && node.Mesh is { } mesh && mesh.Vertices.Count > 0)
+            if (withContent && node.Bone is null && node.Light is null && node.Mesh is { } mesh && mesh.Vertices.Count > 0)
             {
                 var evaluatedMesh = ModifierStack.Evaluate(mesh, node.Modifiers, node);
 
                 if (node.SkinBinding is { Bones.Count: > 0 } binding)
                     pendingSkins.Add((node, evaluatedMesh, binding));
                 else
-                    sceneBuilder.AddRigidMesh(BuildMesh(evaluatedMesh, materialCache, imageCache), builder);
+                {
+                    var meshBuilder = BuildMesh(evaluatedMesh, materialCache, imageCache);
+                    var keys = AddMorphTargets(meshBuilder, mesh, evaluatedMesh);
+                    var instance = sceneBuilder.AddRigidMesh(meshBuilder, builder);
+                    if (keys.Count > 0) morphInstances[node] = (instance, keys);
+                    SetDefaultMorphWeights(instance, keys);
+                }
             }
 
-            if (node.Camera is { } camera)
+            if (withContent && node.Camera is { } camera)
                 sceneBuilder.AddCamera(BuildCamera(camera), CreateLookDirectionFix(builder, "$CameraLookFix"));
 
-            if (node.Light is { } light)
+            if (withContent && node.Light is { } light)
                 sceneBuilder.AddLight(BuildLight(light), CreateLookDirectionFix(builder, "$LightLookFix"));
 
             foreach (var child in node.Children)
-                BuildNode(child, builder, sceneBuilder, nodeBuilders, materialCache, imageCache, pendingSkins);
+                if (mode(child) != ExportMode.Skip)
+                    BuildNode(child, builder, sceneBuilder, nodeBuilders, materialCache, imageCache, pendingSkins, morphInstances, mode);
+        }
+
+        internal enum ExportMode { Skip, Full, TransformOnly }
+
+        /// <summary>
+        /// Which nodes go into the file. With a selection: the selected objects with their
+        /// children, plus the armatures their skins need; their unselected ancestors are
+        /// written as plain transforms (so positions stay right). Hidden objects (and
+        /// everything under them) are left out unless <see cref="GltfExportOptions.IncludeHidden"/>.
+        /// </summary>
+        private static Func<CoreNode, ExportMode> BuildExportModes(CoreScene scene, GltfExportOptions options)
+        {
+            HashSet<CoreNode>? full = null;
+            if (options.SelectedRoots is { Count: > 0 } selected)
+            {
+                full = new HashSet<CoreNode>();
+                foreach (var root in selected) foreach (var n in root.Traverse()) full.Add(n);
+                foreach (var n in full.ToList())
+                    if (n.SkinBinding is { } skin)
+                    {
+                        if (skin.Armature is { } armature) foreach (var b in armature.Traverse()) full.Add(b);
+                        foreach (var bone in skin.Bones) full.Add(bone);
+                    }
+            }
+
+            bool HiddenLine(CoreNode n)
+            {
+                for (var p = n; p is not null; p = p.Parent) if (p.IsHidden) return true;
+                return false;
+            }
+
+            var transformOnly = new HashSet<CoreNode>();
+            if (full is not null)
+                foreach (var n in full)
+                    for (var p = n.Parent; p is not null && !full.Contains(p); p = p.Parent) transformOnly.Add(p);
+
+            return node =>
+            {
+                if (!options.IncludeHidden && HiddenLine(node)) return ExportMode.Skip;
+                if (full is null || full.Contains(node)) return ExportMode.Full;
+                return transformOnly.Contains(node) ? ExportMode.TransformOnly : ExportMode.Skip;
+            };
         }
 
         /// <summary>Attaches <paramref name="evaluatedMesh"/> as a genuine glTF SKINNED
@@ -213,21 +280,93 @@ namespace JolieCat3D.Service.Export
             CoreNode node, CoreMesh evaluatedMesh, SkinBinding binding, SceneBuilder sceneBuilder,
             Dictionary<CoreNode, NodeBuilder> nodeBuilders,
             Dictionary<CoreMaterial, MaterialBuilder> materialCache,
-            Dictionary<string, ImageBuilder> imageCache)
+            Dictionary<string, ImageBuilder> imageCache,
+            Dictionary<CoreNode, (InstanceBuilder Instance, List<ShapeKey> Keys)> morphInstances)
         {
             var meshNodeBuilder = nodeBuilders[node];
+            // glTF skins mesh-space vertices as v * IBM * jointWorld (the mesh node's own
+            // transform is ignored), while SkinningEvaluator does v * meshWorld *
+            // inverse(RestPose) * boneWorld - so the mesh's world transform goes into the IBM.
+            var meshWorld = node.GetWorldTransform();
             var joints = new (NodeBuilder, Matrix4x4)[binding.Bones.Count];
             for (var i = 0; i < binding.Bones.Count; i++)
             {
                 var bone = binding.Bones[i];
                 if (nodeBuilders.TryGetValue(bone, out var jointBuilder))
-                    joints[i] = (jointBuilder, bone.Bone?.GetInverseBindMatrix() ?? Matrix4x4.Identity);
+                    joints[i] = (jointBuilder, meshWorld * (bone.Bone?.GetInverseBindMatrix() ?? Matrix4x4.Identity));
                 else
                     joints[i] = (meshNodeBuilder, Matrix4x4.Identity);
             }
 
             var meshBuilder = BuildSkinnedMesh(evaluatedMesh, materialCache, imageCache);
-            sceneBuilder.AddSkinnedMesh(meshBuilder, joints);
+            var keys = node.Mesh is { } source ? AddMorphTargets(meshBuilder, source, evaluatedMesh) : new List<ShapeKey>();
+            var instance = sceneBuilder.AddSkinnedMesh(meshBuilder, joints);
+            if (keys.Count > 0) morphInstances[node] = (instance, keys);
+            SetDefaultMorphWeights(instance, keys);
+        }
+
+        // ============================= Shape keys -> morph targets =============================
+
+        /// <summary>
+        /// Writes the source mesh's valid shape keys as glTF morph targets (position deltas
+        /// relative to the exported vertices) plus the standard <c>extras.targetNames</c>.
+        /// Skipped when modifiers changed the vertex count (the keys no longer line up).
+        /// Returns the exported keys, in morph-target order.
+        /// </summary>
+        private static List<ShapeKey> AddMorphTargets(IMeshBuilder<MaterialBuilder> meshBuilder, CoreMesh source, CoreMesh evaluated)
+        {
+            var keys = new List<ShapeKey>();
+            if (source.ShapeBasis is not { } basis || basis.Length != source.Vertices.Count) return keys;
+            if (evaluated.Vertices.Count != source.Vertices.Count) return keys;
+
+            foreach (var key in source.ShapeKeys)
+            {
+                if (!ShapeKeys.IsValid(source, key)) continue;
+                var target = meshBuilder.UseMorphTarget(keys.Count);
+                for (var i = 0; i < basis.Length; i++)
+                {
+                    var delta = key.Positions[i] - basis[i];
+                    if (delta.LengthSquared() < 1e-14f) continue;
+                    target.SetVertexDelta(evaluated.Vertices[i].Position, new VertexGeometryDelta(delta, Vector3.Zero, Vector3.Zero));
+                }
+                keys.Add(key);
+            }
+
+            if (keys.Count > 0)
+            {
+                var names = new System.Text.Json.Nodes.JsonArray();
+                foreach (var key in keys) names.Add(key.Name);
+                meshBuilder.Extras = new System.Text.Json.Nodes.JsonObject { ["targetNames"] = names };
+            }
+            return keys;
+        }
+
+        private static void SetDefaultMorphWeights(InstanceBuilder instance, List<ShapeKey> keys)
+        {
+            if (keys.Count == 0) return;
+            instance.Content.UseMorphing().Value = new ArraySegment<float>(keys.Select(k => k.Value).ToArray());
+        }
+
+        /// <summary>Shape key property curves ("shape:Name") as a glTF weights animation,
+        /// sampled per frame (24 fps) between the first and last key.</summary>
+        private static void AddMorphAnimation(InstanceBuilder instance, List<ShapeKey> keys, AnimationTrack track, string animationName)
+        {
+            var curves = keys.Select(k => track.PropertyCurves.TryGetValue(AnimationTrack.ShapeKeyPrefix + k.Name, out var c) && c.Keys.Count > 0 ? c : null).ToArray();
+            var present = curves.Where(c => c is not null).ToList();
+            if (present.Count == 0) return;
+
+            var start = present.Min(c => c!.Keys[0].Time);
+            var end = present.Max(c => c!.Keys[^1].Time);
+            var curve = instance.Content.UseMorphing().UseTrackBuilder(animationName);
+            var steps = Math.Max(1, (int)Math.Ceiling((end - start) * 24));
+            for (var s = 0; s <= steps; s++)
+            {
+                var t = start + (end - start) * s / steps;
+                var weights = new float[keys.Count];
+                for (var k = 0; k < keys.Count; k++)
+                    weights[k] = curves[k]?.Evaluate(t) is { } v ? Math.Clamp(v, 0f, 1f) : keys[k].Value;
+                curve.SetPoint((float)t, true, weights);
+            }
         }
 
         /// <summary>glTF's own camera/light convention points local -Z "forward" (see
@@ -351,7 +490,9 @@ namespace JolieCat3D.Service.Export
             else
                 builder.WithBaseColor(new Vector4(Clamp01(material.DiffuseColor.R), Clamp01(material.DiffuseColor.G), Clamp01(material.DiffuseColor.B), opacity));
 
-            if (opacity < 1f) builder.WithAlpha(AlphaMode.BLEND, 0.5f);
+            if (material.AlphaMode == Core.Materials.MaterialAlphaMode.Clip) builder.WithAlpha(AlphaMode.MASK, material.AlphaCutoff);
+            else if (material.IsBlended) builder.WithAlpha(AlphaMode.BLEND, 0.5f);
+            if (material.DoubleSided) builder.WithDoubleSide(true);
 
             if (TryLoadImage(material.MetallicRoughnessTexturePath, material.Name + "_ORM", imageCache) is { } ormImage)
                 builder.WithMetallicRoughness(ormImage, material.Metallic, material.Roughness);
@@ -360,6 +501,18 @@ namespace JolieCat3D.Service.Export
 
             if (TryLoadImage(material.NormalTexturePath, material.Name + "_Normal", imageCache) is { } normalImage)
                 builder.WithNormal(normalImage, 1f);
+
+            if (TryLoadImage(material.OcclusionTexturePath, material.Name + "_Occlusion", imageCache) is { } occlusionImage)
+                builder.WithOcclusion(occlusionImage, 1f);
+
+            if (material.IsEmissive)
+            {
+                var emissive = new Vector3(Clamp01(material.EmissiveColor.R), Clamp01(material.EmissiveColor.G), Clamp01(material.EmissiveColor.B));
+                if (TryLoadImage(material.EmissiveTexturePath, material.Name + "_Emissive", imageCache) is { } emissiveImage)
+                    builder.WithEmissive(emissiveImage, emissive, material.EmissiveStrength);
+                else
+                    builder.WithEmissive(emissive, material.EmissiveStrength);
+            }
 
             cache[material] = builder;
             return builder;
@@ -421,7 +574,7 @@ namespace JolieCat3D.Service.Export
         {
             LightBuilder builder = light.Type switch
             {
-                LightType.Point => new LightBuilder.Point { Range = light.Range },
+                LightType.Point or LightType.Area => new LightBuilder.Point { Range = light.Range }, // glTF has no area lights
                 // SpotAngle is the FULL cone angle in degrees (see LightData's own
                 // remarks); glTF's own OuterConeAngle is the HALF-angle, in radians, and
                 // must stay strictly inside (0, PI/2] - this project has no separate
@@ -446,14 +599,14 @@ namespace JolieCat3D.Service.Export
 
         /// <summary>Adds <paramref name="track"/>'s own Translation/Rotation/Scale curves
         /// onto <paramref name="builder"/> - a no-op if it has no keyframes at all.</summary>
-        private static void AddAnimation(NodeBuilder builder, AnimationTrack track)
+        private static void AddAnimation(NodeBuilder builder, AnimationTrack track, string animationName)
         {
             var keyframes = track.Keyframes;
             if (keyframes.Count == 0) return;
 
-            AddCurve(builder.UseTranslation(AnimationTrackName), keyframes, k => k.Position, t => track.Evaluate(t)?.Position);
-            AddCurve(builder.UseRotation(AnimationTrackName), keyframes, k => k.Rotation, t => track.Evaluate(t)?.Rotation);
-            AddCurve(builder.UseScale(AnimationTrackName), keyframes, k => k.Scale, t => track.Evaluate(t)?.Scale);
+            AddCurve(builder.UseTranslation(animationName), keyframes, k => k.Position, t => track.Evaluate(t)?.Position);
+            AddCurve(builder.UseRotation(animationName), keyframes, k => k.Rotation, t => track.Evaluate(t)?.Rotation);
+            AddCurve(builder.UseScale(animationName), keyframes, k => k.Scale, t => track.Evaluate(t)?.Scale);
         }
 
         /// <summary>

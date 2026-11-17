@@ -1,10 +1,12 @@
+using AsmodayCat.Shared.Interfaces;
 using AsmodayCat.Shared.Models;
 
 namespace AsmodayCat.Core.Hardware;
 
 // Збирає метрики CPU/GPU/RAM/VRAM + зберігає 60-секундну історію для графіків
-public class MetricsCollector
+public class MetricsCollector : IActivityLog
 {
+    private readonly object _lock = new();
     private const int HistorySize = 60;
 
     private readonly CircularBuffer<ResourceDataPoint>  _cpuHistory      = new(HistorySize);
@@ -15,7 +17,6 @@ public class MetricsCollector
     private readonly CircularBuffer<AgentActivityLogDto> _activityHistory = new(10);
 
     private readonly ResourceManager _resources;
-    private readonly Random _rng = new();
 
     // Активна модель (оновлюється з ModelSwitcher)
     public string ActiveModelName   { get; set; } = string.Empty;
@@ -33,31 +34,35 @@ public class MetricsCollector
         var now    = DateTime.Now;
         var status = _resources.GetCurrentStatus();
 
-        var cpuLoad = status.CpuLoad;
-        // GPU: mock-дані (доки NVML не підключений) — плавне випадкове значення
-        var gpuLoad = GetMockGpuLoad();
-        var ramFree = status.RamFree / 1024.0 / 1024.0;
-        var vramFree = (double)status.VramFree;
+        var cpuLoad  = status.CpuLoad;
+        var gpuLoad  = status.GpuLoad;
+        var ramFree  = status.RamFree / 1024.0 / 1024.0;
+        var vramUsed = (double)_resources.GetTotalVramUsedMb();
 
-        _cpuHistory.Add(new ResourceDataPoint(cpuLoad, now));
-        _gpuHistory.Add(new ResourceDataPoint(gpuLoad, now));
-        _ramHistory.Add(new ResourceDataPoint(ramFree, now));
-        _vramHistory.Add(new ResourceDataPoint(vramFree, now));
-        _tpsHistory.Add(new ResourceDataPoint(LastTokensPerSec, now));
+        lock (_lock)
+        {
+            _cpuHistory.Add(new ResourceDataPoint(cpuLoad, now));
+            _gpuHistory.Add(new ResourceDataPoint(gpuLoad, now));
+            _ramHistory.Add(new ResourceDataPoint(ramFree, now));
+            _vramHistory.Add(new ResourceDataPoint(vramUsed, now));
+            _tpsHistory.Add(new ResourceDataPoint(LastTokensPerSec, now));
+        }
     }
 
     public SystemStatusDto GetSnapshot(int availableNodes)
     {
         var status = _resources.GetCurrentStatus();
+        var (_, ramTotal) = ResourceManager.GetRam();
 
+        lock (_lock)
         return new SystemStatusDto
         {
             CpuLoadPercent   = status.CpuLoad,
             RamFreeMb        = status.RamFree / 1024 / 1024,
-            RamTotalMb       = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024,
-            GpuLoadPercent   = _gpuHistory.Count > 0 ? _gpuHistory.Last.Value : 0,
+            RamTotalMb       = ramTotal / 1024 / 1024,
+            GpuLoadPercent   = status.GpuLoad,
             VramUsedMb       = _resources.GetTotalVramUsedMb(),
-            VramTotalMb      = 8192, // Placeholder — замінюється NVML
+            VramTotalMb      = _resources.Gpu.VramTotalMb,
             ActiveModelName   = ActiveModelName,
             ActiveModelStatus = ActiveModelStatus,
             AvailableNodesCount = availableNodes,
@@ -72,21 +77,15 @@ public class MetricsCollector
 
     public void LogActivity(string description, string status)
     {
-        _activityHistory.Add(new AgentActivityLogDto
-        {
-            Timestamp         = DateTime.Now,
-            ActionDescription = description,
-            Status            = status
-        });
+        lock (_lock)
+            _activityHistory.Add(new AgentActivityLogDto
+            {
+                Timestamp         = DateTime.Now,
+                ActionDescription = description,
+                Status            = status
+            });
     }
 
-    private double _mockGpu;
-    private double GetMockGpuLoad()
-    {
-        _mockGpu += (_rng.NextDouble() - 0.5) * 8;
-        _mockGpu = Math.Clamp(_mockGpu, 0, 95);
-        return _mockGpu;
-    }
 }
 
 // O(1) кільцевий буфер — той самий патерн що в BlackCat

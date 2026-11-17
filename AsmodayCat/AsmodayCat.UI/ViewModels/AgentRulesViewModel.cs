@@ -1,3 +1,4 @@
+using AsmodayCat.UI.Localization;
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -24,12 +25,51 @@ public partial class AgentRulesViewModel : ObservableObject
     [ObservableProperty] private string      _newExtensions        = "*.*";
     [ObservableProperty] private AgentAction _newAction            = AgentAction.CreateReport;
     [ObservableProperty] private bool        _allowInternetAccess  = false;
+    [ObservableProperty] private bool        _processExisting      = false;
+
+    // Editing an existing rule instead of adding a new one
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(IsEditing), nameof(SubmitText))]
+    private Guid? _editingRuleId;
+    public bool   IsEditing  => EditingRuleId is not null;
+    public string SubmitText => Loc.T(IsEditing ? "agents.saveChanges" : "agents.add");
+
+    [RelayCommand]
+    private void EditRule(AgentRuleDto rule)
+    {
+        EditingRuleId       = rule.Id;
+        NewFolderPath       = rule.InputPath;
+        NewOutputPath       = rule.OutputPath;
+        NewAction           = Enum.TryParse<AgentAction>(rule.ActionType, out var a) ? a : AgentAction.CreateReport;
+        NewSystemPrompt     = rule.SystemPrompt;
+        NewExtensions       = rule.AllowedExtensions;
+        AllowInternetAccess = rule.AllowInternetAccess;
+        ProcessExisting     = false;
+        StatusMessage       = Loc.T("agents.editing");
+    }
+
+    [RelayCommand]
+    private void CancelEdit()
+    {
+        ClearForm();
+        StatusMessage = string.Empty;
+    }
+
+    private void ClearForm()
+    {
+        EditingRuleId       = null;
+        NewFolderPath       = string.Empty;
+        NewOutputPath       = string.Empty;
+        NewSystemPrompt     = string.Empty;
+        NewExtensions       = "*.*";
+        AllowInternetAccess = false;
+        ProcessExisting     = false;
+    }
     [ObservableProperty] private string      _statusMessage        = string.Empty;
 
     public AgentRulesViewModel(IpcClient ipc)
     {
         _ipc = ipc;
-        _ = LoadRulesAsync();
+        Loc.LanguageChanged += () => OnPropertyChanged(nameof(SubmitText));
     }
 
     [RelayCommand]
@@ -51,7 +91,7 @@ public partial class AgentRulesViewModel : ObservableObject
     {
         if (string.IsNullOrWhiteSpace(NewFolderPath))
         {
-            StatusMessage = "Input path is required.";
+            StatusMessage = Loc.T("agents.needFolder");
             return;
         }
 
@@ -66,28 +106,63 @@ public partial class AgentRulesViewModel : ObservableObject
             IsActive            = true
         };
 
+        var editing = EditingRuleId;
+        if (editing is { } id) rule.Id = id;
         var json = JsonSerializer.Serialize(rule);
 
         var resp = await _ipc.SendCommandAsync(new IpcCommand
         {
-            Type       = IpcCommandType.AddAgentRule,
-            Parameters = { ["Rule"] = json }
+            Type       = editing is null ? IpcCommandType.AddAgentRule : IpcCommandType.UpdateAgentRule,
+            Parameters = { ["Rule"] = json, ["ProcessExisting"] = ProcessExisting ? "true" : "false" }
         });
 
         if (resp?.Success == true)
         {
-            ActiveRules.Add(rule);
-            NewFolderPath       = string.Empty;
-            NewOutputPath       = string.Empty;
-            NewSystemPrompt     = string.Empty;
-            NewExtensions       = "*.*";
-            AllowInternetAccess = false;
-            StatusMessage       = "Workspace added and monitoring started.";
+            await LoadRulesAsync();
+            ClearForm();
+            StatusMessage = editing is null
+                ? Loc.T("agents.added")
+                : Loc.T("agents.updated");
         }
         else
         {
-            StatusMessage = $"Error: {resp?.Error ?? "Service offline"}";
+            StatusMessage = Loc.F("common.error", resp?.Error ?? Loc.T("chat.serviceUnavailable"));
         }
+    }
+
+    [RelayCommand]
+    private async Task ReprocessRuleAsync(AgentRuleDto rule)
+    {
+        if (System.Windows.MessageBox.Show(
+                Loc.F("agents.confirmReprocess", rule.InputPath),
+                Loc.T("agents.confirmTitle"), System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question)
+            != System.Windows.MessageBoxResult.Yes) return;
+
+        var resp = await _ipc.SendCommandAsync(new IpcCommand
+        {
+            Type       = IpcCommandType.ReprocessAgentRule,
+            Parameters = { ["Id"] = rule.Id.ToString() }
+        });
+        StatusMessage = resp?.Success == true
+            ? Loc.F("agents.queued", resp.Payload?.GetInt32())
+            : Loc.F("common.error", resp?.Error ?? Loc.T("chat.serviceUnavailable"));
+    }
+
+    // Pause or resume a rule; the switch shows the state the service reports back.
+    [RelayCommand]
+    private async Task ToggleRuleAsync(AgentRuleDto rule)
+    {
+        var resp = await _ipc.SendCommandAsync(new IpcCommand
+        {
+            Type       = IpcCommandType.SetAgentRuleActive,
+            Parameters = { ["Id"] = rule.Id.ToString(), ["Active"] = rule.IsActive ? "true" : "false" }
+        });
+
+        StatusMessage = resp?.Success == true
+            ? Loc.T(rule.IsActive ? "agents.resumed" : "agents.paused")
+            : Loc.F("common.error", resp?.Error ?? Loc.T("chat.serviceUnavailable"));
+
+        await LoadRulesAsync();
     }
 
     [RelayCommand]
@@ -103,11 +178,11 @@ public partial class AgentRulesViewModel : ObservableObject
         {
             var rule = ActiveRules.FirstOrDefault(r => r.Id == id);
             if (rule is not null) ActiveRules.Remove(rule);
-            StatusMessage = "Workspace removed.";
+            StatusMessage = Loc.T("agents.removed");
         }
         else
         {
-            StatusMessage = $"Error: {resp?.Error ?? "Service offline"}";
+            StatusMessage = Loc.F("common.error", resp?.Error ?? Loc.T("chat.serviceUnavailable"));
         }
     }
 }

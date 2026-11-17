@@ -34,15 +34,29 @@ namespace JolieCat3D.Service.Commands
             _onChanged = onChanged;
         }
 
-        public void Execute()
-        {
-            _target.Mesh = _after;
-            _onChanged?.Invoke();
-        }
+        /// <summary>The mesh object the node had when the edit was made. Restoring copies
+        /// the snapshot INTO it (never assigns the snapshot itself), so the snapshots stay
+        /// private and nodes sharing the mesh (linked duplicates) stay linked.</summary>
+        private readonly Mesh? _live;
 
-        public void Undo()
+        public MeshEditCommand(Node target, Mesh before, Mesh after, string description, Mesh live, Action? onChanged = null)
+            : this(target, before, after, description, onChanged) => _live = live;
+
+        public void Execute() => Restore(_after);
+
+        public void Undo() => Restore(_before);
+
+        private void Restore(Mesh snapshot)
         {
-            _target.Mesh = _before;
+            if (_live is null)
+            {
+                _target.Mesh = snapshot;
+            }
+            else
+            {
+                _target.Mesh = _live;
+                _live.CopyFrom(snapshot);
+            }
             _onChanged?.Invoke();
         }
     }
@@ -116,19 +130,30 @@ namespace JolieCat3D.Service.Commands
 
             if (node.Mesh is not { } mesh) return null;
 
+            // The edit now mutates the live mesh in place; the command keeps two private
+            // snapshots and copies them back into that same object on undo/redo, so the
+            // live mesh is never one of the recorded snapshots (see MeshEditCommand) and
+            // linked duplicates sharing it see every edit, undo and redo.
             var before = mesh.Clone();
-            node.Mesh = mesh.Clone(); // a fresh, never-before-referenced-by-any-command working copy for applyEdit to mutate
 
             var changed = applyEdit();
             if (!changed)
             {
-                node.Mesh = mesh; // nothing happened - put the original reference straight back rather than leaving an untouched duplicate clone in its place
+                node.Mesh = mesh;
+                mesh.CopyFrom(before); // drop any half-made change of a no-op edit
                 return null;
             }
 
-            if (node.Mesh is not { } after) return null; // applyEdit itself cleared node.Mesh out from under us - nothing sane to record
+            if (node.Mesh is not { } edited) return null; // applyEdit itself cleared node.Mesh out from under us - nothing sane to record
+            var after = edited.Clone();
+            if (!ReferenceEquals(edited, mesh))
+            {
+                // The edit swapped in a brand-new mesh: move its result into the original object.
+                mesh.CopyFrom(edited);
+                node.Mesh = mesh;
+            }
 
-            return new MeshEditCommand(node, before, after, description, onChanged);
+            return new MeshEditCommand(node, before, after, description, mesh, onChanged);
         }
     }
 }

@@ -15,12 +15,56 @@ namespace JolieCat.UI
         public MainWindow()
         {
             InitializeComponent();
+            // Maximized means "fill the screen's work area" - see FitMaximizedToWorkArea.
+            SourceInitialized += (_, _) =>
+                (System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle))?.AddHook(FitMaximizedToWorkArea);
             DataContext = new MainViewModel();
             InitializeLayersPanel();
+            WatchTimelineMode();
 
             // After the window is up: offer crash recovery, start autosave.
             ContentRendered += (_, _) => ViewModel?.StartSession();
+            Views.ShortcutEditor.ApplySaved(this, MainMenu);
             Closing += MainWindow_Closing;
+        }
+
+        // ----- Timeline under the canvas (Clipbar Animation projects) -----
+
+        private double _timelineHeight = 300;
+        private DocumentViewModel? _watchedDocument;
+
+        /// <summary>Shows the timeline row (at the height it was last dragged to) while
+        /// the active document is in Timeline mode, and collapses it otherwise.</summary>
+        private void WatchTimelineMode()
+        {
+            if (ViewModel is not { } vm) return;
+            vm.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(MainViewModel.ActiveDocument)) Rewatch();
+            };
+            Rewatch();
+
+            void Rewatch()
+            {
+                if (_watchedDocument is not null) _watchedDocument.PropertyChanged -= OnDocumentChanged;
+                _watchedDocument = vm.ActiveDocument;
+                if (_watchedDocument is not null) _watchedDocument.PropertyChanged += OnDocumentChanged;
+                UpdateTimelineRow();
+            }
+        }
+
+        private void OnDocumentChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(DocumentViewModel.IsTimelineMode) || e.PropertyName == nameof(DocumentViewModel.WorkspaceMode))
+                UpdateTimelineRow();
+        }
+
+        private void UpdateTimelineRow()
+        {
+            var show = _watchedDocument?.IsTimelineMode == true;
+            if (TimelineRow.ActualHeight > 40) _timelineHeight = TimelineRow.ActualHeight; // keep what the splitter set
+            TimelineRow.Height = show ? new GridLength(_timelineHeight) : new GridLength(0);
+            TimelineRow.MinHeight = show ? 120 : 0;
         }
 
         private bool _closeConfirmed;
@@ -120,12 +164,12 @@ namespace JolieCat.UI
                     e.Handled = true;
                     return;
 
-                case Key.OemOpenBrackets:
+                case Key.OemOpenBrackets when !modifiers.HasFlag(ModifierKeys.Control):
                     vm.Canvas.AdjustBrushSize(-1);
                     e.Handled = true;
                     return;
 
-                case Key.OemCloseBrackets:
+                case Key.OemCloseBrackets when !modifiers.HasFlag(ModifierKeys.Control):
                     vm.Canvas.AdjustBrushSize(+1);
                     e.Handled = true;
                     return;
@@ -169,6 +213,27 @@ namespace JolieCat.UI
             ViewModel?.Toolbox.SelectTool(Shared.Enums.ToolType.FreeTransform);
 
         private void ShortcutsMenu_Click(object sender, RoutedEventArgs e) => ShowShortcuts();
+
+        private void EditShortcutsMenu_Click(object sender, RoutedEventArgs e) => Views.ShortcutEditor.Show(this, MainMenu);
+
+        /// <summary>Help &gt; About JolieCat: the version and where the user guide is.</summary>
+        private void AboutMenu_Click(object sender, RoutedEventArgs e)
+        {
+            var nl = System.Environment.NewLine;
+            JolieCat.UI.MessageBox.Show(this,
+                $"JolieCat {AppVersion}{nl}{nl}" +
+                Localization.Loc.T("A raster editor with layers, filters, frame and keyframe animation, and sprite sheets.") + nl + nl +
+                Localization.Loc.T("Interface language: the switcher on the menu bar, or Edit > Preferences.") + nl + nl +
+                "© 2026 kotr228",
+                "About JolieCat", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>The release number, e.g. "4.0.0" (set in Directory.Build.props).</summary>
+        public static string AppVersion =>
+            typeof(MainWindow).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+                is [System.Reflection.AssemblyInformationalVersionAttribute { InformationalVersion: { Length: > 0 } v }, ..]
+                ? v.Split('+')[0]
+                : typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "";
 
         /// <summary>The Layers panel's adjustment button drops down its menu on a plain click.</summary>
         private void AdjustmentMenuButton_Click(object sender, RoutedEventArgs e)
@@ -282,14 +347,14 @@ namespace JolieCat.UI
             "Gradient: drag from start to end, Shift = 45° steps\n\n" +
             "VIEW\n" +
             "Space+drag or middle mouse  pan · wheel  zoom\n" +
-            "Ctrl+0 fit · Ctrl+1 100% · Ctrl++ / Ctrl+- zoom\n\n" +
+            "Ctrl+0 fit · Ctrl+1 100% · Ctrl++ / Ctrl+- zoom · Ctrl+2 all channels · Ctrl+3/4/5 Red/Green/Blue only\n\n" +
             "SELECT\n" +
             "Ctrl+A all · Ctrl+D deselect · Ctrl+Shift+D reselect · Ctrl+Shift+I inverse · Shift+F6 feather\n" +
             "Hold Shift = add, Alt = subtract, Shift+Alt = intersect when starting a selection\n" +
             "Delete clear · Alt+Backspace fill foreground · Ctrl+Backspace fill background · Shift+F5 Content-Aware Fill\n" +
             "Ctrl+X cut · Shift+Ctrl+C copy merged · Shift+Ctrl+V paste in place · Shift+Ctrl+F fade · Ctrl+click thumbnail = select layer pixels\n\n" +
             "LAYERS\n" +
-            "Ctrl+Shift+N new · Ctrl+J duplicate · Ctrl+E merge down · Ctrl+[ / Ctrl+] order · fx layer style\n" +
+            "Ctrl+Shift+N new · Ctrl+J duplicate · Ctrl+E merge down · Ctrl+[ / Ctrl+] order · Shift+Ctrl+[ / ] to back / front · fx layer style\n" +
             "Ctrl+G group · Ctrl+Shift+G ungroup · Ctrl/Shift+click selects several · drag rows to reorder\n" +
             "Ctrl+Alt+G clipping mask (clip to the layer below)\n" +
             "HISTORY tab: click any step to go back to it · ACTIONS tab: + record, ■ stop, ▶ play on this document\n\n" +
@@ -313,6 +378,55 @@ namespace JolieCat.UI
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
             => SystemCommands.CloseWindow(this);
+
+        // ----- Maximizing a window with its own title bar -----
+
+        private const int WmGetMinMaxInfo = 0x0024;
+        private const int MonitorDefaultToNearest = 2;
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct NativePoint { public int X, Y; }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct MinMaxInfo { public NativePoint Reserved, MaxSize, MaxPosition, MinTrackSize, MaxTrackSize; }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct NativeRect { public int Left, Top, Right, Bottom; }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct MonitorInfo { public int Size; public NativeRect Monitor, Work; public uint Flags; }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern System.IntPtr MonitorFromWindow(System.IntPtr hwnd, int flags);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern bool GetMonitorInfo(System.IntPtr monitor, ref MonitorInfo info);
+
+        /// <summary>
+        /// With our own title bar (WindowStyle None + WindowChrome), Windows maximizes the
+        /// window to the whole monitor plus its invisible frame: the edges hang off the
+        /// screen and the bottom goes under the taskbar. This tells Windows the maximized
+        /// size is exactly the work area of the monitor the window is on.
+        /// </summary>
+        private System.IntPtr FitMaximizedToWorkArea(System.IntPtr hwnd, int msg, System.IntPtr wParam, System.IntPtr lParam, ref bool handled)
+        {
+            if (msg != WmGetMinMaxInfo) return System.IntPtr.Zero;
+            var monitor = MonitorFromWindow(hwnd, MonitorDefaultToNearest);
+            var info = new MonitorInfo { Size = System.Runtime.InteropServices.Marshal.SizeOf<MonitorInfo>() };
+            if (monitor == System.IntPtr.Zero || !GetMonitorInfo(monitor, ref info)) return System.IntPtr.Zero;
+            var mmi = System.Runtime.InteropServices.Marshal.PtrToStructure<MinMaxInfo>(lParam);
+            mmi.MaxPosition.X = info.Work.Left - info.Monitor.Left;
+            mmi.MaxPosition.Y = info.Work.Top - info.Monitor.Top;
+            mmi.MaxSize.X = info.Work.Right - info.Work.Left;
+            mmi.MaxSize.Y = info.Work.Bottom - info.Work.Top;
+            // Keep the smallest size the window allows (MinWidth/MinHeight, in device pixels).
+            var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+            mmi.MinTrackSize.X = (int)(MinWidth * dpi.DpiScaleX);
+            mmi.MinTrackSize.Y = (int)(MinHeight * dpi.DpiScaleY);
+            System.Runtime.InteropServices.Marshal.StructureToPtr(mmi, lParam, true);
+            handled = true;
+            return System.IntPtr.Zero;
+        }
 
         private void ToggleMaximizeRestore()
         {

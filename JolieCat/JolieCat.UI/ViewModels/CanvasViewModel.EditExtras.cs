@@ -95,6 +95,7 @@ namespace JolieCat.UI.ViewModels
                 Color = SKColors.White.WithAlpha((byte)Math.Clamp(Math.Round(opacityPercent * 2.55), 0, 255)),
                 BlendMode = Layer.ToSkiaBlendMode(mode),
             };
+            Core.Rendering.BlendModes.Apply(paint, mode);
             canvas.DrawBitmap(edited, 0, 0, paint);
             return result;
         }

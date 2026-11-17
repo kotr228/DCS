@@ -32,6 +32,10 @@ namespace JolieCat.Core.Documents
     /// <param name="Tracking">Extra space between characters, 1/1000 em (Photoshop's units).</param>
     /// <param name="Warp">Warp Text bend: -100..100 (0 = no warp).</param>
     /// <param name="WarpStyle">How the text bends.</param>
+    /// <param name="PathData">Type on a path: the curve (SVG path data) the letters follow,
+    /// or null for ordinary text. Alignment places the text along it.</param>
+    /// <param name="BoxWidth">Paragraph text: words wrap to lines this wide (pixels), and
+    /// alignment is within it. 0: point text (lines only break at Enter).</param>
     public sealed record TextContent(
         string Text,
         string FontFamily,
@@ -47,7 +51,9 @@ namespace JolieCat.Core.Documents
         bool Underline = false,
         bool Strikethrough = false,
         float Warp = 0,
-        TextWarpStyle WarpStyle = TextWarpStyle.Arc)
+        TextWarpStyle WarpStyle = TextWarpStyle.Arc,
+        string? PathData = null,
+        float BoxWidth = 0)
     {
         /// <summary>Lines (Horizontal) or columns (Vertical), split on newlines.</summary>
         private string[] Lines => Text.Replace("\r\n", "\n").Split('\n');
@@ -64,21 +70,56 @@ namespace JolieCat.Core.Documents
         private float LineWidth(SKFont font, string line) =>
             line.Length == 0 ? 0 : font.MeasureText(line) + ExtraPerCharacter * (line.Length - 1);
 
+        /// <summary>The horizontal lines as drawn: split at Enter, and (paragraph text) each
+        /// wrapped at spaces to fit <see cref="BoxWidth"/>; a word too long for the box
+        /// is broken where it doesn't fit.</summary>
+        private List<string> LinesFor(SKFont font)
+        {
+            var result = new List<string>();
+            foreach (var paragraph in Lines)
+            {
+                if (BoxWidth <= 0 || Vertical || LineWidth(font, paragraph) <= BoxWidth)
+                {
+                    result.Add(paragraph);
+                    continue;
+                }
+                var line = string.Empty;
+                foreach (var word in paragraph.Split(' '))
+                {
+                    var candidate = line.Length == 0 ? word : line + " " + word;
+                    if (LineWidth(font, candidate) <= BoxWidth) { line = candidate; continue; }
+                    if (line.Length > 0) result.Add(line);
+                    // A word longer than the box: break it into pieces that fit.
+                    var rest = word;
+                    while (rest.Length > 1 && LineWidth(font, rest) > BoxWidth)
+                    {
+                        var take = rest.Length - 1;
+                        while (take > 1 && LineWidth(font, rest[..take]) > BoxWidth) take--;
+                        result.Add(rest[..take]);
+                        rest = rest[take..];
+                    }
+                    line = rest;
+                }
+                result.Add(line);
+            }
+            return result;
+        }
+
         /// <summary>Each horizontal line's left x and baseline y, honouring alignment and leading.</summary>
         private List<(string Line, float X, float Baseline, float Width)> Layout(SKFont font)
         {
-            var lines = Lines;
-            var widths = new float[lines.Length];
-            var block = 0f;
-            for (var i = 0; i < lines.Length; i++)
+            var lines = LinesFor(font);
+            var widths = new float[lines.Count];
+            var block = BoxWidth > 0 ? BoxWidth : 0f;     // paragraph text aligns within its box
+            for (var i = 0; i < lines.Count; i++)
             {
                 widths[i] = LineWidth(font, lines[i]);
-                block = Math.Max(block, widths[i]);
+                if (BoxWidth <= 0) block = Math.Max(block, widths[i]);
             }
 
             var result = new List<(string, float, float, float)>();
             var firstBaseline = Origin.Y - font.Metrics.Ascent; // ascent is negative
-            for (var i = 0; i < lines.Length; i++)
+            for (var i = 0; i < lines.Count; i++)
             {
                 var offset = Alignment switch
                 {
@@ -98,6 +139,13 @@ namespace JolieCat.Core.Documents
             using var typeface = CreateTypeface();
             using var font = new SKFont(typeface, FontSize, 1f, 0f);
             using var paint = new SKPaint { Color = Color, IsAntialias = true };
+
+            if (PathData is not null)
+            {
+                using var onPath = BuildOnPath(font);
+                canvas.DrawPath(onPath, paint);
+                return;
+            }
 
             if (Vertical)
             {
@@ -161,6 +209,41 @@ namespace JolieCat.Core.Documents
                 var y = baseline + (font.Metrics.StrikeoutPosition ?? -FontSize * 0.3f);
                 yield return new SKRect(x, y, x + width, y + thickness);
             }
+        }
+
+        /// <summary>Type on a path: every letter stood on the curve, turned to follow it.
+        /// Lines are joined with spaces; letters past the curve's end are left out.</summary>
+        private SKPath BuildOnPath(SKFont font)
+        {
+            var outline = new SKPath();
+            using var curve = SKPath.ParseSvgPathData(PathData) ?? new SKPath();
+            using var measure = new SKPathMeasure(curve, false);
+            var length = measure.Length;
+            if (length <= 0) return outline;
+
+            var text = string.Join(" ", Lines);
+            var widths = text.Select(c => font.MeasureText(c.ToString())).ToArray();
+            var total = widths.Sum() + ExtraPerCharacter * Math.Max(0, text.Length - 1);
+            var distance = Alignment switch
+            {
+                TextAlignment.Center => (length - total) / 2,
+                TextAlignment.Right => length - total,
+                _ => 0f,
+            };
+            for (var i = 0; i < text.Length; i++)
+            {
+                var w = widths[i];
+                var middle = distance + w / 2;
+                distance += w + ExtraPerCharacter;
+                if (middle < 0) continue;
+                if (middle > length) break;
+                if (!measure.GetPositionAndTangent(middle, out var at, out var tangent)) continue;
+                using var glyph = font.GetTextPath(text[i].ToString(), new SKPoint(-w / 2, 0));
+                var turn = SKMatrix.CreateRotation(MathF.Atan2(tangent.Y, tangent.X)).PostConcat(SKMatrix.CreateTranslation(at.X, at.Y));
+                glyph.Transform(turn);
+                outline.AddPath(glyph);
+            }
+            return outline;
         }
 
         /// <summary>The (horizontal) text as one outline, before warping.</summary>
@@ -296,6 +379,13 @@ namespace JolieCat.Core.Documents
                 using var font = new SKFont(typeface, FontSize, 1f, 0f);
                 var lines = Lines;
 
+                if (PathData is not null)
+                {
+                    using var onPath = BuildOnPath(font);
+                    var b = onPath.Bounds;
+                    return b.IsEmpty ? new SKRect(Origin.X, Origin.Y, Origin.X + FontSize / 2, Origin.Y + FontSize) : b;
+                }
+
                 if (Vertical)
                 {
                     var longest = 0;
@@ -312,13 +402,21 @@ namespace JolieCat.Core.Documents
                     return b.IsEmpty ? new SKRect(Origin.X, Origin.Y, Origin.X + FontSize / 2, Origin.Y + FontSize) : b;
                 }
 
-                var width = 0f;
-                foreach (var line in lines) width = Math.Max(width, LineWidth(font, line));
-                var height = (lines.Length - 1) * LineHeight(font) + font.Spacing;
+                var wrapped = LinesFor(font);
+                var width = BoxWidth;
+                foreach (var line in wrapped) width = Math.Max(width, LineWidth(font, line));
+                var height = (wrapped.Count - 1) * LineHeight(font) + font.Spacing;
                 return new SKRect(Origin.X, Origin.Y, Origin.X + Math.Max(width, FontSize / 2), Origin.Y + height);
             }
         }
 
-        public TextContent MovedBy(float dx, float dy) => this with { Origin = new SKPoint(Origin.X + dx, Origin.Y + dy) };
+        public TextContent MovedBy(float dx, float dy)
+        {
+            var moved = this with { Origin = new SKPoint(Origin.X + dx, Origin.Y + dy) };
+            if (PathData is null) return moved;
+            using var curve = SKPath.ParseSvgPathData(PathData) ?? new SKPath();
+            curve.Transform(SKMatrix.CreateTranslation(dx, dy));
+            return moved with { PathData = curve.ToSvgPathData() };
+        }
     }
 }

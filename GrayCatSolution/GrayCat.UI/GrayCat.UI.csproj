@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -6,24 +6,29 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <UseWindowsForms>true</UseWindowsForms>
 	  <AssemblyName>GrayCat.UI</AssemblyName>
 	  <RootNamespace>GrayCat.UI</RootNamespace>
+    <Version>1.4.0</Version>
+    <ApplicationIcon>Assets\GrayCatLogo.ico</ApplicationIcon>
+    <Product>GrayCat Studio</Product>
+    <AssemblyTitle>GrayCat Studio</AssemblyTitle>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="System.Windows.Forms.Ribbon35" Version="3.5.8" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\GrayCat.Core\GrayCat.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Resources\Icons\" />
-    <Folder Include="Resources\Styles\" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GrayCat.UI.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\GrayCatLogo.ico" />
+    <Resource Include="Assets\GrayCatMark.png" />
   </ItemGroup>
 
 </Project>

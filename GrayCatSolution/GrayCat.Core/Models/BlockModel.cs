@@ -1,4 +1,4 @@
-﻿namespace GrayCat.Core.Models;
+namespace GrayCat.Core.Models;
 
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -6,6 +6,9 @@ public class BlockModel
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string Type { get; set; } = "Text";
+
+    /// <summary>Slug of the page this block is on ("" = home page).</summary>
+    public string Page { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
 
     // Position
@@ -123,6 +126,7 @@ public class BlockModel
         {
             Id = Guid.NewGuid().ToString(),
             Type = this.Type,
+            Page = this.Page,
             Content = this.Content,
             PositionX = this.PositionX + 20,
             PositionY = this.PositionY + 20,
@@ -145,108 +149,18 @@ public class BlockModel
     }
 
     /// <summary>
-    /// Initialize default properties based on block type
+    /// Initialize default properties based on block type (lists are stored as JSON text for editing).
     /// </summary>
-    public void InitializeDefaultProperties()
+    /// <param name="language">Site language for the starter texts ("uk" or "en").</param>
+    public void InitializeDefaultProperties(string? language = null)
     {
-        var defaults = GetDefaultPropertiesForType(Type);
-
-        if (defaults != null)
+        foreach (var kvp in GrayCat.Core.Generation.BlockDefaults.For(Type, language))
         {
-            foreach (var kvp in defaults)
+            if (!Properties.ContainsKey(kvp.Key))
             {
-                if (!Properties.ContainsKey(kvp.Key))
-                {
-                    Properties[kvp.Key] = kvp.Value;
-                }
+                Properties[kvp.Key] = GrayCat.Core.Generation.PropertyValues.ToEditable(kvp.Value);
             }
         }
-    }
-
-    private static Dictionary<string, object>? GetDefaultPropertiesForType(string blockType)
-    {
-        return blockType switch
-        {
-            "Button" => new Dictionary<string, object>
-            {
-                { "text", "Click Me" },
-                { "url", "#" },
-                { "variant", "primary" },
-                { "size", "medium" },
-                { "fullWidth", false },
-                { "disabled", false }
-            },
-            "Hero" => new Dictionary<string, object>
-            {
-                { "headline", "Welcome to Our Site" },
-                { "subheadline", "Build amazing things together" },
-                { "ctaText", "Get Started" },
-                { "ctaUrl", "#" },
-                { "alignment", "center" },
-                { "height", "medium" }
-            },
-            "Card" => new Dictionary<string, object>
-            {
-                { "title", "Card Title" },
-                { "description", "Card description" },
-                { "linkText", "Learn More" },
-                { "linkUrl", "#" },
-                { "shadow", true }
-            },
-            "Navbar" => new Dictionary<string, object>
-            {
-                { "brandName", "Brand" },
-                { "position", "static" },
-                { "menuItems", "[{\"text\":\"Home\",\"url\":\"#\"}]" }
-            },
-            "ContactForm" => new Dictionary<string, object>
-            {
-                { "title", "Get in Touch" },
-                { "submitText", "Send Message" },
-                { "submitUrl", "/api/contact" }
-            },
-            "Video" => new Dictionary<string, object>
-            {
-                { "videoUrl", "" },
-                { "provider", "youtube" },
-                { "controls", true }
-            },
-            "Testimonial" => new Dictionary<string, object>
-            {
-                { "quote", "This product changed my life!" },
-                { "author", "John Doe" },
-                { "rating", 5 }
-            },
-            "Pricing" => new Dictionary<string, object>
-            {
-                { "planName", "Pro Plan" },
-                { "price", "29" },
-                { "currency", "$" },
-                { "features", "[\"Feature 1\",\"Feature 2\"]" }
-            },
-            "Accordion" => new Dictionary<string, object>
-            {
-                { "title", "FAQ" },
-                { "items", "[{\"question\":\"Q?\",\"answer\":\"A\"}]" }
-            },
-            "Stats" => new Dictionary<string, object>
-            {
-                { "stats", "[{\"number\":\"100+\",\"label\":\"Clients\"}]" },
-                { "layout", "horizontal" }
-            },
-            "SocialLinks" => new Dictionary<string, object>
-            {
-                { "links", "[{\"platform\":\"facebook\",\"url\":\"#\"}]" },
-                { "style", "icons" }
-            },
-            "Divider" => new Dictionary<string, object>
-            {
-                { "style", "solid" },
-                { "thickness", 1 },
-                { "color", "#DDDDDD" }
-            },
-            _ => null
-        };
     }
 
     /// <summary>

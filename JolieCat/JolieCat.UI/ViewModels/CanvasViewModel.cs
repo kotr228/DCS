@@ -404,6 +404,8 @@ namespace JolieCat.UI.ViewModels
             {
                 ToolType.CloneStamp or ToolType.HealingBrush when _cloneSource is null => "Alt+click to set the clone source",
                 ToolType.Zoom => "Click to zoom in, Alt+click to zoom out",
+                ToolType.Ruler => "Drag to measure (Shift: 45° steps); Straighten Layer levels the line",
+                ToolType.ObjectSelection => "Drag a box loosely around a thing to select it (Shift adds, Alt subtracts)",
                 ToolType.Move => "Drag to move the layer (or the selected pixels)",
                 ToolType.Patch => "Draw around what to fix, then drag the selection onto clean texture",
                 ToolType.ContentAwareMove => "Draw around an object, then drag it to its new place",
@@ -438,6 +440,7 @@ namespace JolieCat.UI.ViewModels
 
             FlushTextRestyle();
             if (TryBeginGuideDrag(devicePoint)) return;
+            if (TryBeginArtboardDrag(devicePoint)) return;
 
             var doc = SnapForActiveTool(ToDocumentSpace(devicePoint));
             var activeLayer = Layers.ActiveLayer?.Model;
@@ -540,7 +543,8 @@ namespace JolieCat.UI.ViewModels
                 case ToolType.TextHorizontal:
                 case ToolType.TextVertical:
                     // New text goes on a new text layer, so the active layer doesn't matter.
-                    BeginTextAt(doc);
+                    // Click: point text (or edit the text there); drag: a paragraph box.
+                    StartTextDrag(doc);
                     break;
 
                 case ToolType.Hand:
@@ -617,6 +621,7 @@ namespace JolieCat.UI.ViewModels
             HoverDocumentPoint = doc;
 
             if (UpdateGuideDrag(devicePoint)) return;
+            if (UpdateArtboardDrag(devicePoint)) return;
             if (ShowRulers) RaiseInvalidate(); // the pointer marks on the rulers
             doc = SnapForActiveTool(doc);
 
@@ -714,6 +719,7 @@ namespace JolieCat.UI.ViewModels
         public void OnPointerReleased(SKPoint devicePoint)
         {
             if (EndGuideDrag(devicePoint)) return;
+            if (EndArtboardDrag()) return;
             if (_isPatching)
             {
                 EndPatch(ToDocumentSpace(devicePoint));
@@ -887,6 +893,7 @@ namespace JolieCat.UI.ViewModels
         {
             RaiseInvalidate();
             OnPropertyChanged(nameof(TextEditScreenY));
+            OnPropertyChanged(nameof(TextEditBoxScreenWidth));
         }
 
         partial void OnZoomChanged(double value)
@@ -895,6 +902,7 @@ namespace JolieCat.UI.ViewModels
             OnPropertyChanged(nameof(ZoomText));
             OnPropertyChanged(nameof(TextEditScreenX));
             OnPropertyChanged(nameof(TextEditScreenY));
+            OnPropertyChanged(nameof(TextEditBoxScreenWidth));
         }
 
         public void Dispose()

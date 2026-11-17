@@ -1,4 +1,4 @@
-﻿using GrayCat.Shared.Models;
+using GrayCat.Shared.Models;
 
 namespace GrayCat.Core.Models;
 
@@ -9,6 +9,9 @@ public class ProjectModel
     public string Author { get; set; } = "Unknown";
     public ProjectType Type { get; set; } = ProjectType.React;
     public List<BlockModel> Blocks { get; set; } = new();
+
+    /// <summary>Pages of the site; the first one (slug "") is the home page.</summary>
+    public List<PageInfo> Pages { get; set; } = new();
     public Dictionary<string, string> Settings { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime ModifiedAt { get; set; } = DateTime.UtcNow;

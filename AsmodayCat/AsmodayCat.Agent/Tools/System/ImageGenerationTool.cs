@@ -1,82 +1,111 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using AsmodayCat.Shared.Interfaces;
-using AsmodayCat.Network.BlackCatBridge;
 
 namespace AsmodayCat.Agent.Tools.System;
 
-// FR7.3: генерація зображень через локальний Stable Diffusion WebUI / ComfyUI API
+// FR7.3: image generation through a local Stable Diffusion WebUI (AUTOMATIC1111 / Forge API).
+// Offered to the model only while the WebUI answers.
 public class ImageGenerationTool : IAgentTool
 {
+    private static readonly TimeSpan AvailabilityCacheTime = TimeSpan.FromSeconds(60);
+
     private readonly HttpClient _http;
-    private readonly IBlackCatSecurityFilter _security;
+    private readonly string     _baseUrl;
 
-    // Базовий URL локального SD WebUI (http://127.0.0.1:7860)
-    private readonly string _sdBaseUrl;
+    private bool     _available;
+    private DateTime _checkedAt = DateTime.MinValue;
 
-    public ImageGenerationTool(HttpClient http, IBlackCatSecurityFilter security, string sdBaseUrl = "http://127.0.0.1:7860")
+    public ImageGenerationTool(string baseUrl)
     {
-        _http = http;
-        _security = security;
-        _sdBaseUrl = sdBaseUrl.TrimEnd('/');
+        _baseUrl = baseUrl.TrimEnd('/');
+        _http    = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
     }
 
-    public string GetName() => "image_generate";
-    public string GetDescription() =>
-        "Generate an image using Stable Diffusion. Args: {\"prompt\": \"...\", \"negative_prompt\": \"...\", \"output_path\": \"C:\\\\output\\\\image.png\", \"steps\": 20, \"width\": 512, \"height\": 512}";
+    public string Name => "image_generate";
 
-    public async Task<string> ExecuteAsync(string jsonArguments, CancellationToken cancellationToken = default)
+    public string Description =>
+        "Generate an image with Stable Diffusion from an English text prompt and save it as PNG. Returns the file path.";
+
+    public object Parameters => new
     {
-        // Зовнішній SD API потребує дозволу BlackCat якщо він не localhost
-        if (!_sdBaseUrl.Contains("127.0.0.1") && !_sdBaseUrl.Contains("localhost"))
+        type = "object",
+        properties = new
         {
-            var allowed = await _security.IsInternetAccessAllowedAsync("image_generation", cancellationToken);
-            if (!allowed)
-                return JsonSerializer.Serialize(new { error = "External SD API blocked by BlackCat." });
+            prompt          = new { type = "string",  description = "What to draw, in English" },
+            negative_prompt = new { type = "string",  description = "What to avoid (optional)" },
+            file_name       = new { type = "string",  description = "Output file name, e.g. cat.png (optional)" },
+            width           = new { type = "integer", description = "Default 512" },
+            height          = new { type = "integer", description = "Default 512" },
+            steps           = new { type = "integer", description = "Default 20" }
+        },
+        required = new[] { "prompt" }
+    };
+
+    public bool IsEnabled(ToolContext context) => context.AllowImages;
+
+    public async Task<bool> IsAvailableAsync(CancellationToken ct)
+    {
+        if (DateTime.UtcNow - _checkedAt < AvailabilityCacheTime) return _available;
+
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(2));
+            using var resp = await _http.GetAsync($"{_baseUrl}/sdapi/v1/sd-models", cts.Token);
+            _available = resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            ct.ThrowIfCancellationRequested();
+            _available = false;
         }
 
-        using var doc   = JsonDocument.Parse(jsonArguments);
-        var prompt       = doc.RootElement.GetProperty("prompt").GetString() ?? string.Empty;
-        var negPrompt    = doc.RootElement.TryGetProperty("negative_prompt", out var np) ? np.GetString() ?? "" : "";
-        var outputPath   = doc.RootElement.TryGetProperty("output_path",     out var op) ? op.GetString() ?? "" : "";
-        var steps        = doc.RootElement.TryGetProperty("steps",  out var st) ? st.GetInt32() : 20;
-        var width        = doc.RootElement.TryGetProperty("width",  out var w)  ? w.GetInt32()  : 512;
-        var height       = doc.RootElement.TryGetProperty("height", out var h)  ? h.GetInt32()  : 512;
+        _checkedAt = DateTime.UtcNow;
+        return _available;
+    }
+
+    public async Task<string> ExecuteAsync(JsonElement args, ToolContext ctx, CancellationToken ct)
+    {
+        var prompt = args.Str("prompt") ?? string.Empty;
+        if (prompt.Length == 0) return ToolRegistry.Error("'prompt' is required.");
 
         var payload = new
         {
             prompt,
-            negative_prompt = negPrompt,
-            steps,
-            width,
-            height,
+            negative_prompt = args.Str("negative_prompt") ?? string.Empty,
+            steps           = Math.Clamp(args.Int("steps", 20), 1, 80),
+            width           = Math.Clamp(args.Int("width", 512), 64, 2048),
+            height          = Math.Clamp(args.Int("height", 512), 64, 2048),
             sampler_name    = "DPM++ 2M Karras"
         };
 
-        var response = await _http.PostAsJsonAsync($"{_sdBaseUrl}/sdapi/v1/txt2img", payload, cancellationToken);
-        response.EnsureSuccessStatusCode();
+        using var response = await _http.PostAsJsonAsync($"{_baseUrl}/sdapi/v1/txt2img", payload, ct);
+        if (!response.IsSuccessStatusCode)
+            return ToolRegistry.Error($"Stable Diffusion error {(int)response.StatusCode}");
 
-        using var resultDoc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
-        var images = resultDoc.RootElement.GetProperty("images");
+        using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync(ct));
+        if (!result.RootElement.TryGetProperty("images", out var images) || images.GetArrayLength() == 0)
+            return ToolRegistry.Error("Stable Diffusion returned no images.");
 
-        if (images.GetArrayLength() == 0)
-            return JsonSerializer.Serialize(new { error = "SD returned no images." });
+        var bytes = Convert.FromBase64String(images[0].GetString() ?? string.Empty);
 
-        var base64 = images[0].GetString() ?? string.Empty;
-        var imageBytes = Convert.FromBase64String(base64);
+        var name = SafeFileName(args.Str("file_name"));
+        Directory.CreateDirectory(ctx.ImageOutputDirectory);
+        var path = Path.Combine(ctx.ImageOutputDirectory, name);
+        await File.WriteAllBytesAsync(path, bytes, ct);
+        ctx.RecordAction($"Generated image {path} (prompt: {(prompt.Length > 100 ? prompt[..100] + "…" : prompt)})");
 
-        if (!string.IsNullOrWhiteSpace(outputPath))
-        {
-            var dir = Path.GetDirectoryName(outputPath);
-            if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-            await File.WriteAllBytesAsync(outputPath, imageBytes, cancellationToken);
-        }
+        return ToolJson.Serialize(new { success = true, path, size_bytes = bytes.Length });
+    }
 
-        return JsonSerializer.Serialize(new
-        {
-            success     = true,
-            output_path = outputPath,
-            size_bytes  = imageBytes.Length
-        });
+    private static string SafeFileName(string? requested)
+    {
+        var name = string.IsNullOrWhiteSpace(requested)
+            ? $"image_{DateTime.Now:yyyyMMdd_HHmmss}.png"
+            : Path.GetFileName(requested.Trim());
+
+        foreach (var c in Path.GetInvalidFileNameChars()) name = name.Replace(c, '_');
+        if (!name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) name += ".png";
+        return name;
     }
 }

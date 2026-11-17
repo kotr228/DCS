@@ -9,6 +9,9 @@ public interface ILLMEngine
     Task UnloadAsync(CancellationToken cancellationToken = default);
     IAsyncEnumerable<string> GenerateStreamAsync(LlmRequest request, CancellationToken cancellationToken = default);
 
+    // Multi-turn chat with optional tool calling
+    IAsyncEnumerable<LlmChatChunk> ChatStreamAsync(LlmChatRequest request, CancellationToken cancellationToken = default);
+
     // Default no-op; override in engines that maintain conversation context
     void ClearContext() { }
 

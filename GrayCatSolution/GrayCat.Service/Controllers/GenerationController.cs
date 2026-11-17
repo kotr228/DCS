@@ -1,4 +1,4 @@
-﻿namespace GrayCat.Service.Controllers;
+namespace GrayCat.Service.Controllers;
 
 using Microsoft.AspNetCore.Mvc;
 using GrayCat.Core.Interfaces;
@@ -47,6 +47,9 @@ public class GenerationController : ControllerBase
         var result = await _generationService.ValidateBeforeGenerationAsync(request);
         return Ok(result);
     }
+
+    [HttpGet("health")]
+    public IActionResult Health() => Ok(new { status = "ok", version = GrayCat.Core.Constants.AppConstants.AppVersion });
 
     [HttpGet("status/{requestId}")]
     public async Task<IActionResult> GetStatus(string requestId)

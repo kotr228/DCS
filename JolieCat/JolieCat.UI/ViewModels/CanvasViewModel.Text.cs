@@ -21,6 +21,64 @@ namespace JolieCat.UI.ViewModels
         private Layer? _editingTextLayer;
         private TextContent? _editingTextBefore;
 
+        // ----- Paragraph text: dragging a box with the Text tool -----
+
+        private SKPoint? _textDragStart;
+        private SKPoint _textDragEnd;
+
+        /// <summary>Paragraph text's box width for the text being typed (0: point text).</summary>
+        private float _textBoxWidth;
+
+        /// <summary>The box being dragged out with the Text tool (for the canvas), or null.</summary>
+        public SKRect? TextBoxDraft => _textDragStart is { } s && Math.Abs(_textDragEnd.X - s.X) >= 8
+            ? new SKRect(Math.Min(s.X, _textDragEnd.X), Math.Min(s.Y, _textDragEnd.Y), Math.Max(s.X, _textDragEnd.X), Math.Max(s.Y, _textDragEnd.Y))
+            : null;
+
+        /// <summary>The paragraph box's width on screen (device pixels), 0 for point text.</summary>
+        public double TextEditBoxScreenWidth => _textBoxWidth * Zoom;
+
+        private void StartTextDrag(SKPoint doc)
+        {
+            CommitTextEdit();
+            _textDragStart = doc;
+            _textDragEnd = doc;
+        }
+
+        private bool UpdateTextDrag(SKPoint doc)
+        {
+            if (_textDragStart is null) return false;
+            _textDragEnd = doc;
+            RaiseInvalidate();
+            return true;
+        }
+
+        /// <summary>Released: a click edits or starts point text; a drag starts paragraph text in the box.</summary>
+        private void EndTextDrag()
+        {
+            if (_textDragStart is not { } start) return;
+            var box = TextBoxDraft;
+            _textDragStart = null;
+            RaiseInvalidate();
+            if (box is { } r && FindTextLayerAt(start) is null)
+            {
+                BeginTextAt(new SKPoint(r.Left, r.Top));
+                _textBoxWidth = r.Width;
+                OnPropertyChanged(nameof(TextEditBoxScreenWidth));
+            }
+            else
+            {
+                BeginTextAt(start);
+            }
+        }
+
+        /// <summary>Starts paragraph text <paramref name="width"/> pixels wide at <paramref name="topLeft"/> (also for tests).</summary>
+        public void BeginTextBox(SKPoint topLeft, float width)
+        {
+            BeginTextAt(topLeft);
+            _textBoxWidth = Math.Max(1, width);
+            OnPropertyChanged(nameof(TextEditBoxScreenWidth));
+        }
+
         /// <summary>Starts a Text tool edit at <paramref name="doc"/>: re-opens the text
         /// there if there is one, else starts a new text.</summary>
         private void BeginTextAt(SKPoint doc)
@@ -36,6 +94,8 @@ namespace JolieCat.UI.ViewModels
 
             _editingTextLayer = null;
             _editingTextBefore = null;
+            _textBoxWidth = 0;
+            OnPropertyChanged(nameof(TextEditBoxScreenWidth));
             _textEditOrigin = doc;
             _isVerticalTextEdit = _toolbox.ActiveTool.Type == ToolType.TextVertical;
             TextEditContent = string.Empty;
@@ -83,6 +143,8 @@ namespace JolieCat.UI.ViewModels
 
             _editingTextLayer = layer;
             _editingTextBefore = text;
+            _textBoxWidth = text.BoxWidth;
+            OnPropertyChanged(nameof(TextEditBoxScreenWidth));
             _textEditOrigin = text.Origin;
             _isVerticalTextEdit = text.Vertical;
             TextEditContent = text.Text;
@@ -96,11 +158,26 @@ namespace JolieCat.UI.ViewModels
             OnPropertyChanged(nameof(TextEditScreenY));
         }
 
+        /// <summary>Layer &gt; Type on Path: <paramref name="text"/> set along the Pen tool's
+        /// path (Text tool options, foreground color), as a new text layer. False without a path.</summary>
+        public bool TypeOnPenPath(string text)
+        {
+            if (PenPath is not { } pen || string.IsNullOrWhiteSpace(text)) return false;
+            using var curve = pen.ToSKPath();
+            if (curve.PointCount < 2) return false;
+            var plain = new TextContent(text, "Segoe UI", 36, false, false, BrushColor, curve.Points[0], false);
+            var content = (_toolbox.OptionsFor(ToolType.TextHorizontal) as TextToolOptionsViewModel)?.ApplyTo(plain) ?? plain;
+            Layers.AddTextLayer(content with { Text = text, Color = BrushColor, Vertical = false, Warp = 0, PathData = curve.ToSvgPathData() });
+            CancelPenPath();
+            return true;
+        }
+
         /// <summary>The text as the Text tool's options and the foreground color say.</summary>
         private TextContent CurrentTextContent(string text)
         {
             var options = _toolbox.CurrentToolOptions as TextToolOptionsViewModel;
-            var content = (_editingTextBefore ?? new TextContent(text, "Segoe UI", 24, false, false, BrushColor, _textEditOrigin, _isVerticalTextEdit))
+            var content = (_editingTextBefore ?? new TextContent(text, "Segoe UI", 24, false, false, BrushColor, _textEditOrigin, _isVerticalTextEdit,
+                    BoxWidth: _isVerticalTextEdit ? 0 : _textBoxWidth))
                 with { Text = text, Color = BrushColor, Origin = _textEditOrigin, Vertical = _isVerticalTextEdit };
             return options is null ? content : options.ApplyTo(content);
         }
